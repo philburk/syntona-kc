@@ -2,7 +2,7 @@
 
 This document outlines the architecture, data models, and UI components for the SyntonaKC music application.
 
-# Goals
+## Goals
 
 * Create music more easily.
 * Avoid the mental constraints of track based DAWs.
@@ -13,7 +13,7 @@ This document outlines the architecture, data models, and UI components for the 
 * Support for standards: MIDI 2.0, Music XML
 * Support live performance as well as composition.
 
-# Requirements
+## Requirements
 
 * Use Kotlin/Compose for WASM
 * Use KSyn as audio synthesizer
@@ -27,76 +27,75 @@ This document outlines the architecture, data models, and UI components for the 
 * Flexible tempo control, support polyrhythms, tempo hierarchy. Scaling or independent tempi.
 * Support UMP/Ethernet
 
-# High Level Editors
+## High Level Editors
 
 Almost any editor can be the top level editor except maybe the gesture editor. Or maybe the Data Flow editor should be the top level.
 
-## Hierarchy Editor
+### Hierarchy Editor
 
 Parallel and Sequential Collection editor, show nested patches
 
-### Questions
+#### Questions
 
 Should startDelays and stopDelays be shown? On the one hand, I like that this editor is purely relational and allows unknown durations. An actual timeline requires fixed durations. But clearly that is a useful and ubiquitous view when scheduling musical events.
 
-## Gesture Editors
+### Gesture Editors
 
-Capture shapes from a mouse or a knob, or microphone.  
-XY input like Squiggle  
-Y/Time like an envelope or other time based function.  
-Input can be segmented or continuous. Internally always segmented.  
-Multi-dimensional shapes? Like Shape Editor from HMSL?  
-Very simple automation editing.  
-Can operate on Shapes independent of time or meaning.
+* Capture shapes from a mouse or a knob, or microphone.  
+* XY input like Squiggle  
+* Y/Time like an envelope or other time based function.  
+* Input can be segmented or continuous. Internally always segmented.  
+* Multi-dimensional shapes? Like Shape Editor from HMSL?  
+* Very simple automation editing.  
+* Can operate on Shapes independent of time or meaning.
 
-## Staff Notation Editor
+### Staff Notation Editor
 
-For composition with articulations.  
-Use MIDI 2.0 orchestra profile.  
-Support N-tuplets  
-Standard or modernized mode, whatever that is.
+* For composition with articulations.  
+* Use MIDI 2.0 orchestra profile.  
+* Support N-tuplets  
+* Standard or modernized mode, whatever that is.
 
-## Track Editor
+### Track Editor
 
-Can be a leaf in the hierarchy. Or a top level Parallel collection.  
-Time can be linear or relative.
+* Can be a leaf in the hierarchy. Or a top level Parallel collection.  
+* Time can be linear or relative.
 
-## Wormholes
+### Wormholes
 
-Communication between any points of the composition.  
-Maybe dangerous from a software architecture standpoint. Spaghetti code\!
+* Communication between any points of the composition.  
+* Maybe dangerous from a software architecture standpoint. Spaghetti code\!
 
-## Data Flow
+### Data Flow
 
-Module data flow editor like original Synthona.  
-Modules for composition
-
-* Delay \- add time to timestamp
-* Sync
-* AllDone \- wait for all inputs to be done, then reset
-* Merge timestamp from one port and message from another port
+* Module data flow editor like original Synthona.  
+* Modules for composition
+  * Delay \- add time to timestamp
+  * Sync
+  * AllDone \- wait for all inputs to be done, then reset
+  * Merge timestamp from one port and message from another port
 
 Add a module that can execute a script. (ECMA). Input and output ports are declared in the script and appear as connectable data flow ports. Specify whether the script runs at audio rate or compose/event time.
 
-## Harmonic Progression Editor
+#3# Harmonic Progression Editor
 
 Useful but maybe mentally constraining
 
-## Audio Waveform Editor
+### Audio Waveform Editor
 
 Like Audacity with elements from ListenUp  
 Edit captured audio from other parts of Syntona.  
 Musique concrète techniques, rhythmic splicing, tempo integration
 
-# Common Elements
+## Common Elements
 
 It should be possible to navigate within the hierarchy
 
-## Composables needs specific ports
+### Composables needs specific ports
 
 High level messages are all timestamped.
 
-### Inputs
+#### Inputs
 
 * Start \- begin processing with a timestamp
 * Pause \- stop but do not reset time
@@ -105,11 +104,11 @@ High level messages are all timestamped.
 
 Or are pause/resume global?
 
-### Outputs
+#### Outputs
 
 * Done \- when collection has finished last repetition
 
-## Common Iconography
+### Common Iconography
 
 * Open for Editing
 * Close Editor
@@ -119,13 +118,13 @@ Or are pause/resume global?
 * Select for Copy/Paste
 * Rename
 
-# API
+## API
 
 The term Composable conflicts with Kotlin “@Composable” attribute.
 
 Is there a difference between time within a composition and ongoing real-time in a performance?
 
-### Playable Interface
+#### Playable Interface
 
 * `play(time: Timestamp)`
 * `chase(time: Timestamp) // chase quickly to specified time, for play cursor`
@@ -149,7 +148,7 @@ Is there a difference between time within a composition and ongoing real-time in
 
 Can this be broken into smaller interfaces?
 
-# User Journeys
+## User Journeys
 
 User Intention  
 No UI defined yet
@@ -220,15 +219,14 @@ What is the Difference Between Syntona and other DAWs
 14. Implement waveform editor
 15. Implement Relative Intonation Editor
 
-
-## Architecture
+### Architecture
 - **Core Model:** Using `ScoreTime` (Long nanoseconds) for high-resolution scheduling.
 - **Data Flow:** Modules connected via Jacks, passing `Message` objects.
 - **UI:** Compose Multiplatform (Desktop, Android, Web).
 
-## Data Types
+### Data Types
 - `ScoreTime`: Value class wrapping a Long.
 - `Message`: Sealed class for graph communication.
 
-## Modules & Graphs
+### Modules & Graphs
 (Details to be added)
