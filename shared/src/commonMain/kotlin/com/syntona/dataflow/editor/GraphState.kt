@@ -49,8 +49,64 @@ class GraphState {
 
     val connections = mutableStateListOf<UIConnection>()
 
+    // Current state of a wire being dragged
+    var draggingWireByOutput by mutableStateOf<OutputJack?>(null)
+    var draggingWireToInput by mutableStateOf<InputJack?>(null)
+    var dragPointerPosition by mutableStateOf(Offset.Zero)
+
     fun connect(output: OutputJack, input: InputJack) {
         output.connect(input)
-        connections.add(UIConnection(output, input))
+        if (connections.none { it.output == output && it.input == input }) {
+            connections.add(UIConnection(output, input))
+        }
+    }
+
+    fun disconnect(output: OutputJack, input: InputJack) {
+        output.disconnect(input)
+        connections.removeAll { it.output == output && it.input == input }
+    }
+
+    fun deleteConnection(connection: UIConnection) {
+        disconnect(connection.output, connection.input)
+    }
+
+    fun startDraggingFromOutput(output: OutputJack) {
+        // Many fan-out from an OutputJack are now allowed.
+        // Clicking an OutputJack should NOT disconnect any existing wires.
+        draggingWireByOutput = output
+    }
+
+    fun startDraggingFromInput(input: InputJack) {
+        // If an InputJack with a Wire connected is clicked then the first connection should be disconnected from the InputJack
+        // and a rubber-band line to the connected OutputJack should be drawn.
+        val existing = connections.firstOrNull { it.input == input }
+        if (existing != null) {
+            val output = existing.output
+            deleteConnection(existing)
+            draggingWireByOutput = output
+        }
+    }
+
+    fun onPointerMove(position: Offset) {
+        dragPointerPosition = position
+    }
+
+    fun onPointerUp(inputJack: InputJack?) {
+        val output = draggingWireByOutput
+        if (output != null) {
+            // Hit test: are we over an input jack?
+            val targetInput = inputJack ?: findInputJackAt(dragPointerPosition)
+            if (targetInput != null) {
+                connect(output, targetInput)
+            }
+        }
+        draggingWireByOutput = null
+    }
+
+    private fun findInputJackAt(offset: Offset): InputJack? {
+        return jackOffsets.entries
+            .filter { it.key is InputJack }
+            .firstOrNull { (it.value - offset).getDistance() < 20f }
+            ?.key as? InputJack
     }
 }

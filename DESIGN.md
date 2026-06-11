@@ -81,7 +81,16 @@ Should startDelays and stopDelays be shown? On the one hand, I like that this ed
 
 Add a module that can execute a script. (ECMA). Input and output ports are declared in the script and appear as connectable data flow ports. Specify whether the script runs at audio rate or compose/event time.
 
-#3# Harmonic Progression Editor
+#### Wire Behavior
+
+* If a Wire is clicked on then it should be deleted.
+* If an OutputJack with no Wire is clicked then a rubber-band line should track the pointer.
+  If the pointer is released over an InputJack then a connection should be made and a Wire should be drawn.
+* If an InputJack with a Wire connected is clicked then the first connection should be disconnected from the InputJack
+  and a rubber-band line to the connected OutputJack should be drawn.
+  If the pointer is released over an InputJack then a connection should be made and a Wire should be drawn.
+
+### Harmonic Progression Editor
 
 Useful but maybe mentally constraining
 

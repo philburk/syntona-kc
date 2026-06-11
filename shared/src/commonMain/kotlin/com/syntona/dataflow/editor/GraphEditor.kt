@@ -21,9 +21,7 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.syntona.dataflow.model.InputJack
-import com.syntona.dataflow.model.Jack
-import com.syntona.dataflow.model.Module
+import com.syntona.dataflow.model.*
 import com.syntona.dataflow.modules.ShowModule
 import kotlin.math.roundToInt
 
@@ -57,6 +55,21 @@ fun WireRenderer(state: GraphState) {
                     cubicTo(controlX, start.y, controlX, end.y, end.x, end.y)
                 }
                 drawPath(path, color = Color.Gray, style = Stroke(width = 2f))
+            }
+        }
+
+        // Draw rubber-band wire as a simple straight line
+        val draggingOutput = state.draggingWireByOutput
+        if (draggingOutput != null) {
+            val start = state.jackOffsets[draggingOutput] ?: Offset.Zero
+            val end = state.dragPointerPosition
+            if (start != Offset.Zero) {
+                drawLine(
+                    color = Color.Yellow,
+                    start = start,
+                    end = end,
+                    strokeWidth = 2f
+                )
             }
         }
     }
@@ -129,6 +142,26 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .padding(vertical = 2.dp)
+            .pointerInput(jack) {
+                detectDragGestures(
+                    onDragStart = { 
+                        val j = jack
+                        if (j is OutputJack) state.startDraggingFromOutput(j)
+                        else if (j is InputJack) state.startDraggingFromInput(j)
+                        // Initialize position at the jack's center
+                        state.onPointerMove(state.jackOffsets[jack] ?: Offset.Zero)
+                    },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        // Update the pointer position based on cumulative drag
+                        state.onPointerMove(state.dragPointerPosition + dragAmount)
+                    },
+                    onDragEnd = {
+                        state.onPointerUp(null)
+                    },
+                    onDragCancel = { state.onPointerUp(null) }
+                )
+            }
             .onGloballyPositioned { layoutCoordinates ->
                 // Calculate the edge of the jack for wire attachment
                 val size = layoutCoordinates.size
