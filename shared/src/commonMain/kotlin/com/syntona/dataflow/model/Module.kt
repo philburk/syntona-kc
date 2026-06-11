@@ -10,6 +10,8 @@ abstract class Module(val name: String) {
     private val _outputs = mutableListOf<OutputJack>()
     val outputs: List<OutputJack> get() = _outputs
 
+    private val processingMessages = mutableSetOf<Message>()
+    private var safe = true
     protected fun addInput(name: String, isKickable: Boolean = false): InputJack {
         val jack = InputJack(name, this, isKickable)
         _inputs.add(jack)
@@ -28,10 +30,18 @@ abstract class Module(val name: String) {
      */
     open fun onMessageReceived(jack: InputJack, msg: Message) {
         if (jack.isKickable) {
-            execute(msg)
+            executeSafely(msg)
         }
     }
 
+    fun executeSafely(triggerMessage: Message) {
+        // prevent recursion in cyclic graphs
+        if (safe) {
+            safe = false
+            execute(triggerMessage)
+            safe = true
+        }
+    }
     /**
      * Triggered by a kickable input. Subclasses implement their logic here.
      * @param triggerMessage The message that triggered the execution.
