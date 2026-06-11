@@ -54,6 +54,27 @@ class GraphState {
     var draggingWireToInput by mutableStateOf<InputJack?>(null)
     var dragPointerPosition by mutableStateOf(Offset.Zero)
 
+    // Current state of a module being dragged from the tree
+    var draggedModuleCreator by mutableStateOf<(() -> Module)?>(null)
+    var draggedModulePosition by mutableStateOf(Offset.Zero)
+
+    fun startDraggingFromTree(creator: () -> Module, position: Offset) {
+        draggedModuleCreator = creator
+        draggedModulePosition = position
+    }
+
+    fun updateDraggedModulePosition(position: Offset) {
+        draggedModulePosition = position
+    }
+
+    fun dropModuleFromTree(position: Offset) {
+        val creator = draggedModuleCreator
+        if (creator != null) {
+            addModule(creator(), position - rootOffset)
+        }
+        draggedModuleCreator = null
+    }
+
     fun connect(output: OutputJack, input: InputJack) {
         output.connect(input)
         if (connections.none { it.output == output && it.input == input }) {

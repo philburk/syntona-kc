@@ -37,6 +37,21 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
         state.modules.forEach { module ->
             ModuleNode(module, state)
         }
+
+        // Draw dragged module shadow from tree
+        state.draggedModuleCreator?.let {
+            Box(
+                modifier = Modifier
+                    .offset {
+                        val pos = state.draggedModulePosition - state.rootOffset
+                        IntOffset(pos.x.roundToInt(), pos.y.roundToInt())
+                    }
+                    .width(140.dp)
+                    .height(60.dp)
+                    .background(Color.Cyan.copy(alpha = 0.3f))
+                    .border(1.dp, Color.Cyan, RoundedCornerShape(4.dp))
+            )
+        }
     }
 }
 
@@ -144,7 +159,7 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
             .padding(vertical = 2.dp)
             .pointerInput(jack) {
                 detectDragGestures(
-                    onDragStart = { 
+                    onDragStart = {
                         val j = jack
                         if (j is OutputJack) state.startDraggingFromOutput(j)
                         else if (j is InputJack) state.startDraggingFromInput(j)

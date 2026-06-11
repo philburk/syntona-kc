@@ -3,9 +3,12 @@ package com.syntona
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeContentPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -17,10 +20,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.syntona.dataflow.editor.GraphEditor
 import com.syntona.dataflow.editor.GraphState
+import com.syntona.dataflow.editor.ModuleTree
 import com.syntona.dataflow.modules.AddModule
 import com.syntona.dataflow.modules.KickModule
 import com.syntona.dataflow.modules.PrintModule
@@ -68,17 +73,25 @@ fun App() {
                     Text("Hierarchy")
                 }
             } else {
-                Box(modifier = Modifier.weight(1f).fillMaxSize()) {
-                    GraphEditor(graphState)
+                Row(modifier = Modifier.fillMaxSize()) {
+                    // Left Panel: Module Tree
+                    Box(modifier = Modifier.fillMaxHeight().width(200.dp).background(Color(0xFF252525))) {
+                        ModuleTree(state = graphState)
+                    }
 
-                    // Simple "Kick" button to trigger the graph
-                    Button(
-                        onClick = {
-                            (graphState.modules.first { it is KickModule } as KickModule).kick()
-                        },
-                        modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp)
-                    ) {
-                        Text("Kick Graph")
+                    // Main Panel: Graph Editor
+                    Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
+                        GraphEditor(graphState)
+
+                        // Simple "Kick" button to trigger the graph
+                        Button(
+                            onClick = {
+                                graphState.modules.filterIsInstance<KickModule>().forEach { it.kick() }
+                            },
+                            modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp)
+                        ) {
+                            Text("Kick Graph")
+                        }
                     }
                 }
             }
