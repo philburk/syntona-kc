@@ -27,6 +27,10 @@ This document outlines the architecture, data models, and UI components for the 
 * Flexible tempo control, support polyrhythms, tempo hierarchy. Scaling or independent tempi.
 * Support UMP/Ethernet
 
+## Style Requirements
+
+* There must be NO trailing whitespace in Kotlin code or MarkDown files.
+
 ## High Level Editors
 
 Almost any editor can be the top level editor except maybe the gesture editor. Or maybe the Data Flow editor should be the top level.
@@ -41,34 +45,34 @@ Should startDelays and stopDelays be shown? On the one hand, I like that this ed
 
 ### Gesture Editors
 
-* Capture shapes from a mouse or a knob, or microphone.  
-* XY input like Squiggle  
-* Y/Time like an envelope or other time based function.  
-* Input can be segmented or continuous. Internally always segmented.  
-* Multi-dimensional shapes? Like Shape Editor from HMSL?  
-* Very simple automation editing.  
+* Capture shapes from a mouse or a knob, or microphone.
+* XY input like Squiggle
+* Y/Time like an envelope or other time based function.
+* Input can be segmented or continuous. Internally always segmented.
+* Multi-dimensional shapes? Like Shape Editor from HMSL?
+* Very simple automation editing.
 * Can operate on Shapes independent of time or meaning.
 
 ### Staff Notation Editor
 
-* For composition with articulations.  
-* Use MIDI 2.0 orchestra profile.  
-* Support N-tuplets  
+* For composition with articulations.
+* Use MIDI 2.0 orchestra profile.
+* Support N-tuplets
 * Standard or modernized mode, whatever that is.
 
 ### Track Editor
 
-* Can be a leaf in the hierarchy. Or a top level Parallel collection.  
+* Can be a leaf in the hierarchy. Or a top level Parallel collection.
 * Time can be linear or relative.
 
 ### Wormholes
 
-* Communication between any points of the composition.  
+* Communication between any points of the composition.
 * Maybe dangerous from a software architecture standpoint. Spaghetti code\!
 
 ### Data Flow
 
-* Module data flow editor like original Synthona.  
+* Module data flow editor like original Synthona.
 * Modules for composition
   * Delay \- add time to timestamp
   * Sync
@@ -83,8 +87,8 @@ Useful but maybe mentally constraining
 
 ### Audio Waveform Editor
 
-Like Audacity with elements from ListenUp  
-Edit captured audio from other parts of Syntona.  
+Like Audacity with elements from ListenUp
+Edit captured audio from other parts of Syntona.
 Musique concrète techniques, rhythmic splicing, tempo integration
 
 ## Common Elements
@@ -150,7 +154,7 @@ Can this be broken into smaller interfaces?
 
 ## User Journeys
 
-User Intention  
+User Intention
 No UI defined yet
 
 1. Define an overall structure of A-B-A’. The A’ section is an alias of the A section so that changes made to A are reflected in A’. But A’ is not the same as A because of Modifiers that are applied.
@@ -172,7 +176,7 @@ Issues/Questions:
 * Think about the difference between a “live” algorithmic track that keeps changing and a “rendered” track that is frozen.
 * What is the top level? A Hierarchy Editor, a Data Flow patch containing a hierarchy?
 
-Playable vs Performable  
+Playable vs Performable
 Should there be a difference?
 
 | Playable | Performable |

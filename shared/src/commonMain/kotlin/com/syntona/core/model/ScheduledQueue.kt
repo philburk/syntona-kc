@@ -11,7 +11,7 @@ class ScheduledQueue<T> {
     // For a simple implementation, we'll use a sorted list of entries.
     // In a high-performance audio app, you might want to use a more specialized structure
     // like a PriorityQueue if available, or a platform-specific concurrent TreeMap.
-    
+
     private val entries = mutableListOf<Entry<T>>()
 
     private data class Entry<T>(val time: ScoreTime, val obj: T)
@@ -35,7 +35,7 @@ class ScheduledQueue<T> {
      */
     fun removeNext(time: ScoreTime): T? {
         if (entries.isEmpty()) return null
-        
+
         val first = entries.first()
         if (first.time <= time) {
             return entries.removeAt(0).obj
