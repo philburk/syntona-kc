@@ -151,8 +151,9 @@ fun ModuleNode(module: Module, state: GraphState) {
 
 @Composable
 fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
-    val color = if (jack is InputJack && jack.isKickable) Color.Red else Color.Cyan
-
+    val connectorColor = if (jack is InputJack && jack.isKickable) Color.Red else Color.Cyan
+    val textColor = if (jack.isHighlighted) Color.Black else Color.LightGray
+    val backgroundColor = if (jack.isHighlighted) Color(180, 170, 130) else Color.DarkGray
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -188,15 +189,18 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
                 }
                 state.updateJackOffset(jack, pos + edgeOffset)
             }
+            .background(backgroundColor)
     ) {
         if (isLeft) {
-            Box(modifier = Modifier.size(8.dp).background(color))
+            Box(modifier = Modifier.size(8.dp).background(connectorColor))
             Spacer(modifier = Modifier.width(4.dp))
-            Text(jack.name, color = Color.LightGray, fontSize = 10.sp)
+            Text(jack.name, color = textColor, fontSize = 10.sp)
+            Spacer(modifier = Modifier.width(4.dp))
         } else {
-            Text(jack.name, color = Color.LightGray, fontSize = 10.sp)
             Spacer(modifier = Modifier.width(4.dp))
-            Box(modifier = Modifier.size(8.dp).background(color))
+            Text(jack.name, color = textColor, fontSize = 10.sp)
+            Spacer(modifier = Modifier.width(4.dp))
+            Box(modifier = Modifier.size(8.dp).background(connectorColor))
         }
     }
 }

@@ -1,6 +1,8 @@
 package com.syntona.dataflow.model
 
-import com.syntona.core.model.ScoreTime
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 
 /**
  * Represents a connection point on a [Module].
@@ -8,6 +10,9 @@ import com.syntona.core.model.ScoreTime
 sealed class Jack {
     abstract val name: String
     abstract val module: Module
+
+    // We use a mutable state to update the UI when a message arrives
+    var isHighlighted by mutableStateOf(false)
 }
 
 /**
@@ -19,7 +24,7 @@ class InputJack(
     override val module: Module,
     val isKickable: Boolean = false
 ) : Jack() {
-    var kicked = false
+    var isKicked = false
         private set
 
     var lastMessage: Message? = null
@@ -27,9 +32,9 @@ class InputJack(
 
     fun receive(msg: Message) {
         lastMessage = msg
-        kicked = true
+        isKicked = true
         module.onMessageReceived(this, msg)
-        kicked = false
+        isKicked = false
     }
 
     /**
