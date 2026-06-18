@@ -23,6 +23,8 @@ object ModuleRegistry {
 
     init {
         val core = getOrCreateBundle(root, "core")
+        val basic = getOrCreateBundle(core, "basic")
+        basic.modules.add(ModuleEntry("counter") { CounterModule() })
 
         val math = getOrCreateBundle(core, "math")
         math.modules.add(ModuleEntry("+") { AddModule() })

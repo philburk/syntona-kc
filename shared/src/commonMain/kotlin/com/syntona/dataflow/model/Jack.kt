@@ -19,12 +19,17 @@ class InputJack(
     override val module: Module,
     val isKickable: Boolean = false
 ) : Jack() {
+    var kicked = false
+        private set
+
     var lastMessage: Message? = null
         private set
 
     fun receive(msg: Message) {
         lastMessage = msg
+        kicked = true
         module.onMessageReceived(this, msg)
+        kicked = false
     }
 
     /**
