@@ -10,11 +10,7 @@ plugins {
 
 kotlin {
     jvm()
-    
-    js {
-        browser()
-    }
-    
+
     @OptIn(ExperimentalWasmDsl::class)
     wasmJs {
         browser()
@@ -37,6 +33,17 @@ kotlin {
     }
     
     sourceSets {
+        val audioMain by creating {
+            dependsOn(commonMain.get())
+        }
+        androidMain.get().dependsOn(audioMain)
+        jvmMain.get().dependsOn(audioMain)
+        wasmJsMain.get().dependsOn(audioMain)
+
+        audioMain.dependencies {
+            implementation("com.mobileer:audio-bridge:0.3.0")
+        }
+
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
         }
@@ -49,12 +56,13 @@ kotlin {
             implementation(libs.compose.uiToolingPreview)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
+
+            implementation("com.softsynth.ksyn:ksyn:1.1.0")
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
+
         }
         commonTest.dependencies {
             implementation(libs.kotlin.test)
-        }
-        jsMain.dependencies {
-            implementation(libs.wrappers.browser)
         }
     }
 }
