@@ -4,6 +4,8 @@ import kotlin.math.sin
 import kotlin.math.cos
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
+import kotlin.math.floor
+import kotlin.math.round
 
 abstract class UnaryOperatorModule(name: String) : Module(name) {
     val input = addInput("in", isKickable = true)
@@ -52,6 +54,26 @@ class DivideModule : BinaryOperatorModule("/") {
     }
 }
 
+class CompareModule() : Module("compare") {
+    val inputA = addInput("A", isKickable = true)
+    val inputB = addInput("B", isKickable = false)
+    val outputLT = addOutput("outLT")
+    val outputEQ = addOutput("outEQ")
+    val outputGT = addOutput("outGT")
+
+    override fun execute(triggerMessage: Message) {
+        val a = inputA.getDoubleValue()
+        val b = inputB.getDoubleValue()
+        if (a < b) {
+            outputLT.send(Message.FloatValue(triggerMessage.time, a))
+        } else if (a == b) {
+            outputEQ.send(Message.FloatValue(triggerMessage.time, a))
+        } else if (a > b) {
+            outputGT.send(Message.FloatValue(triggerMessage.time, a))
+        }
+    }
+}
+
 class SineModule : UnaryOperatorModule("sin") {
     override fun execute(triggerMessage: Message) {
         val result = sin(input.getDoubleValue())
@@ -62,6 +84,20 @@ class SineModule : UnaryOperatorModule("sin") {
 class CosineModule : UnaryOperatorModule("cos") {
     override fun execute(triggerMessage: Message) {
         val result = cos(input.getDoubleValue())
+        output.send(Message.FloatValue(triggerMessage.time, result))
+    }
+}
+
+class FloorModule : UnaryOperatorModule("floor") {
+    override fun execute(triggerMessage: Message) {
+        val result = floor(input.getDoubleValue())
+        output.send(Message.FloatValue(triggerMessage.time, result))
+    }
+}
+
+class RoundModule : UnaryOperatorModule("round") {
+    override fun execute(triggerMessage: Message) {
+        val result = round(input.getDoubleValue())
         output.send(Message.FloatValue(triggerMessage.time, result))
     }
 }

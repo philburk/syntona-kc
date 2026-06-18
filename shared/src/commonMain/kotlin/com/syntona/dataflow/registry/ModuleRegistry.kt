@@ -29,9 +29,12 @@ object ModuleRegistry {
         math.modules.add(ModuleEntry("-") { SubtractModule() })
         math.modules.add(ModuleEntry("*") { MultiplyModule() })
         math.modules.add(ModuleEntry("/") { DivideModule() })
-        math.modules.add(ModuleEntry("sin") { SineModule() })
+        math.modules.add(ModuleEntry("compare") { CompareModule() })
         math.modules.add(ModuleEntry("cos") { CosineModule() })
+        math.modules.add(ModuleEntry("floor") { FloorModule() })
         math.modules.add(ModuleEntry("random") { RandomModule() })
+        math.modules.add(ModuleEntry("round") { RoundModule() })
+        math.modules.add(ModuleEntry("sin") { SineModule() })
 
         val input = getOrCreateBundle(core, "input")
         input.modules.add(ModuleEntry("kick") { KickModule() })
