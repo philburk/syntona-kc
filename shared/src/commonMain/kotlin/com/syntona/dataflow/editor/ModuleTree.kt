@@ -20,9 +20,7 @@ import com.syntona.dataflow.registry.ModuleRegistry
 
 @Composable
 fun ModuleTree(state: GraphState) {
-    Column(modifier = Modifier.fillMaxHeight().width(180.dp).padding(8.dp)) {
-        Text("Modules", style = MaterialTheme.typography.titleMedium, color = Color.White)
-        Spacer(modifier = Modifier.height(8.dp))
+    Column(modifier = Modifier.fillMaxHeight().width(180.dp).padding(8.dp)) { Spacer(modifier = Modifier.height(8.dp))
         LazyColumn {
             item {
                 BundleView(ModuleRegistry.root, 0, state)

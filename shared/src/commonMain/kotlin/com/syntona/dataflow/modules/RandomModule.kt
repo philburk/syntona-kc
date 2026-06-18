@@ -8,8 +8,8 @@ import kotlin.random.Random
  * Generates a random value between 0.0 and 1.0 when kicked.
  */
 class RandomModule : Module("Random") {
-    val kick = addInput("Kick", isKickable = true)
-    val output = addOutput("Value")
+    val kick = addInput("kick", isKickable = true)
+    val output = addOutput("value")
 
     override fun execute(triggerMessage: Message) {
         val value = Random.nextDouble()

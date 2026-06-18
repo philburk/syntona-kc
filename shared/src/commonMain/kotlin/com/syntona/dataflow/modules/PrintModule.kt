@@ -7,7 +7,7 @@ import com.syntona.dataflow.model.Module
  * Logs the received message to the console.
  */
 class PrintModule : Module("Print") {
-    val input = addInput("In", isKickable = true)
+    val input = addInput("in", isKickable = true)
 
     override fun execute(triggerMessage: Message) {
         val value = when (triggerMessage) {

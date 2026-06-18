@@ -26,17 +26,21 @@ object ModuleRegistry {
 
         val math = getOrCreateBundle(core, "math")
         math.modules.add(ModuleEntry("+") { AddModule() })
+        math.modules.add(ModuleEntry("-") { SubtractModule() })
         math.modules.add(ModuleEntry("*") { MultiplyModule() })
-        math.modules.add(ModuleEntry("Random") { RandomModule() })
+        math.modules.add(ModuleEntry("/") { DivideModule() })
+        math.modules.add(ModuleEntry("sin") { SineModule() })
+        math.modules.add(ModuleEntry("cos") { CosineModule() })
+        math.modules.add(ModuleEntry("random") { RandomModule() })
 
         val input = getOrCreateBundle(core, "input")
-        input.modules.add(ModuleEntry("Kick") { KickModule() })
+        input.modules.add(ModuleEntry("kick") { KickModule() })
 
         val view = getOrCreateBundle(core, "view")
-        view.modules.add(ModuleEntry("Show") { ShowModule() })
+        view.modules.add(ModuleEntry("show") { ShowModule() })
 
         // Add Print to view as well
-        view.modules.add(ModuleEntry("Print") { PrintModule() })
+        view.modules.add(ModuleEntry("print") { PrintModule() })
     }
 
     private fun getOrCreateBundle(parent: Bundle, name: String): Bundle {
