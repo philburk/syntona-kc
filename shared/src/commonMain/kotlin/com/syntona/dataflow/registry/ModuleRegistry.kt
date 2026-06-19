@@ -44,20 +44,91 @@ object ModuleRegistry {
         val input = getOrCreateBundle(core, "input")
         input.modules.add(ModuleEntry("kick") { KickModule() })
 
-        val ksyn = getOrCreateBundle(root, "ksyn")
-        ksyn.modules.add(ModuleEntry("lineOut") { UnitGeneratorModule("lineOut", LineOut()) })
-        ksyn.modules.add(ModuleEntry("sineOsc") { UnitGeneratorModule("sineOsc", SineOscillator()) })
-        ksyn.modules.add(ModuleEntry("sawOsc") { UnitGeneratorModule("sawOsc", SawtoothOscillator()) })
-
         val view = getOrCreateBundle(core, "view")
         view.modules.add(ModuleEntry("show") { ShowModule() })
-
-        // Add Print to view as well
         view.modules.add(ModuleEntry("print") { PrintModule() })
+
+        val ksyn = getOrCreateBundle(root, "ksyn")
+        addKSynModule(ksyn, "lineOut", LineOut())
+
+        val sources = getOrCreateBundle(ksyn, "sources")
+        addKSynModule(sources, "sineOsc", SineOscillator())
+        addKSynModule(sources, "sineOscPM", SineOscillatorPhaseModulated())
+        addKSynModule(sources, "sawOsc", SawtoothOscillator())
+        addKSynModule(sources, "sawOscBL", SawtoothOscillatorBL())
+        addKSynModule(sources, "sawOscDPW", SawtoothOscillatorDPW())
+        addKSynModule(sources, "squareOsc", SquareOscillator())
+        addKSynModule(sources, "squareOscBL", SquareOscillatorBL())
+        addKSynModule(sources, "triOsc", TriangleOscillator())
+        addKSynModule(sources, "impulse", ImpulseOscillator())
+        addKSynModule(sources, "impulseBL", ImpulseOscillatorBL())
+        addKSynModule(sources, "pulseOsc", PulseOscillator())
+        addKSynModule(sources, "pulseOscBL", PulseOscillatorBL())
+        addKSynModule(sources, "whiteNoise", WhiteNoise())
+        addKSynModule(sources, "redNoise", RedNoise())
+        addKSynModule(sources, "pinkNoise", PinkNoise())
+
+        val analysis = getOrCreateBundle(ksyn, "analysis")
+        addKSynModule(analysis, "edgeDetector", EdgeDetector())
+        addKSynModule(analysis, "peakFollower", PeakFollower())
+        addKSynModule(analysis, "pitchDetector", PitchDetector())
+        addKSynModule(analysis, "schmidtTrigger", SchmidtTrigger())
+
+        val control = getOrCreateBundle(ksyn, "control")
+        addKSynModule(control, "DAHDSR", EnvelopeDAHDSR())
+        addKSynModule(control, "envAD", EnvelopeAttackDecay())
+        addKSynModule(control, "latch", Latch())
+        addKSynModule(control, "latchZC", LatchZeroCrossing())
+        addKSynModule(control, "rampLin", LinearRamp())
+        addKSynModule(control, "rampCon", ContinuousRamp())
+        addKSynModule(control, "rampAsym", AsymptoticRamp())
+        addKSynModule(control, "rampExp", ExponentialRamp())
+        addKSynModule(control, "select", Select())
+
+        val amath = getOrCreateBundle(ksyn, "math")
+        addKSynModule(amath, "a+", Add())
+        addKSynModule(amath, "a-", Subtract())
+        addKSynModule(amath, "a*", Multiply())
+        addKSynModule(amath, "a*+", MultiplyAdd())
+        addKSynModule(amath, "a/", Subtract())
+        addKSynModule(amath, "a>", Compare())
+        addKSynModule(amath, "aPower2", PowerOfTwo())
+        addKSynModule(amath, "aMin", Minimum())
+        addKSynModule(amath, "aMax", Maximum())
+        addKSynModule(amath, "aRanger", RangeConverter())
+
+        val filters = getOrCreateBundle(ksyn, "filters")
+        addKSynModule(filters, "lowPass", FilterLowPass())
+        addKSynModule(filters, "bandPass", FilterBandPass())
+        addKSynModule(filters, "bandStop", FilterBandStop())
+        addKSynModule(filters, "highPass", FilterHighPass())
+        addKSynModule(filters, "allPass", FilterAllPass())
+        addKSynModule(filters, "lowShelf", FilterLowShelf())
+        addKSynModule(filters, "highShelf", FilterHighShelf())
+        addKSynModule(filters, "peakingEQ", FilterPeakingEQ())
+        addKSynModule(filters, "fourPole", FilterFourPoles())
+        addKSynModule(filters, "stateVar", FilterStateVariable())
+        addKSynModule(filters, "waveFolder", WaveFolder())
+
+        val effects = getOrCreateBundle(ksyn, "effects")
+        addKSynModule(effects, "phaseShifter", PhaseShifter())
+        addKSynModule(effects, "delay", InterpolatingDelay())
+        addKSynModule(effects, "pan", Pan())
+        addKSynModule(effects, "plateReverb", PlateReverb())
+        addKSynModule(effects, "roomReverb", RoomReverb())
+
     }
 
     private fun getOrCreateBundle(parent: Bundle, name: String): Bundle {
         return parent.subBundles.find { it.name == name }
             ?: Bundle(name).also { parent.subBundles.add(it) }
+    }
+
+    private fun addKSynModule(
+        bundle: Bundle,
+        name: String,
+        unit: UnitGenerator
+    ) {
+        bundle.modules.add(ModuleEntry(name) { UnitGeneratorModule(name,unit) })
     }
 }
