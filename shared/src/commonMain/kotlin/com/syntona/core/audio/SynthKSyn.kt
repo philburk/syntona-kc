@@ -26,27 +26,17 @@ import com.softsynth.ksyn.unitgen.WhiteNoise
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.yield
 
-class SynthKSyn {
+object SynthKSyn {
 
+    val synth = KSyn.createSynthesizer()
+    private val ksynAudioBridge: KSynAudioBridge = KSynAudioBridge(synth)
 
-    private var synth = KSyn.createSynthesizer()
-    private var ksynAudioBridge: KSynAudioBridge = KSynAudioBridge(synth)
-    private var lineOut: LineOut = LineOut()
-    private var noise: WhiteNoise = WhiteNoise()
-    init {
-        synth.add(lineOut)
-        synth.add(noise)
-        noise.amplitude.set(0.02)
-        noise.output.connect(0, lineOut.input, 0)
-    }
 
     fun start() {
         ksynAudioBridge.start()
-        lineOut.start()
     }
 
     fun stop() {
-        lineOut.stop()
         ksynAudioBridge.stop()
         synth.stop()
     }

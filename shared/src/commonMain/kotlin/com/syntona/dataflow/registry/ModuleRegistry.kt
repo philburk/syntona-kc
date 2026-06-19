@@ -1,5 +1,6 @@
 package com.syntona.dataflow.registry
 
+import com.softsynth.ksyn.unitgen.*
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.modules.*
 
@@ -42,6 +43,11 @@ object ModuleRegistry {
 
         val input = getOrCreateBundle(core, "input")
         input.modules.add(ModuleEntry("kick") { KickModule() })
+
+        val ksyn = getOrCreateBundle(root, "ksyn")
+        ksyn.modules.add(ModuleEntry("lineOut") { UnitGeneratorModule("lineOut", LineOut()) })
+        ksyn.modules.add(ModuleEntry("sineOsc") { UnitGeneratorModule("sineOsc", SineOscillator()) })
+        ksyn.modules.add(ModuleEntry("sawOsc") { UnitGeneratorModule("sawOsc", SawtoothOscillator()) })
 
         val view = getOrCreateBundle(core, "view")
         view.modules.add(ModuleEntry("show") { ShowModule() })

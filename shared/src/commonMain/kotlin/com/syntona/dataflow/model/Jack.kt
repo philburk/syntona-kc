@@ -19,7 +19,7 @@ sealed class Jack {
  * An input port that can receive messages.
  * @property isKickable If true, receiving a message on this jack triggers [Module.execute].
  */
-class InputJack(
+open class InputJack(
     override val name: String,
     override val module: Module,
     val isKickable: Boolean = false
@@ -30,7 +30,7 @@ class InputJack(
     var lastMessage: Message? = null
         private set
 
-    fun receive(msg: Message) {
+    open fun receive(msg: Message) {
         lastMessage = msg
         isKicked = true
         module.onMessageReceived(this, msg)
@@ -49,19 +49,19 @@ class InputJack(
 /**
  * An output port that can send messages to connected [InputJack]s.
  */
-class OutputJack(
+open class OutputJack(
     override val name: String,
     override val module: Module
 ) : Jack() {
     private val connections = mutableListOf<InputJack>()
 
-    fun connect(inputJack: InputJack) {
+    open fun connect(inputJack: InputJack) {
         if (!connections.contains(inputJack)) {
             connections.add(inputJack)
         }
     }
 
-    fun disconnect(inputJack: InputJack) {
+    open fun disconnect(inputJack: InputJack) {
         connections.remove(inputJack)
     }
 

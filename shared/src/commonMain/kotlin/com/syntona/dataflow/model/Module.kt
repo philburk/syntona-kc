@@ -24,6 +24,18 @@ abstract class Module(val name: String) {
         return jack
     }
 
+    protected fun addAudioInput(name: String, port: com.softsynth.ksyn.ports.UnitInputPort): AudioInputJack {
+        val jack = AudioInputJack(name, this, port)
+        _inputs.add(jack)
+        return jack
+    }
+
+    protected fun addAudioOutput(name: String, port: com.softsynth.ksyn.ports.UnitOutputPort): AudioOutputJack {
+        val jack = AudioOutputJack(name, this, port)
+        _outputs.add(jack)
+        return jack
+    }
+
     /**
      * Called when any [InputJack] receives a message.
      * If the jack is kickable, [execute] is called.
