@@ -222,14 +222,18 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
                     onDrag = { change, dragAmount ->
                         change.consume()
                         if (isValueDragging) {
+                            val inputJack = jack as InputJack
                             valueDragAccumX += dragAmount.x
                             valueDragAccumY += dragAmount.y
-                            // X position controls sensitivity: left = coarse, right = fine
-                            // Every 200 px shifts sensitivity by one decade
-                            val sensitivity = 0.01 * 10.0.pow(-valueDragAccumX / 200.0)
-                            val newValue = valueDragStartValue - valueDragAccumY * sensitivity
+                            // At X=0, dragging 400 px covers the full range.
+                            // Every 200 px of X shifts sensitivity by one decade:
+                            //   left (negative X) = coarser, right (positive X) = finer.
+                            val range = inputJack.max - inputJack.min
+                            val sensitivity = range / 400.0 * 10.0.pow(-valueDragAccumX / 200.0)
+                            val newValue = (valueDragStartValue - valueDragAccumY * sensitivity)
+                                .coerceIn(inputJack.min, inputJack.max)
                             valueDragCurrentValue = newValue
-                            (jack as InputJack).setValue(newValue)
+                            inputJack.setValue(newValue)
                         } else {
                             state.onPointerMove(state.dragPointerPosition + dragAmount)
                         }
