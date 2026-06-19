@@ -23,6 +23,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.syntona.core.model.SyntonaModel
 import com.syntona.dataflow.editor.GraphEditor
 import com.syntona.dataflow.editor.GraphState
 import com.syntona.dataflow.editor.ModuleTree
@@ -37,6 +38,8 @@ import com.syntona.dataflow.modules.ShowModule
 fun App() {
     MaterialTheme {
         var showContent by remember { mutableStateOf(false) }
+        val syntonaModel = remember { SyntonaModel() }
+
         val modifier = Modifier
             .background(MaterialTheme.colorScheme.primaryContainer)
             .safeContentPadding()
@@ -66,10 +69,16 @@ fun App() {
         ) {
             if (!showContent) {
                 Text("Choose top level editor:")
-                Button(onClick = { showContent = !showContent }) {
-                    Text("Data Flow")
+                Button(onClick = {
+                    showContent = !showContent
+                    syntonaModel.start()
+                }) {
+                    Text("DataFlow")
                 }
-                Button(onClick = { showContent = !showContent }) {
+                Button(onClick = {
+                    showContent = !showContent
+                    syntonaModel.start()
+                }) {
                     Text("Hierarchy")
                 }
             } else {
