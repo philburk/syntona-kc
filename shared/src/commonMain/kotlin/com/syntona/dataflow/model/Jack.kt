@@ -3,6 +3,7 @@ package com.syntona.dataflow.model
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.syntona.core.model.ScoreTime
 
 /**
  * Represents a connection point on a [Module].
@@ -13,6 +14,9 @@ sealed class Jack {
 
     // We use a mutable state to update the UI when a message arrives
     var isHighlighted by mutableStateOf(false)
+
+    /** Returns the current scalar value of this jack for display. */
+    abstract fun getValue(): Double
 }
 
 /**
@@ -44,6 +48,13 @@ open class InputJack(
         val msg = lastMessage
         return if (msg is Message.FloatValue) msg.value else default
     }
+
+    override fun getValue(): Double = getDoubleValue()
+
+    /** Set the value of this jack by delivering a FloatValue message. */
+    open fun setValue(value: Double) {
+        receive(Message.FloatValue(ScoreTime.Zero, value))
+    }
 }
 
 /**
@@ -54,6 +65,10 @@ open class OutputJack(
     override val module: Module
 ) : Jack() {
     private val connections = mutableListOf<InputJack>()
+
+    private var lastSentValue: Double = 0.0
+
+    override fun getValue(): Double = lastSentValue
 
     open fun connect(inputJack: InputJack) {
         if (!connections.contains(inputJack)) {
@@ -66,6 +81,7 @@ open class OutputJack(
     }
 
     fun send(msg: Message) {
+        if (msg is Message.FloatValue) lastSentValue = msg.value
         connections.forEach { it.receive(msg) }
     }
 }

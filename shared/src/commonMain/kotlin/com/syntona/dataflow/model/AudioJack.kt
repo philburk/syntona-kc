@@ -19,6 +19,12 @@ class AudioInputJack(
     val partIndex: Int = 0
 ) : InputJack(name, module) {
 
+    override fun getValue(): Double = unitInputPort.get(partIndex).toDouble()
+
+    override fun setValue(value: Double) {
+        unitInputPort.set(partIndex, value.toFloat())
+    }
+
     override fun receive(msg: Message) {
         super.receive(msg)
         if (msg is Message.FloatValue) {
@@ -40,6 +46,8 @@ class AudioOutputJack(
     val unitOutputPort: UnitOutputPort,
     val partIndex: Int = 0
 ) : OutputJack(name, module) {
+
+    override fun getValue(): Double = unitOutputPort.value.toDouble()
 
     override fun connect(inputJack: InputJack) {
         super.connect(inputJack)

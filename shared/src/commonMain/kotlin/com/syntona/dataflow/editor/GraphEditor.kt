@@ -15,6 +15,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -23,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.syntona.dataflow.model.*
 import com.syntona.dataflow.modules.ShowModule
+import kotlin.math.pow
 import kotlin.math.roundToInt
 
 @Composable
@@ -149,37 +151,32 @@ fun ModuleNode(module: Module, state: GraphState) {
     }
 }
 
+private fun formatValue(value: Double): String = "%.4g".format(value)
+
 @Composable
 fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
     val connectorColor = if (jack is InputJack && jack.isKickable) Color.Red else Color.Cyan
     val textColor = if (jack.isHighlighted) Color.Black else Color.LightGray
     val backgroundColor = if (jack.isHighlighted) Color(180, 170, 130) else Color.DarkGray
+
+    var isHovered by remember { mutableStateOf(false) }
+    var isValueDragging by remember { mutableStateOf(false) }
+    var valueDragStartValue by remember { mutableStateOf(0.0) }
+    var valueDragCurrentValue by remember { mutableStateOf(0.0) }
+    var valueDragAccumX by remember { mutableStateOf(0f) }
+    var valueDragAccumY by remember { mutableStateOf(0f) }
+
+    val displayText = when {
+        isValueDragging -> formatValue(valueDragCurrentValue)
+        isHovered -> formatValue(jack.getValue())
+        else -> jack.name
+    }
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .padding(vertical = 2.dp)
-            .pointerInput(jack) {
-                detectDragGestures(
-                    onDragStart = {
-                        val j = jack
-                        if (j is OutputJack) state.startDraggingFromOutput(j)
-                        else if (j is InputJack) state.startDraggingFromInput(j)
-                        // Initialize position at the jack's center
-                        state.onPointerMove(state.jackOffsets[jack] ?: Offset.Zero)
-                    },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        // Update the pointer position based on cumulative drag
-                        state.onPointerMove(state.dragPointerPosition + dragAmount)
-                    },
-                    onDragEnd = {
-                        state.onPointerUp(null)
-                    },
-                    onDragCancel = { state.onPointerUp(null) }
-                )
-            }
             .onGloballyPositioned { layoutCoordinates ->
-                // Calculate the edge of the jack for wire attachment
                 val size = layoutCoordinates.size
                 val pos = layoutCoordinates.positionInRoot() - state.rootOffset
                 val edgeOffset = if (isLeft) {
@@ -190,15 +187,75 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
                 state.updateJackOffset(jack, pos + edgeOffset)
             }
             .background(backgroundColor)
+            // Hover detection
+            .pointerInput("hover") {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        when (event.type) {
+                            PointerEventType.Enter -> isHovered = true
+                            PointerEventType.Exit -> isHovered = false
+                            else -> {}
+                        }
+                    }
+                }
+            }
+            // Drag detection: value edit or wire drag depending on jack state
+            .pointerInput(jack) {
+                detectDragGestures(
+                    onDragStart = { _ ->
+                        val unconnectedInput = jack is InputJack &&
+                            state.connections.none { it.input == jack }
+                        if (unconnectedInput) {
+                            val startVal = (jack as InputJack).getValue()
+                            valueDragStartValue = startVal
+                            valueDragCurrentValue = startVal
+                            valueDragAccumX = 0f
+                            valueDragAccumY = 0f
+                            isValueDragging = true
+                        } else {
+                            if (jack is OutputJack) state.startDraggingFromOutput(jack)
+                            else if (jack is InputJack) state.startDraggingFromInput(jack)
+                            state.onPointerMove(state.jackOffsets[jack] ?: Offset.Zero)
+                        }
+                    },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        if (isValueDragging) {
+                            valueDragAccumX += dragAmount.x
+                            valueDragAccumY += dragAmount.y
+                            // X position controls sensitivity: left = coarse, right = fine
+                            // Every 200 px shifts sensitivity by one decade
+                            val sensitivity = 0.01 * 10.0.pow(-valueDragAccumX / 200.0)
+                            val newValue = valueDragStartValue - valueDragAccumY * sensitivity
+                            valueDragCurrentValue = newValue
+                            (jack as InputJack).setValue(newValue)
+                        } else {
+                            state.onPointerMove(state.dragPointerPosition + dragAmount)
+                        }
+                    },
+                    onDragEnd = {
+                        if (isValueDragging) {
+                            isValueDragging = false
+                        } else {
+                            state.onPointerUp(null)
+                        }
+                    },
+                    onDragCancel = {
+                        isValueDragging = false
+                        state.onPointerUp(null)
+                    }
+                )
+            }
     ) {
         if (isLeft) {
             Box(modifier = Modifier.size(8.dp).background(connectorColor))
             Spacer(modifier = Modifier.width(4.dp))
-            Text(jack.name, color = textColor, fontSize = 10.sp)
+            Text(displayText, color = textColor, fontSize = 10.sp)
             Spacer(modifier = Modifier.width(4.dp))
         } else {
             Spacer(modifier = Modifier.width(4.dp))
-            Text(jack.name, color = textColor, fontSize = 10.sp)
+            Text(displayText, color = textColor, fontSize = 10.sp)
             Spacer(modifier = Modifier.width(4.dp))
             Box(modifier = Modifier.size(8.dp).background(connectorColor))
         }
