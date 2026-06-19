@@ -24,14 +24,14 @@ abstract class Module(val name: String) {
         return jack
     }
 
-    protected fun addAudioInput(name: String, port: com.softsynth.ksyn.ports.UnitInputPort): AudioInputJack {
-        val jack = AudioInputJack(name, this, port)
+    protected fun addAudioInput(name: String, port: com.softsynth.ksyn.ports.UnitInputPort, partIndex: Int = 0): AudioInputJack {
+        val jack = AudioInputJack(name, this, port, partIndex)
         _inputs.add(jack)
         return jack
     }
 
-    protected fun addAudioOutput(name: String, port: com.softsynth.ksyn.ports.UnitOutputPort): AudioOutputJack {
-        val jack = AudioOutputJack(name, this, port)
+    protected fun addAudioOutput(name: String, port: com.softsynth.ksyn.ports.UnitOutputPort, partIndex: Int = 0): AudioOutputJack {
+        val jack = AudioOutputJack(name, this, port, partIndex)
         _outputs.add(jack)
         return jack
     }

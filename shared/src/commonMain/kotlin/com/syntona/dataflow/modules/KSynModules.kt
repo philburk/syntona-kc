@@ -21,9 +21,20 @@ open class UnitGeneratorModule(name: String, val unit: UnitGenerator) : Module(n
     init {
         SynthKSyn.synth.add(unit)
         for (port in unit.getPorts()) {
+            val baseName = port.name.lowercase()
             when (port) {
-                is UnitInputPort -> addAudioInput(port.name, port)
-                is UnitOutputPort -> addAudioOutput(port.name, port)
+                is UnitInputPort -> {
+                    for (i in 0 until port.numParts) {
+                        val jackName = if (port.numParts == 1) baseName else "$baseName$i"
+                        addAudioInput(jackName, port, i)
+                    }
+                }
+                is UnitOutputPort -> {
+                    for (i in 0 until port.numParts) {
+                        val jackName = if (port.numParts == 1) baseName else "$baseName$i"
+                        addAudioOutput(jackName, port, i)
+                    }
+                }
                 else -> {}
             }
         }
