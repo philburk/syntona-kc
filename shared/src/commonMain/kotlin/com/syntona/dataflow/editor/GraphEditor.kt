@@ -165,6 +165,7 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
     var valueDragCurrentValue by remember { mutableStateOf(0.0) }
     var valueDragAccumX by remember { mutableStateOf(0f) }
     var valueDragAccumY by remember { mutableStateOf(0f) }
+    var jackRootPosition by remember { mutableStateOf(Offset.Zero) }
 
     val displayText = when {
         isValueDragging -> formatValue(valueDragCurrentValue)
@@ -177,8 +178,9 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
         modifier = Modifier
             .padding(vertical = 2.dp)
             .onGloballyPositioned { layoutCoordinates ->
+                jackRootPosition = layoutCoordinates.positionInRoot()
                 val size = layoutCoordinates.size
-                val pos = layoutCoordinates.positionInRoot() - state.rootOffset
+                val pos = jackRootPosition - state.rootOffset
                 val edgeOffset = if (isLeft) {
                     Offset(0f, size.height / 2f)
                 } else {
@@ -203,7 +205,7 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
             // Drag detection: value edit or wire drag depending on jack state
             .pointerInput(jack) {
                 detectDragGestures(
-                    onDragStart = { _ ->
+                    onDragStart = { startOffset ->
                         val unconnectedInput = jack is InputJack &&
                             state.connections.none { it.input == jack }
                         if (unconnectedInput) {
@@ -216,7 +218,9 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
                         } else {
                             if (jack is OutputJack) state.startDraggingFromOutput(jack)
                             else if (jack is InputJack) state.startDraggingFromInput(jack)
-                            state.onPointerMove(state.jackOffsets[jack] ?: Offset.Zero)
+                            // Place the rubber-band end at the actual pointer position,
+                            // not at the jack edge, to avoid an initial offset.
+                            state.onPointerMove(jackRootPosition - state.rootOffset + startOffset)
                         }
                     },
                     onDrag = { change, dragAmount ->
