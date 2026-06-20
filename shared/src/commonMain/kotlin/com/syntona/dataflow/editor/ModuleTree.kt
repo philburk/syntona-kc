@@ -35,7 +35,7 @@ fun BundleView(
     level: Int,
     state: GraphState
 ) {
-    var expanded by remember { mutableStateOf(true) }
+    var expanded by remember { mutableStateOf(level < 2) }
 
     Column(modifier = Modifier.padding(start = (level * 8).dp)) {
         Row(
