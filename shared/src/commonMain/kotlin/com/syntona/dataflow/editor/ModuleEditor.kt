@@ -6,8 +6,13 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,8 +80,8 @@ private fun JackEditorRow(jack: InputJack) {
                 .fillMaxWidth()
                 .padding(top = 8.dp)
                 .border(1.dp, BORDER_COLOR, RoundedCornerShape(4.dp))
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+                .padding(start = 8.dp, end = 8.dp, top = 10.dp, bottom = 2.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             // Min / Value / Max row
             Row(
@@ -111,17 +116,27 @@ private fun JackEditorRow(jack: InputJack) {
 
             // Fader
             val range = jack.max - jack.min
-            Slider(
-                value = if (range > 0.0) {
-                    ((currentValue - jack.min) / range).toFloat().coerceIn(0f, 1f)
-                } else 0f,
-                onValueChange = { fraction ->
-                    val newValue = jack.min + fraction * range
-                    currentValue = newValue
-                    jack.setValue(newValue)
-                },
-                modifier = Modifier.fillMaxWidth()
-            )
+            val interactionSource = remember { MutableInteractionSource() }
+            CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
+                Slider(
+                    value = if (range > 0.0) {
+                        ((currentValue - jack.min) / range).toFloat().coerceIn(0f, 1f)
+                    } else 0f,
+                    onValueChange = { fraction ->
+                        val newValue = jack.min + fraction * range
+                        currentValue = newValue
+                        jack.setValue(newValue)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    interactionSource = interactionSource,
+                    thumb = {
+                        SliderDefaults.Thumb(
+                            interactionSource = interactionSource,
+                            thumbSize = DpSize(10.dp, 10.dp)
+                        )
+                    }
+                )
+            }
         }
 
         // Legend overlapping top border
@@ -130,6 +145,7 @@ private fun JackEditorRow(jack: InputJack) {
             fontSize = 11.sp,
             color = LABEL_COLOR,
             modifier = Modifier
+                .offset(y = -2.dp)
                 .padding(start = 6.dp)
                 .background(PANEL_COLOR)
                 .padding(horizontal = 4.dp)
