@@ -43,6 +43,7 @@ object ModuleRegistry {
 
         val input = getOrCreateBundle(core, "input")
         input.modules.add(ModuleEntry("double") { DoubleEntryModule() })
+        input.modules.add(ModuleEntry("fader") { FaderModule() })
         input.modules.add(ModuleEntry("kick") { KickModule() })
 
         val view = getOrCreateBundle(core, "view")

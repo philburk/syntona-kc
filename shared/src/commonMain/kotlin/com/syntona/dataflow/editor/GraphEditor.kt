@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.syntona.dataflow.model.*
 import com.syntona.dataflow.modules.DoubleEntryModule
+import com.syntona.dataflow.modules.FaderModule
 import com.syntona.dataflow.modules.ShowModule
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -37,12 +38,12 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
         // Draw Wires behind modules
         WireRenderer(state)
 
-        // Draw Modules
+        // Draw Modules — add cases here for modules with custom layouts
         state.modules.forEach { module ->
-            if (module is DoubleEntryModule) {
-                DoubleEntryModuleNode(module, state)
-            } else {
-                ModuleNode(module, state)
+            when (module) {
+                is DoubleEntryModule -> DoubleEntryModuleNode(module, state)
+                is FaderModule -> FaderModuleNode(module, state)
+                else -> ModuleNode(module, state)
             }
         }
 
@@ -335,6 +336,76 @@ fun CompactJackConnector(jack: Jack, state: GraphState, isLeft: Boolean) {
             }
     ) {
         Box(modifier = Modifier.size(8.dp).background(connectorColor))
+    }
+}
+
+@Composable
+fun FaderModuleNode(module: FaderModule, state: GraphState) {
+    val position = state.modulePositions[module] ?: Offset.Zero
+
+    Surface(
+        modifier = Modifier
+            .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
+            .width(70.dp)
+            .border(1.dp, Color.Black, RoundedCornerShape(4.dp)),
+        shape = RoundedCornerShape(4.dp),
+        color = Color.DarkGray
+    ) {
+        Column {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(24.dp)
+                    .background(Color.Blue)
+                    .pointerInput("drag") {
+                        detectDragGestures { change, dragAmount ->
+                            change.consume()
+                            state.updateModulePosition(module, dragAmount)
+                        }
+                    }
+                    .pointerInput("tap") {
+                        detectTapGestures(onDoubleTap = { state.editingModule = module })
+                    }
+            ) {
+                Text(
+                    text = module.name,
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth().height(160.dp).padding(4.dp)
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.SpaceEvenly,
+                    modifier = Modifier.fillMaxHeight()
+                ) {
+                    module.inputs.forEach { CompactJackConnector(it, state, isLeft = true) }
+                }
+                VerticalSlider(
+                    value = module.value.toFloat(),
+                    onValueChange = { module.setValue(it.toDouble()) },
+                    valueRange = module.valueIn.min.toFloat()..module.valueIn.max.toFloat(),
+                    modifier = Modifier.weight(1f).fillMaxHeight()
+                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.SpaceEvenly,
+                    modifier = Modifier.fillMaxHeight()
+                ) {
+                    module.outputs.forEach { CompactJackConnector(it, state, isLeft = false) }
+                }
+            }
+
+            NumberField(
+                value = module.value,
+                onCommit = { module.setValue(it) },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp)
+            )
+        }
     }
 }
 
