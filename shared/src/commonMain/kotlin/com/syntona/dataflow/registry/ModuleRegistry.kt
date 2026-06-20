@@ -42,6 +42,7 @@ object ModuleRegistry {
         math.modules.add(ModuleEntry("sin") { SineModule() })
 
         val input = getOrCreateBundle(core, "input")
+        input.modules.add(ModuleEntry("double") { DoubleEntryModule() })
         input.modules.add(ModuleEntry("kick") { KickModule() })
 
         val view = getOrCreateBundle(core, "view")

@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.syntona.dataflow.model.*
+import com.syntona.dataflow.modules.DoubleEntryModule
 import com.syntona.dataflow.modules.ShowModule
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -38,7 +39,11 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
 
         // Draw Modules
         state.modules.forEach { module ->
-            ModuleNode(module, state)
+            if (module is DoubleEntryModule) {
+                DoubleEntryModuleNode(module, state)
+            } else {
+                ModuleNode(module, state)
+            }
         }
 
         // Editor overlay — backdrop + panel
@@ -151,7 +156,7 @@ fun ModuleNode(module: Module, state: GraphState) {
             if (module is ShowModule) {
                 Box(modifier = Modifier.fillMaxWidth().padding(8.dp).background(Color.Black)) {
                     Text(
-                        text = module.displayValue.toString().take(6),
+                        text = formatNumber(module.displayValue),
                         color = Color.Green,
                         fontSize = 18.sp,
                         modifier = Modifier.align(Alignment.Center)
@@ -287,6 +292,104 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
             Text(displayText, color = textColor, fontSize = 10.sp)
             Spacer(modifier = Modifier.width(4.dp))
             Box(modifier = Modifier.size(8.dp).background(connectorColor))
+        }
+    }
+}
+
+/**
+ * Connector dot with wire-drag support but no name label.
+ * Used by compact module layouts such as [DoubleEntryModuleNode].
+ */
+@Composable
+fun CompactJackConnector(jack: Jack, state: GraphState, isLeft: Boolean) {
+    val connectorColor = if (jack is InputJack && jack.isKickable) Color.Red else Color.Cyan
+    var jackRootPosition by remember { mutableStateOf(Offset.Zero) }
+
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(12.dp)
+            .onGloballyPositioned { coords ->
+                jackRootPosition = coords.positionInRoot()
+                val size = coords.size
+                val edgeX = if (isLeft) 0f else size.width.toFloat()
+                state.updateJackOffset(
+                    jack,
+                    jackRootPosition - state.rootOffset + Offset(edgeX, size.height / 2f)
+                )
+            }
+            .pointerInput(jack) {
+                detectDragGestures(
+                    onDragStart = { startOffset ->
+                        if (jack is OutputJack) state.startDraggingFromOutput(jack)
+                        else if (jack is InputJack) state.startDraggingFromInput(jack)
+                        state.onPointerMove(jackRootPosition - state.rootOffset + startOffset)
+                    },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        state.onPointerMove(state.dragPointerPosition + dragAmount)
+                    },
+                    onDragEnd = { state.onPointerUp(null) },
+                    onDragCancel = { state.onPointerUp(null) }
+                )
+            }
+    ) {
+        Box(modifier = Modifier.size(8.dp).background(connectorColor))
+    }
+}
+
+@Composable
+fun DoubleEntryModuleNode(module: DoubleEntryModule, state: GraphState) {
+    val position = state.modulePositions[module] ?: Offset.Zero
+
+    Surface(
+        modifier = Modifier
+            .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
+            .width(140.dp)
+            .border(1.dp, Color.Black, RoundedCornerShape(4.dp)),
+        shape = RoundedCornerShape(4.dp),
+        color = Color.DarkGray
+    ) {
+        Column {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(24.dp)
+                    .background(Color.Blue)
+                    .pointerInput("drag") {
+                        detectDragGestures { change, dragAmount ->
+                            change.consume()
+                            state.updateModulePosition(module, dragAmount)
+                        }
+                    }
+                    .pointerInput("tap") {
+                        detectTapGestures(onDoubleTap = { state.editingModule = module })
+                    }
+            ) {
+                Text(
+                    text = module.name,
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(4.dp)
+            ) {
+                Column {
+                    module.inputs.forEach { CompactJackConnector(it, state, isLeft = true) }
+                }
+                NumberField(
+                    value = module.value,
+                    onCommit = { module.setValue(it) },
+                    modifier = Modifier.weight(1f)
+                )
+                Column {
+                    module.outputs.forEach { CompactJackConnector(it, state, isLeft = false) }
+                }
+            }
         }
     }
 }

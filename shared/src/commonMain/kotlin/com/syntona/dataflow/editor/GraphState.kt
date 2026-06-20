@@ -130,7 +130,8 @@ class GraphState {
     private fun findInputJackAt(offset: Offset): InputJack? {
         return jackOffsets.entries
             .filter { it.key is InputJack }
-            .firstOrNull { (it.value - offset).getDistance() < 20f }
+            .minByOrNull { (it.value - offset).getDistance() }
+            ?.takeIf { (it.value - offset).getDistance() < 30f }
             ?.key as? InputJack
     }
 }
