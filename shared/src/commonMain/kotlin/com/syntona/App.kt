@@ -53,8 +53,8 @@ fun App() {
                         position = Offset(10f, 10f),
                         closable = false,
                         graphState = rootPatch.graphState,
-                        normalWidth = 800.dp,
-                        normalHeight = 500.dp,
+                        width = 800.dp,
+                        height = 500.dp,
                         content = { GraphEditor(rootPatch.graphState) }
                     )
                 )

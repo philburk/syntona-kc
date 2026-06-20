@@ -1,5 +1,6 @@
 package com.syntona.dataflow.editor
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -12,8 +13,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -25,7 +30,13 @@ fun MdiDesktop(
     modifier: Modifier = Modifier,
     background: @Composable () -> Unit = {}
 ) {
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .onSizeChanged { size ->
+                mdiState.updateContainerSize(size.width.toFloat(), size.height.toFloat())
+            }
+    ) {
         background()
 
         // Floating windows, rendered in list order so last = topmost
@@ -49,14 +60,13 @@ fun MdiDesktop(
 
 @Composable
 fun MdiWindowFrame(window: MdiWindowInfo, mdiState: MdiState) {
-    val w = if (window.expanded) window.normalWidth * 1.6f else window.normalWidth
-    val h = if (window.expanded) window.normalHeight * 1.6f else window.normalHeight
+    val density = LocalDensity.current
 
     Surface(
         modifier = Modifier
             .offset { IntOffset(window.position.x.roundToInt(), window.position.y.roundToInt()) }
-            .width(w)
-            .height(h)
+            .width(window.width)
+            .height(window.height)
             .border(1.dp, Color(0xFF555555), RoundedCornerShape(8.dp))
             .pointerInput(window.id) {
                 detectTapGestures { mdiState.bringToFront(window) }
@@ -65,11 +75,46 @@ fun MdiWindowFrame(window: MdiWindowInfo, mdiState: MdiState) {
         color = Color(0xFF2D2D2D),
         shadowElevation = 8.dp
     ) {
-        Column {
-            MdiTitleBar(window, mdiState)
-            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                window.content()
+        Box(modifier = Modifier.fillMaxSize()) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                MdiTitleBar(window, mdiState)
+                Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                    window.content()
+                }
             }
+
+            // Resize corner — overlaid at BottomEnd
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .size(20.dp)
+                    .pointerHoverIcon(resizeCornerCursor())
+                    .pointerInput(window.id) {
+                        detectDragGestures { change, dragAmount ->
+                            change.consume()
+                            mdiState.resize(
+                                window.id,
+                                dragAmount.x,
+                                dragAmount.y,
+                                density.density
+                            )
+                        }
+                    }
+            ) {
+                ResizeGrip()
+            }
+        }
+    }
+}
+
+@Composable
+private fun ResizeGrip() {
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val color = Color(0xFF888888)
+        val count = 3
+        for (i in 1..count) {
+            val d = size.width * i / (count + 1)
+            drawLine(color, Offset(d, size.height), Offset(size.width, d), strokeWidth = 1.5f)
         }
     }
 }
