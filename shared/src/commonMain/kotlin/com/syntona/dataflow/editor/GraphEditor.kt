@@ -26,14 +26,17 @@ import androidx.compose.ui.unit.sp
 import com.syntona.dataflow.model.*
 import com.syntona.dataflow.modules.DoubleEntryModule
 import com.syntona.dataflow.modules.FaderModule
+import com.syntona.dataflow.modules.PatchModule
 import com.syntona.dataflow.modules.ShowModule
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
 @Composable
 fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
+    val mdiState = LocalMdiState.current
     Box(modifier = modifier.fillMaxSize().background(Color(0xFF1E1E1E))
         .onGloballyPositioned { state.updateRootOffset(it.positionInRoot()) }
+        .pointerInput(state) { detectTapGestures { mdiState.activeGraphState = state } }
     ) {
         // Draw Wires behind modules
         WireRenderer(state)
@@ -43,6 +46,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
             when (module) {
                 is DoubleEntryModule -> DoubleEntryModuleNode(module, state)
                 is FaderModule -> FaderModuleNode(module, state)
+                is PatchModule -> PatchModuleNode(module, state)
                 else -> ModuleNode(module, state)
             }
         }
@@ -405,6 +409,69 @@ fun FaderModuleNode(module: FaderModule, state: GraphState) {
                 onCommit = { module.setValue(it) },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp)
             )
+        }
+    }
+}
+
+@Composable
+fun PatchModuleNode(module: PatchModule, state: GraphState) {
+    val position = state.modulePositions[module] ?: Offset.Zero
+    val mdiState = LocalMdiState.current
+
+    Surface(
+        modifier = Modifier
+            .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
+            .width(120.dp)
+            .border(1.dp, Color.Black, RoundedCornerShape(4.dp)),
+        shape = RoundedCornerShape(4.dp),
+        color = Color(0xFF1A3A2A)
+    ) {
+        Column {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(24.dp)
+                    .background(Color(0xFF2E7D52))
+                    .pointerInput("drag") {
+                        detectDragGestures { change, dragAmount ->
+                            change.consume()
+                            state.updateModulePosition(module, dragAmount)
+                        }
+                    }
+                    .pointerInput("tap") {
+                        detectTapGestures(
+                            onDoubleTap = {
+                                mdiState.open(
+                                    MdiWindowInfo(
+                                        id = module,
+                                        title = module.name,
+                                        position = Offset(
+                                            (state.modulePositions[module]?.x ?: 100f) + 20f,
+                                            (state.modulePositions[module]?.y ?: 100f) + 30f
+                                        ),
+                                        graphState = module.graphState,
+                                        content = { GraphEditor(state = module.graphState) }
+                                    )
+                                )
+                            }
+                        )
+                    }
+            ) {
+                Text(
+                    text = module.name,
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+            }
+            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
+                    module.inputs.forEach { JackView(it, state, isLeft = true) }
+                }
+                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                    module.outputs.forEach { JackView(it, state, isLeft = false) }
+                }
+            }
         }
     }
 }

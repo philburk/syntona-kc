@@ -35,6 +35,7 @@ fun BundleView(
     level: Int,
     state: GraphState
 ) {
+    val mdiState = LocalMdiState.current
     var expanded by remember { mutableStateOf(level < 2) }
 
     Column(modifier = Modifier.padding(start = (level * 8).dp)) {
@@ -67,19 +68,26 @@ fun BundleView(
                         .fillMaxWidth()
                         .onGloballyPositioned { localOffset = it.positionInRoot() }
                         .pointerInput(module) {
+                            var dragTarget: GraphState? = null
                             detectDragGestures(
-                                onDragStart = {
-                                    state.startDraggingFromTree(module.creator, localOffset + it)
+                                onDragStart = { offset ->
+                                    val mdi = mdiState
+                                    dragTarget = mdi.activeGraphState ?: state
+                                    dragTarget!!.startDraggingFromTree(module.creator, localOffset + offset)
                                 },
                                 onDrag = { change, dragAmount ->
                                     change.consume()
-                                    state.updateDraggedModulePosition(state.draggedModulePosition + dragAmount)
+                                    dragTarget?.let {
+                                        it.updateDraggedModulePosition(it.draggedModulePosition + dragAmount)
+                                    }
                                 },
                                 onDragEnd = {
-                                    state.dropModuleFromTree(state.draggedModulePosition)
+                                    dragTarget?.let { it.dropModuleFromTree(it.draggedModulePosition) }
+                                    dragTarget = null
                                 },
                                 onDragCancel = {
-                                    state.dropModuleFromTree(Offset.Zero) // Effectively cancel
+                                    dragTarget?.let { it.dropModuleFromTree(Offset.Zero) }
+                                    dragTarget = null
                                 }
                             )
                         }

@@ -3,6 +3,7 @@ package com.syntona.dataflow.registry
 import com.softsynth.ksyn.unitgen.*
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.modules.*
+import com.syntona.dataflow.modules.PatchModule
 
 /**
  * Registry of available modules organized by bundles.
@@ -45,6 +46,7 @@ object ModuleRegistry {
         input.modules.add(ModuleEntry("double") { DoubleEntryModule() })
         input.modules.add(ModuleEntry("fader") { FaderModule() })
         input.modules.add(ModuleEntry("kick") { KickModule() })
+        input.modules.add(ModuleEntry("patch") { PatchModule() })
 
         val view = getOrCreateBundle(core, "view")
         view.modules.add(ModuleEntry("show") { ShowModule() })
