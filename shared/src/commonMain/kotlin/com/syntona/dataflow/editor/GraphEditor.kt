@@ -156,7 +156,7 @@ fun ModuleNode(module: Module, state: GraphState) {
             if (module is ShowModule) {
                 Box(modifier = Modifier.fillMaxWidth().padding(8.dp).background(Color.Black)) {
                     Text(
-                        text = module.displayValue.toString().take(6),
+                        text = formatNumber(module.displayValue),
                         color = Color.Green,
                         fontSize = 18.sp,
                         modifier = Modifier.align(Alignment.Center)
