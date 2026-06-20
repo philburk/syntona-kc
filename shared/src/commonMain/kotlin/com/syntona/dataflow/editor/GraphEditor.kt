@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
@@ -38,6 +39,21 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
         // Draw Modules
         state.modules.forEach { module ->
             ModuleNode(module, state)
+        }
+
+        // Editor overlay — backdrop + panel
+        state.editingModule?.let { module ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.4f))
+                    .pointerInput(Unit) { detectTapGestures { state.editingModule = null } }
+            )
+            ModuleEditor(
+                module = module,
+                onDismiss = { state.editingModule = null },
+                modifier = Modifier.align(Alignment.Center)
+            )
         }
 
         // Draw dragged module shadow from tree
@@ -111,11 +127,16 @@ fun ModuleNode(module: Module, state: GraphState) {
                     .fillMaxWidth()
                     .height(24.dp)
                     .background(Color.Blue)
-                    .pointerInput(Unit) {
+                    .pointerInput("drag") {
                         detectDragGestures { change, dragAmount ->
                             change.consume()
                             state.updateModulePosition(module, dragAmount)
                         }
+                    }
+                    .pointerInput("tap") {
+                        detectTapGestures(
+                            onDoubleTap = { state.editingModule = module }
+                        )
                     }
             ) {
                 Text(

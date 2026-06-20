@@ -19,8 +19,13 @@ class AudioInputJack(
     val partIndex: Int = 0
 ) : InputJack(name, module) {
 
-    override val min: Double get() = unitInputPort.minimum.toDouble()
-    override val max: Double get() = unitInputPort.maximum.toDouble()
+    override var min: Double
+        get() = unitInputPort.minimum.toDouble()
+        set(value) { unitInputPort.minimum = value.toFloat() }
+
+    override var max: Double
+        get() = unitInputPort.maximum.toDouble()
+        set(value) { unitInputPort.maximum = value.toFloat() }
 
     override fun getValue(): Double = unitInputPort.get(partIndex).toDouble()
 

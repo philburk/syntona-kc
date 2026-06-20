@@ -49,8 +49,8 @@ open class InputJack(
         return if (msg is Message.FloatValue) msg.value else default
     }
 
-    open val min: Double = 0.0
-    open val max: Double = 100.0
+    open var min: Double = 0.0
+    open var max: Double = 100.0
 
     override fun getValue(): Double = getDoubleValue()
 

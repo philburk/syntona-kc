@@ -58,6 +58,9 @@ class GraphState {
     var draggedModuleCreator by mutableStateOf<(() -> Module)?>(null)
     var draggedModulePosition by mutableStateOf(Offset.Zero)
 
+    // Module currently open in the editor panel
+    var editingModule by mutableStateOf<Module?>(null)
+
     fun startDraggingFromTree(creator: () -> Module, position: Offset) {
         draggedModuleCreator = creator
         draggedModulePosition = position
