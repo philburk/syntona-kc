@@ -49,8 +49,8 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                 is DoubleEntryModule -> DoubleEntryModuleNode(module, state)
                 is FaderModule -> FaderModuleNode(module, state)
                 is PatchModule -> PatchModuleNode(module, state)
-                is InputModule -> ModuleNode(module, state, headerColor = Color(0xFF6A3D00))
-                is OutputModule -> ModuleNode(module, state, headerColor = Color(0xFF6A3D00))
+                is InputModule -> ModuleNode(module, state, headerColor = Color(0xFF6A3D00), label = module.displayName)
+                is OutputModule -> ModuleNode(module, state, headerColor = Color(0xFF6A3D00), label = module.displayName)
                 else -> ModuleNode(module, state)
             }
         }
@@ -109,7 +109,7 @@ fun WireRenderer(state: GraphState) {
 }
 
 @Composable
-fun ModuleNode(module: Module, state: GraphState, headerColor: Color = Color.Blue) {
+fun ModuleNode(module: Module, state: GraphState, headerColor: Color = Color.Blue, label: String = module.name) {
     val position = state.modulePositions[module] ?: Offset.Zero
 
     Surface(
@@ -140,7 +140,7 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color = Color.Blu
                     }
             ) {
                 Text(
-                    text = module.name,
+                    text = label,
                     color = Color.White,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(horizontal = 4.dp)

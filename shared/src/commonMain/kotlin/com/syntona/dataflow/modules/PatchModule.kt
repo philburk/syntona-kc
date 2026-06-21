@@ -21,12 +21,14 @@ class PatchModule(name: String = "patch") : Module(name) {
                 inputLinks[jack] = module
                 module.patch = this
                 module.patchJack = jack
+                module.displayName = jack.name
             }
             is OutputModule -> {
                 val jack = addOutput("out${outputLinks.size + 1}")
                 outputLinks[jack] = module
                 module.patch = this
                 module.patchJack = jack
+                module.displayName = jack.name
             }
         }
     }

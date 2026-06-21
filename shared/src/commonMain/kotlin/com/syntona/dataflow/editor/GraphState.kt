@@ -30,9 +30,9 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
     }
 
     fun addModule(module: Module, position: Offset) {
+        onModuleAdded?.invoke(module)  // runs before Compose observes the module
         modules.add(module)
         modulePositions[module] = position
-        onModuleAdded?.invoke(module)
     }
 
     fun updateModulePosition(module: Module, delta: Offset) {
