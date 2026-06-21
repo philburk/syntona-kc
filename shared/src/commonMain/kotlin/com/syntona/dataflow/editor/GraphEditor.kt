@@ -26,6 +26,8 @@ import androidx.compose.ui.unit.sp
 import com.syntona.dataflow.model.*
 import com.syntona.dataflow.modules.DoubleEntryModule
 import com.syntona.dataflow.modules.FaderModule
+import com.syntona.dataflow.modules.InputModule
+import com.syntona.dataflow.modules.OutputModule
 import com.syntona.dataflow.modules.PatchModule
 import com.syntona.dataflow.modules.ShowModule
 import kotlin.math.pow
@@ -47,6 +49,8 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                 is DoubleEntryModule -> DoubleEntryModuleNode(module, state)
                 is FaderModule -> FaderModuleNode(module, state)
                 is PatchModule -> PatchModuleNode(module, state)
+                is InputModule -> ModuleNode(module, state, headerColor = Color(0xFF6A3D00))
+                is OutputModule -> ModuleNode(module, state, headerColor = Color(0xFF6A3D00))
                 else -> ModuleNode(module, state)
             }
         }
@@ -105,7 +109,7 @@ fun WireRenderer(state: GraphState) {
 }
 
 @Composable
-fun ModuleNode(module: Module, state: GraphState) {
+fun ModuleNode(module: Module, state: GraphState, headerColor: Color = Color.Blue) {
     val position = state.modulePositions[module] ?: Offset.Zero
 
     Surface(
@@ -122,7 +126,7 @@ fun ModuleNode(module: Module, state: GraphState) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(24.dp)
-                    .background(Color.Blue)
+                    .background(headerColor)
                     .pointerInput("drag") {
                         detectDragGestures { change, dragAmount ->
                             change.consume()

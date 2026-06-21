@@ -26,6 +26,8 @@ object ModuleRegistry {
     init {
         val core = getOrCreateBundle(root, "core")
         core.modules.add(ModuleEntry("patch") { PatchModule() })
+        core.modules.add(ModuleEntry("input") { InputModule() })
+        core.modules.add(ModuleEntry("output") { OutputModule() })
 
         val basic = getOrCreateBundle(core, "basic")
         basic.modules.add(ModuleEntry("counter") { CounterModule() })

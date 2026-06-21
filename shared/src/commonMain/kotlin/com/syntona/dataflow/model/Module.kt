@@ -1,13 +1,15 @@
 package com.syntona.dataflow.model
 
+import androidx.compose.runtime.mutableStateListOf
+
 /**
  * Base class for all data flow modules.
  */
 abstract class Module(val name: String) {
-    private val _inputs = mutableListOf<InputJack>()
+    private val _inputs = mutableStateListOf<InputJack>()
     val inputs: List<InputJack> get() = _inputs
 
-    private val _outputs = mutableListOf<OutputJack>()
+    private val _outputs = mutableStateListOf<OutputJack>()
     val outputs: List<OutputJack> get() = _outputs
 
     private val processingMessages = mutableSetOf<Message>()

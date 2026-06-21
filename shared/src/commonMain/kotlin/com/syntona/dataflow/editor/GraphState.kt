@@ -15,7 +15,7 @@ import com.syntona.dataflow.model.OutputJack
  * Manages the UI state of the graph editor, including module positions
  * and anchor points for wires.
  */
-class GraphState {
+class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
     val modules = mutableStateListOf<Module>()
     val modulePositions = mutableStateMapOf<Module, Offset>()
 
@@ -32,6 +32,7 @@ class GraphState {
     fun addModule(module: Module, position: Offset) {
         modules.add(module)
         modulePositions[module] = position
+        onModuleAdded?.invoke(module)
     }
 
     fun updateModulePosition(module: Module, delta: Offset) {
