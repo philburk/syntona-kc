@@ -25,6 +25,7 @@ fun ModuleTree(state: GraphState) {
         Spacer(modifier = Modifier.height(8.dp))
         LazyColumn {
             item {
+                Text("Syntona v0.0.1", fontSize = 16.sp, color = Color.LightGray)
                 BundleView(ModuleRegistry.root, 0, state)
             }
         }

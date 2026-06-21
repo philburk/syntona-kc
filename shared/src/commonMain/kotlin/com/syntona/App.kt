@@ -32,6 +32,7 @@ fun App() {
         val rootPatch = remember {
             PatchModule("root").apply {
                 graphState.apply {
+                    /*
                     val kick = KickModule()
                     val random = RandomModule()
                     val add = AddModule()
@@ -45,6 +46,7 @@ fun App() {
                     connect(kick.output, random.kick)
                     connect(random.output, add.inputA)
                     connect(add.output, show.input)
+                     */
                 }
             }
         }
