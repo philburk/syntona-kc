@@ -25,6 +25,8 @@ object ModuleRegistry {
 
     init {
         val core = getOrCreateBundle(root, "core")
+        core.modules.add(ModuleEntry("patch") { PatchModule() })
+
         val basic = getOrCreateBundle(core, "basic")
         basic.modules.add(ModuleEntry("counter") { CounterModule() })
         basic.modules.add(ModuleEntry("seq2") { SequenceModule(2) })
@@ -46,7 +48,6 @@ object ModuleRegistry {
         input.modules.add(ModuleEntry("double") { DoubleEntryModule() })
         input.modules.add(ModuleEntry("fader") { FaderModule() })
         input.modules.add(ModuleEntry("kick") { KickModule() })
-        input.modules.add(ModuleEntry("patch") { PatchModule() })
 
         val view = getOrCreateBundle(core, "view")
         view.modules.add(ModuleEntry("show") { ShowModule() })
