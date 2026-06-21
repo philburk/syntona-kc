@@ -184,10 +184,8 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
 
     var isHovered by remember { mutableStateOf(false) }
     var isValueDragging by remember { mutableStateOf(false) }
-    var valueDragStartValue by remember { mutableStateOf(0.0) }
     var valueDragCurrentValue by remember { mutableStateOf(0.0) }
     var valueDragAccumX by remember { mutableStateOf(0f) }
-    var valueDragAccumY by remember { mutableStateOf(0f) }
     var jackRootPosition by remember { mutableStateOf(Offset.Zero) }
 
     val displayText = when {
@@ -232,11 +230,8 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
                         val unconnectedInput = jack is InputJack &&
                             state.connections.none { it.input == jack }
                         if (unconnectedInput) {
-                            val startVal = (jack as InputJack).getValue()
-                            valueDragStartValue = startVal
-                            valueDragCurrentValue = startVal
+                            valueDragCurrentValue = (jack as InputJack).getValue()
                             valueDragAccumX = 0f
-                            valueDragAccumY = 0f
                             isValueDragging = true
                         } else {
                             if (jack is OutputJack) state.startDraggingFromOutput(jack)
@@ -251,13 +246,12 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
                         if (isValueDragging) {
                             val inputJack = jack as InputJack
                             valueDragAccumX += dragAmount.x
-                            valueDragAccumY += dragAmount.y
-                            // At X=0, dragging 400 px covers the full range.
-                            // Every 200 px of X shifts sensitivity by one decade:
-                            //   left (negative X) = coarser, right (positive X) = finer.
+                            // Apply current sensitivity to this frame's delta only (incremental).
+                            // Left = coarser, right = finer. Using accumulated Y would
+                            // retroactively re-scale all past movement when X changes.
                             val range = inputJack.max - inputJack.min
                             val sensitivity = range / 400.0 * 10.0.pow(-valueDragAccumX / 200.0)
-                            val newValue = (valueDragStartValue - valueDragAccumY * sensitivity)
+                            val newValue = (valueDragCurrentValue - dragAmount.y * sensitivity)
                                 .coerceIn(inputJack.min, inputJack.max)
                             valueDragCurrentValue = newValue
                             inputJack.setValue(newValue)
