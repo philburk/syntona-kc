@@ -1,5 +1,6 @@
 package com.syntona.dataflow.editor
 
+import kotlin.math.pow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.BasicTextField
@@ -67,4 +68,20 @@ fun NumberField(
     )
 }
 
-fun formatNumber(value: Double): String = "%.4g".format(value)
+fun formatNumber(value: Double): String {
+    if (!value.isFinite()) return value.toString()
+    if (value == 0.0) return "0"
+    val absVal = kotlin.math.abs(value)
+    val exp = kotlin.math.floor(kotlin.math.log10(absVal)).toInt()
+    return if (exp in -4..3) {
+        val places = maxOf(0, 3 - exp)
+        val factor = 10.0.pow(places)
+        val rounded = kotlin.math.round(value * factor) / factor
+        if (places == 0) rounded.toLong().toString()
+        else rounded.toString().let { if ('.' in it) it.trimEnd('0').trimEnd('.') else it }
+    } else {
+        val mantissa = value / 10.0.pow(exp)
+        val rm = kotlin.math.round(mantissa * 1000.0) / 1000.0
+        rm.toString().let { if ('.' in it) it.trimEnd('0').trimEnd('.') else it } + "e$exp"
+    }
+}

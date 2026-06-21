@@ -172,7 +172,7 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color = Color.Blu
     }
 }
 
-private fun formatValue(value: Double): String = "%.4g".format(value)
+private fun formatValue(value: Double): String = formatNumber(value)
 
 @Composable
 fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
