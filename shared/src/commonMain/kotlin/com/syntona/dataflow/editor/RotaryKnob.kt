@@ -37,7 +37,7 @@ fun RotaryKnob(
     valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
     trackColor: Color = Color(0xFF3A3A3A),
     arcColor: Color = Color(0xFFE6A820),
-    knobBodyColor: Color = Color(0xFF606060),
+    knobBodyColor: Color = Color(0xFF808080),
     needleColor: Color = Color(0xFFDD2222),
 ) {
     var accumX by remember { mutableStateOf(0.0) }
@@ -74,13 +74,13 @@ fun RotaryKnob(
         val cx = size.width / 2f
         val cy = size.height / 2f
         val availableRadius = minOf(cx, cy) - 2.dp.toPx()
-        val arcThickness = availableRadius * 0.28f
+        val arcThickness = availableRadius * 0.20f
         val arcMidRadius = availableRadius - arcThickness / 2f
         val knobRadius = availableRadius - arcThickness - 1.dp.toPx()
 
         val arcTopLeft = Offset(cx - arcMidRadius, cy - arcMidRadius)
         val arcSize = Size(arcMidRadius * 2f, arcMidRadius * 2f)
-        val arcStroke = Stroke(width = arcThickness, cap = StrokeCap.Round)
+        val arcStroke = Stroke(width = arcThickness, cap = StrokeCap.Square)
 
         // Background track arc
         drawArc(
