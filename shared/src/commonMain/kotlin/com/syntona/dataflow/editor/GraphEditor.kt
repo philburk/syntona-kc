@@ -66,20 +66,6 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
             )
         }
 
-        // Draw dragged module shadow from tree
-        state.draggedModuleCreator?.let {
-            Box(
-                modifier = Modifier
-                    .offset {
-                        val pos = state.draggedModulePosition - state.rootOffset
-                        IntOffset(pos.x.roundToInt(), pos.y.roundToInt())
-                    }
-                    .width(140.dp)
-                    .height(60.dp)
-                    .background(Color.Cyan.copy(alpha = 0.3f))
-                    .border(1.dp, Color.Cyan, RoundedCornerShape(4.dp))
-            )
-        }
     }
 }
 

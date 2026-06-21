@@ -17,7 +17,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -35,6 +37,9 @@ fun MdiDesktop(
             .fillMaxSize()
             .onSizeChanged { size ->
                 mdiState.updateContainerSize(size.width.toFloat(), size.height.toFloat())
+            }
+            .onGloballyPositioned { coords ->
+                mdiState.desktopOffset = coords.positionInRoot()
             }
     ) {
         background()

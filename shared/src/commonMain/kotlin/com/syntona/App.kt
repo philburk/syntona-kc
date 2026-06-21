@@ -1,7 +1,9 @@
 package com.syntona
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -10,8 +12,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 import com.syntona.core.model.SyntonaModel
 import com.syntona.dataflow.editor.*
 import com.syntona.dataflow.modules.*
@@ -84,6 +90,11 @@ fun App() {
                 }
             } else {
                 CompositionLocalProvider(LocalMdiState provides mdiState) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .onGloballyPositioned { mdiState.appRootOffset = it.positionInRoot() }
+                    ) {
                     Row(modifier = Modifier.fillMaxSize()) {
                         // Left Panel: Module Tree
                         Box(
@@ -125,6 +136,22 @@ fun App() {
                             )
                         }
                     }
+
+                    // Ghost rectangle shown while dragging from ModuleTree
+                    mdiState.treeDragCreator?.let {
+                        Box(
+                            modifier = Modifier
+                                .offset {
+                                    val pos = mdiState.treeDragPosition - mdiState.appRootOffset
+                                    IntOffset(pos.x.roundToInt(), pos.y.roundToInt())
+                                }
+                                .width(140.dp)
+                                .height(60.dp)
+                                .background(Color.Cyan.copy(alpha = 0.3f))
+                                .border(1.dp, Color.Cyan, RoundedCornerShape(4.dp))
+                        )
+                    }
+                    } // end outer Box
                 }
             }
         }

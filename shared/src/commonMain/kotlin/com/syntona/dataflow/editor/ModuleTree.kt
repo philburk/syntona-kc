@@ -14,13 +14,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.syntona.dataflow.registry.ModuleRegistry
 
 @Composable
 fun ModuleTree(state: GraphState) {
-    Column(modifier = Modifier.fillMaxHeight().width(180.dp).padding(8.dp)) { Spacer(modifier = Modifier.height(8.dp))
+    Column(modifier = Modifier.fillMaxHeight().width(180.dp).padding(8.dp)) {
+        Spacer(modifier = Modifier.height(8.dp))
         LazyColumn {
             item {
                 BundleView(ModuleRegistry.root, 0, state)
@@ -36,6 +38,7 @@ fun BundleView(
     state: GraphState
 ) {
     val mdiState = LocalMdiState.current
+    val density = LocalDensity.current.density
     var expanded by remember { mutableStateOf(level < 2) }
 
     Column(modifier = Modifier.padding(start = (level * 8).dp)) {
@@ -68,26 +71,25 @@ fun BundleView(
                         .fillMaxWidth()
                         .onGloballyPositioned { localOffset = it.positionInRoot() }
                         .pointerInput(module) {
-                            var dragTarget: GraphState? = null
                             detectDragGestures(
                                 onDragStart = { offset ->
-                                    val mdi = mdiState
-                                    dragTarget = mdi.activeGraphState ?: state
-                                    dragTarget!!.startDraggingFromTree(module.creator, localOffset + offset)
+                                    mdiState.startTreeDrag(module.creator, localOffset + offset)
                                 },
-                                onDrag = { change, dragAmount ->
+                                onDrag = { change, delta ->
                                     change.consume()
-                                    dragTarget?.let {
-                                        it.updateDraggedModulePosition(it.draggedModulePosition + dragAmount)
-                                    }
+                                    mdiState.updateTreeDragPosition(delta)
                                 },
                                 onDragEnd = {
-                                    dragTarget?.let { it.dropModuleFromTree(it.draggedModulePosition) }
-                                    dragTarget = null
+                                    val creator = mdiState.treeDragCreator
+                                    val pos = mdiState.treeDragPosition
+                                    mdiState.cancelTreeDrag()
+                                    if (creator != null) {
+                                        val target = mdiState.graphStateAtPosition(pos, density)
+                                        target?.addModule(creator(), pos - target.rootOffset)
+                                    }
                                 },
                                 onDragCancel = {
-                                    dragTarget?.let { it.dropModuleFromTree(Offset.Zero) }
-                                    dragTarget = null
+                                    mdiState.cancelTreeDrag()
                                 }
                             )
                         }

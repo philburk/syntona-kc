@@ -9,6 +9,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.syntona.dataflow.model.Module
 
 val LocalMdiState = compositionLocalOf<MdiState> { error("No MdiState provided") }
 
@@ -50,13 +51,46 @@ class MdiState {
     val windows = mutableStateListOf<MdiWindowInfo>()
     var activeGraphState by mutableStateOf<GraphState?>(null)
 
-    // Container size in pixels, updated by MdiDesktop via onSizeChanged
+    // Container size and position in pixels, updated by MdiDesktop
     var containerWidth by mutableStateOf(0f)
     var containerHeight by mutableStateOf(0f)
+    var desktopOffset by mutableStateOf(Offset.Zero)
+
+    // Position of the outermost App Box in screen coordinates, set by App
+    var appRootOffset by mutableStateOf(Offset.Zero)
+
+    // Module being dragged from the ModuleTree (null when no drag in progress)
+    var treeDragCreator by mutableStateOf<(() -> Module)?>(null)
+    var treeDragPosition by mutableStateOf(Offset.Zero)
 
     fun updateContainerSize(widthPx: Float, heightPx: Float) {
         containerWidth = widthPx
         containerHeight = heightPx
+    }
+
+    fun startTreeDrag(creator: () -> Module, globalPosition: Offset) {
+        treeDragCreator = creator
+        treeDragPosition = globalPosition
+    }
+
+    fun updateTreeDragPosition(delta: Offset) {
+        treeDragPosition += delta
+    }
+
+    fun cancelTreeDrag() {
+        treeDragCreator = null
+    }
+
+    /** Returns the GraphState of the topmost window under [globalPos], or null if none. */
+    fun graphStateAtPosition(globalPos: Offset, density: Float): GraphState? {
+        val localPos = globalPos - desktopOffset
+        return windows.lastOrNull { window ->
+            if (window.minimized || window.graphState == null) return@lastOrNull false
+            val winW = window.width.value * density
+            val winH = window.height.value * density
+            localPos.x >= window.position.x && localPos.x <= window.position.x + winW &&
+            localPos.y >= window.position.y && localPos.y <= window.position.y + winH
+        }?.graphState
     }
 
     fun open(window: MdiWindowInfo) {
