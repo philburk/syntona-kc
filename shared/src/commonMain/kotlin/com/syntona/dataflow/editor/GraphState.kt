@@ -62,6 +62,54 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
     // Module currently open in the editor panel
     var editingModule by mutableStateOf<Module?>(null)
 
+    // Selection state
+    val selectedModules = mutableStateListOf<Module>()
+    var selectionRectStart by mutableStateOf<Offset?>(null)
+    var selectionRectEnd by mutableStateOf<Offset?>(null)
+
+    fun selectModule(module: Module) {
+        if (!selectedModules.contains(module)) {
+            selectedModules.add(module)
+        }
+    }
+
+    fun deselectModule(module: Module) {
+        selectedModules.remove(module)
+    }
+
+    fun clearSelection() {
+        selectedModules.clear()
+    }
+
+    fun toggleModuleSelection(module: Module) {
+        if (selectedModules.contains(module)) {
+            deselectModule(module)
+        } else {
+            selectModule(module)
+        }
+    }
+
+    fun selectModulesInRect(rectStart: Offset, rectEnd: Offset) {
+        val left = kotlin.math.min(rectStart.x, rectEnd.x)
+        val top = kotlin.math.min(rectStart.y, rectEnd.y)
+        val right = kotlin.math.max(rectStart.x, rectEnd.x)
+        val bottom = kotlin.math.max(rectStart.y, rectEnd.y)
+
+        modules.forEach { module ->
+            val pos = modulePositions[module] ?: Offset.Zero
+            // Approximate typical module dimensions for hit-testing
+            // Actual dimensions vary by module type, but for selection purposes
+            // this rough estimate is sufficient (typically 70-140 wide, 100-200 tall)
+            val width = 150f
+            val height = 250f
+            // Check if module rect overlaps selection rect
+            if (pos.x < right && pos.x + width > left &&
+                pos.y < bottom && pos.y + height > top) {
+                selectModule(module)
+            }
+        }
+    }
+
     fun startDraggingFromTree(creator: () -> Module, position: Offset) {
         draggedModuleCreator = creator
         draggedModulePosition = position

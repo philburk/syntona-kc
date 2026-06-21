@@ -3,8 +3,12 @@ package com.syntona.dataflow.editor
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.drag
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
@@ -13,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -39,7 +44,31 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
     val mdiState = LocalMdiState.current
     Box(modifier = modifier.fillMaxSize().background(Color(0xFF1E1E1E))
         .onGloballyPositioned { state.updateRootOffset(it.positionInRoot()) }
-        .pointerInput(state) { detectTapGestures { mdiState.activeGraphState = state } }
+        .pointerInput(state) {
+            detectTapGestures {
+                mdiState.activeGraphState = state
+                // Tap on background clears selection
+                state.clearSelection()
+            }
+        }
+        .pointerInput(state) {
+            awaitEachGesture {
+                val down = awaitFirstDown()
+                state.selectionRectStart = down.position
+                state.selectionRectEnd = down.position
+                drag(down.id) { change ->
+                    change.consume()
+                    state.selectionRectEnd = change.position
+                }
+                val rectStart = state.selectionRectStart
+                val rectEnd = state.selectionRectEnd
+                if (rectStart != null && rectEnd != null) {
+                    state.selectModulesInRect(rectStart, rectEnd)
+                }
+                state.selectionRectStart = null
+                state.selectionRectEnd = null
+            }
+        }
     ) {
         // Draw Wires behind modules
         WireRenderer(state)
@@ -54,6 +83,29 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                 is InputModule -> ModuleNode(module, state, headerColor = Color(0xFF6A3D00), label = module.displayName)
                 is OutputModule -> ModuleNode(module, state, headerColor = Color(0xFF6A3D00), label = module.displayName)
                 else -> ModuleNode(module, state)
+            }
+        }
+
+        // Draw selection rectangle (in screen space, account for rootOffset)
+        val selRectStart = state.selectionRectStart
+        val selRectEnd = state.selectionRectEnd
+        if (selRectStart != null && selRectEnd != null) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val left = minOf(selRectStart.x, selRectEnd.x)
+                val top = minOf(selRectStart.y, selRectEnd.y)
+                val right = maxOf(selRectStart.x, selRectEnd.x)
+                val bottom = maxOf(selRectStart.y, selRectEnd.y)
+                drawRect(
+                    color = Color.Cyan,
+                    topLeft = Offset(left, top),
+                    size = Size(right - left, bottom - top),
+                    style = Stroke(width = 1.dp.toPx())
+                )
+                drawRect(
+                    color = Color.Cyan.copy(alpha = 0.1f),
+                    topLeft = Offset(left, top),
+                    size = Size(right - left, bottom - top)
+                )
             }
         }
 
@@ -113,12 +165,15 @@ fun WireRenderer(state: GraphState) {
 @Composable
 fun ModuleNode(module: Module, state: GraphState, headerColor: Color = Color.Blue, label: String = module.name) {
     val position = state.modulePositions[module] ?: Offset.Zero
+    val isSelected = state.selectedModules.contains(module)
+    val borderColor = if (isSelected) Color(0xFFFFA500) else Color.Black
+    val borderWidth = if (isSelected) 2.dp else 1.dp
 
     Surface(
         modifier = Modifier
             .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
             .width(140.dp)
-            .border(1.dp, Color.Black, RoundedCornerShape(4.dp)),
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp)),
         shape = RoundedCornerShape(4.dp),
         color = Color.DarkGray
     ) {
@@ -129,16 +184,37 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color = Color.Blu
                     .fillMaxWidth()
                     .height(24.dp)
                     .background(headerColor)
-                    .pointerInput("drag") {
-                        detectDragGestures { change, dragAmount ->
-                            change.consume()
-                            state.updateModulePosition(module, dragAmount)
+                    .pointerInput("headerGestures") {
+                        val doubleTapTimeout = viewConfiguration.doubleTapTimeoutMillis
+                        awaitEachGesture {
+                            val down = awaitFirstDown()
+                            down.consume()
+                            if (!state.selectedModules.contains(module)) {
+                                state.clearSelection()
+                                state.selectModule(module)
+                            }
+                            var wasDragged = false
+                            drag(down.id) { change ->
+                                change.consume()
+                                wasDragged = true
+                                val dragAmount = change.position - change.previousPosition
+                                if (state.selectedModules.contains(module)) {
+                                    state.selectedModules.forEach { m ->
+                                        state.updateModulePosition(m, dragAmount)
+                                    }
+                                } else {
+                                    state.updateModulePosition(module, dragAmount)
+                                }
+                            }
+                            if (!wasDragged) {
+                                val secondDown = withTimeoutOrNull(doubleTapTimeout) { awaitFirstDown() }
+                                if (secondDown != null) {
+                                    secondDown.consume()
+                                    state.editingModule = module
+                                    drag(secondDown.id) { it.consume() }
+                                }
+                            }
                         }
-                    }
-                    .pointerInput("tap") {
-                        detectTapGestures(
-                            onDoubleTap = { state.editingModule = module }
-                        )
                     }
             ) {
                 Text(
@@ -332,12 +408,15 @@ fun CompactJackConnector(jack: Jack, state: GraphState, isLeft: Boolean) {
 @Composable
 fun FaderModuleNode(module: FaderModule, state: GraphState) {
     val position = state.modulePositions[module] ?: Offset.Zero
+    val isSelected = state.selectedModules.contains(module)
+    val borderColor = if (isSelected) Color(0xFFFFA500) else Color.Black
+    val borderWidth = if (isSelected) 2.dp else 1.dp
 
     Surface(
         modifier = Modifier
             .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
             .width(70.dp)
-            .border(1.dp, Color.Black, RoundedCornerShape(4.dp)),
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp)),
         shape = RoundedCornerShape(4.dp),
         color = Color.DarkGray
     ) {
@@ -347,14 +426,37 @@ fun FaderModuleNode(module: FaderModule, state: GraphState) {
                     .fillMaxWidth()
                     .height(24.dp)
                     .background(Color.Blue)
-                    .pointerInput("drag") {
-                        detectDragGestures { change, dragAmount ->
-                            change.consume()
-                            state.updateModulePosition(module, dragAmount)
+                    .pointerInput("headerGestures") {
+                        val doubleTapTimeout = viewConfiguration.doubleTapTimeoutMillis
+                        awaitEachGesture {
+                            val down = awaitFirstDown()
+                            down.consume()
+                            if (!state.selectedModules.contains(module)) {
+                                state.clearSelection()
+                                state.selectModule(module)
+                            }
+                            var wasDragged = false
+                            drag(down.id) { change ->
+                                change.consume()
+                                wasDragged = true
+                                val dragAmount = change.position - change.previousPosition
+                                if (state.selectedModules.contains(module)) {
+                                    state.selectedModules.forEach { m ->
+                                        state.updateModulePosition(m, dragAmount)
+                                    }
+                                } else {
+                                    state.updateModulePosition(module, dragAmount)
+                                }
+                            }
+                            if (!wasDragged) {
+                                val secondDown = withTimeoutOrNull(doubleTapTimeout) { awaitFirstDown() }
+                                if (secondDown != null) {
+                                    secondDown.consume()
+                                    state.editingModule = module
+                                    drag(secondDown.id) { it.consume() }
+                                }
+                            }
                         }
-                    }
-                    .pointerInput("tap") {
-                        detectTapGestures(onDoubleTap = { state.editingModule = module })
                     }
             ) {
                 Text(
@@ -403,12 +505,15 @@ fun FaderModuleNode(module: FaderModule, state: GraphState) {
 fun PatchModuleNode(module: PatchModule, state: GraphState) {
     val position = state.modulePositions[module] ?: Offset.Zero
     val mdiState = LocalMdiState.current
+    val isSelected = state.selectedModules.contains(module)
+    val borderColor = if (isSelected) Color(0xFFFFA500) else Color.Black
+    val borderWidth = if (isSelected) 2.dp else 1.dp
 
     Surface(
         modifier = Modifier
             .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
             .width(120.dp)
-            .border(1.dp, Color.Black, RoundedCornerShape(4.dp)),
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp)),
         shape = RoundedCornerShape(4.dp),
         color = Color(0xFF1A3A2A)
     ) {
@@ -418,29 +523,48 @@ fun PatchModuleNode(module: PatchModule, state: GraphState) {
                     .fillMaxWidth()
                     .height(24.dp)
                     .background(Color(0xFF2E7D52))
-                    .pointerInput("drag") {
-                        detectDragGestures { change, dragAmount ->
-                            change.consume()
-                            state.updateModulePosition(module, dragAmount)
-                        }
-                    }
-                    .pointerInput("tap") {
-                        detectTapGestures(
-                            onDoubleTap = {
-                                mdiState.open(
-                                    MdiWindowInfo(
-                                        id = module,
-                                        title = module.name,
-                                        position = Offset(
-                                            (state.modulePositions[module]?.x ?: 100f) + 20f,
-                                            (state.modulePositions[module]?.y ?: 100f) + 30f
-                                        ),
-                                        graphState = module.graphState,
-                                        content = { GraphEditor(state = module.graphState) }
-                                    )
-                                )
+                    .pointerInput("headerGestures") {
+                        val doubleTapTimeout = viewConfiguration.doubleTapTimeoutMillis
+                        awaitEachGesture {
+                            val down = awaitFirstDown()
+                            down.consume()
+                            if (!state.selectedModules.contains(module)) {
+                                state.clearSelection()
+                                state.selectModule(module)
                             }
-                        )
+                            var wasDragged = false
+                            drag(down.id) { change ->
+                                change.consume()
+                                wasDragged = true
+                                val dragAmount = change.position - change.previousPosition
+                                if (state.selectedModules.contains(module)) {
+                                    state.selectedModules.forEach { m ->
+                                        state.updateModulePosition(m, dragAmount)
+                                    }
+                                } else {
+                                    state.updateModulePosition(module, dragAmount)
+                                }
+                            }
+                            if (!wasDragged) {
+                                val secondDown = withTimeoutOrNull(doubleTapTimeout) { awaitFirstDown() }
+                                if (secondDown != null) {
+                                    secondDown.consume()
+                                    mdiState.open(
+                                        MdiWindowInfo(
+                                            id = module,
+                                            title = module.name,
+                                            position = Offset(
+                                                (state.modulePositions[module]?.x ?: 100f) + 20f,
+                                                (state.modulePositions[module]?.y ?: 100f) + 30f
+                                            ),
+                                            graphState = module.graphState,
+                                            content = { GraphEditor(state = module.graphState) }
+                                        )
+                                    )
+                                    drag(secondDown.id) { it.consume() }
+                                }
+                            }
+                        }
                     }
             ) {
                 Text(
@@ -465,12 +589,15 @@ fun PatchModuleNode(module: PatchModule, state: GraphState) {
 @Composable
 fun DoubleEntryModuleNode(module: DoubleEntryModule, state: GraphState) {
     val position = state.modulePositions[module] ?: Offset.Zero
+    val isSelected = state.selectedModules.contains(module)
+    val borderColor = if (isSelected) Color(0xFFFFA500) else Color.Black
+    val borderWidth = if (isSelected) 2.dp else 1.dp
 
     Surface(
         modifier = Modifier
             .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
             .width(140.dp)
-            .border(1.dp, Color.Black, RoundedCornerShape(4.dp)),
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp)),
         shape = RoundedCornerShape(4.dp),
         color = Color.DarkGray
     ) {
@@ -480,14 +607,37 @@ fun DoubleEntryModuleNode(module: DoubleEntryModule, state: GraphState) {
                     .fillMaxWidth()
                     .height(24.dp)
                     .background(Color.Blue)
-                    .pointerInput("drag") {
-                        detectDragGestures { change, dragAmount ->
-                            change.consume()
-                            state.updateModulePosition(module, dragAmount)
+                    .pointerInput("headerGestures") {
+                        val doubleTapTimeout = viewConfiguration.doubleTapTimeoutMillis
+                        awaitEachGesture {
+                            val down = awaitFirstDown()
+                            down.consume()
+                            if (!state.selectedModules.contains(module)) {
+                                state.clearSelection()
+                                state.selectModule(module)
+                            }
+                            var wasDragged = false
+                            drag(down.id) { change ->
+                                change.consume()
+                                wasDragged = true
+                                val dragAmount = change.position - change.previousPosition
+                                if (state.selectedModules.contains(module)) {
+                                    state.selectedModules.forEach { m ->
+                                        state.updateModulePosition(m, dragAmount)
+                                    }
+                                } else {
+                                    state.updateModulePosition(module, dragAmount)
+                                }
+                            }
+                            if (!wasDragged) {
+                                val secondDown = withTimeoutOrNull(doubleTapTimeout) { awaitFirstDown() }
+                                if (secondDown != null) {
+                                    secondDown.consume()
+                                    state.editingModule = module
+                                    drag(secondDown.id) { it.consume() }
+                                }
+                            }
                         }
-                    }
-                    .pointerInput("tap") {
-                        detectTapGestures(onDoubleTap = { state.editingModule = module })
                     }
             ) {
                 Text(
@@ -521,12 +671,15 @@ fun DoubleEntryModuleNode(module: DoubleEntryModule, state: GraphState) {
 @Composable
 fun KnobModuleNode(module: KnobModule, state: GraphState) {
     val position = state.modulePositions[module] ?: Offset.Zero
+    val isSelected = state.selectedModules.contains(module)
+    val borderColor = if (isSelected) Color(0xFFFFA500) else Color.Black
+    val borderWidth = if (isSelected) 2.dp else 1.dp
 
     Surface(
         modifier = Modifier
             .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
             .width(90.dp)
-            .border(1.dp, Color.Black, RoundedCornerShape(4.dp)),
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp)),
         shape = RoundedCornerShape(4.dp),
         color = Color.DarkGray
     ) {
@@ -537,14 +690,37 @@ fun KnobModuleNode(module: KnobModule, state: GraphState) {
                     .fillMaxWidth()
                     .height(24.dp)
                     .background(Color(0xFF1565C0))
-                    .pointerInput("drag") {
-                        detectDragGestures { change, dragAmount ->
-                            change.consume()
-                            state.updateModulePosition(module, dragAmount)
+                    .pointerInput("headerGestures") {
+                        val doubleTapTimeout = viewConfiguration.doubleTapTimeoutMillis
+                        awaitEachGesture {
+                            val down = awaitFirstDown()
+                            down.consume()
+                            if (!state.selectedModules.contains(module)) {
+                                state.clearSelection()
+                                state.selectModule(module)
+                            }
+                            var wasDragged = false
+                            drag(down.id) { change ->
+                                change.consume()
+                                wasDragged = true
+                                val dragAmount = change.position - change.previousPosition
+                                if (state.selectedModules.contains(module)) {
+                                    state.selectedModules.forEach { m ->
+                                        state.updateModulePosition(m, dragAmount)
+                                    }
+                                } else {
+                                    state.updateModulePosition(module, dragAmount)
+                                }
+                            }
+                            if (!wasDragged) {
+                                val secondDown = withTimeoutOrNull(doubleTapTimeout) { awaitFirstDown() }
+                                if (secondDown != null) {
+                                    secondDown.consume()
+                                    state.editingModule = module
+                                    drag(secondDown.id) { it.consume() }
+                                }
+                            }
                         }
-                    }
-                    .pointerInput("tap") {
-                        detectTapGestures(onDoubleTap = { state.editingModule = module })
                     }
             ) {
                 Text(
