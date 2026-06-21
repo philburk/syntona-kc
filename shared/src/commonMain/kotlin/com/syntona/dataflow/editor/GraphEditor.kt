@@ -27,6 +27,7 @@ import com.syntona.dataflow.model.*
 import com.syntona.dataflow.modules.DoubleEntryModule
 import com.syntona.dataflow.modules.FaderModule
 import com.syntona.dataflow.modules.InputModule
+import com.syntona.dataflow.modules.KnobModule
 import com.syntona.dataflow.modules.OutputModule
 import com.syntona.dataflow.modules.PatchModule
 import com.syntona.dataflow.modules.ShowModule
@@ -48,6 +49,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
             when (module) {
                 is DoubleEntryModule -> DoubleEntryModuleNode(module, state)
                 is FaderModule -> FaderModuleNode(module, state)
+                is KnobModule -> KnobModuleNode(module, state)
                 is PatchModule -> PatchModuleNode(module, state)
                 is InputModule -> ModuleNode(module, state, headerColor = Color(0xFF6A3D00), label = module.displayName)
                 is OutputModule -> ModuleNode(module, state, headerColor = Color(0xFF6A3D00), label = module.displayName)
@@ -518,6 +520,80 @@ fun DoubleEntryModuleNode(module: DoubleEntryModule, state: GraphState) {
                     module.outputs.forEach { CompactJackConnector(it, state, isLeft = false) }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun KnobModuleNode(module: KnobModule, state: GraphState) {
+    val position = state.modulePositions[module] ?: Offset.Zero
+
+    Surface(
+        modifier = Modifier
+            .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
+            .width(90.dp)
+            .border(1.dp, Color.Black, RoundedCornerShape(4.dp)),
+        shape = RoundedCornerShape(4.dp),
+        color = Color.DarkGray
+    ) {
+        Column {
+            // Title bar — drag to move, double-tap to open editor
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(24.dp)
+                    .background(Color(0xFF1565C0))
+                    .pointerInput("drag") {
+                        detectDragGestures { change, dragAmount ->
+                            change.consume()
+                            state.updateModulePosition(module, dragAmount)
+                        }
+                    }
+                    .pointerInput("tap") {
+                        detectTapGestures(onDoubleTap = { state.editingModule = module })
+                    }
+            ) {
+                Text(
+                    text = module.name,
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+            }
+
+            // Knob area with jacks on either side
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().height(80.dp).padding(4.dp)
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.SpaceEvenly,
+                    modifier = Modifier.fillMaxHeight()
+                ) {
+                    module.inputs.forEach { CompactJackConnector(it, state, isLeft = true) }
+                }
+                RotaryKnob(
+                    value = module.value.toFloat(),
+                    onValueChange = { module.setValue(it.toDouble()) },
+                    valueRange = module.valueIn.min.toFloat()..module.valueIn.max.toFloat(),
+                    modifier = Modifier.weight(1f).fillMaxHeight()
+                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.SpaceEvenly,
+                    modifier = Modifier.fillMaxHeight()
+                ) {
+                    module.outputs.forEach { CompactJackConnector(it, state, isLeft = false) }
+                }
+            }
+
+            // Numeric readout / direct entry
+            NumberField(
+                value = module.value,
+                onCommit = { module.setValue(it) },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp)
+            )
         }
     }
 }
