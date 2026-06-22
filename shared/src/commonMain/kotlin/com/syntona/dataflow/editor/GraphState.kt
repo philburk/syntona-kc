@@ -23,6 +23,11 @@ import com.syntona.dataflow.modules.KnobModule
  */
 class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
     var engine: DataFlowEngine? = null
+    var onChange: (() -> Unit)? = null
+
+    private fun notifyChanged() { onChange?.invoke() }
+
+    fun markChanged() { notifyChanged() }
 
     val modules = mutableStateListOf<Module>()
     val modulePositions = mutableStateMapOf<Module, Offset>()
@@ -42,6 +47,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
         if (module is EngineAware) engine?.let { module.setEngine(it) }
         modules.add(module)
         modulePositions[module] = position
+        notifyChanged()
     }
 
     // Used by DeleteModulesCommand.undo() to re-add modules without posting to engine
@@ -76,10 +82,12 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
             modules.remove(module)
         }
         selectedModules.removeAll(modulesToRemove)
+        notifyChanged()
     }
 
     fun updateModulePosition(module: Module, delta: Offset) {
         modulePositions[module] = (modulePositions[module] ?: Offset.Zero) + delta
+        notifyChanged()
     }
 
     fun updateJackOffset(jack: Jack, offset: Offset) {
@@ -153,6 +161,10 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
         }
     }
 
+    fun clearAllModules() {
+        removeModulesDirectly(modules.toList())
+    }
+
     fun startDraggingFromTree(creator: () -> Module, position: Offset) {
         draggedModuleCreator = creator
         draggedModulePosition = position
@@ -178,12 +190,14 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
             connections.add(UIConnection(output, input))
         }
         syncRangeFromConnections(output)
+        notifyChanged()
     }
 
     fun disconnect(output: OutputJack, input: InputJack) {
         output.disconnect(input)
         connections.removeAll { it.output == output && it.input == input }
         syncRangeFromConnections(output)
+        notifyChanged()
     }
 
     private fun syncRangeFromConnections(output: OutputJack) {

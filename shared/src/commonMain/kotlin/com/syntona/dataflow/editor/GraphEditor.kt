@@ -561,6 +561,7 @@ fun FaderModuleNode(module: FaderModule, state: GraphState) {
                         val e = state.engine
                         if (e != null) e.post(SetValueCommand(module.valueIn, v.toDouble(), ScoreClock.now()))
                         else module.setValue(v.toDouble())
+                        state.markChanged()
                     },
                     valueRange = module.valueIn.min.toFloat()..module.valueIn.max.toFloat(),
                     modifier = Modifier.weight(1f).fillMaxHeight()
@@ -839,6 +840,7 @@ fun KnobModuleNode(module: KnobModule, state: GraphState) {
                         val e = state.engine
                         if (e != null) e.post(SetValueCommand(module.valueIn, v.toDouble(), ScoreClock.now()))
                         else module.setValue(v.toDouble())
+                        state.markChanged()
                     },
                     valueRange = module.valueIn.min.toFloat()..module.valueIn.max.toFloat(),
                     modifier = Modifier.weight(1f).fillMaxHeight()

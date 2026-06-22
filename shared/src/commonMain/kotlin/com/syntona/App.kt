@@ -5,12 +5,14 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -44,6 +46,7 @@ import com.syntona.dataflow.modules.*
 fun App(
     onMdiStateReady: ((MdiState) -> Unit)? = null,
     showEditMenuInToolbar: Boolean = true,
+    showFileMenuInToolbar: Boolean = true,
 ) {
     MaterialTheme {
         var showContent by remember { mutableStateOf(false) }
@@ -88,7 +91,10 @@ fun App(
                 )
             }
         }
-        SideEffect { onMdiStateReady?.invoke(mdiState) }
+        SideEffect {
+            onMdiStateReady?.invoke(mdiState)
+            rootPatch.graphState.onChange = { FileState.markDirty() }
+        }
 
         Column(
             modifier = Modifier
@@ -204,6 +210,74 @@ fun App(
                                 ) {
                                     Text("Kick Graph")
                                 }
+                                if (showFileMenuInToolbar) {
+                                    val gs = rootPatch.graphState
+                                    val engine = syntonaModel.engine
+                                    var fileExpanded by remember { mutableStateOf(false) }
+                                    Box {
+                                        Button(onClick = { fileExpanded = true }) { Text("File") }
+                                        DropdownMenu(
+                                            expanded = fileExpanded,
+                                            onDismissRequest = { fileExpanded = false }
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text("New") },
+                                                trailingIcon = { ShortcutHint("⌘N") },
+                                                onClick = {
+                                                    fileExpanded = false
+                                                    FileState.requestIfDirty {
+                                                        gs.clearAllModules()
+                                                        engine.clearHistory()
+                                                        FileState.markNew()
+                                                    }
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Open...") },
+                                                trailingIcon = { ShortcutHint("⌘O") },
+                                                onClick = {
+                                                    fileExpanded = false
+                                                    FileState.requestIfDirty {
+                                                        showOpenFileDialog { name, content ->
+                                                            gs.clearAllModules()
+                                                            engine.clearHistory()
+                                                            GraphSerializer.deserialize(gs, content)
+                                                            FileState.markSaved(name)
+                                                        }
+                                                    }
+                                                }
+                                            )
+                                            HorizontalDivider()
+                                            DropdownMenuItem(
+                                                text = { Text("Save") },
+                                                trailingIcon = { ShortcutHint("⌘S") },
+                                                enabled = FileState.isDirty,
+                                                onClick = {
+                                                    fileExpanded = false
+                                                    val json = GraphSerializer.serialize(gs, gs.modules.toList())
+                                                    val path = FileState.currentFilePath
+                                                    if (path != null) {
+                                                        saveFileDirect(path, json)
+                                                        FileState.markSaved(path)
+                                                    } else {
+                                                        showSaveFileDialog(json, "patch.json") { FileState.markSaved(it) }
+                                                    }
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Save As...") },
+                                                trailingIcon = { ShortcutHint("⌘⇧S") },
+                                                onClick = {
+                                                    fileExpanded = false
+                                                    showSaveFileDialog(
+                                                        GraphSerializer.serialize(gs, gs.modules.toList()),
+                                                        FileState.currentFileName ?: "patch.json"
+                                                    ) { FileState.markSaved(it) }
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
                                 if (showEditMenuInToolbar) {
                                     val activeGs = mdiState.activeGraphState
                                     val hasSelection = activeGs?.selectedModules?.isNotEmpty() == true
@@ -286,6 +360,24 @@ fun App(
                                 .height(60.dp)
                                 .background(Color.Cyan.copy(alpha = 0.3f))
                                 .border(1.dp, Color.Cyan, RoundedCornerShape(4.dp))
+                        )
+                    }
+                    FileState.pendingAction?.let { pendingAction ->
+                        AlertDialog(
+                            onDismissRequest = { FileState.pendingAction = null },
+                            title = { Text("Unsaved Changes") },
+                            text = { Text("Discard unsaved changes?") },
+                            confirmButton = {
+                                Button(onClick = {
+                                    FileState.pendingAction = null
+                                    pendingAction()
+                                }) { Text("Discard") }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = { FileState.pendingAction = null }) {
+                                    Text("Cancel")
+                                }
+                            }
                         )
                     }
                     } // end outer Box

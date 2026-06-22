@@ -33,6 +33,14 @@ class DataFlowEngine(private val scope: CoroutineScope) {
         return event
     }
 
+    fun clearHistory() {
+        post(object : SyntonaCommand {
+            override val isUndoable = false
+            override fun execute() { undoStack.clear(); redoStack.clear() }
+            override fun undo() {}
+        })
+    }
+
     fun undo() {
         post(object : SyntonaCommand {
             override val isUndoable = false
