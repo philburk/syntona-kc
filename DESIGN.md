@@ -127,6 +127,16 @@ Modules that will use the ScheduledQueue include:
 * Clock - generates periodic kicks
 * AddTime (Delay) - advances timestamp and schedules the output message
 
+### Notes and Voice ALlocation
+
+We need a way to pass audio signals into and out of a patch just like we did with regular NoteMessages.
+We can define an "aInput" module that can be added to a patch.
+That will result in a "aIn" jack being added to the patch module in the parent.
+Similarly for aOutput.
+
+Internally, the aInput module should instantiate a KSyn PassThrough unit generator.
+This will act as a tie point where incoming signals will get summed and then distributed
+to any jacks connected within the patch.
 
 ## Common Elements
 

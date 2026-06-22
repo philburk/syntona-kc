@@ -44,6 +44,8 @@ import com.syntona.dataflow.engine.SetValueCommand
 import com.syntona.dataflow.model.*
 import com.syntona.dataflow.modules.DoubleEntryModule
 import com.syntona.dataflow.modules.FaderModule
+import com.syntona.dataflow.modules.AudioInputModule
+import com.syntona.dataflow.modules.AudioOutputModule
 import com.syntona.dataflow.modules.InputModule
 import com.syntona.dataflow.modules.KnobModule
 import com.syntona.dataflow.modules.OutputModule
@@ -100,6 +102,8 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                 is PatchModule -> PatchModuleNode(module, state)
                 is InputModule -> ModuleNode(module, state, headerColor = Color(0xFF6A3D00), label = module.displayName)
                 is OutputModule -> ModuleNode(module, state, headerColor = Color(0xFF6A3D00), label = module.displayName)
+                is AudioInputModule -> ModuleNode(module, state, headerColor = Color(0xFF1A5C1A), label = module.displayName)
+                is AudioOutputModule -> ModuleNode(module, state, headerColor = Color(0xFF1A5C1A), label = module.displayName)
                 else -> ModuleNode(module, state)
             }
         }

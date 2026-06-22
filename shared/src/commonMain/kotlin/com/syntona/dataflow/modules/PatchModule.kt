@@ -3,6 +3,8 @@ package com.syntona.dataflow.modules
 import com.syntona.dataflow.editor.GraphState
 import com.syntona.dataflow.engine.DataFlowEngine
 import com.syntona.dataflow.engine.EngineAware
+import com.syntona.dataflow.model.AudioInputJack
+import com.syntona.dataflow.model.AudioOutputJack
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
@@ -13,6 +15,8 @@ class PatchModule(name: String = "patch") : Module(name), EngineAware {
     // Maps jacks on this PatchModule to the I/O modules inside the patch
     private val inputLinks = mutableMapOf<InputJack, InputModule>()
     private val outputLinks = mutableMapOf<OutputJack, OutputModule>()
+    private val audioInputLinks = mutableMapOf<AudioInputJack, AudioInputModule>()
+    private val audioOutputLinks = mutableMapOf<AudioOutputJack, AudioOutputModule>()
 
     val graphState = GraphState(onModuleAdded = ::onChildModuleAdded)
 
@@ -32,6 +36,28 @@ class PatchModule(name: String = "patch") : Module(name), EngineAware {
             is OutputModule -> {
                 val jack = addOutput("out${outputLinks.size + 1}")
                 outputLinks[jack] = module
+                module.patch = this
+                module.patchJack = jack
+                module.displayName = jack.name
+            }
+            is AudioInputModule -> {
+                val jack = addAudioInput(
+                    "aIn${audioInputLinks.size + 1}",
+                    module.passThrough.input,
+                    0
+                )
+                audioInputLinks[jack] = module
+                module.patch = this
+                module.patchJack = jack
+                module.displayName = jack.name
+            }
+            is AudioOutputModule -> {
+                val jack = addAudioOutput(
+                    "aOut${audioOutputLinks.size + 1}",
+                    module.passThrough.output,
+                    0
+                )
+                audioOutputLinks[jack] = module
                 module.patch = this
                 module.patchJack = jack
                 module.displayName = jack.name

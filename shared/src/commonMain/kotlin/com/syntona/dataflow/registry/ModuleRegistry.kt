@@ -3,7 +3,6 @@ package com.syntona.dataflow.registry
 import com.softsynth.ksyn.unitgen.*
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.modules.*
-import com.syntona.dataflow.modules.PatchModule
 
 /**
  * Registry of available modules organized by bundles.
@@ -60,6 +59,8 @@ object ModuleRegistry {
 
         val ksyn = getOrCreateBundle(root, "ksyn")
         addKSynModule(ksyn, "lineOut", ::LineOut)
+        ksyn.modules.add(ModuleEntry("aInput") { AudioInputModule() })
+        ksyn.modules.add(ModuleEntry("aOutput") { AudioOutputModule() })
 
         val sources = getOrCreateBundle(ksyn, "sources")
         addKSynModule(sources, "sineOsc", ::SineOscillator)
