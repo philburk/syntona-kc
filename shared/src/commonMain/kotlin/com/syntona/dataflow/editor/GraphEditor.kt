@@ -19,6 +19,7 @@ import androidx.compose.foundation.gestures.drag
 import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -36,6 +37,10 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.syntona.core.model.ScoreClock
+import com.syntona.core.model.ScoreTime
+import com.syntona.dataflow.engine.KickJackCommand
+import com.syntona.dataflow.engine.SetValueCommand
 import com.syntona.dataflow.model.*
 import com.syntona.dataflow.modules.DoubleEntryModule
 import com.syntona.dataflow.modules.FaderModule
@@ -267,6 +272,10 @@ private fun formatValue(value: Double): String = formatNumber(value)
 
 @Composable
 fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
+    if (jack is CommandJack) {
+        CommandJackView(jack, state, isLeft)
+        return
+    }
     val connectorColor = if (jack is InputJack && jack.isKickable) Color.Red else Color.Cyan
     val textColor = if (jack.isHighlighted) Color.Black else Color.LightGray
     val backgroundColor = if (jack.isHighlighted) Color(180, 170, 130) else Color.DarkGray
@@ -343,7 +352,9 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
                             val newValue = (valueDragCurrentValue - dragAmount.y * sensitivity)
                                 .coerceIn(inputJack.min, inputJack.max)
                             valueDragCurrentValue = newValue
-                            inputJack.setValue(newValue)
+                            val e = state.engine
+                            if (e != null) e.post(SetValueCommand(inputJack, newValue, ScoreClock.now()))
+                            else inputJack.setValue(newValue)
                         } else {
                             state.onPointerMove(state.dragPointerPosition + dragAmount)
                         }
@@ -372,6 +383,60 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
             Text(displayText, color = textColor, fontSize = 10.sp)
             Spacer(modifier = Modifier.width(4.dp))
             Box(modifier = Modifier.size(8.dp).background(connectorColor))
+        }
+    }
+}
+
+@Composable
+fun CommandJackView(jack: CommandJack, state: GraphState, isLeft: Boolean) {
+    var jackRootPosition by remember { mutableStateOf(Offset.Zero) }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .padding(vertical = 2.dp)
+            .onGloballyPositioned { coords ->
+                jackRootPosition = coords.positionInRoot()
+                val size = coords.size
+                val edgeOffset = if (isLeft) Offset(0f, size.height / 2f)
+                                 else Offset(size.width.toFloat(), size.height / 2f)
+                state.updateJackOffset(jack, jackRootPosition - state.rootOffset + edgeOffset)
+            }
+            .pointerInput(jack) {
+                detectDragGestures(
+                    onDragStart = { startOffset ->
+                        state.startDraggingFromInput(jack)
+                        state.onPointerMove(jackRootPosition - state.rootOffset + startOffset)
+                    },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        state.onPointerMove(state.dragPointerPosition + dragAmount)
+                    },
+                    onDragEnd = { state.onPointerUp(null) },
+                    onDragCancel = { state.onPointerUp(null) }
+                )
+            }
+    ) {
+        if (isLeft) {
+            Box(modifier = Modifier.size(8.dp).background(Color.Red))
+            Spacer(modifier = Modifier.width(4.dp))
+        }
+        Button(
+            onClick = {
+                val e = state.engine
+                if (e != null) {
+                    e.post(KickJackCommand(jack, ScoreClock.now()))
+                } else {
+                    jack.receive(com.syntona.dataflow.model.Message.FloatValue(ScoreTime.Zero, 0.0))
+                }
+            },
+            modifier = Modifier.height(24.dp),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+        ) {
+            Text(jack.name, fontSize = 10.sp)
+        }
+        if (!isLeft) {
+            Spacer(modifier = Modifier.width(4.dp))
+            Box(modifier = Modifier.size(8.dp).background(Color.Red))
         }
     }
 }
@@ -492,7 +557,11 @@ fun FaderModuleNode(module: FaderModule, state: GraphState) {
                 }
                 VerticalSlider(
                     value = module.value.toFloat(),
-                    onValueChange = { module.setValue(it.toDouble()) },
+                    onValueChange = { v ->
+                        val e = state.engine
+                        if (e != null) e.post(SetValueCommand(module.valueIn, v.toDouble(), ScoreClock.now()))
+                        else module.setValue(v.toDouble())
+                    },
                     valueRange = module.valueIn.min.toFloat()..module.valueIn.max.toFloat(),
                     modifier = Modifier.weight(1f).fillMaxHeight()
                 )
@@ -507,7 +576,11 @@ fun FaderModuleNode(module: FaderModule, state: GraphState) {
 
             NumberField(
                 value = module.value,
-                onCommit = { module.setValue(it) },
+                onCommit = { v ->
+                    val e = state.engine
+                    if (e != null) e.post(SetValueCommand(module.valueIn, v, ScoreClock.now()))
+                    else module.setValue(v)
+                },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp)
             )
         }
@@ -670,7 +743,11 @@ fun DoubleEntryModuleNode(module: DoubleEntryModule, state: GraphState) {
                 }
                 NumberField(
                     value = module.value,
-                    onCommit = { module.setValue(it) },
+                    onCommit = { v ->
+                        val e = state.engine
+                        if (e != null) e.post(SetValueCommand(module.valueIn, v, ScoreClock.now()))
+                        else module.setValue(v)
+                    },
                     modifier = Modifier.weight(1f)
                 )
                 Column {
@@ -758,7 +835,11 @@ fun KnobModuleNode(module: KnobModule, state: GraphState) {
                 }
                 RotaryKnob(
                     value = module.value.toFloat(),
-                    onValueChange = { module.setValue(it.toDouble()) },
+                    onValueChange = { v ->
+                        val e = state.engine
+                        if (e != null) e.post(SetValueCommand(module.valueIn, v.toDouble(), ScoreClock.now()))
+                        else module.setValue(v.toDouble())
+                    },
                     valueRange = module.valueIn.min.toFloat()..module.valueIn.max.toFloat(),
                     modifier = Modifier.weight(1f).fillMaxHeight()
                 )
@@ -774,7 +855,11 @@ fun KnobModuleNode(module: KnobModule, state: GraphState) {
             // Numeric readout / direct entry
             NumberField(
                 value = module.value,
-                onCommit = { module.setValue(it) },
+                onCommit = { v ->
+                    val e = state.engine
+                    if (e != null) e.post(SetValueCommand(module.valueIn, v, ScoreClock.now()))
+                    else module.setValue(v)
+                },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp)
             )
         }

@@ -6,6 +6,8 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
+import com.syntona.dataflow.engine.DataFlowEngine
+import com.syntona.dataflow.engine.EngineAware
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Jack
 import com.syntona.dataflow.model.Module
@@ -18,6 +20,8 @@ import com.syntona.dataflow.modules.KnobModule
  * and anchor points for wires.
  */
 class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
+    var engine: DataFlowEngine? = null
+
     val modules = mutableStateListOf<Module>()
     val modulePositions = mutableStateMapOf<Module, Offset>()
 
@@ -33,6 +37,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
 
     fun addModule(module: Module, position: Offset) {
         onModuleAdded?.invoke(module)  // runs before Compose observes the module
+        if (module is EngineAware) engine?.let { module.setEngine(it) }
         modules.add(module)
         modulePositions[module] = position
     }

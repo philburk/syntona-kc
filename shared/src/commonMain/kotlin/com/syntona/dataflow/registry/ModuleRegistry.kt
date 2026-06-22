@@ -30,6 +30,7 @@ object ModuleRegistry {
         core.modules.add(ModuleEntry("output") { OutputModule() })
 
         val basic = getOrCreateBundle(core, "basic")
+        basic.modules.add(ModuleEntry("clock") { ClockModule() })
         basic.modules.add(ModuleEntry("counter") { CounterModule() })
         basic.modules.add(ModuleEntry("seq2") { SequenceModule(2) })
         basic.modules.add(ModuleEntry("seq8") { SequenceModule(8) })

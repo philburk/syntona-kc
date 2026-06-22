@@ -20,6 +20,12 @@ abstract class Module(val name: String) {
         return jack
     }
 
+    protected fun addCommandInput(name: String): CommandJack {
+        val jack = CommandJack(name, this)
+        _inputs.add(jack)
+        return jack
+    }
+
     protected fun addOutput(name: String): OutputJack {
         val jack = OutputJack(name, this)
         _outputs.add(jack)

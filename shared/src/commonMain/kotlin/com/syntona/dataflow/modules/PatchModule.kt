@@ -1,18 +1,24 @@
 package com.syntona.dataflow.modules
 
 import com.syntona.dataflow.editor.GraphState
+import com.syntona.dataflow.engine.DataFlowEngine
+import com.syntona.dataflow.engine.EngineAware
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.model.OutputJack
 
-class PatchModule(name: String = "patch") : Module(name) {
+class PatchModule(name: String = "patch") : Module(name), EngineAware {
 
     // Maps jacks on this PatchModule to the I/O modules inside the patch
     private val inputLinks = mutableMapOf<InputJack, InputModule>()
     private val outputLinks = mutableMapOf<OutputJack, OutputModule>()
 
     val graphState = GraphState(onModuleAdded = ::onChildModuleAdded)
+
+    override fun setEngine(engine: DataFlowEngine) {
+        graphState.engine = engine
+    }
 
     private fun onChildModuleAdded(module: Module) {
         when (module) {

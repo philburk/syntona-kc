@@ -26,8 +26,11 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
+import com.syntona.core.model.ScoreClock
 import com.syntona.core.model.SyntonaModel
 import com.syntona.dataflow.editor.*
+import com.syntona.dataflow.engine.SendOutputCommand
+import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.modules.*
 
 @Composable
@@ -38,7 +41,7 @@ fun App() {
         val syntonaModel = remember { SyntonaModel() }
 
         val rootPatch = remember {
-            PatchModule("root").apply {
+            PatchModule("root").also { it.graphState.engine = syntonaModel.engine }.apply {
                 graphState.apply {
                     /*
                     val kick = KickModule()
@@ -141,9 +144,16 @@ fun App() {
                             ) {
                                 Button(
                                     onClick = {
+                                        val engine = syntonaModel.engine
+                                        val time = ScoreClock.now()
                                         rootPatch.graphState.modules
                                             .filterIsInstance<KickModule>()
-                                            .forEach { it.kick() }
+                                            .forEach { module ->
+                                                engine.post(SendOutputCommand(
+                                                    module.output,
+                                                    Message.FloatValue(time, 0.0)
+                                                ))
+                                            }
                                     }
                                 ) {
                                     Text("Kick Graph")

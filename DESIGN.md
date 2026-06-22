@@ -72,7 +72,7 @@ Should startDelays and stopDelays be shown? On the one hand, I like that this ed
 
 ### Data Flow
 
-* Module data flow editor like original Synthona.
+* Module data flow editor like original Syntona.
 * Modules for composition
   * Delay \- add time to timestamp
   * Sync
@@ -99,6 +99,34 @@ Useful but maybe mentally constraining
 Like Audacity with elements from ListenUp
 Edit captured audio from other parts of Syntona.
 Musique concrète techniques, rhythmic splicing, tempo integration
+
+### Clocks and Coroutines
+
+The graph traversal should take place within a Coroutine. This will separate it from the UI thread.
+This will allow us to have autonomous event generators such as Clocks that will run in the DataFlow Coroutine.
+
+Communication from the UI to the dataflow Coroutine should be through SyntonaCommands that are passed to the
+dataflow Coroutine through a Kotlin Channel.
+
+The dataflow graph traversal Coroutine should sleep while waiting for messages from the UI or
+for scheduled events to become ready. This can be implemented using a Kotlin Channel for passing commands,
+and the select<Unit> feature with onTimeout().
+
+A SyntonaCommand has two methods, execute() and undo(). When a command is received it is executed
+and placed in the undo stack. If the users asks for an UnDO then it pops commands off the stack
+and calls undo().
+
+SyntonaCommand subclasses can include:
+* KickModule
+* AddModule(bundle, type, x, y)
+* PassMessage, set values by sending message, but what about Kickable jacks?
+* ConnectJacksCommand()
+* DisconnectJacksCommand()
+
+Modules that will use the ScheduledQueue include:
+* Clock - generates periodic kicks
+* AddTime (Delay) - advances timestamp and schedules the output message
+
 
 ## Common Elements
 

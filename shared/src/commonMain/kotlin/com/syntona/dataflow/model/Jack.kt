@@ -61,6 +61,12 @@ open class InputJack(
 }
 
 /**
+ * An input jack rendered as a clickable Button in the UI rather than a value-draggable label.
+ * Clicking the button sends a kick message to this jack's module.
+ */
+class CommandJack(name: String, module: Module) : InputJack(name, module, isKickable = true)
+
+/**
  * An output port that can send messages to connected [InputJack]s.
  */
 open class OutputJack(
