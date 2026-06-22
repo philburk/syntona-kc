@@ -128,6 +128,15 @@ object ModuleRegistry {
         addKSynModule(effects, "roomReverb", ::RoomReverb)
     }
 
+    fun findCreator(typeName: String): (() -> Module)? {
+        fun searchBundle(bundle: Bundle): (() -> Module)? {
+            bundle.modules.firstOrNull { it.name == typeName }?.let { return it.creator }
+            bundle.subBundles.forEach { searchBundle(it)?.let { c -> return c } }
+            return null
+        }
+        return searchBundle(root)
+    }
+
     private fun getOrCreateBundle(parent: Bundle, name: String): Bundle {
         return parent.subBundles.find { it.name == name }
             ?: Bundle(name).also { parent.subBundles.add(it) }

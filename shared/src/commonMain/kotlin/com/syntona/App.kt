@@ -128,6 +128,31 @@ fun App() {
                                         else engine?.undo()
                                         true
                                     }
+                                    keyEvent.type == KeyEventType.KeyDown &&
+                                    keyEvent.key == Key.C &&
+                                    (keyEvent.isMetaPressed || keyEvent.isCtrlPressed) -> {
+                                        val gs = mdiState.activeGraphState
+                                        if (gs != null && gs.selectedModules.isNotEmpty()) {
+                                            CopyPasteService.copy(gs, gs.selectedModules.toList())
+                                        }
+                                        true
+                                    }
+                                    keyEvent.type == KeyEventType.KeyDown &&
+                                    keyEvent.key == Key.X &&
+                                    (keyEvent.isMetaPressed || keyEvent.isCtrlPressed) -> {
+                                        val gs = mdiState.activeGraphState
+                                        if (gs != null && gs.selectedModules.isNotEmpty()) {
+                                            CopyPasteService.copy(gs, gs.selectedModules.toList())
+                                            gs.deleteSelectedModules()
+                                        }
+                                        true
+                                    }
+                                    keyEvent.type == KeyEventType.KeyDown &&
+                                    keyEvent.key == Key.V &&
+                                    (keyEvent.isMetaPressed || keyEvent.isCtrlPressed) -> {
+                                        mdiState.activeGraphState?.let { CopyPasteService.paste(it) }
+                                        true
+                                    }
                                     else -> false
                                 }
                             }
@@ -178,6 +203,27 @@ fun App() {
                                 Button(onClick = { mdiState.activeGraphState?.engine?.redo() }) {
                                     Text("Redo")
                                 }
+                                val activeGs = mdiState.activeGraphState
+                                val hasSelection = activeGs?.selectedModules?.isNotEmpty() == true
+                                Button(
+                                    onClick = {
+                                        val gs = activeGs ?: return@Button
+                                        CopyPasteService.copy(gs, gs.selectedModules.toList())
+                                    },
+                                    enabled = hasSelection
+                                ) { Text("Copy") }
+                                Button(
+                                    onClick = {
+                                        val gs = activeGs ?: return@Button
+                                        CopyPasteService.copy(gs, gs.selectedModules.toList())
+                                        gs.deleteSelectedModules()
+                                    },
+                                    enabled = hasSelection
+                                ) { Text("Cut") }
+                                Button(
+                                    onClick = { activeGs?.let { CopyPasteService.paste(it) } },
+                                    enabled = CopyPasteService.pasteBuffer != null
+                                ) { Text("Paste") }
                             }
 
                             // MDI Desktop

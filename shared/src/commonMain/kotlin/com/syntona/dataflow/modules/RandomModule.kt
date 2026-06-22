@@ -7,7 +7,7 @@ import kotlin.random.Random
 /**
  * Generates a random value between 0.0 and 1.0 when kicked.
  */
-class RandomModule : Module("Random") {
+class RandomModule : Module("random") {
     val kick = addInput("kick", isKickable = true)
     val output = addOutput("value")
 

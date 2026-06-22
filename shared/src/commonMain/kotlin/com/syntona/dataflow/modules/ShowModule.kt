@@ -9,8 +9,8 @@ import com.syntona.dataflow.model.Module
 /**
  * A module that displays its received FloatValue on the screen.
  */
-class ShowModule : Module("Show") {
-    val input = addInput("In", isKickable = true)
+class ShowModule : Module("show") {
+    val input = addInput("in", isKickable = true)
 
     // We use a mutable state to update the UI when a message arrives
     var displayValue by mutableStateOf(0.0)

@@ -8,7 +8,7 @@ import com.syntona.dataflow.model.Module
  * A module that sends a message when triggered by the UI.
  * This will be connected to a Button in the Compose UI.
  */
-class KickModule : Module("!") {
+class KickModule : Module("kick") {
     val output = addOutput("kick")
 
     /**
