@@ -328,7 +328,7 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
                         val unconnectedInput = jack is InputJack &&
                             state.connections.none { it.input == jack }
                         if (unconnectedInput) {
-                            valueDragCurrentValue = (jack as InputJack).getValue()
+                            valueDragCurrentValue = jack.getValue()
                             valueDragAccumX = 0f
                             isValueDragging = true
                         } else {

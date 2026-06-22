@@ -17,6 +17,9 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
@@ -111,11 +114,22 @@ fun App() {
                             .focusRequester(appFocusRequester)
                             .focusable()
                             .onPreviewKeyEvent { keyEvent ->
-                                if (keyEvent.type == KeyEventType.KeyDown &&
-                                    (keyEvent.key == Key.Backspace || keyEvent.key == Key.Delete)) {
-                                    mdiState.activeGraphState?.deleteSelectedModules()
-                                    true
-                                } else false
+                                val engine = mdiState.activeGraphState?.engine
+                                when {
+                                    keyEvent.type == KeyEventType.KeyDown &&
+                                    (keyEvent.key == Key.Backspace || keyEvent.key == Key.Delete) -> {
+                                        mdiState.activeGraphState?.deleteSelectedModules()
+                                        true
+                                    }
+                                    keyEvent.type == KeyEventType.KeyDown &&
+                                    keyEvent.key == Key.Z &&
+                                    (keyEvent.isMetaPressed || keyEvent.isCtrlPressed) -> {
+                                        if (keyEvent.isShiftPressed) engine?.redo()
+                                        else engine?.undo()
+                                        true
+                                    }
+                                    else -> false
+                                }
                             }
                             .onGloballyPositioned { mdiState.appRootOffset = it.positionInRoot() }
                     ) {
@@ -157,6 +171,12 @@ fun App() {
                                     }
                                 ) {
                                     Text("Kick Graph")
+                                }
+                                Button(onClick = { mdiState.activeGraphState?.engine?.undo() }) {
+                                    Text("Undo")
+                                }
+                                Button(onClick = { mdiState.activeGraphState?.engine?.redo() }) {
+                                    Text("Redo")
                                 }
                             }
 
