@@ -54,6 +54,9 @@ abstract class Module(val name: String) {
         }
     }
 
+    /** Called when this module is removed from a graph. Subclasses override to cancel pending work. */
+    open fun teardown() {}
+
     fun executeSafely(triggerMessage: Message) {
         // prevent recursion in cyclic graphs
         if (safe) {

@@ -42,6 +42,40 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
         modulePositions[module] = position
     }
 
+    // Used by DeleteModulesCommand.undo() to re-add modules without posting to engine
+    internal fun addModuleDirectly(module: Module, position: Offset) {
+        onModuleAdded?.invoke(module)
+        if (module is EngineAware) engine?.let { module.setEngine(it) }
+        modules.add(module)
+        modulePositions[module] = position
+    }
+
+    // Used by DeleteModulesCommand.undo() to re-create connections without posting to engine
+    internal fun connectDirectly(output: OutputJack, input: InputJack) {
+        output.connect(input)
+        if (connections.none { it.output == output && it.input == input }) {
+            connections.add(UIConnection(output, input))
+        }
+        syncRangeFromConnections(output)
+    }
+
+    // Core deletion logic used by DeleteModulesCommand.execute()
+    internal fun removeModulesDirectly(modulesToRemove: List<Module>) {
+        modulesToRemove.forEach { module ->
+            module.teardown()
+            connections
+                .filter { it.output.module === module || it.input.module === module }
+                .forEach { it.output.disconnect(it.input) }
+            connections.removeAll { it.output.module === module || it.input.module === module }
+            module.inputs.forEach { jackOffsets.remove(it) }
+            module.outputs.forEach { jackOffsets.remove(it) }
+            if (editingModule === module) editingModule = null
+            modulePositions.remove(module)
+            modules.remove(module)
+        }
+        selectedModules.removeAll(modulesToRemove)
+    }
+
     fun updateModulePosition(module: Module, delta: Offset) {
         modulePositions[module] = (modulePositions[module] ?: Offset.Zero) + delta
     }
@@ -166,18 +200,17 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
 
     fun deleteSelectedModules() {
         val toDelete = selectedModules.toList()
-        toDelete.forEach { module ->
-            connections
-                .filter { it.output.module === module || it.input.module === module }
-                .forEach { it.output.disconnect(it.input) }
-            connections.removeAll { it.output.module === module || it.input.module === module }
-            module.inputs.forEach { jackOffsets.remove(it) }
-            module.outputs.forEach { jackOffsets.remove(it) }
-            if (editingModule === module) editingModule = null
-            modulePositions.remove(module)
-            modules.remove(module)
+        if (toDelete.isEmpty()) return
+        val e = engine
+        if (e != null) {
+            val savedPositions = toDelete.associateWith { modulePositions[it] ?: Offset.Zero }
+            val savedConnections = connections.filter { conn ->
+                toDelete.any { it === conn.output.module || it === conn.input.module }
+            }
+            e.post(DeleteModulesCommand(this, toDelete, savedPositions, savedConnections))
+        } else {
+            removeModulesDirectly(toDelete)
         }
-        selectedModules.clear()
     }
 
     fun startDraggingFromOutput(output: OutputJack) {

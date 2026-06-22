@@ -27,6 +27,12 @@ class ClockModule : Module("clock"), EngineAware {
         this.engine = engine
     }
 
+    override fun teardown() {
+        running = false
+        pendingEvent?.cancel()
+        pendingEvent = null
+    }
+
     override fun execute(triggerMessage: Message) {
         when {
             start.isKicked -> {
