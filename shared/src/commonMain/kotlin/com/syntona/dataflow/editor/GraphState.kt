@@ -8,6 +8,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import com.syntona.dataflow.engine.DataFlowEngine
 import com.syntona.dataflow.engine.EngineAware
+import com.syntona.dataflow.model.AudioInputJack
+import com.syntona.dataflow.model.AudioOutputJack
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Jack
 import com.syntona.dataflow.model.Module
@@ -169,6 +171,8 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
     }
 
     fun connect(output: OutputJack, input: InputJack) {
+        // Audio-rate outputs carry no messages — block connection to non-audio inputs
+        if (output is AudioOutputJack && input !is AudioInputJack) return
         output.connect(input)
         if (connections.none { it.output == output && it.input == input }) {
             connections.add(UIConnection(output, input))
