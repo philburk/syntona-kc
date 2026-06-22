@@ -3,6 +3,14 @@ package com.syntona.dataflow.editor
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -42,10 +50,15 @@ import kotlin.math.roundToInt
 @Composable
 fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
     val mdiState = LocalMdiState.current
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
     Box(modifier = modifier.fillMaxSize().background(Color(0xFF1E1E1E))
+        .focusRequester(focusRequester)
+        .focusable()
         .onGloballyPositioned { state.updateRootOffset(it.positionInRoot()) }
         .pointerInput(state) {
             detectTapGestures {
+                focusRequester.requestFocus()
                 mdiState.activeGraphState = state
                 // Tap on background clears selection
                 state.clearSelection()

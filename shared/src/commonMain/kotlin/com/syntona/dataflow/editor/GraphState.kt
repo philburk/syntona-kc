@@ -159,6 +159,22 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
         disconnect(connection.output, connection.input)
     }
 
+    fun deleteSelectedModules() {
+        val toDelete = selectedModules.toList()
+        toDelete.forEach { module ->
+            connections
+                .filter { it.output.module === module || it.input.module === module }
+                .forEach { it.output.disconnect(it.input) }
+            connections.removeAll { it.output.module === module || it.input.module === module }
+            module.inputs.forEach { jackOffsets.remove(it) }
+            module.outputs.forEach { jackOffsets.remove(it) }
+            if (editingModule === module) editingModule = null
+            modulePositions.remove(module)
+            modules.remove(module)
+        }
+        selectedModules.clear()
+    }
+
     fun startDraggingFromOutput(output: OutputJack) {
         // Many fan-out from an OutputJack are now allowed.
         // Clicking an OutputJack should NOT disconnect any existing wires.

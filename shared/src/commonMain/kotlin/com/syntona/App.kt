@@ -2,6 +2,7 @@ package com.syntona
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -10,8 +11,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.tooling.preview.Preview
@@ -92,9 +100,20 @@ fun App() {
                 }
             } else {
                 CompositionLocalProvider(LocalMdiState provides mdiState) {
+                    val appFocusRequester = remember { FocusRequester() }
+                    LaunchedEffect(Unit) { appFocusRequester.requestFocus() }
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
+                            .focusRequester(appFocusRequester)
+                            .focusable()
+                            .onPreviewKeyEvent { keyEvent ->
+                                if (keyEvent.type == KeyEventType.KeyDown &&
+                                    (keyEvent.key == Key.Backspace || keyEvent.key == Key.Delete)) {
+                                    mdiState.activeGraphState?.deleteSelectedModules()
+                                    true
+                                } else false
+                            }
                             .onGloballyPositioned { mdiState.appRootOffset = it.positionInRoot() }
                     ) {
                     Row(modifier = Modifier.fillMaxSize()) {
