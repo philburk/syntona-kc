@@ -153,13 +153,14 @@ fun WireRenderer(state: GraphState) {
             val end = state.jackOffsets[conn.input] ?: Offset.Zero
 
             if (start != Offset.Zero && end != Offset.Zero) {
+                val isAudio = conn.output is AudioOutputJack
+                val wireColor = if (isAudio) Color(0xFF44DD44) else Color.Gray
                 val path = Path().apply {
                     moveTo(start.x, start.y)
-                    // Create a smooth Bezier curve
                     val controlX = (start.x + end.x) / 2
                     cubicTo(controlX, start.y, controlX, end.y, end.x, end.y)
                 }
-                drawPath(path, color = Color.Gray, style = Stroke(width = 2f))
+                drawPath(path, color = wireColor, style = Stroke(width = 3f))
             }
         }
 
@@ -169,11 +170,12 @@ fun WireRenderer(state: GraphState) {
             val start = state.jackOffsets[draggingOutput] ?: Offset.Zero
             val end = state.dragPointerPosition
             if (start != Offset.Zero) {
+                val isAudio = draggingOutput is AudioOutputJack
                 drawLine(
-                    color = Color.Yellow,
+                    color = if (isAudio) Color(0xFF44DD44) else Color.Yellow,
                     start = start,
                     end = end,
-                    strokeWidth = 2f
+                    strokeWidth = 3f
                 )
             }
         }
@@ -276,9 +278,17 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
         CommandJackView(jack, state, isLeft)
         return
     }
-    val connectorColor = if (jack is InputJack && jack.isKickable) Color.Red else Color.Cyan
+    val connectorColor = when {
+        jack is InputJack && jack.isKickable -> Color.Red
+        jack is AudioInputJack || jack is AudioOutputJack -> Color(0xFF44DD44)
+        else -> Color.Cyan
+    }
     val textColor = if (jack.isHighlighted) Color.Black else Color.LightGray
-    val backgroundColor = if (jack.isHighlighted) Color(180, 170, 130) else Color.DarkGray
+    val backgroundColor = when {
+        jack.isHighlighted -> Color(180, 170, 130)
+        jack is AudioInputJack || jack is AudioOutputJack -> Color(0xFF1A3A1A)
+        else -> Color.DarkGray
+    }
 
     var isHovered by remember { mutableStateOf(false) }
     var isValueDragging by remember { mutableStateOf(false) }
@@ -447,7 +457,11 @@ fun CommandJackView(jack: CommandJack, state: GraphState, isLeft: Boolean) {
  */
 @Composable
 fun CompactJackConnector(jack: Jack, state: GraphState, isLeft: Boolean) {
-    val connectorColor = if (jack is InputJack && jack.isKickable) Color.Red else Color.Cyan
+    val connectorColor = when {
+        jack is InputJack && jack.isKickable -> Color.Red
+        jack is AudioInputJack || jack is AudioOutputJack -> Color(0xFF44DD44)
+        else -> Color.Cyan
+    }
     var jackRootPosition by remember { mutableStateOf(Offset.Zero) }
 
     Box(
