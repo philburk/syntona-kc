@@ -10,6 +10,8 @@ import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Jack
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.model.OutputJack
+import com.syntona.dataflow.modules.FaderModule
+import com.syntona.dataflow.modules.KnobModule
 
 /**
  * Manages the UI state of the graph editor, including module positions
@@ -132,11 +134,25 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
         if (connections.none { it.output == output && it.input == input }) {
             connections.add(UIConnection(output, input))
         }
+        syncRangeFromConnections(output)
     }
 
     fun disconnect(output: OutputJack, input: InputJack) {
         output.disconnect(input)
         connections.removeAll { it.output == output && it.input == input }
+        syncRangeFromConnections(output)
+    }
+
+    private fun syncRangeFromConnections(output: OutputJack) {
+        val valueIn = when (val m = output.module) {
+            is FaderModule -> m.valueIn
+            is KnobModule -> m.valueIn
+            else -> return
+        }
+        val connected = connections.filter { it.output === output }
+        if (connected.isEmpty()) return
+        valueIn.min = connected.minOf { it.input.min }
+        valueIn.max = connected.maxOf { it.input.max }
     }
 
     fun deleteConnection(connection: UIConnection) {
