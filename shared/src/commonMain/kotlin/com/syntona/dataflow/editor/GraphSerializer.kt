@@ -5,48 +5,56 @@ import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.CommandJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
+import com.syntona.dataflow.modules.PatchModule
 import com.syntona.dataflow.registry.ModuleRegistry
 
 object GraphSerializer {
 
-    fun serialize(graphState: GraphState, modules: List<Module>): String {
+    fun serialize(graphState: GraphState, modules: List<Module>): String = buildString {
         val internalConns = graphState.connections.filter { conn ->
             modules.any { it === conn.output.module } &&
             modules.any { it === conn.input.module }
         }
-        return buildString {
-            append("{\"modules\":[")
-            modules.forEachIndexed { i, module ->
-                if (i > 0) append(",")
-                val pos = graphState.modulePositions[module] ?: Offset.Zero
-                append("{\"id\":$i,\"type\":\"${module.name.jsonEscape}\"")
-                append(",\"x\":${pos.x},\"y\":${pos.y},\"jacks\":{")
-                val valueJacks = module.inputs.filter { jack ->
-                    jack !is CommandJack && !jack.isKickable &&
-                    jack !is AudioInputJack &&
-                    jack.lastMessage is Message.FloatValue
-                }
-                valueJacks.forEachIndexed { j, jack ->
-                    if (j > 0) append(",")
-                    append("\"${jack.name.jsonEscape}\":${jack.getDoubleValue()}")
-                }
-                append("}}")
+        append("{\"modules\":[")
+        modules.forEachIndexed { i, module ->
+            if (i > 0) append(",")
+            val pos = graphState.modulePositions[module] ?: Offset.Zero
+            append("{\"id\":$i,\"type\":\"${module.name.jsonEscape}\"")
+            append(",\"x\":${pos.x},\"y\":${pos.y},\"jacks\":{")
+            val valueJacks = module.inputs.filter { jack ->
+                jack !is CommandJack && !jack.isKickable &&
+                jack !is AudioInputJack &&
+                jack.lastMessage is Message.FloatValue
             }
-            append("],\"connections\":[")
-            internalConns.forEachIndexed { i, conn ->
-                if (i > 0) append(",")
-                val fromIdx = modules.indexOfFirst { it === conn.output.module }
-                val toIdx = modules.indexOfFirst { it === conn.input.module }
-                append("{\"from\":$fromIdx,\"fromJack\":\"${conn.output.name.jsonEscape}\"")
-                append(",\"to\":$toIdx,\"toJack\":\"${conn.input.name.jsonEscape}\"}")
+            valueJacks.forEachIndexed { j, jack ->
+                if (j > 0) append(",")
+                append("\"${jack.name.jsonEscape}\":${jack.getDoubleValue()}")
             }
-            append("]}")
+            append("}")
+            // Recursively embed patch contents so jacks are restored on paste/load
+            if (module is PatchModule) {
+                append(",\"patch\":")
+                append(serialize(module.graphState, module.graphState.modules.toList()))
+            }
+            append("}")
         }
+        append("],\"connections\":[")
+        internalConns.forEachIndexed { i, conn ->
+            if (i > 0) append(",")
+            val fromIdx = modules.indexOfFirst { it === conn.output.module }
+            val toIdx = modules.indexOfFirst { it === conn.input.module }
+            append("{\"from\":$fromIdx,\"fromJack\":\"${conn.output.name.jsonEscape}\"")
+            append(",\"to\":$toIdx,\"toJack\":\"${conn.input.name.jsonEscape}\"}")
+        }
+        append("]}")
     }
 
     fun deserialize(graphState: GraphState, json: String, offset: Offset = Offset.Zero): List<Module> {
         val rootVal = try { JsonParser(json).parse() } catch (_: Exception) { return emptyList() }
-        val rootObj = rootVal as? JsonValue.Obj ?: return emptyList()
+        return deserializeObj(graphState, rootVal as? JsonValue.Obj ?: return emptyList(), offset)
+    }
+
+    private fun deserializeObj(graphState: GraphState, rootObj: JsonValue.Obj, offset: Offset): List<Module> {
         val modulesArr = (rootObj.map["modules"] as? JsonValue.Arr)?.items ?: return emptyList()
         val connectionsArr = (rootObj.map["connections"] as? JsonValue.Arr)?.items ?: return emptyList()
 
@@ -68,6 +76,13 @@ object GraphSerializer {
             jacks?.map?.forEach { (jackName, jackValue) ->
                 if (jackValue is JsonValue.Num) {
                     module.inputs.find { it.name == jackName }?.setValue(jackValue.value)
+                }
+            }
+            // Restore patch internals before parent connections so jacks (in1, out1, …) exist
+            if (module is PatchModule) {
+                val patchObj = obj?.map?.get("patch") as? JsonValue.Obj
+                if (patchObj != null) {
+                    deserializeObj(module.graphState, patchObj, Offset.Zero)
                 }
             }
             created.add(module)
@@ -210,10 +225,7 @@ internal class JsonParser(private val input: String) {
         return JsonValue.Num(input.substring(start, pos).toDouble())
     }
 
-    private fun skipWs() {
-        while (pos < input.length && input[pos].isWhitespace()) pos++
-    }
-
+    private fun skipWs() { while (pos < input.length && input[pos].isWhitespace()) pos++ }
     private fun peek(): Char = input.getOrElse(pos) { ' ' }
     private fun advance() { pos++ }
     private fun expect(c: Char) {
