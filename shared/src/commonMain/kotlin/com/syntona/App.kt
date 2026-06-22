@@ -6,6 +6,9 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -38,7 +41,10 @@ import com.syntona.dataflow.modules.*
 
 @Composable
 @Preview
-fun App() {
+fun App(
+    onMdiStateReady: ((MdiState) -> Unit)? = null,
+    showEditMenuInToolbar: Boolean = true,
+) {
     MaterialTheme {
         var showContent by remember { mutableStateOf(false) }
         val syntonaModel = remember { SyntonaModel() }
@@ -82,6 +88,7 @@ fun App() {
                 )
             }
         }
+        SideEffect { onMdiStateReady?.invoke(mdiState) }
 
         Column(
             modifier = Modifier
@@ -197,33 +204,66 @@ fun App() {
                                 ) {
                                     Text("Kick Graph")
                                 }
-                                Button(onClick = { mdiState.activeGraphState?.engine?.undo() }) {
-                                    Text("Undo")
+                                if (showEditMenuInToolbar) {
+                                    val activeGs = mdiState.activeGraphState
+                                    val hasSelection = activeGs?.selectedModules?.isNotEmpty() == true
+                                    var editExpanded by remember { mutableStateOf(false) }
+                                    Box {
+                                        Button(onClick = { editExpanded = true }) { Text("Edit") }
+                                        DropdownMenu(
+                                            expanded = editExpanded,
+                                            onDismissRequest = { editExpanded = false }
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text("Undo") },
+                                                trailingIcon = { ShortcutHint("⌘Z") },
+                                                onClick = {
+                                                    mdiState.activeGraphState?.engine?.undo()
+                                                    editExpanded = false
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Redo") },
+                                                trailingIcon = { ShortcutHint("⌘⇧Z") },
+                                                onClick = {
+                                                    mdiState.activeGraphState?.engine?.redo()
+                                                    editExpanded = false
+                                                }
+                                            )
+                                            HorizontalDivider()
+                                            DropdownMenuItem(
+                                                text = { Text("Cut") },
+                                                trailingIcon = { ShortcutHint("⌘X") },
+                                                enabled = hasSelection,
+                                                onClick = {
+                                                    val gs = activeGs ?: return@DropdownMenuItem
+                                                    CopyPasteService.copy(gs, gs.selectedModules.toList())
+                                                    gs.deleteSelectedModules()
+                                                    editExpanded = false
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Copy") },
+                                                trailingIcon = { ShortcutHint("⌘C") },
+                                                enabled = hasSelection,
+                                                onClick = {
+                                                    val gs = activeGs ?: return@DropdownMenuItem
+                                                    CopyPasteService.copy(gs, gs.selectedModules.toList())
+                                                    editExpanded = false
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text("Paste") },
+                                                trailingIcon = { ShortcutHint("⌘V") },
+                                                enabled = CopyPasteService.pasteBuffer != null,
+                                                onClick = {
+                                                    activeGs?.let { CopyPasteService.paste(it) }
+                                                    editExpanded = false
+                                                }
+                                            )
+                                        }
+                                    }
                                 }
-                                Button(onClick = { mdiState.activeGraphState?.engine?.redo() }) {
-                                    Text("Redo")
-                                }
-                                val activeGs = mdiState.activeGraphState
-                                val hasSelection = activeGs?.selectedModules?.isNotEmpty() == true
-                                Button(
-                                    onClick = {
-                                        val gs = activeGs ?: return@Button
-                                        CopyPasteService.copy(gs, gs.selectedModules.toList())
-                                    },
-                                    enabled = hasSelection
-                                ) { Text("Copy") }
-                                Button(
-                                    onClick = {
-                                        val gs = activeGs ?: return@Button
-                                        CopyPasteService.copy(gs, gs.selectedModules.toList())
-                                        gs.deleteSelectedModules()
-                                    },
-                                    enabled = hasSelection
-                                ) { Text("Cut") }
-                                Button(
-                                    onClick = { activeGs?.let { CopyPasteService.paste(it) } },
-                                    enabled = CopyPasteService.pasteBuffer != null
-                                ) { Text("Paste") }
                             }
 
                             // MDI Desktop
@@ -253,4 +293,13 @@ fun App() {
             }
         }
     }
+}
+
+@Composable
+private fun ShortcutHint(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+    )
 }
