@@ -127,7 +127,7 @@ Modules that will use the ScheduledQueue include:
 * Clock - generates periodic kicks
 * AddTime (Delay) - advances timestamp and schedules the output message
 
-### Notes and Voice ALlocation
+### Notes and Voice Allocation
 
 We need a way to pass audio signals into and out of a patch just like we did with regular NoteMessages.
 We can define an "aInput" module that can be added to a patch.
