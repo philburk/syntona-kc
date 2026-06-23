@@ -3,6 +3,7 @@ package com.syntona.dataflow.editor
 import androidx.compose.ui.geometry.Offset
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.CommandJack
+import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.modules.PatchModule
@@ -28,7 +29,7 @@ object GraphSerializer {
             }
             valueJacks.forEachIndexed { j, jack ->
                 if (j > 0) append(",")
-                append("\"${jack.name.jsonEscape}\":${jack.getDoubleValue()}")
+                append("\"${jack.name.jsonEscape}\":{\"v\":${jack.getDoubleValue()},\"min\":${jack.min},\"max\":${jack.max}}")
             }
             append("}")
             // Recursively embed patch contents so jacks are restored on paste/load
@@ -74,8 +75,15 @@ object GraphSerializer {
             val module = creator()
             graphState.addModule(module, Offset(x + offset.x, y + offset.y))
             jacks?.map?.forEach { (jackName, jackValue) ->
-                if (jackValue is JsonValue.Num) {
-                    module.inputs.find { it.name == jackName }?.setValue(jackValue.value)
+                val inputJack = module.inputs.find { it.name == jackName } as? InputJack ?: return@forEach
+                when (jackValue) {
+                    is JsonValue.Num -> inputJack.setValue(jackValue.value)
+                    is JsonValue.Obj -> {
+                        (jackValue.map["min"] as? JsonValue.Num)?.value?.let { inputJack.min = it }
+                        (jackValue.map["max"] as? JsonValue.Num)?.value?.let { inputJack.max = it }
+                        (jackValue.map["v"] as? JsonValue.Num)?.value?.let { inputJack.setValue(it) }
+                    }
+                    else -> {}
                 }
             }
             // Restore patch internals before parent connections so jacks (in1, out1, …) exist
