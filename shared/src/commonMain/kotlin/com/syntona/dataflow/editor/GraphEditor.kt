@@ -20,6 +20,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
@@ -196,12 +197,12 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color = Color.Blu
     Surface(
         modifier = Modifier
             .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
-            .width(140.dp)
+            .width(IntrinsicSize.Max)
             .border(borderWidth, borderColor, RoundedCornerShape(4.dp)),
         shape = RoundedCornerShape(4.dp),
         color = Color.DarkGray
     ) {
-        Column {
+        Column(modifier = Modifier.width(IntrinsicSize.Max)) {
             // Drag handle
             Box(
                 modifier = Modifier
@@ -261,15 +262,12 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color = Color.Blu
                 }
             }
 
-            // Jacks: Inputs on left, Outputs on right
-            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
-                    module.inputs.forEach { JackView(it, state, isLeft = true) }
-                }
-                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
-                    module.outputs.forEach { JackView(it, state, isLeft = false) }
-                }
+            // Jacks: inputs at top, outputs at bottom, single column
+            module.inputs.forEach { JackView(it, state, isLeft = true) }
+            if (module.inputs.isNotEmpty() && module.outputs.isNotEmpty()) {
+                HorizontalDivider(color = Color.Black, thickness = 1.dp)
             }
+            module.outputs.forEach { JackView(it, state, isLeft = false) }
         }
     }
 }
@@ -308,7 +306,9 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = if (isLeft) Arrangement.Start else Arrangement.End,
         modifier = Modifier
+            .fillMaxWidth()
             .padding(vertical = 2.dp)
             .onGloballyPositioned { layoutCoordinates ->
                 jackRootPosition = layoutCoordinates.positionInRoot()
@@ -406,7 +406,9 @@ fun CommandJackView(jack: CommandJack, state: GraphState, isLeft: Boolean) {
     var jackRootPosition by remember { mutableStateOf(Offset.Zero) }
     Row(
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = if (isLeft) Arrangement.Start else Arrangement.End,
         modifier = Modifier
+            .fillMaxWidth()
             .padding(vertical = 2.dp)
             .onGloballyPositioned { coords ->
                 jackRootPosition = coords.positionInRoot()
