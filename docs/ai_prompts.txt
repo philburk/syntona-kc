@@ -1,0 +1,11 @@
+# Prompts for Claude Code
+
+## Add Scope module
+```
+The ksyn-compose package has a new Oscilloscope.
+There are examples of it being used in ChebyshevSongScreen.kt.
+
+Add a ScopeModule to Syntona that uses a ScopeProbe with two channels.
+The interior of the module should be filled with a 200 pixel high and 300 pixel wide scope view.
+Put the "scope" module in a new "ksyn/view" bundle.
+```

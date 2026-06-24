@@ -127,6 +127,9 @@ object ModuleRegistry {
         addKSynModule(effects, "pan", ::Pan)
         addKSynModule(effects, "plateReverb", ::PlateReverb)
         addKSynModule(effects, "roomReverb", ::RoomReverb)
+
+        val ksynView = getOrCreateBundle(ksyn, "view")
+        ksynView.modules.add(ModuleEntry("scope") { ScopeModule() })
     }
 
     fun findCreator(typeName: String): (() -> Module)? {

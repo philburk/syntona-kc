@@ -35,6 +35,8 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,6 +45,7 @@ import com.syntona.core.model.ScoreTime
 import com.syntona.dataflow.engine.KickJackCommand
 import com.syntona.dataflow.engine.SetValueCommand
 import com.syntona.dataflow.model.*
+import com.softsynth.ksyn.compose.Oscilloscope
 import com.syntona.dataflow.modules.DoubleEntryModule
 import com.syntona.dataflow.modules.FaderModule
 import com.syntona.dataflow.modules.AudioInputModule
@@ -51,6 +54,7 @@ import com.syntona.dataflow.modules.InputModule
 import com.syntona.dataflow.modules.KnobModule
 import com.syntona.dataflow.modules.OutputModule
 import com.syntona.dataflow.modules.PatchModule
+import com.syntona.dataflow.modules.ScopeModule
 import com.syntona.dataflow.modules.ShowModule
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -105,6 +109,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                 is OutputModule -> ModuleNode(module, state, headerColor = Color(0xFF6A3D00), label = module.displayName)
                 is AudioInputModule -> ModuleNode(module, state, headerColor = Color(0xFF1A5C1A), label = module.displayName)
                 is AudioOutputModule -> ModuleNode(module, state, headerColor = Color(0xFF1A5C1A), label = module.displayName)
+                is ScopeModule -> ScopeModuleNode(module, state)
                 else -> ModuleNode(module, state)
             }
         }
@@ -884,6 +889,115 @@ fun KnobModuleNode(module: KnobModule, state: GraphState) {
                 },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp)
             )
+        }
+    }
+}
+
+@Composable
+fun ScopeModuleNode(module: ScopeModule, state: GraphState) {
+    val position = state.modulePositions[module] ?: Offset.Zero
+    val isSelected = state.selectedModules.contains(module)
+    val borderColor = if (isSelected) Color(0xFFFFA500) else Color.Black
+    val borderWidth = if (isSelected) 2.dp else 1.dp
+    val density = LocalDensity.current
+
+    var scopeWidth  by remember { mutableStateOf(300.dp) }
+    var scopeHeight by remember { mutableStateOf(200.dp) }
+
+    Surface(
+        modifier = Modifier
+            .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
+            .width(IntrinsicSize.Max)
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp)),
+        shape = RoundedCornerShape(4.dp),
+        color = Color.DarkGray
+    ) {
+        Column {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(24.dp)
+                    .background(Color(0xFF1A3A1A))
+                    .pointerInput("headerGestures") {
+                        val doubleTapTimeout = viewConfiguration.doubleTapTimeoutMillis
+                        awaitEachGesture {
+                            val down = awaitFirstDown()
+                            down.consume()
+                            if (!state.selectedModules.contains(module)) {
+                                state.clearSelection()
+                                state.selectModule(module)
+                            }
+                            var wasDragged = false
+                            drag(down.id) { change ->
+                                change.consume()
+                                wasDragged = true
+                                val dragAmount = change.position - change.previousPosition
+                                if (state.selectedModules.contains(module)) {
+                                    state.selectedModules.forEach { m ->
+                                        state.updateModulePosition(m, dragAmount)
+                                    }
+                                } else {
+                                    state.updateModulePosition(module, dragAmount)
+                                }
+                            }
+                            if (!wasDragged) {
+                                val secondDown = withTimeoutOrNull(doubleTapTimeout) { awaitFirstDown() }
+                                if (secondDown != null) {
+                                    secondDown.consume()
+                                    state.editingModule = module
+                                    drag(secondDown.id) { it.consume() }
+                                }
+                            }
+                        }
+                    }
+            ) {
+                Text(
+                    text = module.name,
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+            }
+
+            Box {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.SpaceEvenly,
+                        modifier = Modifier.height(scopeHeight).padding(horizontal = 4.dp)
+                    ) {
+                        module.inputs.forEach { CompactJackConnector(it, state, isLeft = true) }
+                    }
+                    Oscilloscope(
+                        probe = module.scope,
+                        modifier = Modifier.width(scopeWidth).height(scopeHeight)
+                    )
+                }
+
+                // Resize grip — drag to grow/shrink the oscilloscope
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .size(16.dp)
+                        .pointerInput("scopeResize") {
+                            detectDragGestures { change, dragAmount ->
+                                change.consume()
+                                val dw: Dp = (dragAmount.x / density.density).dp
+                                val dh: Dp = (dragAmount.y / density.density).dp
+                                scopeWidth  = (scopeWidth  + dw).coerceAtLeast(100.dp)
+                                scopeHeight = (scopeHeight + dh).coerceAtLeast(50.dp)
+                            }
+                        }
+                ) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val grip = Color(0xFF888888)
+                        for (i in 1..3) {
+                            val d = size.width * i / 4f
+                            drawLine(grip, Offset(d, size.height), Offset(size.width, d), strokeWidth = 1.5f)
+                        }
+                    }
+                }
+            }
         }
     }
 }
