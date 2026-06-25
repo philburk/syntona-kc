@@ -36,6 +36,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -56,6 +57,9 @@ import com.syntona.dataflow.modules.OutputModule
 import com.syntona.dataflow.modules.PatchModule
 import com.syntona.dataflow.modules.ScopeModule
 import com.syntona.dataflow.modules.ShowModule
+import com.syntona.dataflow.modules.CommentModule
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.text.TextStyle
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
@@ -110,6 +114,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                 is AudioInputModule -> ModuleNode(module, state, headerColor = Color(0xFF1A5C1A), label = module.displayName)
                 is AudioOutputModule -> ModuleNode(module, state, headerColor = Color(0xFF1A5C1A), label = module.displayName)
                 is ScopeModule -> ScopeModuleNode(module, state)
+                is CommentModule -> CommentModuleNode(module, state)
                 else -> ModuleNode(module, state)
             }
         }
@@ -894,20 +899,31 @@ fun KnobModuleNode(module: KnobModule, state: GraphState) {
 }
 
 @Composable
-fun ScopeModuleNode(module: ScopeModule, state: GraphState) {
+fun ResizableModuleBox(
+    module: Module,
+    state: GraphState,
+    headerColor: Color,
+    initialWidth: Dp,
+    initialHeight: Dp,
+    minWidth: Dp = 100.dp,
+    minHeight: Dp = 50.dp,
+    onResize: (Dp, Dp) -> Unit = { _, _ -> },
+    content: @Composable BoxScope.(Dp, Dp) -> Unit
+) {
     val position = state.modulePositions[module] ?: Offset.Zero
     val isSelected = state.selectedModules.contains(module)
     val borderColor = if (isSelected) Color(0xFFFFA500) else Color.Black
     val borderWidth = if (isSelected) 2.dp else 1.dp
     val density = LocalDensity.current
+    val viewConfiguration = LocalViewConfiguration.current
 
-    var scopeWidth  by remember { mutableStateOf(300.dp) }
-    var scopeHeight by remember { mutableStateOf(200.dp) }
+    // Local state for smooth dragging, initialized from module's state
+    var currentWidth by remember(module) { mutableStateOf(initialWidth) }
+    var currentHeight by remember(module) { mutableStateOf(initialHeight) }
 
     Surface(
         modifier = Modifier
             .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
-            .width(IntrinsicSize.Max)
             .border(borderWidth, borderColor, RoundedCornerShape(4.dp)),
         shape = RoundedCornerShape(4.dp),
         color = Color.DarkGray
@@ -915,9 +931,9 @@ fun ScopeModuleNode(module: ScopeModule, state: GraphState) {
         Column {
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .width(currentWidth)
                     .height(24.dp)
-                    .background(Color(0xFF1A3A1A))
+                    .background(headerColor)
                     .pointerInput("headerGestures") {
                         val doubleTapTimeout = viewConfiguration.doubleTapTimeoutMillis
                         awaitEachGesture {
@@ -959,33 +975,25 @@ fun ScopeModuleNode(module: ScopeModule, state: GraphState) {
                 )
             }
 
-            Box {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.SpaceEvenly,
-                        modifier = Modifier.height(scopeHeight).padding(horizontal = 4.dp)
-                    ) {
-                        module.inputs.forEach { CompactJackConnector(it, state, isLeft = true) }
-                    }
-                    Oscilloscope(
-                        probe = module.scope,
-                        modifier = Modifier.width(scopeWidth).height(scopeHeight)
-                    )
-                }
+            Box(modifier = Modifier.width(currentWidth).height(currentHeight)) {
+                content(currentWidth, currentHeight)
 
-                // Resize grip — drag to grow/shrink the oscilloscope
+                // Resize grip
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .size(16.dp)
-                        .pointerInput("scopeResize") {
-                            detectDragGestures { change, dragAmount ->
+                        .pointerInput(module) {
+                            detectDragGestures(
+                                onDragEnd = {
+                                    onResize(currentWidth, currentHeight)
+                                }
+                            ) { change, dragAmount ->
                                 change.consume()
                                 val dw: Dp = (dragAmount.x / density.density).dp
                                 val dh: Dp = (dragAmount.y / density.density).dp
-                                scopeWidth  = (scopeWidth  + dw).coerceAtLeast(100.dp)
-                                scopeHeight = (scopeHeight + dh).coerceAtLeast(50.dp)
+                                currentWidth = (currentWidth + dw).coerceAtLeast(minWidth)
+                                currentHeight = (currentHeight + dh).coerceAtLeast(minHeight)
                             }
                         }
                 ) {
@@ -998,6 +1006,57 @@ fun ScopeModuleNode(module: ScopeModule, state: GraphState) {
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun CommentModuleNode(module: CommentModule, state: GraphState) {
+    ResizableModuleBox(
+        module = module,
+        state = state,
+        headerColor = Color(0xFF4A4A4A),
+        initialWidth = module.width.dp,
+        initialHeight = module.height.dp,
+        onResize = { w, h ->
+            module.width = w.value
+            module.height = h.value
+        }
+    ) { _, _ ->
+        BasicTextField(
+            value = module.text,
+            onValueChange = { module.text = it },
+            modifier = Modifier.fillMaxSize().padding(8.dp),
+            textStyle = TextStyle(color = Color.White, fontSize = 14.sp)
+        )
+    }
+}
+
+@Composable
+fun ScopeModuleNode(module: ScopeModule, state: GraphState) {
+    ResizableModuleBox(
+        module = module,
+        state = state,
+        headerColor = Color(0xFF1A3A1A),
+        initialWidth = module.width.dp,
+        initialHeight = module.height.dp,
+        onResize = { w, h ->
+            module.width = w.value
+            module.height = h.value
+        }
+    ) { _, _ ->
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.SpaceEvenly,
+                modifier = Modifier.fillMaxHeight().padding(horizontal = 4.dp)
+            ) {
+                module.inputs.forEach { CompactJackConnector(it, state, isLeft = true) }
+            }
+            Oscilloscope(
+                probe = module.scope,
+                modifier = Modifier.fillMaxSize()
+            )
         }
     }
 }

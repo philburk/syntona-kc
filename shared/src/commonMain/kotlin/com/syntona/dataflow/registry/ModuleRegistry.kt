@@ -52,6 +52,7 @@ object ModuleRegistry {
         input.modules.add(ModuleEntry("fader") { FaderModule() })
         input.modules.add(ModuleEntry("knob") { KnobModule() })
         input.modules.add(ModuleEntry("kick") { KickModule() })
+        input.modules.add(ModuleEntry("comment") { CommentModule() })
 
         val view = getOrCreateBundle(core, "view")
         view.modules.add(ModuleEntry("show") { ShowModule() })

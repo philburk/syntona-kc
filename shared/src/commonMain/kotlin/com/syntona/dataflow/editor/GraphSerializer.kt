@@ -6,6 +6,8 @@ import com.syntona.dataflow.model.CommandJack
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
+import com.syntona.dataflow.modules.CommentModule
+import com.syntona.dataflow.modules.ScopeModule
 import com.syntona.dataflow.modules.PatchModule
 import com.syntona.dataflow.registry.ModuleRegistry
 
@@ -32,6 +34,13 @@ object GraphSerializer {
                 append("\"${jack.name.jsonEscape}\":{\"v\":${jack.getDoubleValue()},\"min\":${jack.min},\"max\":${jack.max}}")
             }
             append("}")
+            if (module is CommentModule) {
+                append(",\"text\":\"${module.text.jsonEscape}\"")
+                append(",\"w\":${module.width},\"h\":${module.height}")
+            }
+            if (module is ScopeModule) {
+                append(",\"w\":${module.width},\"h\":${module.height}")
+            }
             // Recursively embed patch contents so jacks are restored on paste/load
             if (module is PatchModule) {
                 append(",\"patch\":")
@@ -92,6 +101,15 @@ object GraphSerializer {
                 if (patchObj != null) {
                     deserializeObj(module.graphState, patchObj, Offset.Zero)
                 }
+            }
+            if (module is CommentModule) {
+                (obj?.map?.get("text") as? JsonValue.Str)?.value?.let { module.text = it }
+                (obj?.map?.get("w") as? JsonValue.Num)?.value?.let { module.width = it.toFloat() }
+                (obj?.map?.get("h") as? JsonValue.Num)?.value?.let { module.height = it.toFloat() }
+            }
+            if (module is ScopeModule) {
+                (obj?.map?.get("w") as? JsonValue.Num)?.value?.let { module.width = it.toFloat() }
+                (obj?.map?.get("h") as? JsonValue.Num)?.value?.let { module.height = it.toFloat() }
             }
             created.add(module)
             succeeded.add(module)
