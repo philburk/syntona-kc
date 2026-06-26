@@ -9,6 +9,8 @@ import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.modules.CommentModule
 import com.syntona.dataflow.modules.ScopeModule
 import com.syntona.dataflow.modules.PatchModule
+import com.syntona.dataflow.modules.SegmentedEnvelopeModule
+import com.softsynth.ksyn.data.SegmentedEnvelope
 import com.syntona.dataflow.registry.ModuleRegistry
 
 object GraphSerializer {
@@ -40,6 +42,17 @@ object GraphSerializer {
             }
             if (module is ScopeModule) {
                 append(",\"w\":${module.width},\"h\":${module.height}")
+            }
+            if (module is SegmentedEnvelopeModule) {
+                val env = module.envelope
+                val data = DoubleArray(env.numFrames * 2)
+                env.read(data)
+                val dataJson = data.joinToString(prefix = "[", postfix = "]") { it.toString() }
+                append(",\"envData\":$dataJson")
+                append(",\"sustainBegin\":${env.sustainBegin}")
+                append(",\"sustainEnd\":${env.sustainEnd}")
+                append(",\"releaseBegin\":${env.releaseBegin}")
+                append(",\"releaseEnd\":${env.releaseEnd}")
             }
             // Recursively embed patch contents so jacks are restored on paste/load
             if (module is PatchModule) {
@@ -110,6 +123,20 @@ object GraphSerializer {
             if (module is ScopeModule) {
                 (obj?.map?.get("w") as? JsonValue.Num)?.value?.let { module.width = it.toFloat() }
                 (obj?.map?.get("h") as? JsonValue.Num)?.value?.let { module.height = it.toFloat() }
+            }
+            if (module is SegmentedEnvelopeModule) {
+                val envDataArr = (obj?.map?.get("envData") as? JsonValue.Arr)?.items
+                if (envDataArr != null) {
+                    val doubles = DoubleArray(envDataArr.size) { idx ->
+                        (envDataArr[idx] as? JsonValue.Num)?.value ?: 0.0
+                    }
+                    val env = SegmentedEnvelope(doubles)
+                    (obj.map["sustainBegin"] as? JsonValue.Num)?.value?.let { env.sustainBegin = it.toInt() }
+                    (obj.map["sustainEnd"] as? JsonValue.Num)?.value?.let { env.sustainEnd = it.toInt() }
+                    (obj.map["releaseBegin"] as? JsonValue.Num)?.value?.let { env.releaseBegin = it.toInt() }
+                    (obj.map["releaseEnd"] as? JsonValue.Num)?.value?.let { env.releaseEnd = it.toInt() }
+                    module.envelope = env
+                }
             }
             created.add(module)
             succeeded.add(module)
