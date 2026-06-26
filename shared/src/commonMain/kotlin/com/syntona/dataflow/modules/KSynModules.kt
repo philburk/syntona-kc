@@ -2,6 +2,7 @@ package com.syntona.dataflow.modules
 
 import com.softsynth.ksyn.ports.UnitInputPort
 import com.softsynth.ksyn.ports.UnitOutputPort
+import com.softsynth.ksyn.ports.UnitDataQueuePort
 import com.softsynth.ksyn.unitgen.UnitGenerator
 import com.syntona.core.audio.SynthKSyn
 import com.syntona.dataflow.model.Message
@@ -13,6 +14,7 @@ import com.syntona.dataflow.model.Module
  * For each port on the unit:
  * - [UnitInputPort] becomes an [com.syntona.dataflow.model.AudioInputJack]
  * - [UnitOutputPort] becomes an [com.syntona.dataflow.model.AudioOutputJack]
+ * - [UnitDataQueuePort] becomes an [com.syntona.dataflow.model.DataQueueInputJack]
  * Other port types are ignored.
  *
  * The underlying [unit] must still be added to a KSyn synthesizer and started separately.
@@ -34,6 +36,9 @@ open class UnitGeneratorModule(name: String, val unit: UnitGenerator) : Module(n
                         val jackName = if (port.numParts == 1) baseName else "$baseName$i"
                         addAudioOutput(jackName, port, i)
                     }
+                }
+                is UnitDataQueuePort -> {
+                    addDataQueueInput(baseName, port)
                 }
                 else -> {}
             }

@@ -14,6 +14,7 @@ class PrintModule : Module("print") {
             is Message.FloatValue -> triggerMessage.value.toString()
             is Message.TextValue -> triggerMessage.value
             is Message.ObjectValue -> triggerMessage.value.toString()
+            is Message.DataQueueMessage -> "${triggerMessage.opcode}: ${triggerMessage.data}"
         }
         println("[PrintModule] ${triggerMessage.time}: $value")
     }

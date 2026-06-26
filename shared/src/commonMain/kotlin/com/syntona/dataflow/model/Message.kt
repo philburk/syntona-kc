@@ -17,4 +17,15 @@ sealed class Message {
 
     /** A message carrying an arbitrary object (e.g., Waveform data, Sysex buffer). */
     data class ObjectValue(override val time: ScoreTime, val value: Any?) : Message()
+
+    enum class DataQueueOpcode {
+        QUEUE, QUEUE_ON, QUEUE_OFF
+    }
+
+    /** A message carrying a data object and an opcode for a DataQueue. */
+    data class DataQueueMessage(
+        override val time: ScoreTime,
+        val data: Any,
+        val opcode: DataQueueOpcode
+    ) : Message()
 }

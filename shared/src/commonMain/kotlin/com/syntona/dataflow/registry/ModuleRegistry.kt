@@ -131,6 +131,11 @@ object ModuleRegistry {
 
         val ksynView = getOrCreateBundle(ksyn, "view")
         ksynView.modules.add(ModuleEntry("scope") { ScopeModule() })
+
+        val data = getOrCreateBundle(ksyn, "data")
+        addKSynModule(data, "monoRdr", ::VariableRateMonoReader)
+        addKSynModule(data, "monoWtr", ::FixedRateMonoWriter)
+        data.modules.add(ModuleEntry("segEnv") { SegmentedEnvelopeModule() })
     }
 
     fun findCreator(typeName: String): (() -> Module)? {

@@ -58,6 +58,8 @@ import com.syntona.dataflow.modules.PatchModule
 import com.syntona.dataflow.modules.ScopeModule
 import com.syntona.dataflow.modules.ShowModule
 import com.syntona.dataflow.modules.CommentModule
+import com.syntona.dataflow.modules.SegmentedEnvelopeModule
+import com.softsynth.ksyn.compose.SegmentedEnvelopeEditor
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.text.TextStyle
 import kotlin.math.pow
@@ -115,6 +117,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                 is AudioOutputModule -> ModuleNode(module, state, headerColor = Color(0xFF1A5C1A), label = module.displayName)
                 is ScopeModule -> ScopeModuleNode(module, state)
                 is CommentModule -> CommentModuleNode(module, state)
+                is SegmentedEnvelopeModule -> SegmentedEnvelopeModuleNode(module, state)
                 else -> ModuleNode(module, state)
             }
         }
@@ -293,12 +296,14 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
     val connectorColor = when {
         jack is InputJack && jack.isKickable -> Color.Red
         jack is AudioInputJack || jack is AudioOutputJack -> Color(0xFF44DD44)
+        jack is DataQueueInputJack || jack is DataQueueOutputJack -> Color.Yellow
         else -> Color.Cyan
     }
     val textColor = if (jack.isHighlighted) Color.Black else Color.LightGray
     val backgroundColor = when {
         jack.isHighlighted -> Color(180, 170, 130)
         jack is AudioInputJack || jack is AudioOutputJack -> Color(0xFF1A3A1A)
+        jack is DataQueueInputJack || jack is DataQueueOutputJack -> Color(0xFF3A3A1A)
         else -> Color.DarkGray
     }
 
@@ -476,6 +481,7 @@ fun CompactJackConnector(jack: Jack, state: GraphState, isLeft: Boolean) {
     val connectorColor = when {
         jack is InputJack && jack.isKickable -> Color.Red
         jack is AudioInputJack || jack is AudioOutputJack -> Color(0xFF44DD44)
+        jack is DataQueueInputJack || jack is DataQueueOutputJack -> Color.Yellow
         else -> Color.Cyan
     }
     var jackRootPosition by remember { mutableStateOf(Offset.Zero) }
@@ -1057,6 +1063,90 @@ fun ScopeModuleNode(module: ScopeModule, state: GraphState) {
                 probe = module.scope,
                 modifier = Modifier.fillMaxSize()
             )
+        }
+    }
+}
+
+@Composable
+fun SegmentedEnvelopeModuleNode(module: SegmentedEnvelopeModule, state: GraphState) {
+    val position = state.modulePositions[module] ?: Offset.Zero
+    val mdiState = LocalMdiState.current
+    val isSelected = state.selectedModules.contains(module)
+    val borderColor = if (isSelected) Color(0xFFFFA500) else Color.Black
+    val borderWidth = if (isSelected) 2.dp else 1.dp
+    val viewConfiguration = LocalViewConfiguration.current
+
+    Surface(
+        modifier = Modifier
+            .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
+            .width(IntrinsicSize.Max)
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp)),
+        shape = RoundedCornerShape(4.dp),
+        color = Color.DarkGray
+    ) {
+        Column {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(24.dp)
+                    .background(Color(0xFF6A3D00))
+                    .pointerInput("headerGestures") {
+                        val doubleTapTimeout = viewConfiguration.doubleTapTimeoutMillis
+                        awaitEachGesture {
+                            val down = awaitFirstDown()
+                            down.consume()
+                            if (!state.selectedModules.contains(module)) {
+                                state.clearSelection()
+                                state.selectModule(module)
+                            }
+                            var wasDragged = false
+                            drag(down.id) { change ->
+                                change.consume()
+                                wasDragged = true
+                                val dragAmount = change.position - change.previousPosition
+                                if (state.selectedModules.contains(module)) {
+                                    state.selectedModules.forEach { m ->
+                                        state.updateModulePosition(m, dragAmount)
+                                    }
+                                } else {
+                                    state.updateModulePosition(module, dragAmount)
+                                }
+                            }
+                            if (!wasDragged) {
+                                val secondDown =
+                                    withTimeoutOrNull(doubleTapTimeout) { awaitFirstDown() }
+                                if (secondDown != null) {
+                                    secondDown.consume()
+                                    mdiState.open(
+                                        MdiWindowInfo(
+                                            id = module,
+                                            title = module.name,
+                                            position = Offset(
+                                                (state.modulePositions[module]?.x ?: 100f) + 20f,
+                                                (state.modulePositions[module]?.y ?: 100f) + 30f
+                                            ),
+                                            content = { SegmentedEnvelopeEditor(module.envelope) }
+                                        )
+                                    )
+                                    drag(secondDown.id) { it.consume() }
+                                }
+                            }
+                        }
+                    }
+            ) {
+                Text(
+                    text = module.name,
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+            }
+            // Draw jacks.
+            module.inputs.forEach { JackView(it, state, isLeft = true) }
+            if (module.inputs.isNotEmpty() && module.outputs.isNotEmpty()) {
+                HorizontalDivider(color = Color.Black, thickness = 1.dp)
+            }
+            module.outputs.forEach { JackView(it, state, isLeft = false) }
         }
     }
 }

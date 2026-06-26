@@ -44,6 +44,18 @@ abstract class Module(val name: String) {
         return jack
     }
 
+    protected fun addDataQueueInput(name: String, port: com.softsynth.ksyn.ports.UnitDataQueuePort): DataQueueInputJack {
+        val jack = DataQueueInputJack(name, this, port)
+        _inputs.add(jack)
+        return jack
+    }
+
+    protected fun addDataQueueOutput(name: String): DataQueueOutputJack {
+        val jack = DataQueueOutputJack(name, this)
+        _outputs.add(jack)
+        return jack
+    }
+
     /**
      * Called when any [InputJack] receives a message.
      * If the jack is kickable, [execute] is called.
