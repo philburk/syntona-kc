@@ -24,7 +24,7 @@ fun main() = application {
         mdiState?.let { state ->
             MenuBar {
                 Menu("File") {
-                    val gs = state.activeGraphState
+                    val gs = state.rootGraphState ?: state.activeGraphState
                     val engine = gs?.engine
                     Item("New", shortcut = KeyShortcut(Key.N, meta = true)) {
                         FileState.requestIfDirty {

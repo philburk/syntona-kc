@@ -50,6 +50,7 @@ class MdiWindowInfo(
 class MdiState {
     val windows = mutableStateListOf<MdiWindowInfo>()
     var activeGraphState by mutableStateOf<GraphState?>(null)
+    var rootGraphState by mutableStateOf<GraphState?>(null)
 
     // Container size and position in pixels, updated by MdiDesktop
     var containerWidth by mutableStateOf(0f)

@@ -79,6 +79,7 @@ fun App(
 
         val mdiState = remember {
             MdiState().also { mdi ->
+                mdi.rootGraphState = rootPatch.graphState
                 mdi.activeGraphState = rootPatch.graphState
                 mdi.open(
                     MdiWindowInfo(
