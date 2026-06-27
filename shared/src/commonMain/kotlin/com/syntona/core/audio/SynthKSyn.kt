@@ -29,7 +29,7 @@ import kotlinx.coroutines.yield
 object SynthKSyn {
 
     val synth = KSyn.createSynthesizer()
-    private val ksynAudioBridge: KSynAudioBridge = KSynAudioBridge(synth)
+    val ksynAudioBridge: KSynAudioBridge = KSynAudioBridge(synth)
 
 
     fun start() {

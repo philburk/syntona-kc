@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -36,10 +37,12 @@ import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
 import com.syntona.core.model.ScoreClock
 import com.syntona.core.model.SyntonaModel
+import com.syntona.core.audio.KSynRecorder
 import com.syntona.dataflow.editor.*
 import com.syntona.dataflow.engine.SendOutputCommand
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.modules.*
+
 
 @Composable
 @Preview
@@ -210,6 +213,8 @@ fun App(
                                 ) {
                                     Text("Kick Graph")
                                 }
+
+
                                 if (showFileMenuInToolbar) {
                                     val gs = rootPatch.graphState
                                     val engine = syntonaModel.engine
@@ -338,6 +343,104 @@ fun App(
                                         }
                                     }
                                 }
+
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .width(1.dp)
+                                        .fillMaxHeight(0.6f)
+                                        .background(Color.Gray.copy(alpha = 0.5f))
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+
+                                Text(
+                                    text = "KSyn:",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                Button(
+                                    onClick = {
+                                        chooseWavRecordFile("recording.wav") { path ->
+                                            KSynRecorder.startRecording(path)
+                                        }
+                                    },
+                                    enabled = !KSynRecorder.isRecording,
+                                    colors = ButtonDefaults.buttonColors(
+                                        disabledContainerColor = Color(0xFF2E2E2E),
+                                        disabledContentColor = Color.Gray
+                                    ),
+                                    modifier = Modifier.height(32.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text("Capture...")
+                                }
+                                Button(
+                                    onClick = { KSynRecorder.stopRecording() },
+                                    enabled = KSynRecorder.isRecording,
+                                    colors = ButtonDefaults.buttonColors(
+                                        disabledContainerColor = Color(0xFF2E2E2E),
+                                        disabledContentColor = Color.Gray
+                                    ),
+                                    modifier = Modifier.height(32.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text("Stop")
+                                }
+                                Text(
+                                    text = KSynRecorder.durationText,
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.bodyMedium.copy(
+                                        fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                    )
+                                )
+                                if (KSynRecorder.hasSkippedSamples) {
+                                    Text(
+                                        text = "!",
+                                        color = Color.Red,
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                                    )
+                                }
+                                Text(
+                                    text = "Max:",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+
+                                var menuExpanded by remember { mutableStateOf(false) }
+                                Box {
+                                    Button(
+                                        onClick = { menuExpanded = true },
+                                        modifier = Modifier.height(32.dp),
+                                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                        ) {
+                                            Text(KSynRecorder.maxDurationMinutes.toString())
+                                            Text("▼", style = MaterialTheme.typography.labelSmall)
+                                        }
+                                    }
+                                    DropdownMenu(
+                                        expanded = menuExpanded,
+                                        onDismissRequest = { menuExpanded = false }
+                                    ) {
+                                        listOf(1, 2, 3, 5, 10, 20, 60).forEach { mins ->
+                                            DropdownMenuItem(
+                                                text = { Text("$mins") },
+                                                onClick = {
+                                                    KSynRecorder.maxDurationMinutes = mins
+                                                    menuExpanded = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                                Text(
+                                    text = "minutes",
+                                    color = Color.White,
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
                             }
 
                             // MDI Desktop

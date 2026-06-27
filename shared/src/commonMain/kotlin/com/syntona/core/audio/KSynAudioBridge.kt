@@ -18,6 +18,8 @@ package com.syntona.core.audio
 
 import com.mobileer.audiobridge.writeSuspending
 import com.softsynth.ksyn.Synthesizer
+import com.softsynth.ksyn.io.AudioFifo
+import kotlin.concurrent.Volatile
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancel
@@ -27,13 +29,27 @@ import kotlinx.coroutines.isActive
 class KSynAudioBridge(val synth: Synthesizer): AudioStreamManager() {
     val STEREO_CHANNELS = 2
 
+    @Volatile
+    var recordingFifo: AudioFifo? = null
+
     override suspend fun onAudioTask(scope: CoroutineScope) {
         println("KSynAudioBridge onAudioTask started.")
         synth.start(audioBridge.getSampleRate(), 0, STEREO_CHANNELS)
         try {
             while (isActive()) { // Check isActive for cooperative cancellation
                 val stereoBuffer = synth.renderBuffer()
+
+                recordingFifo?.let { fifo ->
+                    if (KSynRecorder.isRecordingActive && fifo.available() + stereoBuffer.size > fifo.size()) {
+                        KSynRecorder.hasSkippedSamples = true
+                    }
+                    fifo.write(stereoBuffer)
+                }
+
+
                 var framesToWrite = stereoBuffer.size / STEREO_CHANNELS
+
+
                 val framesWritten = audioBridge.writeSuspending(
                     stereoBuffer,
                     0,

@@ -45,3 +45,39 @@ actual fun saveFileDirect(path: String, content: String) {
     file.writeText(content)
     lastDirectory = file.parentFile
 }
+
+actual fun chooseWavRecordFile(defaultName: String, onSelected: (path: String) -> Unit) {
+    val chooser = JFileChooser().apply {
+        dialogTitle = "Record Audio"
+        fileFilter = FileNameExtensionFilter("WAV files (*.wav)", "wav")
+        lastDirectory?.let { currentDirectory = it }
+        val dir = lastDirectory
+        if (dir != null) {
+            selectedFile = File(dir, defaultName)
+        } else {
+            selectedFile = File(defaultName)
+        }
+    }
+    if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
+        var file = chooser.selectedFile
+        if (!file.name.endsWith(".wav")) file = File(file.path + ".wav")
+        lastDirectory = file.parentFile
+
+        if (file.exists()) {
+            val response = javax.swing.JOptionPane.showConfirmDialog(
+                null,
+                "${file.name} already exists. Do you want to replace it?",
+                "Confirm Save As",
+                javax.swing.JOptionPane.YES_NO_OPTION,
+                javax.swing.JOptionPane.WARNING_MESSAGE
+            )
+            if (response != javax.swing.JOptionPane.YES_OPTION) {
+                return
+            }
+        }
+
+        onSelected(file.absolutePath)
+    }
+}
+
+

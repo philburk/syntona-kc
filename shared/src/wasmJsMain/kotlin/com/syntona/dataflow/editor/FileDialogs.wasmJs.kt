@@ -43,3 +43,15 @@ actual fun saveFileDirect(path: String, content: String) {
     // On WASM, "path" is just the filename; re-trigger the download.
     jsSaveFile(content, path)
 }
+
+@JsFun("() => { return prompt('Enter filename for recording:', 'recording.wav'); }")
+private external fun jsPrompt(): String?
+
+actual fun chooseWavRecordFile(defaultName: String, onSelected: (path: String) -> Unit) {
+    val name = jsPrompt()
+    if (name != null && name.isNotBlank()) {
+        val cleanName = if (name.endsWith(".wav")) name else "$name.wav"
+        onSelected(cleanName)
+    }
+}
+

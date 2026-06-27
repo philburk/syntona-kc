@@ -6,3 +6,6 @@ expect fun showSaveFileDialog(content: String, defaultName: String, onSaved: (pa
 
 /** Write [content] to [path] without showing a dialog. On WASM, [path] is just a filename. */
 expect fun saveFileDirect(path: String, content: String)
+
+expect fun chooseWavRecordFile(defaultName: String, onSelected: (path: String) -> Unit)
+
