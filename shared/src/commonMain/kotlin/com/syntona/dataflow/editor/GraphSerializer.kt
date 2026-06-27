@@ -28,12 +28,11 @@ object GraphSerializer {
             append(",\"x\":${pos.x},\"y\":${pos.y},\"jacks\":{")
             val valueJacks = module.inputs.filter { jack ->
                 jack !is CommandJack && !jack.isKickable &&
-                jack !is AudioInputJack &&
-                jack.lastMessage is Message.FloatValue
+                (jack.lastMessage is Message.FloatValue || jack is AudioInputJack)
             }
             valueJacks.forEachIndexed { j, jack ->
                 if (j > 0) append(",")
-                append("\"${jack.name.jsonEscape}\":{\"v\":${jack.getDoubleValue()},\"min\":${jack.min},\"max\":${jack.max}}")
+                append("\"${jack.name.jsonEscape}\":{\"v\":${jack.getValue()},\"min\":${jack.min},\"max\":${jack.max}}")
             }
             append("}")
             if (module is CommentModule) {
