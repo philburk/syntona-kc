@@ -31,6 +31,7 @@ fun main() = application {
                             gs?.clearAllModules()
                             engine?.clearHistory()
                             FileState.markNew()
+                            state.closeAllClosable()
                         }
                     }
                     Item("Open...", shortcut = KeyShortcut(Key.O, meta = true)) {
@@ -39,6 +40,7 @@ fun main() = application {
                                 if (gs != null) {
                                     gs.clearAllModules()
                                     engine?.clearHistory()
+                                    state.closeAllClosable()
                                     GraphSerializer.deserialize(gs, content)
                                     FileState.markSaved(name)
                                 }

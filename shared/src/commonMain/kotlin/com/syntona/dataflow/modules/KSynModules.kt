@@ -51,4 +51,12 @@ open class UnitGeneratorModule(name: String, val unit: UnitGenerator) : Module(n
     override fun execute(triggerMessage: Message) {
         // Audio is driven by the KSyn engine, nothing to do here.
     }
+
+    override fun teardown() {
+        if (unit.isStartRequired) {
+            unit.stop()
+        }
+        SynthKSyn.synth.remove(unit)
+        super.teardown()
+    }
 }

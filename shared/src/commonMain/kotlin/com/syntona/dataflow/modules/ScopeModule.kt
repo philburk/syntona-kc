@@ -21,4 +21,10 @@ class ScopeModule : Module("scope") {
     }
 
     override fun execute(triggerMessage: Message) {}
+
+    override fun teardown() {
+        scope.stop()
+        SynthKSyn.synth.remove(scope)
+        super.teardown()
+    }
 }

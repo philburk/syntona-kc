@@ -235,6 +235,7 @@ fun App(
                                                         gs.clearAllModules()
                                                         engine.clearHistory()
                                                         FileState.markNew()
+                                                        mdiState.closeAllClosable()
                                                     }
                                                 }
                                             )
@@ -247,6 +248,7 @@ fun App(
                                                         showOpenFileDialog { name, content ->
                                                             gs.clearAllModules()
                                                             engine.clearHistory()
+                                                            mdiState.closeAllClosable()
                                                             GraphSerializer.deserialize(gs, content)
                                                             FileState.markSaved(name)
                                                         }

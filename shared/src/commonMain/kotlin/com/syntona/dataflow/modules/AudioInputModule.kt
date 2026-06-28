@@ -34,4 +34,12 @@ class AudioInputModule : Module("aInput") {
     }
 
     override fun execute(triggerMessage: Message) {}
+
+    override fun teardown() {
+        if (passThrough.isStartRequired) {
+            passThrough.stop()
+        }
+        SynthKSyn.synth.remove(passThrough)
+        super.teardown()
+    }
 }

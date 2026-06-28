@@ -77,4 +77,9 @@ class PatchModule(name: String = "patch") : Module(name), EngineAware {
     }
 
     override fun execute(triggerMessage: Message) {}
+
+    override fun teardown() {
+        graphState.clearAllModules()
+        super.teardown()
+    }
 }

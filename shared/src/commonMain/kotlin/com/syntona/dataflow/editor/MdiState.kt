@@ -151,4 +151,10 @@ class MdiState {
     fun toggleExpand(id: Any) {
         windows.find { it.id == id }?.toggleExpand()
     }
+
+    fun closeAllClosable() {
+        windows.removeAll { it.closable }
+        activeGraphState = rootGraphState
+    }
 }
+
