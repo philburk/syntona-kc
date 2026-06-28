@@ -16,6 +16,11 @@ import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.model.OutputJack
 import com.syntona.dataflow.modules.FaderModule
 import com.syntona.dataflow.modules.KnobModule
+import com.syntona.core.model.ScoreClock
+import com.syntona.dataflow.engine.SendOutputCommand
+import com.syntona.dataflow.model.Message
+import com.syntona.dataflow.modules.LoadKickModule
+import com.syntona.dataflow.modules.PatchModule
 
 /**
  * Manages the UI state of the graph editor, including module positions
@@ -163,6 +168,26 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
 
     fun clearAllModules() {
         removeModulesDirectly(modules.toList())
+    }
+
+    fun kickLoadKickModules() {
+        val e = engine
+        val time = ScoreClock.now()
+        fun kickInModule(module: Module) {
+            if (module is LoadKickModule) {
+                if (e != null) {
+                    e.post(SendOutputCommand(
+                        module.output,
+                        Message.FloatValue(time, 0.0)
+                    ))
+                } else {
+                    module.kick(time)
+                }
+            } else if (module is PatchModule) {
+                module.graphState.modules.forEach { kickInModule(it) }
+            }
+        }
+        modules.forEach { kickInModule(it) }
     }
 
     fun startDraggingFromTree(creator: () -> Module, position: Offset) {

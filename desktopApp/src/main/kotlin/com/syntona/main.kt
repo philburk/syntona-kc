@@ -43,6 +43,7 @@ fun main() = application {
                                     state.closeAllClosable()
                                     GraphSerializer.deserialize(gs, content)
                                     FileState.markSaved(name)
+                                    gs.kickLoadKickModules()
                                 }
                             }
                         }

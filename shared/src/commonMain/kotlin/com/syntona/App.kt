@@ -251,6 +251,7 @@ fun App(
                                                             mdiState.closeAllClosable()
                                                             GraphSerializer.deserialize(gs, content)
                                                             FileState.markSaved(name)
+                                                            gs.kickLoadKickModules()
                                                         }
                                                     }
                                                 }
