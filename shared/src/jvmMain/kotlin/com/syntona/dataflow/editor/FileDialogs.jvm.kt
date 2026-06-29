@@ -4,7 +4,7 @@ import java.io.File
 import javax.swing.JFileChooser
 import javax.swing.filechooser.FileNameExtensionFilter
 
-private var lastDirectory: File? = null
+private var lastDirectory: File? = File("/Users/phil/Work/syntona-kc/shared/src/commonMain/composeResources/files/tutorials/")
 
 actual fun showOpenFileDialog(onResult: (path: String, content: String) -> Unit) {
     val chooser = JFileChooser().apply {
