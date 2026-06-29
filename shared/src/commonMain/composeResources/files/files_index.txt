@@ -5,5 +5,8 @@ tutorials/01_basic/.DS_Store
 tutorials/01_basic/01_connections.json
 tutorials/01_basic/02_add_modules.json
 tutorials/01_basic/03_edit_jacks.json
+tutorials/01_basic/04_precise_values.json
+tutorials/01_basic/05_edit_module.json
+tutorials/01_basic/99_bad_patch.json
 tutorials/pulse_scope.json
 tutorials/seq8_knobs.json
