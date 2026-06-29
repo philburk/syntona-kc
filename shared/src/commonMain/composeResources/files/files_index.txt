@@ -1,2 +1,4 @@
 examples/01_env_sequence.json
 examples/02_knob_show.json
+tutorials/pulse_scope.json
+tutorials/seq8_knobs.json

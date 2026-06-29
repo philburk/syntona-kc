@@ -56,7 +56,7 @@ fun App(
     showFileMenuInToolbar: Boolean = true,
 ) {
     MaterialTheme {
-        var showContent by remember { mutableStateOf(false) }
+        var showContent by remember { mutableStateOf(true) }
         val scope = rememberCoroutineScope()
         val examplesList by produceState<List<String>>(emptyList()) {
             value = com.syntona.SharedResources.getFilesIndex()
@@ -107,6 +107,9 @@ fun App(
         SideEffect {
             onMdiStateReady?.invoke(mdiState)
             rootPatch.graphState.onChange = { FileState.markDirty() }
+        }
+        LaunchedEffect(Unit) {
+            syntonaModel.start()
         }
 
         Column(
