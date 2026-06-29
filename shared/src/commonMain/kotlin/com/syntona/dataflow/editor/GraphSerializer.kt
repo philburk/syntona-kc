@@ -10,6 +10,7 @@ import com.syntona.dataflow.modules.CommentModule
 import com.syntona.dataflow.modules.ScopeModule
 import com.syntona.dataflow.modules.PatchModule
 import com.syntona.dataflow.modules.SegmentedEnvelopeModule
+import com.syntona.dataflow.modules.LinkModule
 import com.softsynth.ksyn.data.SegmentedEnvelope
 import com.syntona.dataflow.registry.ModuleRegistry
 
@@ -41,6 +42,10 @@ object GraphSerializer {
             }
             if (module is ScopeModule) {
                 append(",\"w\":${module.width},\"h\":${module.height}")
+            }
+            if (module is LinkModule) {
+                append(",\"filePath\":\"${module.filePath.jsonEscape}\"")
+                append(",\"buttonText\":\"${module.buttonText.jsonEscape}\"")
             }
             if (module is SegmentedEnvelopeModule) {
                 val env = module.envelope
@@ -122,6 +127,10 @@ object GraphSerializer {
             if (module is ScopeModule) {
                 (obj?.map?.get("w") as? JsonValue.Num)?.value?.let { module.width = it.toFloat() }
                 (obj?.map?.get("h") as? JsonValue.Num)?.value?.let { module.height = it.toFloat() }
+            }
+            if (module is LinkModule) {
+                (obj?.map?.get("filePath") as? JsonValue.Str)?.value?.let { module.filePath = it }
+                (obj?.map?.get("buttonText") as? JsonValue.Str)?.value?.let { module.buttonText = it }
             }
             if (module is SegmentedEnvelopeModule) {
                 val envDataArr = (obj?.map?.get("envData") as? JsonValue.Arr)?.items

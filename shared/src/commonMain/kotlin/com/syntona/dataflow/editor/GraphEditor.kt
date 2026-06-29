@@ -59,6 +59,7 @@ import com.syntona.dataflow.modules.ScopeModule
 import com.syntona.dataflow.modules.ShowModule
 import com.syntona.dataflow.modules.CommentModule
 import com.syntona.dataflow.modules.SegmentedEnvelopeModule
+import com.syntona.dataflow.modules.LinkModule
 import com.softsynth.ksyn.compose.SegmentedEnvelopeEditor
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.text.TextStyle
@@ -245,6 +246,7 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color = Color.Blu
                     )
                 }
             }
+
 
             // Jacks: inputs at top, outputs at bottom, single column
             module.inputs.forEach { JackView(it, state, isLeft = true) }

@@ -115,6 +115,30 @@ fun App(
         LaunchedEffect(Unit) {
             syntonaModel.start()
         }
+        LaunchedEffect(mdiState, scope) {
+            LinkModule.onTriggerLoad = { path ->
+                val activeGs = mdiState.activeGraphState
+                val activeEngine = activeGs?.engine
+                if (activeGs != null) {
+                    FileState.requestIfDirty {
+                        scope.launch {
+                            try {
+                                val bytes = com.syntona.SharedResources.readBytes("files/$path")
+                                val content = bytes.decodeToString()
+                                activeGs.clearAllModules()
+                                activeEngine?.clearHistory()
+                                mdiState.closeAllClosable()
+                                GraphSerializer.deserialize(activeGs, content)
+                                FileState.markSaved(path)
+                                activeGs.kickLoadKickModules()
+                            } catch (e: Exception) {
+                                println("Failed to load link file: ${e.message}")
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         Column(
             modifier = Modifier

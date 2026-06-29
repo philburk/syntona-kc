@@ -21,6 +21,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Module
+import com.syntona.dataflow.modules.LinkModule
+import com.syntona.dataflow.editor.FileState
 
 private val HEADER_COLOR = Color(0xFFCC6666)
 private val PANEL_COLOR = Color(0xFFF0F0F0)
@@ -58,8 +60,12 @@ fun ModuleEditor(module: Module, onDismiss: () -> Unit, modifier: Modifier = Mod
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                module.inputs.forEach { jack ->
-                    JackEditorRow(jack)
+                if (module is LinkModule) {
+                    LinkModuleEditor(module)
+                } else {
+                    module.inputs.forEach { jack ->
+                        JackEditorRow(jack)
+                    }
                 }
             }
         }
@@ -150,5 +156,99 @@ private fun JackEditorRow(jack: InputJack) {
                 .background(PANEL_COLOR)
                 .padding(horizontal = 4.dp)
         )
+    }
+}
+
+@Composable
+private fun LinkModuleEditor(module: LinkModule) {
+    var filePathText by remember(module) { mutableStateOf(module.filePath) }
+    var buttonTextVal by remember(module) { mutableStateOf(module.buttonText) }
+    var expanded by remember { mutableStateOf(false) }
+    val files by produceState<List<String>>(emptyList()) {
+        value = com.syntona.SharedResources.getFilesIndex().filter { it.endsWith(".json") }
+    }
+
+    Column(
+        modifier = Modifier.padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // Button Text
+        Column {
+            Text("Button Text:", fontSize = 12.sp, color = LABEL_COLOR)
+            Spacer(modifier = Modifier.height(4.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, BORDER_COLOR, RoundedCornerShape(4.dp))
+                    .background(Color.White)
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+            ) {
+                androidx.compose.foundation.text.BasicTextField(
+                    value = buttonTextVal,
+                    onValueChange = {
+                        buttonTextVal = it
+                        module.buttonText = it
+                        FileState.markDirty()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp)
+                )
+            }
+        }
+
+        // File Path
+        Column {
+            Text("File Path:", fontSize = 12.sp, color = LABEL_COLOR)
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .border(1.dp, BORDER_COLOR, RoundedCornerShape(4.dp))
+                        .background(Color.White)
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                ) {
+                    androidx.compose.foundation.text.BasicTextField(
+                        value = filePathText,
+                        onValueChange = {
+                            filePathText = it
+                            module.filePath = it
+                            FileState.markDirty()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp)
+                    )
+                }
+
+                // Dropdown trigger
+                Box {
+                    androidx.compose.material3.IconButton(
+                        onClick = { expanded = true },
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Text("▼", fontSize = 12.sp)
+                    }
+                    androidx.compose.material3.DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        files.forEach { path ->
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text(path, fontSize = 12.sp) },
+                                onClick = {
+                                    filePathText = path
+                                    module.filePath = path
+                                    FileState.markDirty()
+                                    expanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }

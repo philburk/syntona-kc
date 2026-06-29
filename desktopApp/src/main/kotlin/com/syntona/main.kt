@@ -13,6 +13,7 @@ import com.syntona.dataflow.editor.MdiState
 import com.syntona.dataflow.editor.saveFileDirect
 import com.syntona.dataflow.editor.showOpenFileDialog
 import com.syntona.dataflow.editor.showSaveFileDialog
+import com.syntona.dataflow.modules.LinkModule
 import kotlinx.coroutines.launch
 
 fun main() = application {
@@ -29,6 +30,34 @@ fun main() = application {
         val tutorialsList by produceState<List<String>>(emptyList()) {
             value = com.syntona.SharedResources.getFilesIndex()
                 .filter { it.startsWith("tutorials/") && it.endsWith(".json") }
+        }
+
+        LaunchedEffect(mdiState, scope) {
+            LinkModule.onTriggerLoad = { path ->
+                val state = mdiState
+                if (state != null) {
+                    val gs = state.rootGraphState ?: state.activeGraphState
+                    val engine = gs?.engine
+                    if (gs != null) {
+                        FileState.requestIfDirty {
+                            scope.launch {
+                                try {
+                                    val bytes = com.syntona.SharedResources.readBytes("files/$path")
+                                    val content = bytes.decodeToString()
+                                    gs.clearAllModules()
+                                    engine?.clearHistory()
+                                    state.closeAllClosable()
+                                    GraphSerializer.deserialize(gs, content)
+                                    FileState.markSaved(path)
+                                    gs.kickLoadKickModules()
+                                } catch (e: Exception) {
+                                    println("Failed to load link file: ${e.message}")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         mdiState?.let { state ->

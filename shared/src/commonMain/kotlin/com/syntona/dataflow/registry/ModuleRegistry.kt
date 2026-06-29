@@ -34,6 +34,7 @@ object ModuleRegistry {
         basic.modules.add(ModuleEntry("counter") { CounterModule() })
         basic.modules.add(ModuleEntry("seq2") { SequenceModule(2) })
         basic.modules.add(ModuleEntry("seq8") { SequenceModule(8) })
+        basic.modules.add(ModuleEntry("link") { LinkModule() })
 
         val math = getOrCreateBundle(core, "math")
         math.modules.add(ModuleEntry("+") { AddModule() })
