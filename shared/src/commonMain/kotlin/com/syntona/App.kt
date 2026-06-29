@@ -146,6 +146,19 @@ fun App(
                             .fillMaxSize()
                             .focusRequester(appFocusRequester)
                             .focusable()
+                            // WebAudio cannot start until after the user has clicked.
+                            .pointerInput(Unit) {
+                                awaitPointerEventScope {
+                                    var hasStarted = false
+                                    while (!hasStarted) {
+                                        val event = awaitPointerEvent()
+                                        if (event.type == PointerEventType.Press) {
+                                            syntonaModel.start()
+                                            hasStarted = true
+                                        }
+                                    }
+                                }
+                            }
                             .onPreviewKeyEvent { keyEvent ->
                                 val engine = mdiState.activeGraphState?.engine
                                 when {
