@@ -144,56 +144,18 @@ fun main() = application {
                 }
                 Menu("Help ") {
                     val gs = state.rootGraphState ?: state.activeGraphState
-                    val engine = gs?.engine
+                    val examplesTree = remember(examplesList) {
+                        com.syntona.buildMenuTree(examplesList, "examples/")
+                    }
+                    val tutorialsTree = remember(tutorialsList) {
+                        com.syntona.buildMenuTree(tutorialsList, "tutorials/")
+                    }
+
                     Menu("Load Example") {
-                        examplesList.forEach { examplePath ->
-                            val displayName = examplePath.substringAfterLast("/").removeSuffix(".json")
-                            Item(displayName) {
-                                if (gs != null) {
-                                    FileState.requestIfDirty {
-                                        scope.launch {
-                                            try {
-                                                val bytes = com.syntona.SharedResources.readBytes("files/$examplePath")
-                                                val content = bytes.decodeToString()
-                                                gs.clearAllModules()
-                                                engine?.clearHistory()
-                                                state.closeAllClosable()
-                                                GraphSerializer.deserialize(gs, content)
-                                                FileState.markSaved(examplePath)
-                                                gs.kickLoadKickModules()
-                                            } catch (e: Exception) {
-                                                println("Failed to load example: ${e.message}")
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        RenderMenuNode(examplesTree, gs, state, scope)
                     }
                     Menu("Load Tutorial") {
-                        tutorialsList.forEach { tutorialPath ->
-                            val displayName = tutorialPath.substringAfterLast("/").removeSuffix(".json")
-                            Item(displayName) {
-                                if (gs != null) {
-                                    FileState.requestIfDirty {
-                                        scope.launch {
-                                            try {
-                                                val bytes = com.syntona.SharedResources.readBytes("files/$tutorialPath")
-                                                val content = bytes.decodeToString()
-                                                gs.clearAllModules()
-                                                engine?.clearHistory()
-                                                state.closeAllClosable()
-                                                GraphSerializer.deserialize(gs, content)
-                                                FileState.markSaved(tutorialPath)
-                                                gs.kickLoadKickModules()
-                                            } catch (e: Exception) {
-                                                println("Failed to load tutorial: ${e.message}")
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        RenderMenuNode(tutorialsTree, gs, state, scope)
                     }
                 }
             }
@@ -206,3 +168,48 @@ fun main() = application {
         )
     }
 }
+
+@Composable
+fun androidx.compose.ui.window.MenuScope.RenderMenuNode(
+    node: com.syntona.MenuNode,
+    gs: com.syntona.dataflow.editor.GraphState?,
+    state: com.syntona.dataflow.editor.MdiState,
+    scope: kotlinx.coroutines.CoroutineScope
+) {
+    val sortedChildren = node.children.values.sortedWith(
+        compareBy<com.syntona.MenuNode> { it.path != null }
+            .thenBy { it.name }
+    )
+
+    for (child in sortedChildren) {
+        val path = child.path
+        if (path != null) {
+            Item(child.name) {
+                if (gs != null) {
+                    val engine = gs.engine
+                    FileState.requestIfDirty {
+                        scope.launch {
+                            try {
+                                val bytes = com.syntona.SharedResources.readBytes("files/$path")
+                                val content = bytes.decodeToString()
+                                gs.clearAllModules()
+                                engine?.clearHistory()
+                                state.closeAllClosable()
+                                GraphSerializer.deserialize(gs, content)
+                                FileState.markSaved(path)
+                                gs.kickLoadKickModules()
+                            } catch (e: Exception) {
+                                println("Failed to load: ${e.message}")
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            Menu(child.name) {
+                RenderMenuNode(child, gs, state, scope)
+            }
+        }
+    }
+}
+
