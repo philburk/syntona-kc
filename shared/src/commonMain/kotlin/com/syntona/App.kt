@@ -46,6 +46,7 @@ import com.syntona.dataflow.engine.SendOutputCommand
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.modules.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineScope
 
 
 @Composable
@@ -416,6 +417,13 @@ fun App(
                                              val itemWidthDp = remember(itemWidth, density) {
                                                  with(density) { itemWidth.toDp() }
                                              }
+                                             val examplesTree = remember(examplesList) {
+                                                 buildMenuTree(examplesList, "examples/")
+                                             }
+                                             val tutorialsTree = remember(tutorialsList) {
+                                                 buildMenuTree(tutorialsList, "tutorials/")
+                                             }
+
                                              Box(modifier = Modifier.onGloballyPositioned { coordinates ->
                                                  itemWidth = coordinates.size.width
                                              }) {
@@ -440,36 +448,10 @@ fun App(
                                                      onDismissRequest = { examplesExpanded = false },
                                                      offset = androidx.compose.ui.unit.DpOffset(x = itemWidthDp, y = (-48).dp)
                                                  ) {
-                                                     examplesList.forEach { examplePath ->
-                                                         val displayName = examplePath.substringAfterLast("/").removeSuffix(".json")
-                                                         DropdownMenuItem(
-                                                             text = { Text(displayName) },
-                                                             onClick = {
-                                                                 examplesExpanded = false
-                                                                 helpExpanded = false
-                                                                 val activeGs = mdiState.activeGraphState
-                                                                 val activeEngine = activeGs?.engine
-                                                                 if (activeGs != null) {
-                                                                     FileState.requestIfDirty {
-                                                                         scope.launch {
-                                                                             try {
-                                                                                 val bytes = com.syntona.SharedResources.readBytes("files/$examplePath")
-                                                                                 val content = bytes.decodeToString()
-                                                                                 activeGs.clearAllModules()
-                                                                                 activeEngine?.clearHistory()
-                                                                                 mdiState.closeAllClosable()
-                                                                                 GraphSerializer.deserialize(activeGs, content)
-                                                                                 FileState.markSaved(examplePath)
-                                                                                 activeGs.kickLoadKickModules()
-                                                                             } catch (e: Exception) {
-                                                                                 println("Failed to load example: ${e.message}")
-                                                                             }
-                                                                         }
-                                                                     }
-                                                                 }
-                                                             }
-                                                         )
-                                                     }
+                                                     RenderDropdownMenuNode(examplesTree, mdiState, scope, onClose = {
+                                                         examplesExpanded = false
+                                                         helpExpanded = false
+                                                     })
                                                  }
                                              }
                                              Box(modifier = Modifier.onGloballyPositioned { coordinates ->
@@ -496,36 +478,10 @@ fun App(
                                                      onDismissRequest = { tutorialsExpanded = false },
                                                      offset = androidx.compose.ui.unit.DpOffset(x = itemWidthDp, y = (-48).dp)
                                                  ) {
-                                                     tutorialsList.forEach { tutorialPath ->
-                                                         val displayName = tutorialPath.substringAfterLast("/").removeSuffix(".json")
-                                                         DropdownMenuItem(
-                                                             text = { Text(displayName) },
-                                                             onClick = {
-                                                                 tutorialsExpanded = false
-                                                                 helpExpanded = false
-                                                                 val activeGs = mdiState.activeGraphState
-                                                                 val activeEngine = activeGs?.engine
-                                                                 if (activeGs != null) {
-                                                                     FileState.requestIfDirty {
-                                                                         scope.launch {
-                                                                             try {
-                                                                                 val bytes = com.syntona.SharedResources.readBytes("files/$tutorialPath")
-                                                                                 val content = bytes.decodeToString()
-                                                                                 activeGs.clearAllModules()
-                                                                                 activeEngine?.clearHistory()
-                                                                                 mdiState.closeAllClosable()
-                                                                                 GraphSerializer.deserialize(activeGs, content)
-                                                                                 FileState.markSaved(tutorialPath)
-                                                                                 activeGs.kickLoadKickModules()
-                                                                             } catch (e: Exception) {
-                                                                                 println("Failed to load tutorial: ${e.message}")
-                                                                             }
-                                                                         }
-                                                                     }
-                                                                 }
-                                                             }
-                                                         )
-                                                     }
+                                                     RenderDropdownMenuNode(tutorialsTree, mdiState, scope, onClose = {
+                                                         tutorialsExpanded = false
+                                                         helpExpanded = false
+                                                     })
                                                  }
                                              }
                                          }
@@ -686,3 +642,115 @@ private fun ShortcutHint(text: String) {
         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
     )
 }
+
+class MenuNode(
+    val name: String,
+    val path: String? = null,
+    val children: MutableMap<String, MenuNode> = mutableMapOf()
+)
+
+fun buildMenuTree(paths: List<String>, rootPrefix: String): MenuNode {
+    val root = MenuNode("")
+    for (path in paths) {
+        val relativePath = if (path.startsWith(rootPrefix)) {
+            path.substring(rootPrefix.length)
+        } else {
+            path
+        }
+        val segments = relativePath.split('/')
+        var current = root
+        for (i in segments.indices) {
+            val segment = segments[i]
+            if (i == segments.lastIndex) {
+                val displayName = segment.removeSuffix(".json")
+                current.children[segment] = MenuNode(displayName, path)
+            } else {
+                current = current.children.getOrPut(segment) { MenuNode(segment) }
+            }
+        }
+    }
+    return root
+}
+
+@Composable
+fun RenderDropdownMenuNode(
+    node: MenuNode,
+    state: MdiState,
+    scope: CoroutineScope,
+    onClose: () -> Unit
+) {
+    val sortedChildren = node.children.values.sortedWith(
+        compareBy<MenuNode> { it.path != null }
+            .thenBy { it.name }
+    )
+
+    for (child in sortedChildren) {
+        val path = child.path
+        if (path != null) {
+            DropdownMenuItem(
+                text = { Text(child.name) },
+                onClick = {
+                    onClose()
+                    val activeGs = state.activeGraphState
+                    val activeEngine = activeGs?.engine
+                    if (activeGs != null) {
+                        FileState.requestIfDirty {
+                            scope.launch {
+                                try {
+                                    val bytes = com.syntona.SharedResources.readBytes("files/$path")
+                                    val content = bytes.decodeToString()
+                                    activeGs.clearAllModules()
+                                    activeEngine?.clearHistory()
+                                    state.closeAllClosable()
+                                    GraphSerializer.deserialize(activeGs, content)
+                                    FileState.markSaved(path)
+                                    activeGs.kickLoadKickModules()
+                                } catch (e: Exception) {
+                                    println("Failed to load: ${e.message}")
+                                }
+                            }
+                        }
+                    }
+                }
+            )
+        } else {
+            var isExpanded by remember { mutableStateOf(false) }
+            var width by remember { mutableStateOf(0) }
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            val widthDp = with(density) { width.toDp() }
+
+            Box(
+                modifier = Modifier.onGloballyPositioned { coordinates ->
+                    width = coordinates.size.width
+                }
+            ) {
+                DropdownMenuItem(
+                    text = { Text(child.name) },
+                    trailingIcon = { Text("›", fontSize = 16.sp) },
+                    onClick = { isExpanded = true },
+                    modifier = Modifier.pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                if (event.type == androidx.compose.ui.input.pointer.PointerEventType.Enter) {
+                                    isExpanded = true
+                                }
+                            }
+                        }
+                    }
+                )
+                DropdownMenu(
+                    expanded = isExpanded,
+                    onDismissRequest = { isExpanded = false },
+                    offset = androidx.compose.ui.unit.DpOffset(x = widthDp, y = (-48).dp)
+                ) {
+                    RenderDropdownMenuNode(child, state, scope, onClose = {
+                        isExpanded = false
+                        onClose()
+                    })
+                }
+            }
+        }
+    }
+}
+
