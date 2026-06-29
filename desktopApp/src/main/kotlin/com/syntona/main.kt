@@ -26,6 +26,10 @@ fun main() = application {
             value = com.syntona.SharedResources.getFilesIndex()
                 .filter { it.startsWith("examples/") && it.endsWith(".json") }
         }
+        val tutorialsList by produceState<List<String>>(emptyList()) {
+            value = com.syntona.SharedResources.getFilesIndex()
+                .filter { it.startsWith("tutorials/") && it.endsWith(".json") }
+        }
 
         mdiState?.let { state ->
             MenuBar {
@@ -50,31 +54,6 @@ fun main() = application {
                                     GraphSerializer.deserialize(gs, content)
                                     FileState.markSaved(name)
                                     gs.kickLoadKickModules()
-                                }
-                            }
-                        }
-                    }
-                    Menu("Load Example") {
-                        examplesList.forEach { examplePath ->
-                            val displayName = examplePath.substringAfterLast("/").removeSuffix(".json")
-                            Item(displayName) {
-                                if (gs != null) {
-                                    FileState.requestIfDirty {
-                                        scope.launch {
-                                            try {
-                                                val bytes = com.syntona.SharedResources.readBytes("files/$examplePath")
-                                                val content = bytes.decodeToString()
-                                                gs.clearAllModules()
-                                                engine?.clearHistory()
-                                                state.closeAllClosable()
-                                                GraphSerializer.deserialize(gs, content)
-                                                FileState.markSaved(examplePath)
-                                                gs.kickLoadKickModules()
-                                            } catch (e: Exception) {
-                                                println("Failed to load example: ${e.message}")
-                                            }
-                                        }
-                                    }
                                 }
                             }
                         }
@@ -132,6 +111,60 @@ fun main() = application {
                         enabled = CopyPasteService.pasteBuffer != null
                     ) {
                         gs?.let { CopyPasteService.paste(it) }
+                    }
+                }
+                Menu("Help ") {
+                    val gs = state.rootGraphState ?: state.activeGraphState
+                    val engine = gs?.engine
+                    Menu("Load Example") {
+                        examplesList.forEach { examplePath ->
+                            val displayName = examplePath.substringAfterLast("/").removeSuffix(".json")
+                            Item(displayName) {
+                                if (gs != null) {
+                                    FileState.requestIfDirty {
+                                        scope.launch {
+                                            try {
+                                                val bytes = com.syntona.SharedResources.readBytes("files/$examplePath")
+                                                val content = bytes.decodeToString()
+                                                gs.clearAllModules()
+                                                engine?.clearHistory()
+                                                state.closeAllClosable()
+                                                GraphSerializer.deserialize(gs, content)
+                                                FileState.markSaved(examplePath)
+                                                gs.kickLoadKickModules()
+                                            } catch (e: Exception) {
+                                                println("Failed to load example: ${e.message}")
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Menu("Load Tutorial") {
+                        tutorialsList.forEach { tutorialPath ->
+                            val displayName = tutorialPath.substringAfterLast("/").removeSuffix(".json")
+                            Item(displayName) {
+                                if (gs != null) {
+                                    FileState.requestIfDirty {
+                                        scope.launch {
+                                            try {
+                                                val bytes = com.syntona.SharedResources.readBytes("files/$tutorialPath")
+                                                val content = bytes.decodeToString()
+                                                gs.clearAllModules()
+                                                engine?.clearHistory()
+                                                state.closeAllClosable()
+                                                GraphSerializer.deserialize(gs, content)
+                                                FileState.markSaved(tutorialPath)
+                                                gs.kickLoadKickModules()
+                                            } catch (e: Exception) {
+                                                println("Failed to load tutorial: ${e.message}")
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
