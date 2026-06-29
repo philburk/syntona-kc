@@ -13,6 +13,7 @@ import com.syntona.dataflow.editor.MdiState
 import com.syntona.dataflow.editor.saveFileDirect
 import com.syntona.dataflow.editor.showOpenFileDialog
 import com.syntona.dataflow.editor.showSaveFileDialog
+import kotlinx.coroutines.launch
 
 fun main() = application {
     Window(
@@ -20,6 +21,11 @@ fun main() = application {
         title = if (FileState.isDirty) "• SyntonaKC" else "SyntonaKC",
     ) {
         var mdiState by remember { mutableStateOf<MdiState?>(null) }
+        val scope = rememberCoroutineScope()
+        val examplesList by produceState<List<String>>(emptyList()) {
+            value = com.syntona.SharedResources.getFilesIndex()
+                .filter { it.startsWith("examples/") && it.endsWith(".json") }
+        }
 
         mdiState?.let { state ->
             MenuBar {
@@ -44,6 +50,31 @@ fun main() = application {
                                     GraphSerializer.deserialize(gs, content)
                                     FileState.markSaved(name)
                                     gs.kickLoadKickModules()
+                                }
+                            }
+                        }
+                    }
+                    Menu("Load Example") {
+                        examplesList.forEach { examplePath ->
+                            val displayName = examplePath.substringAfterLast("/").removeSuffix(".json")
+                            Item(displayName) {
+                                if (gs != null) {
+                                    FileState.requestIfDirty {
+                                        scope.launch {
+                                            try {
+                                                val bytes = com.syntona.SharedResources.readBytes("files/$examplePath")
+                                                val content = bytes.decodeToString()
+                                                gs.clearAllModules()
+                                                engine?.clearHistory()
+                                                state.closeAllClosable()
+                                                GraphSerializer.deserialize(gs, content)
+                                                FileState.markSaved(examplePath)
+                                                gs.kickLoadKickModules()
+                                            } catch (e: Exception) {
+                                                println("Failed to load example: ${e.message}")
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }

@@ -71,3 +71,43 @@ kotlin {
 dependencies {
     androidRuntimeClasspath(libs.compose.uiTooling)
 }
+
+val generateFilesIndexTask = tasks.register("generateFilesIndex") {
+    val resourcesDir = file("src/commonMain/composeResources/files")
+    val indexFile = file("src/commonMain/composeResources/files/files_index.txt")
+    
+    inputs.dir(resourcesDir)
+    outputs.file(indexFile)
+    
+    doLast {
+        if (resourcesDir.exists()) {
+            val allFiles = mutableListOf<File>()
+            fun addFilesRecursively(dir: File) {
+                dir.listFiles()?.sortedBy { it.name }?.forEach { file ->
+                    if (file.isFile) {
+                        if (file != indexFile) {
+                            allFiles.add(file)
+                        }
+                    } else if (file.isDirectory) {
+                        addFilesRecursively(file)
+                    }
+                }
+            }
+            addFilesRecursively(resourcesDir)
+            val relativePaths = allFiles.map { file ->
+                file.relativeTo(resourcesDir).path.replace('\\', '/')
+            }.filter { !it.startsWith(".") && it != "files_index.txt" }.sorted()
+            indexFile.writeText(relativePaths.joinToString("\n"))
+        } else {
+            indexFile.writeText("")
+        }
+    }
+}
+
+tasks.matching { 
+    it.name.startsWith("generateComposeResClass") || 
+    it.name.startsWith("copyNonXmlValueResources") ||
+    it.name.startsWith("prepareComposeResources")
+}.configureEach {
+    dependsOn(generateFilesIndexTask)
+}

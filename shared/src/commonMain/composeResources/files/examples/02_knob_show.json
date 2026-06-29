@@ -1,0 +1,1 @@
+{"modules":[{"id":0,"type":"knob","x":162.125,"y":98.0,"jacks":{"in":{"v":43.955665588378906,"min":0.0,"max":100.0}}},{"id":1,"type":"show","x":344.875,"y":110.0,"jacks":{}}],"connections":[{"from":0,"fromJack":"out","to":1,"toJack":"in"}]}

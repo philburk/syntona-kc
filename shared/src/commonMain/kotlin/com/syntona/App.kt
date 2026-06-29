@@ -31,9 +31,12 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 import com.syntona.core.model.ScoreClock
 import com.syntona.core.model.SyntonaModel
@@ -42,6 +45,7 @@ import com.syntona.dataflow.editor.*
 import com.syntona.dataflow.engine.SendOutputCommand
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.modules.*
+import kotlinx.coroutines.launch
 
 
 @Composable
@@ -53,6 +57,11 @@ fun App(
 ) {
     MaterialTheme {
         var showContent by remember { mutableStateOf(false) }
+        val scope = rememberCoroutineScope()
+        val examplesList by produceState<List<String>>(emptyList()) {
+            value = com.syntona.SharedResources.getFilesIndex()
+                .filter { it.startsWith("examples/") && it.endsWith(".json") }
+        }
         val syntonaModel = remember { SyntonaModel() }
 
         val rootPatch = remember {
@@ -219,73 +228,145 @@ fun App(
                                 if (showFileMenuInToolbar) {
                                     val gs = rootPatch.graphState
                                     val engine = syntonaModel.engine
-                                    var fileExpanded by remember { mutableStateOf(false) }
-                                    Box {
-                                        Button(onClick = { fileExpanded = true }) { Text("File") }
-                                        DropdownMenu(
-                                            expanded = fileExpanded,
-                                            onDismissRequest = { fileExpanded = false }
-                                        ) {
-                                            DropdownMenuItem(
-                                                text = { Text("New") },
-                                                trailingIcon = { ShortcutHint("⌘N") },
-                                                onClick = {
-                                                    fileExpanded = false
-                                                    FileState.requestIfDirty {
-                                                        gs.clearAllModules()
-                                                        engine.clearHistory()
-                                                        FileState.markNew()
-                                                        mdiState.closeAllClosable()
-                                                    }
-                                                }
-                                            )
-                                            DropdownMenuItem(
-                                                text = { Text("Open...") },
-                                                trailingIcon = { ShortcutHint("⌘O") },
-                                                onClick = {
-                                                    fileExpanded = false
-                                                    FileState.requestIfDirty {
-                                                        showOpenFileDialog { name, content ->
-                                                            gs.clearAllModules()
-                                                            engine.clearHistory()
-                                                            mdiState.closeAllClosable()
-                                                            GraphSerializer.deserialize(gs, content)
-                                                            FileState.markSaved(name)
-                                                            gs.kickLoadKickModules()
-                                                        }
-                                                    }
-                                                }
-                                            )
-                                            HorizontalDivider()
-                                            DropdownMenuItem(
-                                                text = { Text("Save") },
-                                                trailingIcon = { ShortcutHint("⌘S") },
-                                                enabled = FileState.isDirty,
-                                                onClick = {
-                                                    fileExpanded = false
-                                                    val json = GraphSerializer.serialize(gs, gs.modules.toList())
-                                                    val path = FileState.currentFilePath
-                                                    if (path != null) {
-                                                        saveFileDirect(path, json)
-                                                        FileState.markSaved(path)
-                                                    } else {
-                                                        showSaveFileDialog(json, "patch.json") { FileState.markSaved(it) }
-                                                    }
-                                                }
-                                            )
-                                            DropdownMenuItem(
-                                                text = { Text("Save As...") },
-                                                trailingIcon = { ShortcutHint("⌘⇧S") },
-                                                onClick = {
-                                                    fileExpanded = false
-                                                    showSaveFileDialog(
-                                                        GraphSerializer.serialize(gs, gs.modules.toList()),
-                                                        FileState.currentFileName ?: "patch.json"
-                                                    ) { FileState.markSaved(it) }
-                                                }
-                                            )
-                                        }
-                                    }
+                                     var fileExpanded by remember { mutableStateOf(false) }
+                                     var examplesExpanded by remember { mutableStateOf(false) }
+                                     Box {
+                                         Button(onClick = { fileExpanded = true }) { Text("File") }
+                                         DropdownMenu(
+                                             expanded = fileExpanded,
+                                             onDismissRequest = { fileExpanded = false }
+                                         ) {
+                                             val closeSubmenuModifier = Modifier.pointerInput(Unit) {
+                                                 awaitPointerEventScope {
+                                                     while (true) {
+                                                         val event = awaitPointerEvent()
+                                                         if (event.type == androidx.compose.ui.input.pointer.PointerEventType.Enter) {
+                                                             examplesExpanded = false
+                                                         }
+                                                     }
+                                                 }
+                                             }
+
+                                             DropdownMenuItem(
+                                                 text = { Text("New") },
+                                                 trailingIcon = { ShortcutHint("⌘N") },
+                                                 modifier = closeSubmenuModifier,
+                                                 onClick = {
+                                                     fileExpanded = false
+                                                     FileState.requestIfDirty {
+                                                         gs.clearAllModules()
+                                                         engine.clearHistory()
+                                                         FileState.markNew()
+                                                         mdiState.closeAllClosable()
+                                                     }
+                                                 }
+                                             )
+                                             DropdownMenuItem(
+                                                 text = { Text("Open...") },
+                                                 trailingIcon = { ShortcutHint("⌘O") },
+                                                 modifier = closeSubmenuModifier,
+                                                 onClick = {
+                                                     fileExpanded = false
+                                                     FileState.requestIfDirty {
+                                                         showOpenFileDialog { name, content ->
+                                                             gs.clearAllModules()
+                                                             engine.clearHistory()
+                                                             mdiState.closeAllClosable()
+                                                             GraphSerializer.deserialize(gs, content)
+                                                             FileState.markSaved(name)
+                                                             gs.kickLoadKickModules()
+                                                         }
+                                                     }
+                                                 }
+                                             )
+                                             var itemWidth by remember { mutableStateOf(0) }
+                                             val density = androidx.compose.ui.platform.LocalDensity.current
+                                             val itemWidthDp = remember(itemWidth, density) {
+                                                 with(density) { itemWidth.toDp() }
+                                             }
+                                             Box(modifier = Modifier.onGloballyPositioned { coordinates ->
+                                                 itemWidth = coordinates.size.width
+                                             }) {
+                                                 DropdownMenuItem(
+                                                     text = { Text("Load Example") },
+                                                     trailingIcon = { Text("›", fontSize = 16.sp) },
+                                                     onClick = { examplesExpanded = true },
+                                                     modifier = Modifier.pointerInput(Unit) {
+                                                         awaitPointerEventScope {
+                                                             while (true) {
+                                                                 val event = awaitPointerEvent()
+                                                                 if (event.type == androidx.compose.ui.input.pointer.PointerEventType.Enter) {
+                                                                     examplesExpanded = true
+                                                                 }
+                                                             }
+                                                         }
+                                                     }
+                                                 )
+                                                 DropdownMenu(
+                                                     expanded = examplesExpanded,
+                                                     onDismissRequest = { examplesExpanded = false },
+                                                     offset = androidx.compose.ui.unit.DpOffset(x = itemWidthDp, y = (-48).dp)
+                                                 ) {
+                                                     examplesList.forEach { examplePath ->
+                                                         val displayName = examplePath.substringAfterLast("/").removeSuffix(".json")
+                                                         DropdownMenuItem(
+                                                             text = { Text(displayName) },
+                                                             onClick = {
+                                                                 examplesExpanded = false
+                                                                 fileExpanded = false
+                                                                 FileState.requestIfDirty {
+                                                                     scope.launch {
+                                                                         try {
+                                                                             val bytes = com.syntona.SharedResources.readBytes("files/$examplePath")
+                                                                             val content = bytes.decodeToString()
+                                                                             gs.clearAllModules()
+                                                                             engine.clearHistory()
+                                                                             mdiState.closeAllClosable()
+                                                                             GraphSerializer.deserialize(gs, content)
+                                                                             FileState.markSaved(examplePath)
+                                                                             gs.kickLoadKickModules()
+                                                                         } catch (e: Exception) {
+                                                                             println("Failed to load example: ${e.message}")
+                                                                         }
+                                                                     }
+                                                                 }
+                                                             }
+                                                         )
+                                                     }
+                                                 }
+                                             }
+                                             HorizontalDivider()
+                                             DropdownMenuItem(
+                                                 text = { Text("Save") },
+                                                 trailingIcon = { ShortcutHint("⌘S") },
+                                                 enabled = FileState.isDirty,
+                                                 modifier = closeSubmenuModifier,
+                                                 onClick = {
+                                                     fileExpanded = false
+                                                     val json = GraphSerializer.serialize(gs, gs.modules.toList())
+                                                     val path = FileState.currentFilePath
+                                                     if (path != null) {
+                                                         saveFileDirect(path, json)
+                                                         FileState.markSaved(path)
+                                                     } else {
+                                                         showSaveFileDialog(json, "patch.json") { FileState.markSaved(it) }
+                                                     }
+                                                 }
+                                             )
+                                             DropdownMenuItem(
+                                                 text = { Text("Save As...") },
+                                                 trailingIcon = { ShortcutHint("⌘⇧S") },
+                                                 modifier = closeSubmenuModifier,
+                                                 onClick = {
+                                                     fileExpanded = false
+                                                     showSaveFileDialog(
+                                                         GraphSerializer.serialize(gs, gs.modules.toList()),
+                                                         FileState.currentFileName ?: "patch.json"
+                                                     ) { FileState.markSaved(it) }
+                                                 }
+                                             )
+                                         }
+                                     }            
                                 }
                                 if (showEditMenuInToolbar) {
                                     val activeGs = mdiState.activeGraphState
