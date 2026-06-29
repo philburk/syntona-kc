@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -28,23 +29,26 @@ fun VerticalSlider(
 ) {
     var heightPx by remember { mutableStateOf(0f) }
 
+    val latestRange by rememberUpdatedState(valueRange)
+    val latestOnValueChange by rememberUpdatedState(onValueChange)
+
     fun yToValue(y: Float): Float {
         if (heightPx == 0f) return value
         val fraction = 1f - (y / heightPx).coerceIn(0f, 1f)
-        return (valueRange.start + fraction * (valueRange.endInclusive - valueRange.start))
-            .coerceIn(valueRange.start, valueRange.endInclusive)
+        return (latestRange.start + fraction * (latestRange.endInclusive - latestRange.start))
+            .coerceIn(latestRange.start, latestRange.endInclusive)
     }
 
     Canvas(
         modifier = modifier
             .onSizeChanged { heightPx = it.height.toFloat() }
-            .pointerInput(valueRange) {
+            .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown()
-                    onValueChange(yToValue(down.position.y))
+                    latestOnValueChange(yToValue(down.position.y))
                     drag(down.id) { change ->
                         change.consume()
-                        onValueChange(yToValue(change.position.y))
+                        latestOnValueChange(yToValue(change.position.y))
                     }
                 }
             }

@@ -44,9 +44,11 @@ fun RotaryKnob(
     // rememberUpdatedState lets the pointerInput lambda always read the latest
     // value without restarting the gesture handler on every recomposition.
     val latestValue by rememberUpdatedState(value)
+    val latestRange by rememberUpdatedState(valueRange)
+    val latestOnValueChange by rememberUpdatedState(onValueChange)
 
     Canvas(
-        modifier = modifier.pointerInput(valueRange) {
+        modifier = modifier.pointerInput(Unit) {
             awaitEachGesture {
                 val down = awaitFirstDown(requireUnconsumed = false)
                 accumX = 0.0
@@ -58,12 +60,12 @@ fun RotaryKnob(
                     // Apply current sensitivity to this frame's delta.y only (incremental).
                     // Using total accumY would retroactively re-scale all past Y movement
                     // whenever X changes, causing value jumps when dragging horizontally.
-                    val range = (valueRange.endInclusive - valueRange.start).toDouble()
+                    val range = (latestRange.endInclusive - latestRange.start).toDouble()
                     val sensitivity = range / 400.0 * 10.0.pow(-accumX / 200.0)
                     currentValue = (currentValue - delta.y.toDouble() * sensitivity)
-                        .coerceIn(valueRange.start.toDouble(), valueRange.endInclusive.toDouble())
+                        .coerceIn(latestRange.start.toDouble(), latestRange.endInclusive.toDouble())
                         .toFloat()
-                    onValueChange(currentValue)
+                    latestOnValueChange(currentValue)
                 }
             }
         }
