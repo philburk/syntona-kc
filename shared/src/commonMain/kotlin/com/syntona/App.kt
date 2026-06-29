@@ -116,6 +116,22 @@ fun App(
         LaunchedEffect(Unit) {
             syntonaModel.start()
         }
+        LaunchedEffect(FileState.currentFilePath) {
+            val rootWindow = mdiState.windows.find { it.id == rootPatch }
+            if (rootWindow != null) {
+                val path = FileState.currentFilePath
+                rootWindow.title = if (path == null) {
+                    rootPatch.name
+                } else {
+                    val marker = "composeResources/files/"
+                    if (path.contains(marker)) {
+                        path.substringAfter(marker)
+                    } else {
+                        path
+                    }
+                }
+            }
+        }
         LaunchedEffect(mdiState, scope) {
             LinkModule.onTriggerLoad = { path ->
                 val activeGs = mdiState.activeGraphState
