@@ -6,6 +6,8 @@ import androidx.compose.ui.input.key.KeyShortcut
 import androidx.compose.ui.window.MenuBar
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
+import androidx.compose.ui.window.rememberWindowState
+import androidx.compose.ui.unit.dp
 import com.syntona.dataflow.editor.CopyPasteService
 import com.syntona.dataflow.editor.FileState
 import com.syntona.dataflow.editor.GraphSerializer
@@ -20,6 +22,7 @@ fun main() = application {
     Window(
         onCloseRequest = ::exitApplication,
         title = if (FileState.isDirty) "• SyntonaKC" else "SyntonaKC",
+        state = rememberWindowState(width = 1200.dp, height = 800.dp),
     ) {
         var mdiState by remember { mutableStateOf<MdiState?>(null) }
         val scope = rememberCoroutineScope()
