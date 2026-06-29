@@ -27,7 +27,7 @@ import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -183,7 +183,7 @@ fun App(
                                     }
                                 }
                             }
-                            .onPreviewKeyEvent { keyEvent ->
+                            .onKeyEvent { keyEvent ->
                                 val engine = mdiState.activeGraphState?.engine
                                 when {
                                     keyEvent.type == KeyEventType.KeyDown &&
