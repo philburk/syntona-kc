@@ -17,6 +17,12 @@ object FileState {
             p.substringAfterLast('/').substringAfterLast('\\').ifEmpty { p }
         }
 
+    val isResource: Boolean
+        get() = currentFilePath?.let { path ->
+            path.startsWith("examples/") ||
+            path.startsWith("tutorials/")
+        } ?: false
+
     // When non-null, the app shows an "unsaved changes" confirmation dialog.
     var pendingAction by mutableStateOf<(() -> Unit)?>(null)
 
@@ -33,6 +39,6 @@ object FileState {
     }
 
     fun requestIfDirty(action: () -> Unit) {
-        if (isDirty) pendingAction = action else action()
+        if (isDirty && !isResource) pendingAction = action else action()
     }
 }
