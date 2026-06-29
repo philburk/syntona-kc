@@ -1,4 +1,7 @@
+examples/.DS_Store
 examples/01_env_sequence.json
-examples/02_knob_show.json
+tutorials/.DS_Store
+tutorials/01_basic/01_connections.json
+tutorials/01_basic/02_knob_show.json
 tutorials/pulse_scope.json
 tutorials/seq8_knobs.json
