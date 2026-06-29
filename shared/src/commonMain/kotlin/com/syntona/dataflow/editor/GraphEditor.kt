@@ -780,8 +780,8 @@ fun ResizableModuleBox(
     val density = LocalDensity.current
 
     // Local state for smooth dragging, initialized from module's state
-    var currentWidth by remember(module) { mutableStateOf(initialWidth) }
-    var currentHeight by remember(module) { mutableStateOf(initialHeight) }
+    var currentWidth by remember(module, initialWidth) { mutableStateOf(initialWidth) }
+    var currentHeight by remember(module, initialHeight) { mutableStateOf(initialHeight) }
 
     Surface(
         modifier = Modifier

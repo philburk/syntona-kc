@@ -99,6 +99,20 @@ object GraphSerializer {
             if (creator == null) { created.add(null); continue }
 
             val module = creator()
+            if (module is CommentModule) {
+                (obj?.map?.get("text") as? JsonValue.Str)?.value?.let { module.text = it }
+                (obj?.map?.get("w") as? JsonValue.Num)?.value?.let { module.width = it.toFloat() }
+                (obj?.map?.get("h") as? JsonValue.Num)?.value?.let { module.height = it.toFloat() }
+            }
+            if (module is ScopeModule) {
+                (obj?.map?.get("w") as? JsonValue.Num)?.value?.let { module.width = it.toFloat() }
+                (obj?.map?.get("h") as? JsonValue.Num)?.value?.let { module.height = it.toFloat() }
+            }
+            if (module is LinkModule) {
+                (obj?.map?.get("filePath") as? JsonValue.Str)?.value?.let { module.filePath = it }
+                (obj?.map?.get("buttonText") as? JsonValue.Str)?.value?.let { module.buttonText = it }
+            }
+
             graphState.addModule(module, Offset(x + offset.x, y + offset.y))
             jacks?.map?.forEach { (jackName, jackValue) ->
                 val inputJack = module.inputs.find { it.name == jackName } as? InputJack ?: return@forEach
@@ -118,19 +132,6 @@ object GraphSerializer {
                 if (patchObj != null) {
                     deserializeObj(module.graphState, patchObj, Offset.Zero)
                 }
-            }
-            if (module is CommentModule) {
-                (obj?.map?.get("text") as? JsonValue.Str)?.value?.let { module.text = it }
-                (obj?.map?.get("w") as? JsonValue.Num)?.value?.let { module.width = it.toFloat() }
-                (obj?.map?.get("h") as? JsonValue.Num)?.value?.let { module.height = it.toFloat() }
-            }
-            if (module is ScopeModule) {
-                (obj?.map?.get("w") as? JsonValue.Num)?.value?.let { module.width = it.toFloat() }
-                (obj?.map?.get("h") as? JsonValue.Num)?.value?.let { module.height = it.toFloat() }
-            }
-            if (module is LinkModule) {
-                (obj?.map?.get("filePath") as? JsonValue.Str)?.value?.let { module.filePath = it }
-                (obj?.map?.get("buttonText") as? JsonValue.Str)?.value?.let { module.buttonText = it }
             }
             if (module is SegmentedEnvelopeModule) {
                 val envDataArr = (obj?.map?.get("envData") as? JsonValue.Arr)?.items
