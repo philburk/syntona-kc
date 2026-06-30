@@ -56,6 +56,7 @@ object ModuleRegistry {
         input.modules.add(ModuleEntry("loadKick") { LoadKickModule() })
         input.modules.add(ModuleEntry("comment") { CommentModule() })
         input.modules.add(ModuleEntry("key") { KeyModule() })
+        input.modules.add(ModuleEntry("keyMatch") { KeyMatchModule() })
 
         val view = getOrCreateBundle(core, "view")
         view.modules.add(ModuleEntry("show") { ShowModule() })

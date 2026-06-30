@@ -62,6 +62,7 @@ import com.syntona.dataflow.modules.ShowModule
 import com.syntona.dataflow.modules.CommentModule
 import com.syntona.dataflow.modules.SegmentedEnvelopeModule
 import com.syntona.dataflow.modules.LinkModule
+import com.syntona.dataflow.modules.KeyMatchModule
 import com.syntona.dataflow.modules.KickModule
 import com.syntona.dataflow.modules.LoadKickModule
 import com.softsynth.ksyn.compose.SegmentedEnvelopeEditor
@@ -74,7 +75,12 @@ import kotlin.math.roundToInt
 fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
     val mdiState = LocalMdiState.current
     val focusRequester = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+    val editingModule = state.editingModule
+    LaunchedEffect(editingModule) {
+        if (editingModule == null) {
+            focusRequester.requestFocus()
+        }
+    }
     Box(modifier = modifier.fillMaxSize().background(Color(0xFF1E1E1E))
         .focusRequester(focusRequester)
         .focusable()
@@ -123,6 +129,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                 is ScopeModule -> ScopeModuleNode(module, state)
                 is CommentModule -> CommentModuleNode(module, state)
                 is SegmentedEnvelopeModule -> SegmentedEnvelopeModuleNode(module, state)
+                is KeyMatchModule -> KeyMatchModuleNode(module, state)
                 else -> ModuleNode(module, state)
             }
         }
@@ -264,6 +271,156 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color = Color.Blu
             }
             module.outputs.forEach { JackView(it, state, isLeft = false) }
         }
+    }
+}
+
+@Composable
+fun KeyMatchModuleNode(module: KeyMatchModule, state: GraphState) {
+    val position = state.modulePositions[module] ?: Offset.Zero
+    val isSelected = state.selectedModules.contains(module)
+    val borderColor = if (isSelected) Color(0xFFFFA500) else Color.Black
+    val borderWidth = if (isSelected) 2.dp else 1.dp
+
+    Surface(
+        modifier = Modifier
+            .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
+            .size(width = 80.dp, height = 80.dp)
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
+            .onSizeChanged { size ->
+                state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
+            },
+        shape = RoundedCornerShape(4.dp),
+        color = Color.DarkGray
+    ) {
+        Column {
+            // Drag handle (header bar matching standard modules)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(24.dp)
+                    .background(Color.Blue)
+                    .headerGestures(state, module) {
+                        state.editingModule = module
+                    }
+            ) {
+                Text(
+                    text = module.name,
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 4.dp).align(Alignment.CenterStart)
+                )
+            }
+
+            // Body containing the button and unlabelled jacks
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 6.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Button
+                var isPressed by remember { mutableStateOf(false) }
+                val buttonBg = if (isPressed) Color.Gray else Color(0xFF3E3E3E)
+                
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .background(buttonBg, RoundedCornerShape(4.dp))
+                        .border(1.dp, Color.Black, RoundedCornerShape(4.dp))
+                        .pointerInput(module) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    val e = state.engine
+                                    val time = ScoreClock.now()
+                                    when (event.type) {
+                                        PointerEventType.Press -> {
+                                            isPressed = true
+                                            val msg = Message.FloatValue(time, module.keyChar.code.toDouble())
+                                            if (e != null) {
+                                                e.post(SendOutputCommand(module.on, msg))
+                                            } else {
+                                                module.on.send(msg)
+                                            }
+                                        }
+                                        PointerEventType.Release -> {
+                                            isPressed = false
+                                            val msg = Message.FloatValue(time, module.keyChar.code.toDouble())
+                                            if (e != null) {
+                                                e.post(SendOutputCommand(module.off, msg))
+                                            } else {
+                                                module.off.send(msg)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                ) {
+                    Text(
+                        text = module.keyChar.toString().uppercase(),
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                    )
+                }
+
+                // Unlabelled Jacks stacked vertically
+                Column(
+                    modifier = Modifier.fillMaxHeight(),
+                    verticalArrangement = Arrangement.SpaceEvenly,
+                    horizontalAlignment = Alignment.End
+                ) {
+                    UnlabelledJackView(module.on, state)
+                    UnlabelledJackView(module.off, state)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun UnlabelledJackView(jack: Jack, state: GraphState) {
+    val connectorColor = Color.Cyan
+    var jackRootPosition by remember { mutableStateOf(Offset.Zero) }
+
+    Box(
+        modifier = Modifier
+            .size(12.dp)
+            .onGloballyPositioned { layoutCoordinates ->
+                jackRootPosition = layoutCoordinates.positionInRoot()
+                val size = layoutCoordinates.size
+                val pos = jackRootPosition - state.rootOffset
+                val edgeOffset = Offset(size.width.toFloat(), size.height / 2f)
+                state.updateJackOffset(jack, pos + edgeOffset)
+            }
+            .pointerInput(jack) {
+                detectDragGestures(
+                    onDragStart = { startOffset ->
+                        if (jack is OutputJack) state.startDraggingFromOutput(jack)
+                        state.onPointerMove(jackRootPosition - state.rootOffset + startOffset)
+                    },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        state.onPointerMove(state.dragPointerPosition + dragAmount)
+                    },
+                    onDragEnd = {
+                        state.onPointerUp(null)
+                    },
+                    onDragCancel = {
+                        state.onPointerUp(null)
+                    }
+                )
+            }
+    ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .background(connectorColor)
+                .align(Alignment.Center)
+        )
     }
 }
 

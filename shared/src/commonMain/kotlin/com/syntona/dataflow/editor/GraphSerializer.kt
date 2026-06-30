@@ -11,6 +11,7 @@ import com.syntona.dataflow.modules.ScopeModule
 import com.syntona.dataflow.modules.PatchModule
 import com.syntona.dataflow.modules.SegmentedEnvelopeModule
 import com.syntona.dataflow.modules.LinkModule
+import com.syntona.dataflow.modules.KeyMatchModule
 import com.softsynth.ksyn.data.SegmentedEnvelope
 import com.syntona.dataflow.registry.ModuleRegistry
 
@@ -49,6 +50,9 @@ object GraphSerializer {
             if (module is LinkModule) {
                 append(",\"filePath\":\"${module.filePath.jsonEscape}\"")
                 append(",\"buttonText\":\"${module.buttonText.jsonEscape}\"")
+            }
+            if (module is KeyMatchModule) {
+                append(",\"keyChar\":\"${module.keyChar.toString().jsonEscape}\"")
             }
             if (module is SegmentedEnvelopeModule) {
                 val env = module.envelope
@@ -114,6 +118,9 @@ object GraphSerializer {
             if (module is LinkModule) {
                 (obj?.map?.get("filePath") as? JsonValue.Str)?.value?.let { module.filePath = it }
                 (obj?.map?.get("buttonText") as? JsonValue.Str)?.value?.let { module.buttonText = it }
+            }
+            if (module is KeyMatchModule) {
+                (obj?.map?.get("keyChar") as? JsonValue.Str)?.value?.firstOrNull()?.let { module.keyChar = it }
             }
 
             // x/y are stored as dp; convert to physical pixels by multiplying by density

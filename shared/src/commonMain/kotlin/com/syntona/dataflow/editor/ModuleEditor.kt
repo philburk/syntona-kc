@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.modules.LinkModule
+import com.syntona.dataflow.modules.KeyMatchModule
 import com.syntona.dataflow.editor.FileState
 
 private val HEADER_COLOR = Color(0xFFCC6666)
@@ -62,6 +63,8 @@ fun ModuleEditor(module: Module, onDismiss: () -> Unit, modifier: Modifier = Mod
             ) {
                 if (module is LinkModule) {
                     LinkModuleEditor(module)
+                } else if (module is KeyMatchModule) {
+                    KeyMatchModuleEditor(module)
                 } else {
                     module.inputs.forEach { jack ->
                         JackEditorRow(jack)
@@ -248,6 +251,40 @@ private fun LinkModuleEditor(module: LinkModule) {
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun KeyMatchModuleEditor(module: KeyMatchModule) {
+    var keyCharText by remember(module) { mutableStateOf(module.keyChar.toString()) }
+
+    Column(
+        modifier = Modifier.padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Column {
+            Text("Character to Match:", fontSize = 12.sp, color = LABEL_COLOR)
+            Spacer(modifier = Modifier.height(4.dp))
+            Box(
+                modifier = Modifier
+                    .width(60.dp)
+                    .border(1.dp, BORDER_COLOR, RoundedCornerShape(4.dp))
+                    .background(Color.White)
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+            ) {
+                androidx.compose.foundation.text.BasicTextField(
+                    value = keyCharText,
+                    onValueChange = {
+                        val newText = it.take(1).uppercase()
+                        keyCharText = newText
+                        module.keyChar = if (newText.isNotEmpty()) newText[0] else ' '
+                        FileState.markDirty()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp)
+                )
             }
         }
     }

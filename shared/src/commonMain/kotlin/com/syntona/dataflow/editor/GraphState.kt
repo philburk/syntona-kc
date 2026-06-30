@@ -25,6 +25,7 @@ import com.syntona.dataflow.modules.KickModule
 import com.syntona.dataflow.modules.LoadKickModule
 import com.syntona.dataflow.modules.PatchModule
 import com.syntona.dataflow.modules.KeyModule
+import com.syntona.dataflow.modules.KeyMatchModule
 import com.syntona.isCapsLockOn
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
@@ -212,7 +213,10 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
             return false
         }
 
-        val charCode = event.utf16CodePoint
+        val rawCharCode = event.utf16CodePoint
+        if (rawCharCode == 0 || rawCharCode == 65535) return false
+
+        val charCode = rawCharCode and 0x7F
         if (charCode == 0) return false
 
         val isDown = when (event.type) {
@@ -248,6 +252,17 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
                     jack.send(msg)
                 }
                 processed = true
+            } else if (module is KeyMatchModule) {
+                if (charCode.toChar().uppercaseChar() == module.keyChar.uppercaseChar()) {
+                    val jack = if (isDown) module.on else module.off
+                    val msg = Message.FloatValue(time, charCode.toDouble())
+                    if (e != null) {
+                        e.post(SendOutputCommand(jack, msg))
+                    } else {
+                        jack.send(msg)
+                    }
+                    processed = true
+                }
             } else if (module is PatchModule) {
                 module.graphState.modules.forEach { dispatch(it) }
             }
