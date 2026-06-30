@@ -1,5 +1,6 @@
 examples/.DS_Store
 examples/01_env_sequence.json
+examples/key_control.json
 examples/pulse_scope.json
 examples/sampler.json
 examples/seq8_knobs.json

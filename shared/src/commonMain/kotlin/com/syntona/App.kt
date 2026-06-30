@@ -205,6 +205,7 @@ fun App(
                             .onKeyEvent { keyEvent ->
                                 val engine = mdiState.activeGraphState?.engine
                                 when {
+                                    mdiState.activeGraphState?.onKeyEvent(keyEvent) == true -> true
                                     keyEvent.type == KeyEventType.KeyDown &&
                                     (keyEvent.key == Key.Backspace || keyEvent.key == Key.Delete) -> {
                                         mdiState.activeGraphState?.deleteSelectedModules()

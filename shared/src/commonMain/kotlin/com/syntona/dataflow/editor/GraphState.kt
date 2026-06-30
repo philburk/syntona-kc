@@ -24,6 +24,12 @@ import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.modules.KickModule
 import com.syntona.dataflow.modules.LoadKickModule
 import com.syntona.dataflow.modules.PatchModule
+import com.syntona.dataflow.modules.KeyModule
+import com.syntona.isCapsLockOn
+import androidx.compose.ui.input.key.KeyEvent
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.utf16CodePoint
 
 /**
  * Manages the UI state of the graph editor, including module positions
@@ -43,6 +49,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
 
     // Maps each Jack to its global offset on the canvas for drawing wires
     val jackOffsets = mutableStateMapOf<Jack, Offset>()
+    private val pressedKeyCodes = mutableSetOf<Int>()
 
     var rootOffset by mutableStateOf(Offset.Zero)
         private set
@@ -197,6 +204,56 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
             }
         }
         modules.forEach { kickInModule(it) }
+    }
+
+    fun onKeyEvent(event: KeyEvent): Boolean {
+        if (!isCapsLockOn(event)) {
+            pressedKeyCodes.clear()
+            return false
+        }
+
+        val charCode = event.utf16CodePoint
+        if (charCode == 0) return false
+
+        val isDown = when (event.type) {
+            KeyEventType.KeyDown -> true
+            KeyEventType.KeyUp -> false
+            else -> return false
+        }
+
+        return handleKeyStroke(charCode, isDown)
+    }
+
+    fun handleKeyStroke(charCode: Int, isDown: Boolean): Boolean {
+        if (isDown) {
+            if (pressedKeyCodes.contains(charCode)) {
+                return true // Ignore auto-repeat
+            }
+            pressedKeyCodes.add(charCode)
+        } else {
+            pressedKeyCodes.remove(charCode)
+        }
+
+        val e = engine
+        val time = ScoreClock.now()
+        var processed = false
+
+        fun dispatch(module: Module) {
+            if (module is KeyModule) {
+                val jack = if (isDown) module.on else module.off
+                val msg = Message.FloatValue(time, charCode.toDouble())
+                if (e != null) {
+                    e.post(SendOutputCommand(jack, msg))
+                } else {
+                    jack.send(msg)
+                }
+                processed = true
+            } else if (module is PatchModule) {
+                module.graphState.modules.forEach { dispatch(it) }
+            }
+        }
+        modules.forEach { dispatch(it) }
+        return processed
     }
 
     fun kickModule(module: Module) {
