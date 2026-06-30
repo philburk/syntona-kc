@@ -33,6 +33,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -68,6 +69,7 @@ fun App(
                 .filter { it.startsWith("tutorials/") && it.endsWith(".json") }
         }
         val syntonaModel = remember { SyntonaModel() }
+        val appDensity = LocalDensity.current.density
 
         val rootPatch = remember {
             PatchModule("root").also { it.graphState.engine = syntonaModel.engine }.apply {
@@ -145,7 +147,7 @@ fun App(
                                 activeGs.clearAllModules()
                                 activeEngine?.clearHistory()
                                 mdiState.closeAllClosable()
-                                GraphSerializer.deserialize(activeGs, content)
+                                GraphSerializer.deserialize(activeGs, content, density = appDensity)
                                 FileState.markSaved(path)
                                 activeGs.kickLoadKickModules()
                             } catch (e: Exception) {
@@ -220,7 +222,7 @@ fun App(
                                     (keyEvent.isMetaPressed || keyEvent.isCtrlPressed) -> {
                                         val gs = mdiState.activeGraphState
                                         if (gs != null && gs.selectedModules.isNotEmpty()) {
-                                            CopyPasteService.copy(gs, gs.selectedModules.toList())
+                                            CopyPasteService.copy(gs, gs.selectedModules.toList(), appDensity)
                                         }
                                         true
                                     }
@@ -229,7 +231,7 @@ fun App(
                                     (keyEvent.isMetaPressed || keyEvent.isCtrlPressed) -> {
                                         val gs = mdiState.activeGraphState
                                         if (gs != null && gs.selectedModules.isNotEmpty()) {
-                                            CopyPasteService.copy(gs, gs.selectedModules.toList())
+                                            CopyPasteService.copy(gs, gs.selectedModules.toList(), appDensity)
                                             gs.deleteSelectedModules()
                                         }
                                         true
@@ -237,7 +239,7 @@ fun App(
                                     keyEvent.type == KeyEventType.KeyDown &&
                                     keyEvent.key == Key.V &&
                                     (keyEvent.isMetaPressed || keyEvent.isCtrlPressed) -> {
-                                        mdiState.activeGraphState?.let { CopyPasteService.paste(it) }
+                                        mdiState.activeGraphState?.let { CopyPasteService.paste(it, appDensity) }
                                         true
                                     }
                                     else -> false
@@ -319,7 +321,7 @@ fun App(
                                                              gs.clearAllModules()
                                                              engine.clearHistory()
                                                              mdiState.closeAllClosable()
-                                                             GraphSerializer.deserialize(gs, content)
+                                                             GraphSerializer.deserialize(gs, content, density = appDensity)
                                                              FileState.markSaved(name)
                                                              gs.kickLoadKickModules()
                                                          }
@@ -333,7 +335,7 @@ fun App(
                                                  enabled = FileState.isDirty,
                                                  onClick = {
                                                      fileExpanded = false
-                                                     val json = GraphSerializer.serialize(gs, gs.modules.toList())
+                                                     val json = GraphSerializer.serialize(gs, gs.modules.toList(), appDensity)
                                                      val path = FileState.currentFilePath
                                                      if (path != null) {
                                                          saveFileDirect(path, json)
@@ -349,7 +351,7 @@ fun App(
                                                  onClick = {
                                                      fileExpanded = false
                                                      showSaveFileDialog(
-                                                         GraphSerializer.serialize(gs, gs.modules.toList()),
+                                                         GraphSerializer.serialize(gs, gs.modules.toList(), appDensity),
                                                          FileState.currentFileName ?: "patch.json"
                                                      ) { FileState.markSaved(it) }
                                                  }
@@ -390,7 +392,7 @@ fun App(
                                                 enabled = hasSelection,
                                                 onClick = {
                                                     val gs = activeGs ?: return@DropdownMenuItem
-                                                    CopyPasteService.copy(gs, gs.selectedModules.toList())
+                                                    CopyPasteService.copy(gs, gs.selectedModules.toList(), appDensity)
                                                     gs.deleteSelectedModules()
                                                     editExpanded = false
                                                 }
@@ -401,7 +403,7 @@ fun App(
                                                 enabled = hasSelection,
                                                 onClick = {
                                                     val gs = activeGs ?: return@DropdownMenuItem
-                                                    CopyPasteService.copy(gs, gs.selectedModules.toList())
+                                                    CopyPasteService.copy(gs, gs.selectedModules.toList(), appDensity)
                                                     editExpanded = false
                                                 }
                                             )
@@ -410,7 +412,7 @@ fun App(
                                                 trailingIcon = { ShortcutHint("⌘V") },
                                                 enabled = CopyPasteService.pasteBuffer != null,
                                                 onClick = {
-                                                    activeGs?.let { CopyPasteService.paste(it) }
+                                                    activeGs?.let { CopyPasteService.paste(it, appDensity) }
                                                     editExpanded = false
                                                 }
                                             )
@@ -695,6 +697,7 @@ fun RenderDropdownMenuNode(
     scope: CoroutineScope,
     onClose: () -> Unit
 ) {
+    val density = LocalDensity.current.density
     val sortedChildren = node.children.values.sortedWith(
         compareBy<MenuNode> { it.path != null }
             .thenBy { it.name }
@@ -718,7 +721,7 @@ fun RenderDropdownMenuNode(
                                     activeGs.clearAllModules()
                                     activeEngine?.clearHistory()
                                     state.closeAllClosable()
-                                    GraphSerializer.deserialize(activeGs, content)
+                                    GraphSerializer.deserialize(activeGs, content, density = density)
                                     FileState.markSaved(path)
                                     activeGs.kickLoadKickModules()
                                 } catch (e: Exception) {

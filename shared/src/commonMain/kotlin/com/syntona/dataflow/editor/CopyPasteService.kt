@@ -12,17 +12,17 @@ object CopyPasteService {
 
     private var pasteCount = 0
 
-    fun copy(graphState: GraphState, modules: List<Module>) {
+    fun copy(graphState: GraphState, modules: List<Module>, density: Float = 1f) {
         pasteCount = 0
-        pasteBuffer = GraphSerializer.serialize(graphState, modules)
+        pasteBuffer = GraphSerializer.serialize(graphState, modules, density)
     }
 
-    fun paste(graphState: GraphState) {
+    fun paste(graphState: GraphState, density: Float = 1f) {
         val json = pasteBuffer ?: return
         pasteCount++
         val offset = Offset(20f * pasteCount, 20f * pasteCount)
         graphState.clearSelection()
-        val created = GraphSerializer.deserialize(graphState, json, offset)
+        val created = GraphSerializer.deserialize(graphState, json, offset, density)
         created.forEach { graphState.selectModule(it) }
     }
 }

@@ -16,7 +16,7 @@ import com.syntona.dataflow.registry.ModuleRegistry
 
 object GraphSerializer {
 
-    fun serialize(graphState: GraphState, modules: List<Module>): String = buildString {
+    fun serialize(graphState: GraphState, modules: List<Module>, density: Float = 1f): String = buildString {
         val internalConns = graphState.connections.filter { conn ->
             modules.any { it === conn.output.module } &&
             modules.any { it === conn.input.module }
@@ -25,8 +25,11 @@ object GraphSerializer {
         modules.forEachIndexed { i, module ->
             if (i > 0) append(",")
             val pos = graphState.modulePositions[module] ?: Offset.Zero
+            // Store positions as dp (divide by density) so they load correctly on any screen density
+            val xDp = pos.x / density
+            val yDp = pos.y / density
             append("{\"id\":$i,\"type\":\"${module.name.jsonEscape}\"")
-            append(",\"x\":${pos.x},\"y\":${pos.y},\"jacks\":{")
+            append(",\"x\":$xDp,\"y\":$yDp,\"jacks\":{")
             val valueJacks = module.inputs.filter { jack ->
                 jack !is CommandJack && !jack.isKickable &&
                 (jack.lastMessage is Message.FloatValue || jack is AudioInputJack)
@@ -61,7 +64,7 @@ object GraphSerializer {
             // Recursively embed patch contents so jacks are restored on paste/load
             if (module is PatchModule) {
                 append(",\"patch\":")
-                append(serialize(module.graphState, module.graphState.modules.toList()))
+                append(serialize(module.graphState, module.graphState.modules.toList(), density))
             }
             append("}")
         }
@@ -76,12 +79,12 @@ object GraphSerializer {
         append("]}")
     }
 
-    fun deserialize(graphState: GraphState, json: String, offset: Offset = Offset.Zero): List<Module> {
+    fun deserialize(graphState: GraphState, json: String, offset: Offset = Offset.Zero, density: Float = 1f): List<Module> {
         val rootVal = try { JsonParser(json).parse() } catch (_: Exception) { return emptyList() }
-        return deserializeObj(graphState, rootVal as? JsonValue.Obj ?: return emptyList(), offset)
+        return deserializeObj(graphState, rootVal as? JsonValue.Obj ?: return emptyList(), offset, density)
     }
 
-    private fun deserializeObj(graphState: GraphState, rootObj: JsonValue.Obj, offset: Offset): List<Module> {
+    private fun deserializeObj(graphState: GraphState, rootObj: JsonValue.Obj, offset: Offset, density: Float = 1f): List<Module> {
         val modulesArr = (rootObj.map["modules"] as? JsonValue.Arr)?.items ?: return emptyList()
         val connectionsArr = (rootObj.map["connections"] as? JsonValue.Arr)?.items ?: return emptyList()
 
@@ -113,7 +116,8 @@ object GraphSerializer {
                 (obj?.map?.get("buttonText") as? JsonValue.Str)?.value?.let { module.buttonText = it }
             }
 
-            graphState.addModule(module, Offset(x + offset.x, y + offset.y))
+            // x/y are stored as dp; convert to physical pixels by multiplying by density
+            graphState.addModule(module, Offset(x * density + offset.x, y * density + offset.y))
             jacks?.map?.forEach { (jackName, jackValue) ->
                 val inputJack = module.inputs.find { it.name == jackName } as? InputJack ?: return@forEach
                 when (jackValue) {
@@ -130,7 +134,7 @@ object GraphSerializer {
             if (module is PatchModule) {
                 val patchObj = obj?.map?.get("patch") as? JsonValue.Obj
                 if (patchObj != null) {
-                    deserializeObj(module.graphState, patchObj, Offset.Zero)
+                    deserializeObj(module.graphState, patchObj, Offset.Zero, density)
                 }
             }
             if (module is SegmentedEnvelopeModule) {
