@@ -46,6 +46,7 @@ import com.syntona.core.model.ScoreClock
 import com.syntona.core.model.ScoreTime
 import com.syntona.dataflow.engine.KickJackCommand
 import com.syntona.dataflow.engine.SetValueCommand
+import com.syntona.dataflow.engine.SendOutputCommand
 import com.syntona.dataflow.model.*
 import com.softsynth.ksyn.compose.Oscilloscope
 import com.syntona.dataflow.modules.DoubleEntryModule
@@ -61,6 +62,8 @@ import com.syntona.dataflow.modules.ShowModule
 import com.syntona.dataflow.modules.CommentModule
 import com.syntona.dataflow.modules.SegmentedEnvelopeModule
 import com.syntona.dataflow.modules.LinkModule
+import com.syntona.dataflow.modules.KickModule
+import com.syntona.dataflow.modules.LoadKickModule
 import com.softsynth.ksyn.compose.SegmentedEnvelopeEditor
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.text.TextStyle
@@ -252,6 +255,8 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color = Color.Blu
             }
 
 
+
+
             // Jacks: inputs at top, outputs at bottom, single column
             module.inputs.forEach { JackView(it, state, isLeft = true) }
             if (module.inputs.isNotEmpty() && module.outputs.isNotEmpty()) {
@@ -268,6 +273,10 @@ private fun formatValue(value: Double): String = formatNumber(value)
 fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
     if (jack is CommandJack) {
         CommandJackView(jack, state, isLeft)
+        return
+    }
+    if (jack is CommandOutputJack) {
+        CommandOutputJackView(jack, state, isLeft)
         return
     }
     val connectorColor = when {
@@ -441,6 +450,63 @@ fun CommandJackView(jack: CommandJack, state: GraphState, isLeft: Boolean) {
             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
         ) {
             Text(jack.name, fontSize = 10.sp)
+        }
+        if (!isLeft) {
+            Spacer(modifier = Modifier.width(4.dp))
+            Box(modifier = Modifier.size(8.dp).background(Color.Red))
+        }
+    }
+}
+
+@Composable
+fun CommandOutputJackView(jack: CommandOutputJack, state: GraphState, isLeft: Boolean) {
+    var jackRootPosition by remember { mutableStateOf(Offset.Zero) }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = if (isLeft) Arrangement.Start else Arrangement.End,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp)
+            .onGloballyPositioned { coords ->
+                jackRootPosition = coords.positionInRoot()
+                val size = coords.size
+                val edgeOffset = if (isLeft) Offset(0f, size.height / 2f)
+                                 else Offset(size.width.toFloat(), size.height / 2f)
+                state.updateJackOffset(jack, jackRootPosition - state.rootOffset + edgeOffset)
+            }
+            .pointerInput(jack) {
+                detectDragGestures(
+                    onDragStart = { startOffset ->
+                        state.startDraggingFromOutput(jack)
+                        state.onPointerMove(jackRootPosition - state.rootOffset + startOffset)
+                    },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        state.onPointerMove(state.dragPointerPosition + dragAmount)
+                    },
+                    onDragEnd = { state.onPointerUp(null) },
+                    onDragCancel = { state.onPointerUp(null) }
+                )
+            }
+    ) {
+        if (isLeft) {
+            Box(modifier = Modifier.size(8.dp).background(Color.Red))
+            Spacer(modifier = Modifier.width(4.dp))
+        }
+        Button(
+            onClick = {
+                val e = state.engine
+                val time = ScoreClock.now()
+                if (e != null) {
+                    e.post(SendOutputCommand(jack, Message.FloatValue(time, 0.0)))
+                } else {
+                    jack.send(Message.FloatValue(time, 0.0))
+                }
+            },
+            modifier = Modifier.height(20.dp),
+            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+        ) {
+            Text("Kick", fontSize = 10.sp)
         }
         if (!isLeft) {
             Spacer(modifier = Modifier.width(4.dp))

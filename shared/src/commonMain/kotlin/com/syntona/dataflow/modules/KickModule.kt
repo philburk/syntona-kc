@@ -9,7 +9,7 @@ import com.syntona.dataflow.model.Module
  * This will be connected to a Button in the Compose UI.
  */
 class KickModule : Module("kick") {
-    val output = addOutput("kick")
+    val output = addCommandOutput("kick")
 
     /**
      * Called by the UI when the user clicks the button.

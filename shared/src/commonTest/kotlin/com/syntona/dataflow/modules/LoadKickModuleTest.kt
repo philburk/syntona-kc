@@ -90,4 +90,47 @@ class LoadKickModuleTest {
         assertTrue(messageReceived is Message.FloatValue)
         assertEquals(0.0, (messageReceived as Message.FloatValue).value)
     }
+
+    @Test
+    fun testKickModule() {
+        val graphState = GraphState()
+        val kick = KickModule()
+        val loadKick = LoadKickModule()
+        graphState.addModule(kick, androidx.compose.ui.geometry.Offset.Zero)
+        graphState.addModule(loadKick, androidx.compose.ui.geometry.Offset.Zero)
+
+        var kickReceived: Message? = null
+        val receiver1 = object : com.syntona.dataflow.model.Module("receiver1") {
+            val input = addInput("in", isKickable = true)
+            override fun execute(triggerMessage: Message) {
+                kickReceived = triggerMessage
+            }
+        }
+        graphState.addModule(receiver1, androidx.compose.ui.geometry.Offset.Zero)
+        graphState.connect(kick.output, receiver1.input)
+
+        var loadKickReceived: Message? = null
+        val receiver2 = object : com.syntona.dataflow.model.Module("receiver2") {
+            val input = addInput("in", isKickable = true)
+            override fun execute(triggerMessage: Message) {
+                loadKickReceived = triggerMessage
+            }
+        }
+        graphState.addModule(receiver2, androidx.compose.ui.geometry.Offset.Zero)
+        graphState.connect(loadKick.output, receiver2.input)
+
+        // Verify initial state
+        assertEquals(null, kickReceived)
+        assertEquals(null, loadKickReceived)
+
+        // Trigger kick for KickModule
+        graphState.kickModule(kick)
+        assertNotNull(kickReceived)
+        assertEquals(null, loadKickReceived)
+
+        // Trigger kick for LoadKickModule
+        graphState.kickModule(loadKick)
+        assertNotNull(loadKickReceived)
+    }
 }
+

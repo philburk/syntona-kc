@@ -270,22 +270,6 @@ fun App(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Button(
-                                    onClick = {
-                                        val engine = syntonaModel.engine
-                                        val time = ScoreClock.now()
-                                        rootPatch.graphState.modules
-                                            .filterIsInstance<KickModule>()
-                                            .forEach { module ->
-                                                engine.post(SendOutputCommand(
-                                                    module.output,
-                                                    Message.FloatValue(time, 0.0)
-                                                ))
-                                            }
-                                    }
-                                ) {
-                                    Text("Kick Graph")
-                                }
 
 
                                  if (showFileMenuInToolbar) {

@@ -19,6 +19,7 @@ import com.syntona.dataflow.modules.KnobModule
 import com.syntona.core.model.ScoreClock
 import com.syntona.dataflow.engine.SendOutputCommand
 import com.syntona.dataflow.model.Message
+import com.syntona.dataflow.modules.KickModule
 import com.syntona.dataflow.modules.LoadKickModule
 import com.syntona.dataflow.modules.PatchModule
 
@@ -194,6 +195,27 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
             }
         }
         modules.forEach { kickInModule(it) }
+    }
+
+    fun kickModule(module: Module) {
+        val e = engine
+        val time = ScoreClock.now()
+        when (module) {
+            is KickModule -> {
+                if (e != null) {
+                    e.post(SendOutputCommand(module.output, Message.FloatValue(time, 0.0)))
+                } else {
+                    module.kick(time)
+                }
+            }
+            is LoadKickModule -> {
+                if (e != null) {
+                    e.post(SendOutputCommand(module.output, Message.FloatValue(time, 0.0)))
+                } else {
+                    module.kick(time)
+                }
+            }
+        }
     }
 
     fun startDraggingFromTree(creator: () -> Module, position: Offset) {

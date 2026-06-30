@@ -97,3 +97,10 @@ open class OutputJack(
         connections.forEach { it.receive(msg) }
     }
 }
+
+/**
+ * An output jack rendered as a clickable Button in the UI rather than a label.
+ * Clicking the button sends a kick message from this jack.
+ */
+class CommandOutputJack(name: String, module: Module) : OutputJack(name, module)
+

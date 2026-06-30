@@ -8,7 +8,7 @@ import com.syntona.dataflow.model.Module
  * A module that sends a kick after a file has been completely loaded.
  */
 class LoadKickModule : Module("loadKick") {
-    val output = addOutput("kick")
+    val output = addCommandOutput("kick")
 
     /**
      * Sends the kick message.

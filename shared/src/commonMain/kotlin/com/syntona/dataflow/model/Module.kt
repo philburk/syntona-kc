@@ -32,6 +32,12 @@ abstract class Module(val name: String) {
         return jack
     }
 
+    protected fun addCommandOutput(name: String): CommandOutputJack {
+        val jack = CommandOutputJack(name, this)
+        _outputs.add(jack)
+        return jack
+    }
+
     protected fun addAudioInput(name: String, port: com.softsynth.ksyn.ports.UnitInputPort, partIndex: Int = 0): AudioInputJack {
         val jack = AudioInputJack(name, this, port, partIndex)
         _inputs.add(jack)
