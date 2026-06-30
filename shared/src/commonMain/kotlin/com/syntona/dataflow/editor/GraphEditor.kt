@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalViewConfiguration
@@ -212,7 +213,10 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color = Color.Blu
         modifier = Modifier
             .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
             .width(IntrinsicSize.Max)
-            .border(borderWidth, borderColor, RoundedCornerShape(4.dp)),
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
+            .onSizeChanged { size ->
+                state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
+            },
         shape = RoundedCornerShape(4.dp),
         color = Color.DarkGray
     ) {
@@ -503,7 +507,10 @@ fun FaderModuleNode(module: FaderModule, state: GraphState) {
         modifier = Modifier
             .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
             .width(70.dp)
-            .border(borderWidth, borderColor, RoundedCornerShape(4.dp)),
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
+            .onSizeChanged { size ->
+                state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
+            },
         shape = RoundedCornerShape(4.dp),
         color = Color.DarkGray
     ) {
@@ -580,7 +587,10 @@ fun PatchModuleNode(module: PatchModule, state: GraphState) {
         modifier = Modifier
             .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
             .width(120.dp)
-            .border(borderWidth, borderColor, RoundedCornerShape(4.dp)),
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
+            .onSizeChanged { size ->
+                state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
+            },
         shape = RoundedCornerShape(4.dp),
         color = Color(0xFF1A3A2A)
     ) {
@@ -635,7 +645,10 @@ fun DoubleEntryModuleNode(module: DoubleEntryModule, state: GraphState) {
         modifier = Modifier
             .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
             .width(140.dp)
-            .border(borderWidth, borderColor, RoundedCornerShape(4.dp)),
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
+            .onSizeChanged { size ->
+                state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
+            },
         shape = RoundedCornerShape(4.dp),
         color = Color.DarkGray
     ) {
@@ -692,7 +705,10 @@ fun KnobModuleNode(module: KnobModule, state: GraphState) {
         modifier = Modifier
             .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
             .width(90.dp)
-            .border(borderWidth, borderColor, RoundedCornerShape(4.dp)),
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
+            .onSizeChanged { size ->
+                state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
+            },
         shape = RoundedCornerShape(4.dp),
         color = Color.DarkGray
     ) {
@@ -786,7 +802,10 @@ fun ResizableModuleBox(
     Surface(
         modifier = Modifier
             .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
-            .border(borderWidth, borderColor, RoundedCornerShape(4.dp)),
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
+            .onSizeChanged { size ->
+                state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
+            },
         shape = RoundedCornerShape(4.dp),
         color = Color.DarkGray
     ) {
@@ -906,7 +925,10 @@ fun SegmentedEnvelopeModuleNode(module: SegmentedEnvelopeModule, state: GraphSta
         modifier = Modifier
             .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
             .width(IntrinsicSize.Max)
-            .border(borderWidth, borderColor, RoundedCornerShape(4.dp)),
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
+            .onSizeChanged { size ->
+                state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
+            },
         shape = RoundedCornerShape(4.dp),
         color = Color.DarkGray
     ) {

@@ -36,6 +36,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
 
     val modules = mutableStateListOf<Module>()
     val modulePositions = mutableStateMapOf<Module, Offset>()
+    val moduleSizes = mutableStateMapOf<Module, Offset>()
 
     // Maps each Jack to its global offset on the canvas for drawing wires
     val jackOffsets = mutableStateMapOf<Jack, Offset>()
@@ -84,6 +85,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
             module.outputs.forEach { jackOffsets.remove(it) }
             if (editingModule === module) editingModule = null
             modulePositions.remove(module)
+            moduleSizes.remove(module)
             modules.remove(module)
         }
         selectedModules.removeAll(modulesToRemove)
@@ -93,6 +95,10 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
     fun updateModulePosition(module: Module, delta: Offset) {
         modulePositions[module] = (modulePositions[module] ?: Offset.Zero) + delta
         notifyChanged()
+    }
+
+    fun updateModuleSize(module: Module, width: Float, height: Float) {
+        moduleSizes[module] = Offset(width, height)
     }
 
     fun updateJackOffset(jack: Jack, offset: Offset) {
@@ -153,11 +159,9 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
 
         modules.forEach { module ->
             val pos = modulePositions[module] ?: Offset.Zero
-            // Approximate typical module dimensions for hit-testing
-            // Actual dimensions vary by module type, but for selection purposes
-            // this rough estimate is sufficient (typically 70-140 wide, 100-200 tall)
-            val width = 150f
-            val height = 250f
+            val size = moduleSizes[module]
+            val width = size?.x ?: 150f
+            val height = size?.y ?: 250f
             // Check if module rect overlaps selection rect
             if (pos.x < right && pos.x + width > left &&
                 pos.y < bottom && pos.y + height > top) {
