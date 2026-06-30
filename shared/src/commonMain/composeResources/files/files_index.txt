@@ -1,6 +1,7 @@
 examples/.DS_Store
 examples/01_env_sequence.json
 examples/pulse_scope.json
+examples/sampler.json
 examples/seq8_knobs.json
 tutorials/.DS_Store
 tutorials/01_tour/01_sawtooth_modulation.json

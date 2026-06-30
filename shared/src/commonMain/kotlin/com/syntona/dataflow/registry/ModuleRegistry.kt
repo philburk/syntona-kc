@@ -98,6 +98,7 @@ object ModuleRegistry {
         addKSynModule(control, "rampAsym", ::AsymptoticRamp)
         addKSynModule(control, "rampExp", ::ExponentialRamp)
         addKSynModule(control, "select", ::Select)
+        control.modules.add(ModuleEntry("sampler") { SamplerModule() })
 
         val amath = getOrCreateBundle(ksyn, "math")
         addKSynModule(amath, "a+", ::Add)
