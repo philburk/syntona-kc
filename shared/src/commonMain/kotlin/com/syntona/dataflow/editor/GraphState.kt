@@ -157,6 +157,8 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
         val right = kotlin.math.max(rectStart.x, rectEnd.x)
         val bottom = kotlin.math.max(rectStart.y, rectEnd.y)
 
+        clearSelection()
+
         modules.forEach { module ->
             val pos = modulePositions[module] ?: Offset.Zero
             val size = moduleSizes[module]
