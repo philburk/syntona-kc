@@ -15,12 +15,12 @@ kotlin {
     wasmJs {
         browser()
     }
-    
+
     androidLibrary {
        namespace = "com.syntona.shared"
        compileSdk = libs.versions.android.compileSdk.get().toInt()
        minSdk = libs.versions.android.minSdk.get().toInt()
-    
+
        compilerOptions {
            jvmTarget = JvmTarget.JVM_11
        }
@@ -31,7 +31,7 @@ kotlin {
            isIncludeAndroidResources = true
        }
     }
-    
+
     sourceSets {
         val audioMain by creating {
             dependsOn(commonMain.get())
@@ -75,15 +75,18 @@ dependencies {
 val generateFilesIndexTask = tasks.register("generateFilesIndex") {
     val resourcesDir = file("src/commonMain/composeResources/files")
     val indexFile = file("src/commonMain/composeResources/files/files_index.txt")
-    
+
     inputs.dir(resourcesDir)
     outputs.file(indexFile)
-    
+
     doLast {
         if (resourcesDir.exists()) {
             val allFiles = mutableListOf<File>()
             fun addFilesRecursively(dir: File) {
                 dir.listFiles()?.sortedBy { it.name }?.forEach { file ->
+                    if (file.name == ".DS_Store" || file.name.startsWith(".")) {
+                        return@forEach
+                    }
                     if (file.isFile) {
                         if (file != indexFile) {
                             allFiles.add(file)
@@ -104,8 +107,8 @@ val generateFilesIndexTask = tasks.register("generateFilesIndex") {
     }
 }
 
-tasks.matching { 
-    it.name.startsWith("generateComposeResClass") || 
+tasks.matching {
+    it.name.startsWith("generateComposeResClass") ||
     it.name.startsWith("copyNonXmlValueResources") ||
     it.name.startsWith("prepareComposeResources")
 }.configureEach {
