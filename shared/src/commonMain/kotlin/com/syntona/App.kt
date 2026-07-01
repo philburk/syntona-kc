@@ -342,8 +342,8 @@ fun App(
                                                  }
                                              )
                                          }
-                                     }            
-                                 }            
+                                     }
+                                 }
                                 if (showEditMenuInToolbar) {
                                     val activeGs = mdiState.activeGraphState
                                     val hasSelection = activeGs?.selectedModules?.isNotEmpty() == true
@@ -492,13 +492,34 @@ fun App(
                                  }
 
                                  Spacer(modifier = Modifier.width(4.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .width(1.dp)
-                                        .fillMaxHeight(0.6f)
-                                        .background(Color.Gray.copy(alpha = 0.5f))
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
+                                 val activeGraph = mdiState.activeGraphState
+                                 if (activeGraph != null) {
+                                     val isMac = getPlatform().name.contains("Mac", ignoreCase = true)
+                                     val shortcutHint = if (isMac) "⌘K" else "Ctrl+K"
+                                     val isActive = activeGraph.isKeyboardModeActive
+                                     Button(
+                                         onClick = { activeGraph.isKeyboardModeActive = !activeGraph.isKeyboardModeActive },
+                                         colors = ButtonDefaults.buttonColors(
+                                             containerColor = if (isActive) Color(0xFF005A9C) else Color(0xFF2E2E2E),
+                                             contentColor = Color.White
+                                         ),
+                                         modifier = Modifier.height(32.dp),
+                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                     ) {
+                                         Text(
+                                             text = if (isActive) "⌨️ Keyboard Active ($shortcutHint)" else "⌨️ Keyboard Disabled ($shortcutHint)",
+                                             style = MaterialTheme.typography.bodySmall
+                                         )
+                                     }
+                                     Spacer(modifier = Modifier.width(4.dp))
+                                     Box(
+                                         modifier = Modifier
+                                             .width(1.dp)
+                                             .fillMaxHeight(0.6f)
+                                             .background(Color.Gray.copy(alpha = 0.5f))
+                                     )
+                                     Spacer(modifier = Modifier.width(4.dp))
+                                 }
 
                                 Text(
                                     text = "KSyn:",

@@ -11,6 +11,9 @@ import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -81,9 +84,32 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
             focusRequester.requestFocus()
         }
     }
+    val isKeyboardActive = state.isKeyboardModeActive
+    LaunchedEffect(isKeyboardActive) {
+        if (isKeyboardActive) {
+            focusRequester.requestFocus()
+        }
+    }
     Box(modifier = modifier.fillMaxSize().background(Color(0xFF1E1E1E))
         .focusRequester(focusRequester)
         .focusable()
+        .onKeyEvent { keyEvent ->
+            var handled = state.onKeyEvent(keyEvent)
+            if (!handled) {
+                if (keyEvent.type == KeyEventType.KeyDown &&
+                    (keyEvent.key == Key.Backspace || keyEvent.key == Key.Delete)) {
+                    state.deleteSelectedModules()
+                    handled = true
+                } else if (keyEvent.type == KeyEventType.KeyDown &&
+                    keyEvent.key == Key.Z &&
+                    (keyEvent.isMetaPressed || keyEvent.isCtrlPressed)) {
+                    if (keyEvent.isShiftPressed) state.engine?.redo()
+                    else state.engine?.undo()
+                    handled = true
+                }
+            }
+            handled
+        }
         .onGloballyPositioned { state.updateRootOffset(it.positionInRoot()) }
         .pointerInput(state) {
             detectTapGestures {

@@ -27,10 +27,14 @@ import com.syntona.dataflow.modules.PatchModule
 import com.syntona.dataflow.modules.KeyModule
 import com.syntona.dataflow.modules.KeyMatchModule
 import com.syntona.isCapsLockOn
+import com.syntona.getEventCharCode
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.type
-import androidx.compose.ui.input.key.utf16CodePoint
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.isCtrlPressed
 
 /**
  * Manages the UI state of the graph editor, including module positions
@@ -51,6 +55,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
     // Maps each Jack to its global offset on the canvas for drawing wires
     val jackOffsets = mutableStateMapOf<Jack, Offset>()
     private val pressedKeyCodes = mutableSetOf<Int>()
+    var isKeyboardModeActive by mutableStateOf(false)
 
     var rootOffset by mutableStateOf(Offset.Zero)
         private set
@@ -208,12 +213,21 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
     }
 
     fun onKeyEvent(event: KeyEvent): Boolean {
-        if (!isCapsLockOn(event)) {
+        // Toggle keyboard mode on Cmd+K / Ctrl+K
+        if (event.type == KeyEventType.KeyDown && event.key == Key.K && (event.isMetaPressed || event.isCtrlPressed)) {
+            isKeyboardModeActive = !isKeyboardModeActive
+            if (!isKeyboardModeActive) {
+                pressedKeyCodes.clear()
+            }
+            return true
+        }
+
+        if (!isKeyboardModeActive && !isCapsLockOn(event)) {
             pressedKeyCodes.clear()
             return false
         }
 
-        val rawCharCode = event.utf16CodePoint
+        val rawCharCode = getEventCharCode(event)
         if (rawCharCode == 0 || rawCharCode == 65535) return false
 
         val charCode = rawCharCode and 0x7F
