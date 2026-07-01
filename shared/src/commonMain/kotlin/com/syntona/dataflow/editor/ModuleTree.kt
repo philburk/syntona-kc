@@ -17,6 +17,7 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.syntona.SyntonaVersion
 import com.syntona.dataflow.registry.ModuleRegistry
 
 @Composable
@@ -25,7 +26,7 @@ fun ModuleTree(state: GraphState) {
         Spacer(modifier = Modifier.height(8.dp))
         LazyColumn {
             item {
-                Text("Syntona v0.0.1", fontSize = 16.sp, color = Color.LightGray)
+                Text("Syntona v" + SyntonaVersion, fontSize = 16.sp, color = Color.LightGray)
                 BundleView(ModuleRegistry.root, 0, state)
             }
         }
