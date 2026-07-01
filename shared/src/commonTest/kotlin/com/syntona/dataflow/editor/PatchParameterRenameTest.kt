@@ -1,0 +1,91 @@
+package com.syntona.dataflow.editor
+
+import com.syntona.dataflow.modules.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
+
+class PatchParameterRenameTest {
+
+    @Test
+    fun testDefaultParameterNaming() {
+        val patchModule = PatchModule()
+        val inputModule = InputModule()
+        val outputModule = OutputModule()
+
+        patchModule.graphState.addModule(inputModule, androidx.compose.ui.geometry.Offset.Zero)
+        patchModule.graphState.addModule(outputModule, androidx.compose.ui.geometry.Offset.Zero)
+
+        // Verifying default name assignment
+        assertEquals("in1", inputModule.name)
+        assertEquals("out1", outputModule.name)
+
+        // Verifying parent jacks match
+        assertEquals(1, patchModule.inputs.size)
+        assertEquals("in1", patchModule.inputs[0].name)
+
+        assertEquals(1, patchModule.outputs.size)
+        assertEquals("out1", patchModule.outputs[0].name)
+    }
+
+    @Test
+    fun testParameterRenamingPropagation() {
+        val patchModule = PatchModule()
+        val inputModule = InputModule()
+        val audioInputModule = AudioInputModule()
+
+        patchModule.graphState.addModule(inputModule, androidx.compose.ui.geometry.Offset.Zero)
+        patchModule.graphState.addModule(audioInputModule, androidx.compose.ui.geometry.Offset.Zero)
+
+        // Rename the modules
+        inputModule.name = "cutoff"
+        audioInputModule.name = "modulator"
+
+        // Verify the parent patch's corresponding jacks are renamed
+        assertEquals("cutoff", inputModule.name)
+        assertEquals("modulator", audioInputModule.name)
+
+        val patchInputJack = patchModule.inputs.find { it === inputModule.patchJack }
+        assertNotNull(patchInputJack)
+        assertEquals("cutoff", patchInputJack.name)
+
+        val patchAudioInputJack = patchModule.inputs.find { it === audioInputModule.patchJack }
+        assertNotNull(patchAudioInputJack)
+        assertEquals("modulator", patchAudioInputJack.name)
+    }
+
+    @Test
+    fun testPatchRenamingSerializationAndDeserialization() {
+        val rootGraph = GraphState()
+        val patchModule = PatchModule()
+        rootGraph.addModule(patchModule, androidx.compose.ui.geometry.Offset.Zero)
+
+        // Add child module and rename it
+        val inputModule = InputModule()
+        patchModule.graphState.addModule(inputModule, androidx.compose.ui.geometry.Offset.Zero)
+        inputModule.name = "amplitude"
+
+        // Verify pre-serialize state
+        assertEquals("amplitude", inputModule.name)
+        assertEquals("amplitude", patchModule.inputs[0].name)
+
+        // Serialize
+        val json = GraphSerializer.serialize(rootGraph, rootGraph.modules)
+        assertTrue(json.contains("\"type\":\"input\""))
+        assertTrue(json.contains("\"name\":\"amplitude\""))
+
+        // Deserialize
+        val newRootGraph = GraphState()
+        val deserializedModules = GraphSerializer.deserialize(newRootGraph, json)
+        assertEquals(1, deserializedModules.size)
+
+        val newPatchModule = deserializedModules[0] as PatchModule
+        assertEquals(1, newPatchModule.graphState.modules.size)
+
+        val deserializedInputModule = newPatchModule.graphState.modules.first() as InputModule
+        assertEquals("amplitude", deserializedInputModule.name)
+        assertEquals(1, newPatchModule.inputs.size)
+        assertEquals("amplitude", newPatchModule.inputs[0].name)
+    }
+}

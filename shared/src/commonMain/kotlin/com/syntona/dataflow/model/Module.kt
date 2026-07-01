@@ -1,11 +1,15 @@
 package com.syntona.dataflow.model
 
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 
 /**
  * Base class for all data flow modules.
  */
-abstract class Module(val name: String) {
+abstract class Module(val type: String) {
+    open var name by mutableStateOf(type)
     private val _inputs = mutableStateListOf<InputJack>()
     val inputs: List<InputJack> get() = _inputs
 
@@ -88,4 +92,9 @@ abstract class Module(val name: String) {
      * @param triggerMessage The message that triggered the execution.
      */
     abstract fun execute(triggerMessage: Message)
+}
+
+fun cleanKotlinIdentifier(input: String): String {
+    val alphaNumeric = input.filter { it.isLetterOrDigit() || it == '_' }
+    return alphaNumeric.dropWhile { it.isDigit() }
 }

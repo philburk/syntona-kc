@@ -122,10 +122,10 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                 is FaderModule -> FaderModuleNode(module, state)
                 is KnobModule -> KnobModuleNode(module, state)
                 is PatchModule -> PatchModuleNode(module, state)
-                is InputModule -> ModuleNode(module, state, headerColor = Color(0xFF6A3D00), label = module.displayName)
-                is OutputModule -> ModuleNode(module, state, headerColor = Color(0xFF6A3D00), label = module.displayName)
-                is AudioInputModule -> ModuleNode(module, state, headerColor = Color(0xFF1A5C1A), label = module.displayName)
-                is AudioOutputModule -> ModuleNode(module, state, headerColor = Color(0xFF1A5C1A), label = module.displayName)
+                is InputModule -> ModuleNode(module, state, headerColor = Color(0xFF6A3D00), label = module.name)
+                is OutputModule -> ModuleNode(module, state, headerColor = Color(0xFF6A3D00), label = module.name)
+                is AudioInputModule -> ModuleNode(module, state, headerColor = Color(0xFF1A5C1A), label = module.name)
+                is AudioOutputModule -> ModuleNode(module, state, headerColor = Color(0xFF1A5C1A), label = module.name)
                 is ScopeModule -> ScopeModuleNode(module, state)
                 is CommentModule -> CommentModuleNode(module, state)
                 is SegmentedEnvelopeModule -> SegmentedEnvelopeModuleNode(module, state)
@@ -322,7 +322,7 @@ fun KeyMatchModuleNode(module: KeyMatchModule, state: GraphState) {
                 // Button
                 var isPressed by remember { mutableStateOf(false) }
                 val buttonBg = if (isPressed) Color.Gray else Color(0xFF3E3E3E)
-                
+
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
@@ -1170,7 +1170,31 @@ fun SegmentedEnvelopeModuleNode(module: SegmentedEnvelopeModule, state: GraphSta
                                     (state.modulePositions[module]?.x ?: 100f) + 20f,
                                     (state.modulePositions[module]?.y ?: 100f) + 30f
                                 ),
-                                content = { SegmentedEnvelopeEditor(module.envelope) }
+                                content = {
+                                    val localMdi = LocalMdiState.current
+                                    val windowInfo = remember { localMdi.windows.find { it.id == module } }
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .background(Color(0xFF1E1E1E))
+                                            .padding(12.dp),
+                                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        ModuleNameEditor(
+                                            module = module,
+                                            modifier = Modifier.padding(bottom = 4.dp),
+                                            textColor = Color.LightGray,
+                                            borderColor = Color.Gray,
+                                            onNameChanged = { windowInfo?.title = it }
+                                        )
+
+                                        androidx.compose.material3.HorizontalDivider(color = Color.Gray, thickness = 1.dp)
+
+                                        Box(modifier = Modifier.weight(1f)) {
+                                            SegmentedEnvelopeEditor(module.envelope)
+                                        }
+                                    }
+                                }
                             )
                         )
                     }

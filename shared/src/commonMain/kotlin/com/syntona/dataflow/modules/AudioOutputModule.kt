@@ -21,7 +21,13 @@ class AudioOutputModule : Module("aOutput") {
 
     val input: AudioInputJack
 
-    var displayName by mutableStateOf("aOutput")
+    private var _name by mutableStateOf("aOutput")
+    override var name: String
+        get() = _name
+        set(value) {
+            _name = value
+            patchJack?.name = value
+        }
 
     internal var patch: PatchModule? = null
     internal var patchJack: AudioOutputJack? = null

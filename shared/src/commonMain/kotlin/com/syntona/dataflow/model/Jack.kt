@@ -9,7 +9,7 @@ import com.syntona.core.model.ScoreTime
  * Represents a connection point on a [Module].
  */
 sealed class Jack {
-    abstract val name: String
+    abstract var name: String
     abstract val module: Module
 
     // We use a mutable state to update the UI when a message arrives
@@ -24,10 +24,11 @@ sealed class Jack {
  * @property isKickable If true, receiving a message on this jack triggers [Module.execute].
  */
 open class InputJack(
-    override val name: String,
+    name: String,
     override val module: Module,
     val isKickable: Boolean = false
 ) : Jack() {
+    override var name by mutableStateOf(name)
     var isKicked = false
         private set
 
@@ -65,17 +66,19 @@ open class InputJack(
  * Clicking the button sends a kick message to this jack's module.
  */
 class CommandJack(name: String, module: Module) : InputJack(name, module, isKickable = true) {
-    override val name: String
+    override var name: String
         get() = if (module is com.syntona.dataflow.modules.LinkModule) module.buttonText else super.name
+        set(value) { super.name = value }
 }
 
 /**
  * An output port that can send messages to connected [InputJack]s.
  */
 open class OutputJack(
-    override val name: String,
+    name: String,
     override val module: Module
 ) : Jack() {
+    override var name by mutableStateOf(name)
     private val connections = mutableListOf<InputJack>()
 
     private var lastSentValue: Double = 0.0

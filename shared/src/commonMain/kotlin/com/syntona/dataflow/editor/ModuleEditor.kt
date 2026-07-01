@@ -30,6 +30,46 @@ private val PANEL_COLOR = Color(0xFFF0F0F0)
 private val BORDER_COLOR = Color(0xFFAAAAAA)
 private val LABEL_COLOR = Color(0xFF444444)
 
+@Composable
+fun ModuleNameEditor(
+    module: Module,
+    modifier: Modifier = Modifier,
+    textColor: Color = Color.LightGray,
+    borderColor: Color = Color.Gray,
+    onNameChanged: ((String) -> Unit)? = null
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Text("Name:", fontSize = 12.sp, color = textColor)
+        var nicknameText by remember(module) { mutableStateOf(module.name) }
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .border(1.dp, borderColor, RoundedCornerShape(4.dp))
+                .background(Color.White)
+                .padding(horizontal = 8.dp, vertical = 6.dp)
+        ) {
+            androidx.compose.foundation.text.BasicTextField(
+                value = nicknameText,
+                onValueChange = { input ->
+                    val filtered = com.syntona.dataflow.model.cleanKotlinIdentifier(input)
+                    nicknameText = filtered
+                    if (filtered.isNotEmpty()) {
+                        module.name = filtered
+                        FileState.markDirty()
+                        onNameChanged?.invoke(filtered)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp)
+            )
+        }
+    }
+}
+
 /**
  * Floating editor panel for a [Module]. Shows an editable row for each [InputJack]:
  * Min / Value / Max number fields and a fader that sweeps the full Min–Max range.
@@ -61,6 +101,15 @@ fun ModuleEditor(module: Module, onDismiss: () -> Unit, modifier: Modifier = Mod
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                ModuleNameEditor(
+                    module = module,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
+                    textColor = LABEL_COLOR,
+                    borderColor = BORDER_COLOR
+                )
+
+                androidx.compose.material3.HorizontalDivider(color = BORDER_COLOR, thickness = 1.dp)
+
                 if (module is LinkModule) {
                     LinkModuleEditor(module)
                 } else if (module is KeyMatchModule) {

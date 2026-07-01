@@ -29,7 +29,7 @@ object GraphSerializer {
             // Store positions as dp (divide by density) so they load correctly on any screen density
             val xDp = pos.x / density
             val yDp = pos.y / density
-            append("{\"id\":$i,\"type\":\"${module.name.jsonEscape}\"")
+            append("{\"id\":$i,\"type\":\"${module.type.jsonEscape}\",\"name\":\"${module.name.jsonEscape}\"")
             append(",\"x\":$xDp,\"y\":$yDp,\"jacks\":{")
             val valueJacks = module.inputs.filter { jack ->
                 jack !is CommandJack && !jack.isKickable &&
@@ -106,6 +106,7 @@ object GraphSerializer {
             if (creator == null) { created.add(null); continue }
 
             val module = creator()
+            (obj?.map?.get("name") as? JsonValue.Str)?.value?.let { module.name = it }
             if (module is CommentModule) {
                 (obj?.map?.get("text") as? JsonValue.Str)?.value?.let { module.text = it }
                 (obj?.map?.get("w") as? JsonValue.Num)?.value?.let { module.width = it.toFloat() }

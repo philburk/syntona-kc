@@ -4,7 +4,7 @@ import com.softsynth.ksyn.ports.UnitDataQueuePort
 import com.softsynth.ksyn.data.SegmentedEnvelope
 
 class DataQueueInputJack(
-    override val name: String,
+    name: String,
     override val module: Module,
     val dataQueuePort: UnitDataQueuePort
 ) : InputJack(name, module) {
@@ -25,6 +25,6 @@ class DataQueueInputJack(
 }
 
 class DataQueueOutputJack(
-    override val name: String,
+    name: String,
     override val module: Module
 ) : OutputJack(name, module)

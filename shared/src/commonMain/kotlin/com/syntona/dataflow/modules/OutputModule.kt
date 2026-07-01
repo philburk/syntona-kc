@@ -11,7 +11,13 @@ import com.syntona.dataflow.model.OutputJack
 class OutputModule : Module("output") {
     val input = addInput("input")
 
-    var displayName by mutableStateOf("output")
+    private var _name by mutableStateOf("output")
+    override var name: String
+        get() = _name
+        set(value) {
+            _name = value
+            patchJack?.name = value
+        }
 
     // Set by the parent PatchModule when this module is added to its graphState
     internal var patch: PatchModule? = null

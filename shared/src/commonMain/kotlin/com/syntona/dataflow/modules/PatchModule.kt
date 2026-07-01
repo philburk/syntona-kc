@@ -27,40 +27,36 @@ class PatchModule(name: String = "patch") : Module(name), EngineAware {
     private fun onChildModuleAdded(module: Module) {
         when (module) {
             is InputModule -> {
-                val jack = addInput("in${inputLinks.size + 1}")
+                val proposedName = if (module.name == "input") "in${inputLinks.size + 1}" else module.name
+                val jack = addInput(proposedName)
                 inputLinks[jack] = module
                 module.patch = this
                 module.patchJack = jack
-                module.displayName = jack.name
+                module.name = proposedName
             }
             is OutputModule -> {
-                val jack = addOutput("out${outputLinks.size + 1}")
+                val proposedName = if (module.name == "output") "out${outputLinks.size + 1}" else module.name
+                val jack = addOutput(proposedName)
                 outputLinks[jack] = module
                 module.patch = this
                 module.patchJack = jack
-                module.displayName = jack.name
+                module.name = proposedName
             }
             is AudioInputModule -> {
-                val jack = addAudioInput(
-                    "aIn${audioInputLinks.size + 1}",
-                    module.passThrough.input,
-                    0
-                )
+                val proposedName = if (module.name == "aInput") "aIn${audioInputLinks.size + 1}" else module.name
+                val jack = addAudioInput(proposedName, module.passThrough.input, 0)
                 audioInputLinks[jack] = module
                 module.patch = this
                 module.patchJack = jack
-                module.displayName = jack.name
+                module.name = proposedName
             }
             is AudioOutputModule -> {
-                val jack = addAudioOutput(
-                    "aOut${audioOutputLinks.size + 1}",
-                    module.passThrough.output,
-                    0
-                )
+                val proposedName = if (module.name == "aOutput") "aOut${audioOutputLinks.size + 1}" else module.name
+                val jack = addAudioOutput(proposedName, module.passThrough.output, 0)
                 audioOutputLinks[jack] = module
                 module.patch = this
                 module.patchJack = jack
-                module.displayName = jack.name
+                module.name = proposedName
             }
         }
     }
