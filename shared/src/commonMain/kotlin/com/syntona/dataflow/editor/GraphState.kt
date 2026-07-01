@@ -26,7 +26,6 @@ import com.syntona.dataflow.modules.LoadKickModule
 import com.syntona.dataflow.modules.PatchModule
 import com.syntona.dataflow.modules.KeyModule
 import com.syntona.dataflow.modules.KeyMatchModule
-import com.syntona.isCapsLockOn
 import com.syntona.getEventCharCode
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
@@ -222,7 +221,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
             return true
         }
 
-        if (!isKeyboardModeActive && !isCapsLockOn(event)) {
+        if (!isKeyboardModeActive) {
             pressedKeyCodes.clear()
             return false
         }

@@ -10,10 +10,6 @@ interface Platform {
 
 expect fun getPlatform(): Platform
 
-var capsLockOverrideForTesting: Boolean? = null
-
-expect fun isCapsLockOn(event: KeyEvent?): Boolean
-
 fun getEventCharCode(event: KeyEvent): Int {
     return when (event.key) {
         Key.A -> 'A'.code

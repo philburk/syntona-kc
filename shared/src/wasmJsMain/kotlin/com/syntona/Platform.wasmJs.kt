@@ -5,8 +5,3 @@ class WasmPlatform: Platform {
 }
 
 actual fun getPlatform(): Platform = WasmPlatform()
-
-actual fun isCapsLockOn(event: androidx.compose.ui.input.key.KeyEvent?): Boolean {
-    capsLockOverrideForTesting?.let { return it }
-    return false
-}

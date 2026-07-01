@@ -1,7 +1,5 @@
 package com.syntona.dataflow.modules
 
-import com.syntona.capsLockOverrideForTesting
-import com.syntona.isCapsLockOn
 import com.syntona.core.model.ScoreTime
 import com.syntona.dataflow.editor.GraphState
 import com.syntona.dataflow.model.Message
@@ -15,16 +13,6 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class KeyModuleTest {
-
-    @BeforeTest
-    fun setUp() {
-        capsLockOverrideForTesting = null
-    }
-
-    @AfterTest
-    fun tearDown() {
-        capsLockOverrideForTesting = null
-    }
 
     @Test
     fun testModuleCreationAndPorts() {
@@ -46,14 +34,7 @@ class KeyModuleTest {
         assertTrue(module is KeyModule, "Created module should be an instance of KeyModule")
     }
 
-    @Test
-    fun testCapsLockHelperOverride() {
-        capsLockOverrideForTesting = true
-        assertTrue(isCapsLockOn(null))
 
-        capsLockOverrideForTesting = false
-        assertFalse(isCapsLockOn(null))
-    }
 
     @Test
     fun testKeyStrokesAndAutoRepeat() {

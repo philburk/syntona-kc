@@ -12,8 +12,3 @@ class JsPlatform: Platform {
 }
 
 actual fun getPlatform(): Platform = JsPlatform()
-
-actual fun isCapsLockOn(event: androidx.compose.ui.input.key.KeyEvent?): Boolean {
-    capsLockOverrideForTesting?.let { return it }
-    return false
-}

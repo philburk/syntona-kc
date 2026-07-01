@@ -1,6 +1,5 @@
 package com.syntona.dataflow.modules
 
-import com.syntona.capsLockOverrideForTesting
 import com.syntona.dataflow.editor.GraphState
 import com.syntona.dataflow.editor.GraphSerializer
 import com.syntona.dataflow.model.Message
@@ -14,16 +13,6 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class KeyMatchModuleTest {
-
-    @BeforeTest
-    fun setUp() {
-        capsLockOverrideForTesting = null
-    }
-
-    @AfterTest
-    fun tearDown() {
-        capsLockOverrideForTesting = null
-    }
 
     @Test
     fun testModuleCreationAndPorts() {
@@ -48,8 +37,6 @@ class KeyMatchModuleTest {
 
     @Test
     fun testCharacterMatching() {
-        capsLockOverrideForTesting = true
-
         val graphState = GraphState()
         val keyMatchModule = KeyMatchModule()
         keyMatchModule.keyChar = 'a' // Match character 'a'

@@ -507,7 +507,7 @@ fun App(
                                          contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                                      ) {
                                          Text(
-                                             text = if (isActive) "⌨️ Keyboard Active ($shortcutHint)" else "⌨️ Keyboard Disabled ($shortcutHint)",
+                                             text = if (isActive) "⌨️ Keys On ($shortcutHint)" else "⌨️ Keys Off ($shortcutHint)",
                                              style = MaterialTheme.typography.bodySmall
                                          )
                                      }
