@@ -62,6 +62,10 @@ object ModuleRegistry {
         view.modules.add(ModuleEntry("show") { ShowModule() })
         view.modules.add(ModuleEntry("print") { PrintModule() })
 
+        val voices = getOrCreateBundle(root, "voices")
+        voices.modules.add(ModuleEntry("showVoice") { ShowVoiceModule() })
+        voices.modules.add(ModuleEntry("compound") { CompoundModule() })
+
         val ksyn = getOrCreateBundle(root, "ksyn")
         addKSynModule(ksyn, "lineOut", ::LineOut)
         ksyn.modules.add(ModuleEntry("aInput") { AudioInputModule() })

@@ -28,4 +28,29 @@ sealed class Message {
         val data: Any,
         val opcode: DataQueueOpcode
     ) : Message()
+
+    /** Commands for [VoiceMessage], modeled after MIDI Channel Voice Messages. */
+    enum class VoiceOpcode {
+        NOTE_ON, NOTE_OFF, CONTROL_CHANGE, PRESSURE, PITCH_BEND
+    }
+
+    /**
+     * A compound message for note and controller events. The meaning of [tag], [value], and
+     * [extra] depends on [opcode]:
+     *
+     * - NOTE_ON / NOTE_OFF: tag = noteNumber, value = pitch in fractional semitones,
+     *   extra = amplitude (0.0 to 1.0)
+     * - CONTROL_CHANGE: tag = noteNumber, or -1 for all notes; value = controller value;
+     *   extra = which controller to change
+     * - PRESSURE: tag = noteNumber, or -1 for all notes; value = pressure value; extra ignored
+     * - PITCH_BEND: tag = noteNumber, or -1 for all notes; value = offset in semitones;
+     *   extra ignored
+     */
+    data class VoiceMessage(
+        override val time: ScoreTime,
+        val opcode: VoiceOpcode,
+        val tag: Int,
+        val value: Double,
+        val extra: Double
+    ) : Message()
 }

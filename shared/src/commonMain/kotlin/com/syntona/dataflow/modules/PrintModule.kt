@@ -15,6 +15,8 @@ class PrintModule : Module("print") {
             is Message.TextValue -> triggerMessage.value
             is Message.ObjectValue -> triggerMessage.value.toString()
             is Message.DataQueueMessage -> "${triggerMessage.opcode}: ${triggerMessage.data}"
+            is Message.VoiceMessage ->
+                "${triggerMessage.opcode} tag=${triggerMessage.tag} value=${triggerMessage.value} extra=${triggerMessage.extra}"
         }
         println("[PrintModule] ${triggerMessage.time}: $value")
     }
