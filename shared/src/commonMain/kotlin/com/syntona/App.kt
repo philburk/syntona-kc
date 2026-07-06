@@ -42,6 +42,8 @@ import kotlin.math.roundToInt
 import com.syntona.core.model.ScoreClock
 import com.syntona.core.model.SyntonaModel
 import com.syntona.core.audio.KSynRecorder
+import com.syntona.core.audio.SynthKSyn
+import kotlinx.coroutines.delay
 import com.syntona.dataflow.editor.*
 import com.syntona.dataflow.engine.SendOutputCommand
 import com.syntona.dataflow.model.Message
@@ -512,14 +514,61 @@ fun App(
                                          )
                                      }
                                      Spacer(modifier = Modifier.width(4.dp))
+                                      Box(
+                                          modifier = Modifier
+                                              .width(1.dp)
+                                              .fillMaxHeight(0.6f)
+                                              .background(Color.Gray.copy(alpha = 0.5f))
+                                      )
+                                      Spacer(modifier = Modifier.width(4.dp))
+                                  }
+
+                                 var cpuUsage by remember { mutableStateOf(0.0) }
+                                 LaunchedEffect(Unit) {
+                                     while (true) {
+                                         cpuUsage = SynthKSyn.synth.usage
+                                         delay(100)
+                                     }
+                                 }
+                                 Row(
+                                     verticalAlignment = Alignment.CenterVertically,
+                                     modifier = Modifier.padding(horizontal = 4.dp)
+                                 ) {
+                                     Text(
+                                         text = "CPU: ${(cpuUsage * 100).toInt()}%",
+                                         color = Color.White,
+                                         style = MaterialTheme.typography.bodySmall,
+                                         modifier = Modifier.padding(end = 4.dp)
+                                     )
                                      Box(
                                          modifier = Modifier
-                                             .width(1.dp)
-                                             .fillMaxHeight(0.6f)
-                                             .background(Color.Gray.copy(alpha = 0.5f))
-                                     )
-                                     Spacer(modifier = Modifier.width(4.dp))
+                                             .width(60.dp)
+                                             .height(10.dp)
+                                             .background(Color(0xFF2E2E2E), RoundedCornerShape(2.dp))
+                                             .border(0.5.dp, Color.Gray, RoundedCornerShape(2.dp))
+                                     ) {
+                                         val fillWidth = (60.dp * cpuUsage.coerceIn(0.0, 1.0).toFloat())
+                                         val barColor = when {
+                                             cpuUsage >= 0.8 -> Color.Red
+                                             cpuUsage >= 0.6 -> Color(0xFFFFA500)
+                                             else -> Color.Green
+                                         }
+                                         Box(
+                                             modifier = Modifier
+                                                 .fillMaxHeight()
+                                                 .width(fillWidth)
+                                                 .background(barColor, RoundedCornerShape(2.dp))
+                                         )
+                                     }
                                  }
+                                 Spacer(modifier = Modifier.width(4.dp))
+                                 Box(
+                                     modifier = Modifier
+                                         .width(1.dp)
+                                         .fillMaxHeight(0.6f)
+                                         .background(Color.Gray.copy(alpha = 0.5f))
+                                 )
+                                 Spacer(modifier = Modifier.width(4.dp))
 
                                 Text(
                                     text = "KSyn:",
