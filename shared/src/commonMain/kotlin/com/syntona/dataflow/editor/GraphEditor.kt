@@ -68,6 +68,7 @@ import com.syntona.dataflow.modules.LinkModule
 import com.syntona.dataflow.modules.KeyMatchModule
 import com.syntona.dataflow.modules.KickModule
 import com.syntona.dataflow.modules.LoadKickModule
+import com.syntona.dataflow.modules.ShowVoiceModule
 import com.softsynth.ksyn.compose.SegmentedEnvelopeEditor
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.text.TextStyle
@@ -284,6 +285,21 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color = Color.Blu
                         fontSize = 18.sp,
                         modifier = Modifier.align(Alignment.Center)
                     )
+                }
+            }
+
+            // Show custom content for ShowVoiceModule: last N VoiceMessages, one per line
+            if (module is ShowVoiceModule) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(8.dp).background(Color.Black)
+                ) {
+                    module.messages.forEach { msg ->
+                        Text(
+                            text = "${msg.opcode} t=${msg.tag} v=${formatNumber(msg.value)} x=${formatNumber(msg.extra)}",
+                            color = Color.Green,
+                            fontSize = 10.sp
+                        )
+                    }
                 }
             }
 

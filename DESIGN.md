@@ -92,6 +92,54 @@ Add a module that can execute a script. (ECMA). Input and output ports are decla
   and a rubber-band line to the connected OutputJack should be drawn.
   If the pointer is released over an InputJack then a connection should be made and a Wire should be drawn.
 
+#### Voice Messages
+
+VoiceMessage is a subclass of Message. It is a compound messages that contain fields related to MIDI Channel Voice Messages.
+
+We want to be able to support multiple commands with a union of aseveral generic parameters.
+The meaning of the parameter varies with the opcode.
+
+* opcode: Int, enum for the command associated with the message
+* tag: Int, identifier for a note message or channel controller
+* value: Double, this is the same value as the Double in basic messages
+* extra: Double
+
+There are several opcodes defined.
+The interpretation of the message properties depends on the opcode.
+
+* opcode = NOTE_ON or NOTE_OFF
+* tag = noteNumber
+* value = pitch in fractional semitones
+* extra = amplitude, 0.0 to 1.0
+
+* opcode = CONTROL_CHANGE
+* tag = noteNumber or -1 for all notes
+* value = the value of the controller
+* extra = which controller to change
+
+* opcode = PRESSURE
+* tag = noteNumber or -1 for all notes
+* value = the value of the controller
+* extra = ignored
+
+* opcode = PITCH_BEND
+* tag = noteNumber or -1 for all notes
+* value = amount in semitones to offset the pitches
+* extra = ignored
+
+We need new modules in a bundle called "voices". These include:
+
+* showVoice = a module that shows a list of the last N Voice messages received, one per line.
+* compound = a module with inputs for opcode, tag, value, extra.
+The tag input is kickable. It outputs a Voice Message.
+
+The CompoundModule editor will allow selecting the opcode from a menu.
+
+Questions:
+* Turning notes on and off is tedious. Maybe a duration field could simplify this.
+For controllers, the duration could define a ramp to the new value for smoothing.
+
+
 ### Harmonic Progression Editor
 
 Useful but maybe mentally constraining

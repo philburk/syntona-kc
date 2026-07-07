@@ -2,6 +2,7 @@ package com.syntona.dataflow.editor
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,9 +21,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.syntona.dataflow.model.InputJack
+import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.modules.LinkModule
 import com.syntona.dataflow.modules.KeyMatchModule
+import com.syntona.dataflow.modules.PackVoiceModule
 import com.syntona.dataflow.editor.FileState
 
 private val HEADER_COLOR = Color(0xFFCC6666)
@@ -114,6 +117,8 @@ fun ModuleEditor(module: Module, onDismiss: () -> Unit, modifier: Modifier = Mod
                     LinkModuleEditor(module)
                 } else if (module is KeyMatchModule) {
                     KeyMatchModuleEditor(module)
+                } else if (module is PackVoiceModule) {
+                    PackVoiceModuleEditor(module)
                 } else {
                     module.inputs.forEach { jack ->
                         JackEditorRow(jack)
@@ -301,6 +306,56 @@ private fun LinkModuleEditor(module: LinkModule) {
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun PackVoiceModuleEditor(module: PackVoiceModule) {
+    var expanded by remember { mutableStateOf(false) }
+    var opcode by remember(module) { mutableStateOf(module.opcode) }
+
+    Column(
+        modifier = Modifier.padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Column {
+            Text("Opcode:", fontSize = 12.sp, color = LABEL_COLOR)
+            Spacer(modifier = Modifier.height(4.dp))
+            Box {
+                Box(
+                    modifier = Modifier
+                        .width(180.dp)
+                        .border(1.dp, BORDER_COLOR, RoundedCornerShape(4.dp))
+                        .background(Color.White)
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                        .clickable { expanded = true }
+                ) {
+                    Text(opcode.name, fontSize = 13.sp)
+                }
+                androidx.compose.material3.DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    Message.VoiceOpcode.entries.forEach { candidate ->
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text(candidate.name, fontSize = 12.sp) },
+                            onClick = {
+                                module.opcode = candidate
+                                opcode = candidate
+                                FileState.markDirty()
+                                expanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        androidx.compose.material3.HorizontalDivider(color = BORDER_COLOR, thickness = 1.dp)
+
+        module.inputs.filter { it !== module.opcodeIn }.forEach { jack ->
+            JackEditorRow(jack)
         }
     }
 }
