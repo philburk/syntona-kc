@@ -8,7 +8,7 @@ import com.syntona.dataflow.model.Module
  * Composes a [Message.VoiceMessage] from four inputs: opcode, tag, value, extra.
  * Receiving a message on [tagIn] (kickable) sends the composed message from [output].
  */
-class CompoundModule : Module("compound") {
+class PackVoiceModule : Module("packVoice") {
     val opcodeIn = addInput("opcode").also {
         it.min = 0.0
         it.max = (Message.VoiceOpcode.entries.size - 1).toDouble()
@@ -42,7 +42,8 @@ class CompoundModule : Module("compound") {
 }
 
 /**
- * Displays the last [capacity] [Message.VoiceMessage]s received, most recent first.
+ * Displays the last [capacity] [Message.VoiceMessage]s received, oldest at top, most recent
+ * at bottom.
  */
 class ShowVoiceModule : Module("showVoice") {
     val input = addInput("in", isKickable = true)
@@ -52,8 +53,8 @@ class ShowVoiceModule : Module("showVoice") {
 
     override fun execute(triggerMessage: Message) {
         if (triggerMessage is Message.VoiceMessage) {
-            messages.add(0, triggerMessage)
-            while (messages.size > capacity) messages.removeAt(messages.size - 1)
+            messages.add(triggerMessage)
+            while (messages.size > capacity) messages.removeAt(0)
         }
     }
 }

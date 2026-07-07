@@ -64,7 +64,7 @@ object ModuleRegistry {
 
         val voices = getOrCreateBundle(root, "voices")
         voices.modules.add(ModuleEntry("showVoice") { ShowVoiceModule() })
-        voices.modules.add(ModuleEntry("compound") { CompoundModule() })
+        voices.modules.add(ModuleEntry("packVoice") { PackVoiceModule() })
 
         val ksyn = getOrCreateBundle(root, "ksyn")
         addKSynModule(ksyn, "lineOut", ::LineOut)

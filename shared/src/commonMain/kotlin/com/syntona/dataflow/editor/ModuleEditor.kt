@@ -25,7 +25,7 @@ import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.modules.LinkModule
 import com.syntona.dataflow.modules.KeyMatchModule
-import com.syntona.dataflow.modules.CompoundModule
+import com.syntona.dataflow.modules.PackVoiceModule
 import com.syntona.dataflow.editor.FileState
 
 private val HEADER_COLOR = Color(0xFFCC6666)
@@ -117,8 +117,8 @@ fun ModuleEditor(module: Module, onDismiss: () -> Unit, modifier: Modifier = Mod
                     LinkModuleEditor(module)
                 } else if (module is KeyMatchModule) {
                     KeyMatchModuleEditor(module)
-                } else if (module is CompoundModule) {
-                    CompoundModuleEditor(module)
+                } else if (module is PackVoiceModule) {
+                    PackVoiceModuleEditor(module)
                 } else {
                     module.inputs.forEach { jack ->
                         JackEditorRow(jack)
@@ -311,7 +311,7 @@ private fun LinkModuleEditor(module: LinkModule) {
 }
 
 @Composable
-private fun CompoundModuleEditor(module: CompoundModule) {
+private fun PackVoiceModuleEditor(module: PackVoiceModule) {
     var expanded by remember { mutableStateOf(false) }
     var opcode by remember(module) { mutableStateOf(module.opcode) }
 
