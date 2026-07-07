@@ -139,6 +139,27 @@ Questions:
 * Turning notes on and off is tedious. Maybe a duration field could simplify this.
 For controllers, the duration could define a ramp to the new value for smoothing.
 
+#### Polyphonic Patches
+
+The goal is to allow the user to design a custom synthesizer voice using a dataflow patch editor.
+The patch will be playable as a multi-note polyphonic instrument.
+It will be able to accept VoiceMessages and distribute them to the appropriate voice.
+
+The polyphonic patch will appear as a "polyPatch" module below "patch" in the Core bundle.
+
+When the polyPatch is created the user will be able to enter the maximum number of voices.
+That number of empty Circuits that implement PitchedVoice will be created, placed in an Array,
+and used to create a KSyn voices.PolyphonicInstrument.
+
+Any edits made to the visible patch window will be applied to all
+of the PitchedVoice Circuits in the background. That way we will have N identical voices
+to choose from.
+
+The polyPatch will have one external InputPort to receive VoiceMessages.
+When a NoteOn message is received the parameters will be passed to the PolyphonicInstrument.noteOn() method.
+
+The aInput and aOutput modules will work as before except they will
+be added as Ports in all the contained Circuits using addPort.
 
 ### Harmonic Progression Editor
 
