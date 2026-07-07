@@ -43,6 +43,8 @@ Parallel and Sequential Collection editor, show nested patches
 
 Should startDelays and stopDelays be shown? On the one hand, I like that this editor is purely relational and allows unknown durations. An actual timeline requires fixed durations. But clearly that is a useful and ubiquitous view when scheduling musical events.
 
+- a delay is a silent element in a sequence with an explicit duration, whereas other elements might have explicit or implicit durations.  So its just one more "thing" that can be sequenced?
+
 ### Gesture Editors
 
 * Capture shapes from a mouse or a knob, or microphone.
