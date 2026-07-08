@@ -63,6 +63,7 @@ import com.syntona.dataflow.modules.PatchModule
 import com.syntona.dataflow.modules.ScopeModule
 import com.syntona.dataflow.modules.ShowModule
 import com.syntona.dataflow.modules.CommentModule
+import com.syntona.dataflow.modules.SequenceModule
 import com.syntona.dataflow.modules.SegmentedEnvelopeModule
 import com.syntona.dataflow.modules.LinkModule
 import com.syntona.dataflow.modules.KeyMatchModule
@@ -149,6 +150,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                 is FaderModule -> FaderModuleNode(module, state)
                 is KnobModule -> KnobModuleNode(module, state)
                 is PatchModule -> PatchModuleNode(module, state)
+                is SequenceModule -> SequenceModuleNode(module, state)
                 is InputModule -> ModuleNode(module, state, headerColor = Color(0xFF6A3D00), label = module.name)
                 is OutputModule -> ModuleNode(module, state, headerColor = Color(0xFF6A3D00), label = module.name)
                 is AudioInputModule -> ModuleNode(module, state, headerColor = Color(0xFF1A5C1A), label = module.name)
@@ -732,6 +734,7 @@ fun CompactJackConnector(jack: Jack, state: GraphState, isLeft: Boolean) {
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .size(12.dp)
+            .then(if (jack.isHighlighted) Modifier.background(Color(190, 180, 130), shape = RoundedCornerShape(3.dp)) else Modifier)
             .onGloballyPositioned { coords ->
                 jackRootPosition = coords.positionInRoot()
                 val size = coords.size
@@ -970,6 +973,89 @@ fun DoubleEntryModuleNode(module: DoubleEntryModule, state: GraphState) {
                 )
                 Column {
                     module.outputs.forEach { CompactJackConnector(it, state, isLeft = false) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SequenceModuleNode(module: SequenceModule, state: GraphState) {
+    val position = state.modulePositions[module] ?: Offset.Zero
+    val isSelected = state.selectedModules.contains(module)
+    val borderColor = if (isSelected) Color(0xFFFFA500) else Color.Black
+    val borderWidth = if (isSelected) 2.dp else 1.dp
+
+    Surface(
+        modifier = Modifier
+            .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
+            .width(110.dp)
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
+            .onSizeChanged { size ->
+                state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
+            },
+        shape = RoundedCornerShape(4.dp),
+        color = Color.DarkGray
+    ) {
+        Column {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(28.dp)
+                    .background(Color(0xFF2B506E))
+                    .headerGestures(state, module) {
+                        state.editingModule = module
+                    }
+            ) {
+                Text(
+                    text = module.name,
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+                )
+            }
+
+            val controlInputs = module.inputs.filter { it !== module.reset && it !== module.increment && !module.stepInputs.contains(it) }
+            val controlOutputs = module.outputs.filter { !module.stepOutputs.contains(it) }
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
+                    CompactJackConnector(module.reset, state, isLeft = true)
+                    CompactJackConnector(module.increment, state, isLeft = true)
+                    controlInputs.forEach { CompactJackConnector(it, state, isLeft = true) }
+                }
+                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                    controlOutputs.forEach { CompactJackConnector(it, state, isLeft = false) }
+                }
+            }
+
+            HorizontalDivider(color = Color.Gray, thickness = 1.dp)
+
+            Column(modifier = Modifier.fillMaxWidth().padding(4.dp)) {
+                for (i in 0 until module.numOutputs) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(modifier = Modifier.width(16.dp), contentAlignment = Alignment.CenterStart) {
+                            CompactJackConnector(module.stepInputs[i], state, isLeft = true)
+                        }
+                        NumberField(
+                            value = module.values[i],
+                            onCommit = { v ->
+                                val e = state.engine
+                                if (e != null) e.post(SetValueCommand(module.stepInputs[i], v, ScoreClock.now()))
+                                else module.stepInputs[i].setValue(v)
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                        Box(modifier = Modifier.width(16.dp), contentAlignment = Alignment.CenterEnd) {
+                            CompactJackConnector(module.stepOutputs[i], state, isLeft = false)
+                        }
+                    }
                 }
             }
         }

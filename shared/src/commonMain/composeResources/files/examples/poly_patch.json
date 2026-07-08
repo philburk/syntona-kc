@@ -37,62 +37,61 @@
       "id": 2,
       "type": "seq8",
       "name": "seq8",
-      "x": 199.875,
-      "y": 62,
-      "jacks": {}
-    },
-    {
-      "id": 3,
-      "type": "double",
-      "name": "double",
-      "x": 261.8814,
-      "y": 93.96048,
+      "x": 228.875,
+      "y": 69,
       "jacks": {
-        "in": {
-          "v": 53,
+        "in0": {
+          "v": 52,
           "min": 0,
           "max": 100
-        }
-      }
-    },
-    {
-      "id": 4,
-      "type": "double",
-      "name": "double",
-      "x": 258.875,
-      "y": 229,
-      "jacks": {
-        "in": {
-          "v": 67,
+        },
+        "in1": {
+          "v": 0,
           "min": 0,
           "max": 100
-        }
-      }
-    },
-    {
-      "id": 5,
-      "type": "double",
-      "name": "double",
-      "x": 261.875,
-      "y": 163,
-      "jacks": {
-        "in": {
+        },
+        "in2": {
           "v": 64,
           "min": 0,
           "max": 100
+        },
+        "in3": {
+          "v": 0,
+          "min": 0,
+          "max": 100
+        },
+        "in4": {
+          "v": 67,
+          "min": 0,
+          "max": 100
+        },
+        "in5": {
+          "v": 72,
+          "min": 0,
+          "max": 100
+        },
+        "in6": {
+          "v": 0,
+          "min": 0,
+          "max": 100
+        },
+        "in7": {
+          "v": 0,
+          "min": 0,
+          "max": 100
         }
       }
     },
     {
-      "id": 6,
+      "id": 3,
       "type": "polyPatch",
       "name": "polyPatch",
       "x": 594.875,
       "y": 174,
       "jacks": {},
       "maxVoices": 4,
-      "windowX": 831.9723,
-      "windowY": 35.911613,
+      "windowX": 829.9439,
+      "windowY": 60.957336,
       "windowWidth": 583.00946,
       "windowHeight": 589.9957,
       "windowOpen": true,
@@ -102,8 +101,8 @@
             "id": 0,
             "type": "aOutput",
             "name": "output",
-            "x": 491,
-            "y": 89,
+            "x": 453,
+            "y": 202,
             "jacks": {
               "input": {
                 "v": 0,
@@ -128,54 +127,6 @@
           },
           {
             "id": 2,
-            "type": "sawOsc",
-            "name": "sawOsc",
-            "x": 363.875,
-            "y": 140,
-            "jacks": {
-              "frequency": {
-                "v": 440,
-                "min": 40,
-                "max": 8000
-              },
-              "amplitude": {
-                "v": 1,
-                "min": 0,
-                "max": 1
-              }
-            }
-          },
-          {
-            "id": 3,
-            "type": "envAD",
-            "name": "envAD",
-            "x": 154.875,
-            "y": 205,
-            "jacks": {
-              "input": {
-                "v": 0,
-                "min": 0,
-                "max": 1
-              },
-              "attack": {
-                "v": 0.05000000074505806,
-                "min": 0.0010000000474974513,
-                "max": 8
-              },
-              "decay": {
-                "v": 2.8472912311553955,
-                "min": 0.0010000000474974513,
-                "max": 8
-              },
-              "amplitude": {
-                "v": 1,
-                "min": 0,
-                "max": 1
-              }
-            }
-          },
-          {
-            "id": 4,
             "type": "triOsc",
             "name": "triOsc",
             "x": 135.875,
@@ -194,7 +145,7 @@
             }
           },
           {
-            "id": 5,
+            "id": 3,
             "type": "aInput",
             "name": "pitch",
             "x": 35,
@@ -202,7 +153,7 @@
             "jacks": {}
           },
           {
-            "id": 6,
+            "id": 4,
             "type": "aInput",
             "name": "amplitude",
             "x": 31,
@@ -210,7 +161,7 @@
             "jacks": {}
           },
           {
-            "id": 7,
+            "id": 5,
             "type": "aInput",
             "name": "pressure",
             "x": 28,
@@ -218,56 +169,124 @@
             "jacks": {}
           },
           {
-            "id": 8,
+            "id": 6,
             "type": "aInput",
             "name": "pitchBend",
             "x": 26,
             "y": 287,
             "jacks": {}
+          },
+          {
+            "id": 7,
+            "type": "sawOscDPW",
+            "name": "sawOscDPW",
+            "x": 336,
+            "y": 175.875,
+            "jacks": {
+              "frequency": {
+                "v": 440,
+                "min": 40,
+                "max": 8000
+              },
+              "amplitude": {
+                "v": 1,
+                "min": 0,
+                "max": 1
+              }
+            }
+          },
+          {
+            "id": 8,
+            "type": "DAHDSR",
+            "name": "DAHDSR",
+            "x": 154.875,
+            "y": 189,
+            "jacks": {
+              "input": {
+                "v": 0,
+                "min": 0,
+                "max": 1
+              },
+              "delay": {
+                "v": 0,
+                "min": 0,
+                "max": 2
+              },
+              "attack": {
+                "v": 0.010893763042986393,
+                "min": 0,
+                "max": 1
+              },
+              "hold": {
+                "v": 0,
+                "min": 0,
+                "max": 1
+              },
+              "decay": {
+                "v": 0.34479954838752747,
+                "min": 0,
+                "max": 1
+              },
+              "sustain": {
+                "v": 0.45036154985427856,
+                "min": 0,
+                "max": 1
+              },
+              "release": {
+                "v": 2.7154958248138428,
+                "min": 0,
+                "max": 15
+              },
+              "amplitude": {
+                "v": 1,
+                "min": 0,
+                "max": 1
+              }
+            }
           }
         ],
         "connections": [
           {
-            "from": 1,
-            "fromJack": "output",
-            "to": 2,
-            "toJack": "frequency"
-          },
-          {
-            "from": 3,
-            "fromJack": "output",
-            "to": 2,
-            "toJack": "amplitude"
-          },
-          {
-            "from": 4,
+            "from": 2,
             "fromJack": "output",
             "to": 1,
             "toJack": "input"
           },
           {
-            "from": 2,
+            "from": 3,
+            "fromJack": "output",
+            "to": 1,
+            "toJack": "input"
+          },
+          {
+            "from": 1,
+            "fromJack": "output",
+            "to": 7,
+            "toJack": "frequency"
+          },
+          {
+            "from": 7,
             "fromJack": "output",
             "to": 0,
             "toJack": "input"
           },
           {
-            "from": 5,
+            "from": 4,
             "fromJack": "output",
-            "to": 1,
-            "toJack": "input"
+            "to": 8,
+            "toJack": "amplitude"
           },
           {
-            "from": 6,
+            "from": 8,
             "fromJack": "output",
-            "to": 3,
+            "to": 7,
             "toJack": "amplitude"
           }
         ]
       }
     },
     {
-      "id": 7,
+      "id": 4,
       "type": "loadKick",
       "name": "loadKick",
       "x": 15.125,
@@ -275,25 +294,25 @@
       "jacks": {}
     },
     {
-      "id": 8,
+      "id": 5,
       "type": "knob",
       "name": "pitchBend",
       "x": 189,
       "y": 386.875,
       "jacks": {
         "in": {
-          "v": -1.046390414237976,
+          "v": 0,
           "min": -2,
           "max": 2
         }
       }
     },
     {
-      "id": 9,
+      "id": 6,
       "type": "packNote",
       "name": "packNote",
-      "x": 441.875,
-      "y": 69,
+      "x": 431.875,
+      "y": 92,
       "jacks": {
         "tag": {
           "v": -1,
@@ -306,14 +325,14 @@
           "max": 100
         },
         "duration": {
-          "v": 12.8051110574148,
+          "v": 82.8229580767613,
           "min": 0,
-          "max": 100
+          "max": 500
         }
       }
     },
     {
-      "id": 10,
+      "id": 7,
       "type": "showVoice",
       "name": "showVoice",
       "x": 605,
@@ -321,7 +340,7 @@
       "jacks": {}
     },
     {
-      "id": 11,
+      "id": 8,
       "type": "packBend",
       "name": "packBend",
       "x": 340.875,
@@ -333,21 +352,23 @@
           "max": 127
         }
       }
+    },
+    {
+      "id": 9,
+      "type": "+",
+      "name": "+",
+      "x": 373,
+      "y": 226.875,
+      "jacks": {
+        "B": {
+          "v": 4,
+          "min": 0,
+          "max": 12
+        }
+      }
     }
   ],
   "connections": [
-    {
-      "from": 2,
-      "fromJack": "out4",
-      "to": 4,
-      "toJack": "kick"
-    },
-    {
-      "from": 2,
-      "fromJack": "out0",
-      "to": 3,
-      "toJack": "kick"
-    },
     {
       "from": 1,
       "fromJack": "output",
@@ -355,88 +376,82 @@
       "toJack": "in"
     },
     {
-      "from": 2,
-      "fromJack": "out2",
-      "to": 4,
-      "toJack": "kick"
-    },
-    {
-      "from": 2,
-      "fromJack": "out1",
-      "to": 5,
-      "toJack": "kick"
-    },
-    {
-      "from": 2,
-      "fromJack": "out4",
-      "to": 5,
-      "toJack": "kick"
-    },
-    {
-      "from": 2,
-      "fromJack": "out4",
-      "to": 3,
-      "toJack": "kick"
-    },
-    {
-      "from": 6,
+      "from": 3,
       "fromJack": "output",
       "to": 0,
       "toJack": "input0"
     },
     {
-      "from": 7,
+      "from": 4,
       "fromJack": "kick",
       "to": 1,
       "toJack": "start"
     },
     {
-      "from": 3,
+      "from": 6,
       "fromJack": "out",
-      "to": 9,
-      "toJack": "pitch"
+      "to": 7,
+      "toJack": "in"
     },
     {
-      "from": 9,
+      "from": 6,
       "fromJack": "out",
-      "to": 10,
-      "toJack": "in"
+      "to": 3,
+      "toJack": "input"
     },
     {
       "from": 5,
       "fromJack": "out",
-      "to": 9,
-      "toJack": "pitch"
+      "to": 8,
+      "toJack": "bend"
     },
     {
-      "from": 4,
+      "from": 8,
       "fromJack": "out",
-      "to": 9,
-      "toJack": "pitch"
-    },
-    {
-      "from": 9,
-      "fromJack": "out",
-      "to": 6,
+      "to": 3,
       "toJack": "input"
     },
     {
       "from": 8,
       "fromJack": "out",
-      "to": 11,
-      "toJack": "bend"
+      "to": 7,
+      "toJack": "in"
     },
     {
-      "from": 11,
+      "from": 2,
+      "fromJack": "out0",
+      "to": 6,
+      "toJack": "pitch"
+    },
+    {
+      "from": 2,
+      "fromJack": "out2",
+      "to": 6,
+      "toJack": "pitch"
+    },
+    {
+      "from": 2,
+      "fromJack": "out4",
+      "to": 6,
+      "toJack": "pitch"
+    },
+    {
+      "from": 2,
+      "fromJack": "out4",
+      "to": 9,
+      "toJack": "A"
+    },
+    {
+      "from": 9,
       "fromJack": "out",
       "to": 6,
-      "toJack": "input"
+      "toJack": "pitch"
     },
     {
-      "from": 11,
-      "fromJack": "out",
-      "to": 10,
-      "toJack": "in"
+      "from": 2,
+      "fromJack": "out5",
+      "to": 6,
+      "toJack": "pitch"
     }
   ],
   "windowX": 10,

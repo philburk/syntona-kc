@@ -15,6 +15,7 @@ import com.syntona.dataflow.modules.LinkModule
 import com.syntona.dataflow.modules.KeyMatchModule
 import com.syntona.dataflow.modules.KnobModule
 import com.syntona.dataflow.modules.FaderModule
+import com.syntona.dataflow.modules.SequenceModule
 import com.softsynth.ksyn.data.SegmentedEnvelope
 import com.syntona.dataflow.registry.ModuleRegistry
 
@@ -76,7 +77,8 @@ object GraphSerializer {
             val valueJacks = module.inputs.filter { jack ->
                 jack !is CommandJack && !jack.isKickable &&
                 (jack.lastMessage is Message.FloatValue || jack is AudioInputJack ||
-                 ((module is KnobModule || module is FaderModule) && jack.name == "in"))
+                 ((module is KnobModule || module is FaderModule) && jack.name == "in") ||
+                 (module is SequenceModule && jack.name.startsWith("in") && jack.name.substring(2).toIntOrNull() != null))
             }
             valueJacks.forEachIndexed { j, jack ->
                 if (j > 0) append(",")
