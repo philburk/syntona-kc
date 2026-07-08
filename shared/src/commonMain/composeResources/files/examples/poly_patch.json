@@ -4,8 +4,8 @@
       "id": 0,
       "type": "lineOut",
       "name": "lineOut",
-      "x": 704.875,
-      "y": 38,
+      "x": 747.875,
+      "y": 81,
       "jacks": {
         "input0": {
           "v": 0,
@@ -275,18 +275,13 @@
     },
     {
       "id": 8,
-      "type": "packVoice",
-      "name": "packVoice",
-      "x": 438.875,
-      "y": 324,
+      "type": "knob",
+      "name": "pitchBend",
+      "x": 189,
+      "y": 386.875,
       "jacks": {
-        "opcode": {
-          "v": 4,
-          "min": 0,
-          "max": 4
-        },
-        "value": {
-          "v": -1.4088870286941528,
+        "in": {
+          "v": -1.046390414237976,
           "min": -2,
           "max": 2
         }
@@ -294,34 +289,6 @@
     },
     {
       "id": 9,
-      "type": "double",
-      "name": "double",
-      "x": 267,
-      "y": 346.875,
-      "jacks": {
-        "in": {
-          "v": -1,
-          "min": 0,
-          "max": 100
-        }
-      }
-    },
-    {
-      "id": 10,
-      "type": "knob",
-      "name": "pitchBend",
-      "x": 132,
-      "y": 408.875,
-      "jacks": {
-        "in": {
-          "v": -1.4088870286941528,
-          "min": -2,
-          "max": 2
-        }
-      }
-    },
-    {
-      "id": 11,
       "type": "packNote",
       "name": "packNote",
       "x": 441.875,
@@ -345,12 +312,26 @@
       }
     },
     {
-      "id": 12,
+      "id": 10,
       "type": "showVoice",
       "name": "showVoice",
       "x": 605,
       "y": 269.125,
       "jacks": {}
+    },
+    {
+      "id": 11,
+      "type": "packBend",
+      "name": "packBend",
+      "x": 340.875,
+      "y": 356,
+      "jacks": {
+        "tag": {
+          "v": -1,
+          "min": -1,
+          "max": 127
+        }
+      }
     }
   ],
   "connections": [
@@ -409,58 +390,52 @@
       "toJack": "start"
     },
     {
-      "from": 9,
-      "fromJack": "out",
-      "to": 8,
-      "toJack": "tag"
-    },
-    {
-      "from": 10,
-      "fromJack": "out",
-      "to": 8,
-      "toJack": "value"
-    },
-    {
-      "from": 8,
-      "fromJack": "out",
-      "to": 6,
-      "toJack": "input"
-    },
-    {
-      "from": 10,
-      "fromJack": "out",
-      "to": 9,
-      "toJack": "kick"
-    },
-    {
       "from": 3,
       "fromJack": "out",
-      "to": 11,
+      "to": 9,
       "toJack": "pitch"
     },
     {
-      "from": 11,
+      "from": 9,
       "fromJack": "out",
-      "to": 12,
+      "to": 10,
       "toJack": "in"
     },
     {
       "from": 5,
       "fromJack": "out",
-      "to": 11,
+      "to": 9,
       "toJack": "pitch"
     },
     {
       "from": 4,
       "fromJack": "out",
-      "to": 11,
+      "to": 9,
       "toJack": "pitch"
+    },
+    {
+      "from": 9,
+      "fromJack": "out",
+      "to": 6,
+      "toJack": "input"
+    },
+    {
+      "from": 8,
+      "fromJack": "out",
+      "to": 11,
+      "toJack": "bend"
     },
     {
       "from": 11,
       "fromJack": "out",
       "to": 6,
       "toJack": "input"
+    },
+    {
+      "from": 11,
+      "fromJack": "out",
+      "to": 10,
+      "toJack": "in"
     }
   ],
   "windowX": 10,

@@ -102,6 +102,41 @@ class PackNoteModule : Module("packNote"), EngineAware {
 }
 
 /**
+ * Generates a PITCH_BEND VoiceMessage with bned and tag.
+ * Receiving a message on [bend] (kickable) sends a PITCH_BEND immediately.
+ */
+class PackBendModule : Module("packBend"), EngineAware {
+    val bendIn = addInput("bend", isKickable = true).also {
+        it.min = -2.0
+        it.max = 2.0
+    }
+    val tagIn = addInput("tag").also {
+        it.min = -1.0
+        it.max = 127.0
+    }
+    val output = addOutput("out")
+
+    private var engine: DataFlowEngine? = null
+
+    init {
+        tagIn.setValue(-1.0)
+        bendIn.setValue(0.0)
+    }
+
+    override fun setEngine(engine: DataFlowEngine) {
+        this.engine = engine
+    }
+
+    override fun execute(triggerMessage: Message) {
+        val bend = bendIn.getDoubleValue()
+        val tag = tagIn.getDoubleValue().toInt()
+        output.send(Message.VoiceMessage(triggerMessage.time,
+            Message.VoiceOpcode.PITCH_BEND,
+            tag, bend, 0.0))
+    }
+}
+
+/**
  * Displays the last [capacity] [Message.VoiceMessage]s received, oldest at top, most recent
  * at bottom.
  */
