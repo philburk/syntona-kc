@@ -101,3 +101,16 @@ class RoundModule : UnaryOperatorModule("round") {
         output.send(Message.FloatValue(triggerMessage.time, result))
     }
 }
+
+class ModModule : BinaryOperatorModule("mod") {
+    init {
+        inputB.setValue(4.0)
+    }
+    override fun execute(triggerMessage: Message) {
+        val denominator = inputB.getDoubleValue()
+        if (denominator != 0.0) {
+            val result = inputA.getDoubleValue() % denominator
+            output.send(Message.FloatValue(triggerMessage.time, result))
+        }
+    }
+}
