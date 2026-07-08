@@ -1,8 +1,12 @@
 package com.syntona.dataflow.modules
 
 import androidx.compose.runtime.mutableStateListOf
+import com.syntona.core.model.ScoreTime
+import com.syntona.dataflow.engine.DataFlowEngine
+import com.syntona.dataflow.engine.EngineAware
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
+import kotlin.math.floor
 
 /**
  * Composes a [Message.VoiceMessage] from four inputs: opcode, tag, value, extra.
@@ -38,6 +42,62 @@ class PackVoiceModule : Module("packVoice") {
                 extra = extraIn.getDoubleValue()
             )
         )
+    }
+}
+
+/**
+ * Composes a timed note from four inputs: pitch, tag, amplitude, duration. Receiving a message
+ * on [pitchIn] (kickable) sends a NOTE_ON immediately, followed by a matching NOTE_OFF scheduled
+ * [durationIn] milliseconds later, using the same engine-scheduling technique as [AddTimeModule].
+ *
+ * If [tagIn] is left at its default of -1, the tag is resolved to `floor(pitch)` so untagged
+ * notes still pair their NOTE_ON/NOTE_OFF by pitch.
+ */
+class PackNoteModule : Module("packNote"), EngineAware {
+    val pitchIn = addInput("pitch", isKickable = true)
+    val tagIn = addInput("tag").also {
+        it.min = -1.0
+        it.max = 127.0
+    }
+    val amplitudeIn = addInput("amplitude").also {
+        it.min = 0.0
+        it.max = 2.0
+    }
+    val durationIn = addInput("duration").also {
+        it.min = 0.0
+        it.max = 1000.0
+    }
+    val output = addOutput("out")
+
+    private var engine: DataFlowEngine? = null
+
+    init {
+        tagIn.setValue(-1.0)
+        amplitudeIn.setValue(0.2)
+        durationIn.setValue(20.0) // millis
+    }
+
+    override fun setEngine(engine: DataFlowEngine) {
+        this.engine = engine
+    }
+
+    override fun execute(triggerMessage: Message) {
+        val pitch = pitchIn.getDoubleValue()
+        val amplitude = amplitudeIn.getDoubleValue()
+        val rawTag = tagIn.getDoubleValue().toInt()
+        val tag = if (rawTag == -1) floor(pitch).toInt() else rawTag
+
+        output.send(Message.VoiceMessage(triggerMessage.time, Message.VoiceOpcode.NOTE_ON, tag, pitch, amplitude))
+
+        val durationNs = (durationIn.getDoubleValue() * 1_000_000.0).toLong().coerceAtLeast(0L)
+        val fireTime = triggerMessage.time + ScoreTime(durationNs)
+        val noteOff = Message.VoiceMessage(fireTime, Message.VoiceOpcode.NOTE_OFF, tag, pitch, amplitude)
+        val e = engine
+        if (e != null) {
+            e.schedule(fireTime) { output.send(noteOff) }
+        } else {
+            output.send(noteOff)
+        }
     }
 }
 
