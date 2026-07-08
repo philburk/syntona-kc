@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
  */
 abstract class Module(val type: String) {
     open var name by mutableStateOf(type)
+    var parentPatch: com.syntona.dataflow.modules.PatchModule? = null
     private val _inputs = mutableStateListOf<InputJack>()
     val inputs: List<InputJack> get() = _inputs
 

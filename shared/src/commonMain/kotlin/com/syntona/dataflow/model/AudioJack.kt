@@ -29,14 +29,16 @@ class AudioInputJack(
 
     override fun getValue(): Double = unitInputPort.get(partIndex).toDouble()
 
-    override fun setValue(value: Double) {
-        unitInputPort.set(partIndex, value.toFloat())
-    }
+
 
     override fun receive(msg: Message) {
         super.receive(msg)
         if (msg is Message.FloatValue) {
             unitInputPort.set(partIndex, msg.value.toFloat())
+            val polyPatch = module.parentPatch as? com.syntona.dataflow.modules.PolyPatchModule
+            if (polyPatch != null) {
+                polyPatch.syncInputJackValue(this, msg.value)
+            }
         }
     }
 }

@@ -74,7 +74,7 @@ class KeyMatchModuleTest {
 
         // Serialize
         val jsonStr = GraphSerializer.serialize(graphState, graphState.modules)
-        assertTrue(jsonStr.contains("\"keyChar\":\"z\""), "Serialized string should contain keyChar value")
+        assertTrue(jsonStr.contains("\"keyChar\": \"z\""), "Serialized string should contain keyChar value")
 
         // Deserialize
         val newGraphState = GraphState()

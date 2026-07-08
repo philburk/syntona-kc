@@ -700,6 +700,55 @@ fun App(
                             }
                         )
                     }
+                    com.syntona.dataflow.modules.PolyPatchPrompter.activePromptModule?.let { module ->
+                        var voiceCountText by remember { mutableStateOf("8") }
+                        AlertDialog(
+                            onDismissRequest = {
+                                val graph = com.syntona.dataflow.modules.PolyPatchPrompter.activePromptGraphState
+                                if (graph != null) {
+                                    graph.removeModulesDirectly(listOf(module))
+                                    graph.markChanged()
+                                }
+                                com.syntona.dataflow.modules.PolyPatchPrompter.activePromptModule = null
+                                com.syntona.dataflow.modules.PolyPatchPrompter.activePromptGraphState = null
+                            },
+                            title = { Text("Polyphonic Patch Voices") },
+                            text = {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Text("Enter the maximum number of polyphonic voices:")
+                                    androidx.compose.foundation.text.BasicTextField(
+                                        value = voiceCountText,
+                                        onValueChange = { voiceCountText = it.filter { c -> c.isDigit() } },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .border(1.dp, Color.Gray, RoundedCornerShape(4.dp))
+                                            .background(Color.White)
+                                            .padding(8.dp),
+                                        textStyle = androidx.compose.ui.text.TextStyle(color = Color.Black)
+                                    )
+                                }
+                            },
+                            confirmButton = {
+                                Button(onClick = {
+                                    val count = voiceCountText.toIntOrNull() ?: 8
+                                    module.initializeVoices(count.coerceIn(1, 32))
+                                    com.syntona.dataflow.modules.PolyPatchPrompter.activePromptModule = null
+                                    com.syntona.dataflow.modules.PolyPatchPrompter.activePromptGraphState = null
+                                }) { Text("OK") }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = {
+                                    val graph = com.syntona.dataflow.modules.PolyPatchPrompter.activePromptGraphState
+                                    if (graph != null) {
+                                        graph.removeModulesDirectly(listOf(module))
+                                        graph.markChanged()
+                                    }
+                                    com.syntona.dataflow.modules.PolyPatchPrompter.activePromptModule = null
+                                    com.syntona.dataflow.modules.PolyPatchPrompter.activePromptGraphState = null
+                                }) { Text("Cancel") }
+                            }
+                        )
+                    }
                     } // end outer Box
                 }
             }

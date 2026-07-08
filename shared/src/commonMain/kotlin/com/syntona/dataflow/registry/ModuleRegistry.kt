@@ -9,6 +9,8 @@ import com.syntona.dataflow.modules.*
  */
 object ModuleRegistry {
 
+    val ksynFactories = mutableMapOf<String, () -> UnitGenerator>()
+
     data class ModuleEntry(
         val name: String,
         val creator: () -> Module
@@ -25,6 +27,7 @@ object ModuleRegistry {
     init {
         val core = getOrCreateBundle(root, "core")
         core.modules.add(ModuleEntry("patch") { PatchModule() })
+        core.modules.add(ModuleEntry("polyPatch") { PolyPatchModule() })
         core.modules.add(ModuleEntry("input") { InputModule() })
         core.modules.add(ModuleEntry("output") { OutputModule() })
 
@@ -99,6 +102,7 @@ object ModuleRegistry {
         addKSynModule(control, "envAD", ::EnvelopeAttackDecay)
         addKSynModule(control, "latch", ::Latch)
         addKSynModule(control, "latchZC", ::LatchZeroCrossing)
+        addKSynModule(control, "p2f", ::PitchToFrequency)
         addKSynModule(control, "rampLin", ::LinearRamp)
         addKSynModule(control, "rampCon", ::ContinuousRamp)
         addKSynModule(control, "rampAsym", ::AsymptoticRamp)
@@ -166,6 +170,7 @@ object ModuleRegistry {
         name: String,
         unitFactory: () -> UnitGenerator
     ) {
+        ksynFactories[name] = unitFactory
         bundle.modules.add(ModuleEntry(name) { UnitGeneratorModule(name, unitFactory()) })
     }
 }
