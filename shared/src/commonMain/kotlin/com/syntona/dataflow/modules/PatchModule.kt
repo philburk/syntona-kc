@@ -13,10 +13,10 @@ import com.syntona.dataflow.model.OutputJack
 open class PatchModule(name: String = "patch") : Module(name), EngineAware {
 
     // Maps jacks on this PatchModule to the I/O modules inside the patch
-    private val inputLinks = mutableMapOf<InputJack, InputModule>()
-    private val outputLinks = mutableMapOf<OutputJack, OutputModule>()
-    private val audioInputLinks = mutableMapOf<AudioInputJack, AudioInputModule>()
-    private val audioOutputLinks = mutableMapOf<AudioOutputJack, AudioOutputModule>()
+    protected val inputLinks = mutableMapOf<InputJack, InputModule>()
+    protected val outputLinks = mutableMapOf<OutputJack, OutputModule>()
+    protected val audioInputLinks = mutableMapOf<AudioInputJack, AudioInputModule>()
+    protected val audioOutputLinks = mutableMapOf<AudioOutputJack, AudioOutputModule>()
 
     val graphState = GraphState(onModuleAdded = ::onChildModuleAdded)
 
@@ -24,7 +24,7 @@ open class PatchModule(name: String = "patch") : Module(name), EngineAware {
         graphState.engine = engine
     }
 
-    private fun onChildModuleAdded(module: Module) {
+    protected open fun onChildModuleAdded(module: Module) {
         module.parentPatch = this
         when (module) {
             is InputModule -> {

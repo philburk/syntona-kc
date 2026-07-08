@@ -164,6 +164,7 @@ object GraphSerializer {
             if (module is PatchModule) {
                 val patchObj = obj?.map?.get("patch") as? JsonValue.Obj
                 if (patchObj != null) {
+                    module.graphState.removeModulesDirectly(module.graphState.modules.toList())
                     deserializeObj(module.graphState, patchObj, Offset.Zero, density)
                 }
             }

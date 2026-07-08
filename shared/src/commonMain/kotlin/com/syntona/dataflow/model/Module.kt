@@ -37,6 +37,14 @@ abstract class Module(val type: String) {
         return jack
     }
 
+    protected fun removeInput(jack: InputJack) {
+        _inputs.remove(jack)
+    }
+
+    protected fun removeOutput(jack: OutputJack) {
+        _outputs.remove(jack)
+    }
+
     protected fun addCommandOutput(name: String): CommandOutputJack {
         val jack = CommandOutputJack(name, this)
         _outputs.add(jack)

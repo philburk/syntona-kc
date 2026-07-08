@@ -81,4 +81,47 @@ class PolyPatchModuleTest {
         // Set value on the editor module's jack
         freqJack.setValue(880.0)
     }
+
+    @Test
+    fun testDefaultOutputModule() {
+        val polyPatch = PolyPatchModule()
+        assertEquals(1, polyPatch.graphState.modules.size)
+        val defaultOutput = polyPatch.graphState.modules[0]
+        assertTrue(defaultOutput is AudioOutputModule)
+        assertEquals("output", defaultOutput.name)
+
+        // Parent PolyPatchModule should NOT have any audio output jacks from defaultOutput
+        assertTrue(polyPatch.outputs.isEmpty())
+
+        polyPatch.initializeVoices(2)
+        // Only the mixed output jack should exist on parent
+        assertEquals(1, polyPatch.outputs.size)
+        assertEquals("output", polyPatch.outputs[0].name)
+    }
+
+    @Test
+    fun testAuxiliaryOutputModule() {
+        val polyPatch = PolyPatchModule()
+        polyPatch.initializeVoices(2)
+
+        // Adding an auxiliary AudioOutputModule
+        val auxOutput = AudioOutputModule()
+        polyPatch.graphState.addModule(auxOutput, androidx.compose.ui.geometry.Offset.Zero)
+
+        // The auxiliary module should be named "aOut1" by default, and a parent jack should be created
+        assertEquals("aOut1", auxOutput.name)
+        assertEquals(2, polyPatch.outputs.size)
+        assertEquals("output", polyPatch.outputs[0].name)
+        assertEquals("aOut1", polyPatch.outputs[1].name)
+
+        // Renaming the auxiliary output should update the parent jack name
+        auxOutput.name = "submix"
+        assertEquals("submix", auxOutput.name)
+        assertEquals("submix", polyPatch.outputs[1].name)
+
+        // Removing the auxiliary module should remove the parent jack
+        polyPatch.graphState.removeModulesDirectly(listOf(auxOutput))
+        assertEquals(1, polyPatch.outputs.size)
+        assertEquals("output", polyPatch.outputs[0].name)
+    }
 }

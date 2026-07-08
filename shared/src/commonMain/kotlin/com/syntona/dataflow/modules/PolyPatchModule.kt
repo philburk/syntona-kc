@@ -31,6 +31,25 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
         graphState.onModuleRemovedCallback = ::syncModuleRemoved
         graphState.onConnectionAddedCallback = ::syncConnectionAdded
         graphState.onConnectionRemovedCallback = ::syncConnectionRemoved
+
+        // Add a default AudioOutputModule named "output"
+        val defaultOutput = AudioOutputModule()
+        defaultOutput.name = "output"
+        graphState.addModule(defaultOutput, androidx.compose.ui.geometry.Offset(400f, 250f))
+    }
+
+    override fun onChildModuleAdded(module: Module) {
+        module.parentPatch = this
+        if (module is AudioOutputModule) {
+            module.patch = this
+            if (module.name == "output") {
+                return
+            }
+            val proposedName = if (module.name == "aOutput") "aOut${outputs.size}" else module.name
+            module.name = proposedName
+            return
+        }
+        super.onChildModuleAdded(module)
     }
 
     fun initializeVoices(maxVoices: Int) {
@@ -137,10 +156,18 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
                     passThrough
                 }
                 is AudioOutputModule -> {
-                    // For the aOutput module, we use the voice's pre-created outputPassThrough
-                    val passThrough = voice.outputPassThrough
-                    voice.addPort(passThrough.output, module.name)
-                    passThrough
+                    if (module.name == "output") {
+                        // For the main output module, we use the voice's pre-created outputPassThrough
+                        val passThrough = voice.outputPassThrough
+                        voice.addPort(passThrough.output, module.name)
+                        passThrough
+                    } else {
+                        // For auxiliary outputs, we create a new PassThrough for this module in the voice
+                        val passThrough = PassThrough()
+                        voice.add(passThrough)
+                        voice.addPort(passThrough.output, module.name)
+                        passThrough
+                    }
                 }
                 is UnitGeneratorModule -> {
                     val factory = ModuleRegistry.ksynFactories[module.type]
@@ -173,10 +200,65 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
                 polyphonicInstrument?.exportNamedInputPort(module.name)
             }
         }
+
+        if (module is AudioOutputModule && module.name != "output") {
+            syncAuxOutputAdded(module)
+        }
+    }
+
+    private val auxMixers = mutableMapOf<String, PassThrough>()
+
+    private fun syncAuxOutputAdded(module: AudioOutputModule) {
+        val instrument = polyphonicInstrument ?: return
+        val portName = module.name
+        if (auxMixers.containsKey(portName)) return
+
+        // 1. Create a PassThrough mixer unit on PolyphonicInstrument
+        val mixer = PassThrough()
+        instrument.add(mixer)
+        instrument.addPort(mixer.output, portName)
+        auxMixers[portName] = mixer
+
+        // 2. Connect each voice's auxiliary output to the mixer
+        for (voice in voices) {
+            val bgUnit = voice.moduleToUnitMap[module] as? PassThrough ?: continue
+            bgUnit.output.connect(mixer.input)
+        }
+
+        // 3. Expose the mixed port as a parent audio output jack
+        if (outputs.none { it.name == portName }) {
+            val jack = addAudioOutput(portName, mixer.output, 0)
+            audioOutputLinks[jack] = module
+            module.patchJack = jack
+        }
+    }
+
+    private fun syncAuxOutputRemoved(module: AudioOutputModule) {
+        val instrument = polyphonicInstrument ?: return
+        val portName = module.name
+        val mixer = auxMixers.remove(portName) ?: return
+
+        // Disconnect voices and remove mixer from instrument
+        for (voice in voices) {
+            val bgUnit = voice.moduleToUnitMap[module] as? PassThrough ?: continue
+            bgUnit.output.disconnect(mixer.input)
+        }
+        instrument.remove(mixer)
+        instrument.removePortAlias(portName)
+
+        // Remove jack from parent
+        val jack = outputs.find { it.name == portName } as? AudioOutputJack
+        if (jack != null) {
+            removeOutput(jack)
+            audioOutputLinks.remove(jack)
+        }
     }
 
     private fun syncModuleRemoved(module: Module) {
         if (!isInitialized) return
+        if (module is AudioOutputModule && module.name != "output") {
+            syncAuxOutputRemoved(module)
+        }
         for (voice in voices) {
             val bgUnit = voice.moduleToUnitMap.remove(module) ?: continue
             if (module is AudioInputModule) {
@@ -196,6 +278,9 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
                 if (port != null) {
                     voice.removePort(port)
                     voice.removePortAlias(module.name)
+                }
+                if (module.name != "output") {
+                    voice.remove(bgUnit)
                 }
             } else {
                 voice.remove(bgUnit)
@@ -267,18 +352,31 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
 
     fun onAudioOutputNameChanged(module: AudioOutputModule, newName: String) {
         if (!isInitialized) return
-        for (voice in voices) {
-            val bgUnit = voice.moduleToUnitMap[module] as? PassThrough ?: continue
-            val oldName = voice.getPorts().find { it === bgUnit.output }?.name ?: continue
-            if (oldName.lowercase() == newName.lowercase()) continue
+        val voice = voices.firstOrNull() ?: return
+        val bgUnit = voice.moduleToUnitMap[module] as? PassThrough ?: return
+        val oldName = voice.getPorts().find { it === bgUnit.output }?.name ?: return
+        if (oldName == newName) return
 
-            // Remove old alias/port from voice
-            voice.removePort(bgUnit.output)
-            voice.removePortAlias(oldName)
-
-            // Add new alias/port to voice
-            voice.addPort(bgUnit.output, newName)
+        // Update voice port aliases
+        for (v in voices) {
+            val unit = v.moduleToUnitMap[module] as? PassThrough ?: continue
+            val oldPortName = v.getPorts().find { it === unit.output }?.name ?: continue
+            v.removePort(unit.output)
+            v.removePortAlias(oldPortName)
+            v.addPort(unit.output, newName)
         }
+
+        // Update PolyphonicInstrument mixer port alias
+        val instrument = polyphonicInstrument ?: return
+        val mixer = auxMixers.remove(oldName)
+        if (mixer != null) {
+            instrument.removePortAlias(oldName)
+            instrument.addPort(mixer.output, newName)
+            auxMixers[newName] = mixer
+        }
+
+        // Update parent jack name
+        module.patchJack?.name = newName
     }
 
     override fun teardown() {
