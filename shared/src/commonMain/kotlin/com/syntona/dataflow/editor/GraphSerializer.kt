@@ -117,6 +117,7 @@ object GraphSerializer {
                 module.windowY?.let { append(",\"windowY\":$it") }
                 module.windowWidth?.let { append(",\"windowWidth\":$it") }
                 module.windowHeight?.let { append(",\"windowHeight\":$it") }
+                append(",\"windowOpen\":${module.isWindowOpen}")
                 append(",\"patch\":")
                 append(buildRawJson(module.graphState, module.graphState.modules.toList(), density))
             }
@@ -208,6 +209,7 @@ object GraphSerializer {
                 (obj?.map?.get("windowY") as? JsonValue.Num)?.value?.let { module.windowY = it.toFloat() }
                 (obj?.map?.get("windowWidth") as? JsonValue.Num)?.value?.let { module.windowWidth = it.toFloat() }
                 (obj?.map?.get("windowHeight") as? JsonValue.Num)?.value?.let { module.windowHeight = it.toFloat() }
+                (obj?.map?.get("windowOpen") as? JsonValue.Bool)?.value?.let { module.isWindowOpen = it }
                 val patchObj = obj?.map?.get("patch") as? JsonValue.Obj
                 if (patchObj != null) {
                     module.graphState.removeModulesDirectly(module.graphState.modules.toList())

@@ -233,4 +233,33 @@ class PolyPatchModuleTest {
         // Run buffer generation to ensure no crashes or NPEs
         engine.generateNextBuffer()
     }
+
+    @Test
+    fun testWindowStateSaveAndRestore() {
+        val rootGraph = GraphState()
+        val childPatch = PatchModule()
+        childPatch.name = "subPatch"
+        childPatch.isWindowOpen = true
+        rootGraph.addModule(childPatch, androidx.compose.ui.geometry.Offset.Zero)
+
+        // Serialize
+        val json = GraphSerializer.serialize(rootGraph, rootGraph.modules)
+        assertTrue(json.contains("\"windowOpen\": true"))
+
+        // Deserialize
+        val newRootGraph = GraphState()
+        val deserialized = GraphSerializer.deserialize(newRootGraph, json)
+        val restoredChild = deserialized.find { it.name == "subPatch" } as PatchModule
+        assertTrue(restoredChild.isWindowOpen)
+
+        // Now test window closed state
+        restoredChild.isWindowOpen = false
+        val jsonClosed = GraphSerializer.serialize(newRootGraph, newRootGraph.modules)
+        assertTrue(jsonClosed.contains("\"windowOpen\": false"))
+
+        val finalRootGraph = GraphState()
+        val finalDeserialized = GraphSerializer.deserialize(finalRootGraph, jsonClosed)
+        val finalChild = finalDeserialized.find { it.name == "subPatch" } as PatchModule
+        kotlin.test.assertFalse(finalChild.isWindowOpen)
+    }
 }

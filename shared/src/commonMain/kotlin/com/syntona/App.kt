@@ -74,6 +74,46 @@ fun restoreRootWindowGeometry(
     rootWindow.onGeometryChanged?.invoke()
 }
 
+fun restoreWindowStates(
+    mdiState: MdiState,
+    graphState: GraphState,
+    density: Float
+) {
+    fun traverse(gs: GraphState) {
+        for (module in gs.modules) {
+            if (module is PatchModule) {
+                if (module.isWindowOpen) {
+                    val savedX = module.windowX
+                    val savedY = module.windowY
+                    val restoredPosition = if (savedX != null && savedY != null) {
+                        Offset(savedX * density, savedY * density)
+                    } else {
+                        Offset(120f, 90f)
+                    }
+                    val window = MdiWindowInfo(
+                        id = module,
+                        title = module.name,
+                        position = restoredPosition,
+                        width = module.windowWidth?.dp ?: 600.dp,
+                        height = module.windowHeight?.dp ?: 450.dp,
+                        graphState = module.graphState,
+                        content = { GraphEditor(module.graphState) }
+                    )
+                    window.onGeometryChanged = {
+                        module.windowX = window.position.x / density
+                        module.windowY = window.position.y / density
+                        module.windowWidth = window.width.value
+                        module.windowHeight = window.height.value
+                    }
+                    mdiState.open(window)
+                }
+                traverse(module.graphState)
+            }
+        }
+    }
+    traverse(graphState)
+}
+
 @Composable
 @Preview
 fun App(
@@ -191,6 +231,7 @@ fun App(
                                 activeEngine?.clearHistory()
                                 mdiState.closeAllClosable()
                                 GraphSerializer.deserialize(activeGs, content, density = appDensity)
+                                restoreWindowStates(mdiState, activeGs, appDensity)
                                 FileState.markSaved(path)
                                 activeGs.kickLoadKickModules()
                             } catch (e: Exception) {
@@ -350,6 +391,7 @@ fun App(
                                                              engine.clearHistory()
                                                              mdiState.closeAllClosable()
                                                              GraphSerializer.deserialize(gs, content, density = appDensity)
+                                                             restoreWindowStates(mdiState, gs, appDensity)
                                                              restoreRootWindowGeometry(mdiState, rootPatch, content, appDensity)
                                                              FileState.markSaved(name)
                                                              gs.kickLoadKickModules()
@@ -885,6 +927,7 @@ fun RenderDropdownMenuNode(
                                     rootEngine?.clearHistory()
                                     state.closeAllClosable()
                                     GraphSerializer.deserialize(rootGs, content, density = density)
+                                    restoreWindowStates(state, rootGs, density)
                                     restoreRootWindowGeometry(state, rootPatch, content, density)
                                     FileState.markSaved(path)
                                     rootGs.kickLoadKickModules()

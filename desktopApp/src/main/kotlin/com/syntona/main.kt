@@ -22,7 +22,7 @@ fun main() = application {
     Window(
         onCloseRequest = ::exitApplication,
         title = if (FileState.isDirty) "• SyntonaKC" else "SyntonaKC",
-        state = rememberWindowState(width = 1200.dp, height = 800.dp),
+        state = rememberWindowState(width = 1600.dp, height = 1200.dp),
     ) {
         var mdiState by remember { mutableStateOf<MdiState?>(null) }
         val scope = rememberCoroutineScope()
@@ -53,6 +53,7 @@ fun main() = application {
                                     state.closeAllClosable()
                                     val rootPatch = state.windows.find { !it.closable }?.id as? com.syntona.dataflow.modules.PatchModule
                                     GraphSerializer.deserialize(gs, content, density = density)
+                                    com.syntona.restoreWindowStates(state, gs, density)
                                     if (rootPatch != null) {
                                         restoreRootWindowGeometry(state, rootPatch, content, density)
                                     }
@@ -90,6 +91,7 @@ fun main() = application {
                                     state.closeAllClosable()
                                     val rootPatch = state.windows.find { !it.closable }?.id as? com.syntona.dataflow.modules.PatchModule
                                     GraphSerializer.deserialize(gs, content, density = density)
+                                    com.syntona.restoreWindowStates(state, gs, density)
                                     if (rootPatch != null) {
                                         restoreRootWindowGeometry(state, rootPatch, content, density)
                                     }
@@ -224,6 +226,7 @@ fun androidx.compose.ui.window.MenuScope.RenderMenuNode(
                                 state.closeAllClosable()
                                 val rootPatch = state.windows.find { !it.closable }?.id as? com.syntona.dataflow.modules.PatchModule
                                 GraphSerializer.deserialize(gs, content, density = density)
+                                com.syntona.restoreWindowStates(state, gs, density)
                                 if (rootPatch != null) {
                                     restoreRootWindowGeometry(state, rootPatch, content, density)
                                 }

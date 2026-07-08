@@ -27,6 +27,7 @@ open class PatchModule(name: String = "patch") : Module(name), EngineAware {
     var windowY by mutableStateOf<Float?>(null)
     var windowWidth by mutableStateOf<Float?>(null)
     var windowHeight by mutableStateOf<Float?>(null)
+    var isWindowOpen by mutableStateOf(false)
 
     val graphState = GraphState(onModuleAdded = ::onChildModuleAdded)
 

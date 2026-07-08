@@ -100,6 +100,7 @@ class MdiState {
     }
 
     fun open(window: MdiWindowInfo) {
+        (window.id as? com.syntona.dataflow.modules.PatchModule)?.isWindowOpen = true
         val existing = windows.find { it.id == window.id }
         if (existing != null) {
             if (existing.minimized) existing.minimized = false
@@ -113,6 +114,9 @@ class MdiState {
     fun close(id: Any) {
         val removed = windows.filter { it.id == id && it.closable }
         removed.forEach { w -> if (w.graphState == activeGraphState) activeGraphState = null }
+        if (removed.isNotEmpty()) {
+            (id as? com.syntona.dataflow.modules.PatchModule)?.isWindowOpen = false
+        }
         windows.removeAll { it.id == id && it.closable }
     }
 
@@ -160,6 +164,11 @@ class MdiState {
     }
 
     fun closeAllClosable() {
+        windows.forEach { w ->
+            if (w.closable) {
+                (w.id as? com.syntona.dataflow.modules.PatchModule)?.isWindowOpen = false
+            }
+        }
         windows.removeAll { it.closable }
         activeGraphState = rootGraphState
     }

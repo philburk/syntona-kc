@@ -1,1 +1,146 @@
-{"modules":[{"id":0,"type":"pulseOscBL","name":"pulseOscBL","x":305.71143,"y":131.14642,"jacks":{"frequency":{"v":430.76043701171875,"min":40.0,"max":8000.0},"amplitude":{"v":0.18856193125247955,"min":0.0,"max":1.0},"width":{"v":0.19992414116859436,"min":0.0,"max":1.0}}},{"id":1,"type":"scope","name":"scope","x":436.20312,"y":190.33594,"jacks":{"in0":{"v":0.0,"min":0.0,"max":1.0},"in1":{"v":0.0,"min":0.0,"max":1.0}},"w":300.0,"h":200.0},{"id":2,"type":"lineOut","name":"lineOut","x":465.88135,"y":84.03955,"jacks":{"input0":{"v":0.0,"min":0.0,"max":1.0},"input1":{"v":0.0,"min":0.0,"max":1.0}}},{"id":3,"type":"knob","name":"knob","x":142.28906,"y":51.367188,"jacks":{"in":{"v":430.76043701171875,"min":40.0,"max":8000.0}}},{"id":4,"type":"knob","name":"knob","x":28.375,"y":151.63281,"jacks":{"in":{"v":0.18856193125247955,"min":0.0,"max":1.0}}},{"id":5,"type":"knob","name":"knob","x":141.59747,"y":243.94623,"jacks":{"in":{"v":0.19992414116859436,"min":-1.0,"max":1.0}}}],"connections":[{"from":0,"fromJack":"output","to":2,"toJack":"input0"},{"from":3,"fromJack":"out","to":0,"toJack":"frequency"},{"from":4,"fromJack":"out","to":0,"toJack":"amplitude"},{"from":5,"fromJack":"out","to":0,"toJack":"width"},{"from":0,"fromJack":"output","to":1,"toJack":"in0"}]}
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "pulseOscBL",
+      "name": "pulseOscBL",
+      "x": 305.71143,
+      "y": 131.14642,
+      "jacks": {
+        "frequency": {
+          "v": 472.6141662597656,
+          "min": 40,
+          "max": 8000
+        },
+        "amplitude": {
+          "v": 0.3068692088127136,
+          "min": 0,
+          "max": 1
+        },
+        "width": {
+          "v": -0.34428873658180237,
+          "min": 0,
+          "max": 1
+        }
+      }
+    },
+    {
+      "id": 1,
+      "type": "scope",
+      "name": "scope",
+      "x": 436.20312,
+      "y": 190.33594,
+      "jacks": {
+        "in0": {
+          "v": 0,
+          "min": 0,
+          "max": 1
+        },
+        "in1": {
+          "v": 0,
+          "min": 0,
+          "max": 1
+        }
+      },
+      "w": 300,
+      "h": 200
+    },
+    {
+      "id": 2,
+      "type": "lineOut",
+      "name": "lineOut",
+      "x": 465.88135,
+      "y": 84.03955,
+      "jacks": {
+        "input0": {
+          "v": 0,
+          "min": 0,
+          "max": 1
+        },
+        "input1": {
+          "v": 0,
+          "min": 0,
+          "max": 1
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "knob",
+      "name": "freq",
+      "x": 142.28906,
+      "y": 51.367188,
+      "jacks": {
+        "in": {
+          "v": 472.6141662597656,
+          "min": 40,
+          "max": 2000
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "knob",
+      "name": "amp",
+      "x": 28.375,
+      "y": 151.63281,
+      "jacks": {
+        "in": {
+          "v": 0.3068692088127136,
+          "min": 0,
+          "max": 1
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "knob",
+      "name": "pulseWidth",
+      "x": 141.59747,
+      "y": 243.94623,
+      "jacks": {
+        "in": {
+          "v": -0.34428873658180237,
+          "min": -1,
+          "max": 1
+        }
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": 0,
+      "fromJack": "output",
+      "to": 2,
+      "toJack": "input0"
+    },
+    {
+      "from": 3,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "frequency"
+    },
+    {
+      "from": 4,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "amplitude"
+    },
+    {
+      "from": 5,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "width"
+    },
+    {
+      "from": 0,
+      "fromJack": "output",
+      "to": 1,
+      "toJack": "in0"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 821.98779296875,
+  "windowHeight": 647.8756103515625
+}
