@@ -535,10 +535,12 @@ fun App(
                                      modifier = Modifier.padding(horizontal = 4.dp)
                                  ) {
                                      Text(
-                                         text = "CPU: ${(cpuUsage * 100).toInt()}%",
+                                         text = "CPU: ${(cpuUsage * 100).toInt().toString().padStart(2, '0')}%",
                                          color = Color.White,
-                                         style = MaterialTheme.typography.bodySmall,
-                                         modifier = Modifier.padding(end = 4.dp)
+                                         style = MaterialTheme.typography.bodySmall.copy(
+                                             fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
+                                         ),
+                                         modifier = Modifier.padding(end = 4.dp).width(65.dp)
                                      )
                                      Box(
                                          modifier = Modifier
