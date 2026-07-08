@@ -13,6 +13,8 @@ import com.syntona.dataflow.modules.PolyPatchModule
 import com.syntona.dataflow.modules.SegmentedEnvelopeModule
 import com.syntona.dataflow.modules.LinkModule
 import com.syntona.dataflow.modules.KeyMatchModule
+import com.syntona.dataflow.modules.KnobModule
+import com.syntona.dataflow.modules.FaderModule
 import com.softsynth.ksyn.data.SegmentedEnvelope
 import com.syntona.dataflow.registry.ModuleRegistry
 
@@ -40,7 +42,8 @@ object GraphSerializer {
             append(",\"x\":$xDp,\"y\":$yDp,\"jacks\":{")
             val valueJacks = module.inputs.filter { jack ->
                 jack !is CommandJack && !jack.isKickable &&
-                (jack.lastMessage is Message.FloatValue || jack is AudioInputJack)
+                (jack.lastMessage is Message.FloatValue || jack is AudioInputJack ||
+                 ((module is KnobModule || module is FaderModule) && jack.name == "in"))
             }
             valueJacks.forEachIndexed { j, jack ->
                 if (j > 0) append(",")
@@ -104,11 +107,13 @@ object GraphSerializer {
     }
 
     private fun deserializeObj(graphState: GraphState, rootObj: JsonValue.Obj, offset: Offset, density: Float = 1f): List<Module> {
-        val modulesArr = (rootObj.map["modules"] as? JsonValue.Arr)?.items ?: return emptyList()
-        val connectionsArr = (rootObj.map["connections"] as? JsonValue.Arr)?.items ?: return emptyList()
+        graphState.isDeserializing = true
+        try {
+            val modulesArr = (rootObj.map["modules"] as? JsonValue.Arr)?.items ?: return emptyList()
+            val connectionsArr = (rootObj.map["connections"] as? JsonValue.Arr)?.items ?: return emptyList()
 
-        val created = mutableListOf<Module?>()
-        val succeeded = mutableListOf<Module>()
+            val created = mutableListOf<Module?>()
+            val succeeded = mutableListOf<Module>()
 
         for (item in modulesArr) {
             val obj = item as? JsonValue.Obj
@@ -166,6 +171,9 @@ object GraphSerializer {
                 if (patchObj != null) {
                     module.graphState.removeModulesDirectly(module.graphState.modules.toList())
                     deserializeObj(module.graphState, patchObj, Offset.Zero, density)
+                    if (module is PolyPatchModule) {
+                        module.ensureDefaultModulesExist()
+                    }
                 }
             }
             if (module is SegmentedEnvelopeModule) {
@@ -200,6 +208,9 @@ object GraphSerializer {
             graphState.connect(output, input)
         }
         return succeeded
+        } finally {
+            graphState.isDeserializing = false
+        }
     }
 }
 

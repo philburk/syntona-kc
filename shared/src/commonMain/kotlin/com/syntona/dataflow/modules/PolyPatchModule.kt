@@ -32,10 +32,37 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
         graphState.onConnectionAddedCallback = ::syncConnectionAdded
         graphState.onConnectionRemovedCallback = ::syncConnectionRemoved
 
+        // Add default AudioInputModules
+        val pitchIn = AudioInputModule()
+        pitchIn.name = "pitch"
+        graphState.addModule(pitchIn, androidx.compose.ui.geometry.Offset(50f, 100f))
+
+        val ampIn = AudioInputModule()
+        ampIn.name = "amplitude"
+        graphState.addModule(ampIn, androidx.compose.ui.geometry.Offset(50f, 180f))
+
+        val pressIn = AudioInputModule()
+        pressIn.name = "pressure"
+        graphState.addModule(pressIn, androidx.compose.ui.geometry.Offset(50f, 260f))
+
+        val pbIn = AudioInputModule()
+        pbIn.name = "pitchBend"
+        graphState.addModule(pbIn, androidx.compose.ui.geometry.Offset(50f, 340f))
+
         // Add a default AudioOutputModule named "output"
         val defaultOutput = AudioOutputModule()
         defaultOutput.name = "output"
         graphState.addModule(defaultOutput, androidx.compose.ui.geometry.Offset(400f, 250f))
+    }
+
+    private fun isSpecialVoiceInput(name: String): Boolean {
+        val n = name.lowercase()
+        if (n == "pitch" || n == "amplitude" || n == "pressure" || n == "pitchbend") return true
+        if (n.startsWith("control") && n.length > 7) {
+            val numPart = n.substring(7)
+            return numPart.toIntOrNull() != null
+        }
+        return false
     }
 
     override fun onChildModuleAdded(module: Module) {
@@ -48,6 +75,12 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
             val proposedName = if (module.name == "aOutput") "aOut${outputs.size}" else module.name
             module.name = proposedName
             return
+        }
+        if (module is AudioInputModule) {
+            module.patch = this
+            if (isSpecialVoiceInput(module.name)) {
+                return
+            }
         }
         super.onChildModuleAdded(module)
     }
@@ -79,6 +112,39 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
         }
     }
 
+    fun ensureDefaultModulesExist() {
+        val hasPitch = graphState.modules.any { it is AudioInputModule && it.name == "pitch" }
+        if (!hasPitch) {
+            val pitchIn = AudioInputModule()
+            pitchIn.name = "pitch"
+            graphState.addModule(pitchIn, androidx.compose.ui.geometry.Offset(50f, 100f))
+        }
+        val hasAmp = graphState.modules.any { it is AudioInputModule && it.name == "amplitude" }
+        if (!hasAmp) {
+            val ampIn = AudioInputModule()
+            ampIn.name = "amplitude"
+            graphState.addModule(ampIn, androidx.compose.ui.geometry.Offset(50f, 180f))
+        }
+        val hasPress = graphState.modules.any { it is AudioInputModule && it.name == "pressure" }
+        if (!hasPress) {
+            val pressIn = AudioInputModule()
+            pressIn.name = "pressure"
+            graphState.addModule(pressIn, androidx.compose.ui.geometry.Offset(50f, 260f))
+        }
+        val hasPb = graphState.modules.any { it is AudioInputModule && it.name == "pitchBend" }
+        if (!hasPb) {
+            val pbIn = AudioInputModule()
+            pbIn.name = "pitchBend"
+            graphState.addModule(pbIn, androidx.compose.ui.geometry.Offset(50f, 340f))
+        }
+        val hasOutput = graphState.modules.any { it is AudioOutputModule && it.name == "output" }
+        if (!hasOutput) {
+            val defaultOutput = AudioOutputModule()
+            defaultOutput.name = "output"
+            graphState.addModule(defaultOutput, androidx.compose.ui.geometry.Offset(400f, 250f))
+        }
+    }
+
     override fun onMessageReceived(jack: InputJack, msg: Message) {
         if (jack === voiceInputJack) {
             if (msg is Message.VoiceMessage) {
@@ -96,13 +162,13 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
                         instrument.noteOff(msg.tag, timeStamp)
                     }
                     Message.VoiceOpcode.CONTROL_CHANGE -> {
-                        setVoicePort(msg.tag, "Ctrl${msg.extra.toInt()}", msg.value, timeStamp)
+                        setVoicePort(msg.tag, "control${msg.extra.toInt()}", msg.value, timeStamp)
                     }
                     Message.VoiceOpcode.PRESSURE -> {
-                        setVoicePort(msg.tag, "Pressure", msg.value, timeStamp)
+                        setVoicePort(msg.tag, "pressure", msg.value, timeStamp)
                     }
                     Message.VoiceOpcode.PITCH_BEND -> {
-                        setVoicePort(msg.tag, "PitchBend", msg.value, timeStamp)
+                        setVoicePort(msg.tag, "pitchBend", msg.value, timeStamp)
                     }
                 }
             }
@@ -196,13 +262,31 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
 
         // Export input ports on PolyphonicInstrument if AudioInputModule was added
         if (module is AudioInputModule) {
-            if (module.name.lowercase() != "pitch" && module.name.lowercase() != "amplitude") {
+            if (!isSpecialVoiceInput(module.name)) {
                 polyphonicInstrument?.exportNamedInputPort(module.name)
             }
         }
 
         if (module is AudioOutputModule && module.name != "output") {
             syncAuxOutputAdded(module)
+        }
+
+        // Connect pitchBend to pitch if both exist in voices
+        for (voice in voices) {
+            wirePitchBendIfBothExist(voice)
+        }
+    }
+
+    private fun wirePitchBendIfBothExist(voice: DynamicPitchedVoice) {
+        val pitchModule = graphState.modules.find { it is AudioInputModule && it.name == "pitch" }
+        val pitchBendModule = graphState.modules.find { it is AudioInputModule && it.name == "pitchBend" }
+        if (pitchModule != null && pitchBendModule != null) {
+            val pitchUnit = voice.moduleToUnitMap[pitchModule] as? PassThrough
+            val pitchBendUnit = voice.moduleToUnitMap[pitchBendModule] as? PassThrough
+            if (pitchUnit != null && pitchBendUnit != null) {
+                pitchBendUnit.output.connect(pitchUnit.input)
+                pitchUnit.input.isValueAdded = true
+            }
         }
     }
 
@@ -273,6 +357,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
                     polyphonicInstrument?.removePort(instPort)
                     polyphonicInstrument?.removePortAlias(module.name)
                 }
+                voice.remove(bgUnit)
             } else if (module is AudioOutputModule) {
                 val port = voice.getPortByName(module.name)
                 if (port != null) {
@@ -339,14 +424,17 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
             voice.addPort(bgUnit.input, newName)
 
             // Sync on PolyphonicInstrument
-            val oldInstPort = polyphonicInstrument?.getPortByName(oldName)
+                        val oldInstPort = polyphonicInstrument?.getPortByName(oldName)
             if (oldInstPort != null) {
                 polyphonicInstrument?.removePort(oldInstPort)
                 polyphonicInstrument?.removePortAlias(oldName)
             }
-            if (newName.lowercase() != "pitch" && newName.lowercase() != "amplitude") {
+            if (!isSpecialVoiceInput(newName)) {
                 polyphonicInstrument?.exportNamedInputPort(newName)
             }
+        }
+        for (voice in voices) {
+            wirePitchBendIfBothExist(voice)
         }
     }
 

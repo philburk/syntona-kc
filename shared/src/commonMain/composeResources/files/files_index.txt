@@ -1,6 +1,9 @@
 examples/key_control.json
 examples/poly_patch.json
 examples/poly_patch_5.json
+examples/poly_patch_6.json
+examples/poly_patch_7.json
+examples/poly_patch_8.json
 examples/pulse_scope.json
 examples/sampler.json
 examples/saw_noise.json

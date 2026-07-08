@@ -85,9 +85,9 @@ class PolyPatchModuleTest {
     @Test
     fun testDefaultOutputModule() {
         val polyPatch = PolyPatchModule()
-        assertEquals(1, polyPatch.graphState.modules.size)
-        val defaultOutput = polyPatch.graphState.modules[0]
-        assertTrue(defaultOutput is AudioOutputModule)
+        assertEquals(5, polyPatch.graphState.modules.size)
+        val defaultOutput = polyPatch.graphState.modules.find { it is AudioOutputModule }
+        assertNotNull(defaultOutput)
         assertEquals("output", defaultOutput.name)
 
         // Parent PolyPatchModule should NOT have any audio output jacks from defaultOutput
@@ -123,5 +123,72 @@ class PolyPatchModuleTest {
         polyPatch.graphState.removeModulesDirectly(listOf(auxOutput))
         assertEquals(1, polyPatch.outputs.size)
         assertEquals("output", polyPatch.outputs[0].name)
+    }
+
+    @Test
+    fun testPitchBendConnection() = kotlinx.coroutines.runBlocking {
+        val polyPatch = PolyPatchModule()
+        polyPatch.initializeVoices(1)
+
+        val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
+        engine.generateNextBuffer()
+
+        val voice = polyPatch.polyphonicInstrument!!.voices.first() as DynamicPitchedVoice
+        val pitchModule = polyPatch.graphState.modules.find { it.name == "pitch" }!!
+        val pitchBendModule = polyPatch.graphState.modules.find { it.name == "pitchBend" }!!
+
+        val pitchUnit = voice.moduleToUnitMap[pitchModule] as PassThrough
+        val pitchBendUnit = voice.moduleToUnitMap[pitchBendModule] as PassThrough
+
+        assertTrue(pitchBendUnit.output.isConnected())
+        assertTrue(pitchUnit.input.isValueAdded)
+    }
+
+    @Test
+    fun testEnsureDefaultModulesExistOnDeserialization() {
+        val json = """
+            {"modules":[{"id":0,"type":"polyPatch","name":"poly1","x":0.0,"y":0.0,"maxVoices":2,"patch":{"modules":[{"id":0,"type":"aOutput","name":"output","x":400.0,"y":250.0}],"connections":[]}}],"connections":[]}
+        """.trimIndent()
+        val rootGraph = GraphState()
+        val deserialized = GraphSerializer.deserialize(rootGraph, json)
+        val polyPatch = deserialized[0] as PolyPatchModule
+
+        assertEquals(5, polyPatch.graphState.modules.size)
+        assertTrue(polyPatch.graphState.modules.any { it.name == "pitch" })
+        assertTrue(polyPatch.graphState.modules.any { it.name == "amplitude" })
+        assertTrue(polyPatch.graphState.modules.any { it.name == "pressure" })
+        assertTrue(polyPatch.graphState.modules.any { it.name == "pitchBend" })
+        assertTrue(polyPatch.graphState.modules.any { it.name == "output" })
+    }
+
+    @Test
+    fun testKnobRangePreservationOnDeserialization() {
+        val rootGraph = GraphState()
+        val knob = KnobModule()
+        rootGraph.addModule(knob, androidx.compose.ui.geometry.Offset.Zero)
+
+        val osc = UnitGeneratorModule("sineOsc", SineOscillator())
+        rootGraph.addModule(osc, androidx.compose.ui.geometry.Offset.Zero)
+
+        // Connect them first (triggering the interactive inheritance of the oscillator's 40-8000 range)
+        val outJack = knob.outputs.find { it.name == "out" }!!
+        val inJack = osc.inputs.find { it.name == "frequency" }!!
+        rootGraph.connect(outJack, inJack)
+
+        // Then override the range on the knob (user edits range after connecting)
+        knob.valueIn.min = -2.0
+        knob.valueIn.max = 2.0
+
+        // Save the graph
+        val json = GraphSerializer.serialize(rootGraph, rootGraph.modules)
+
+        // Deserialise the graph
+        val newRootGraph = GraphState()
+        val deserialized = GraphSerializer.deserialize(newRootGraph, json)
+        val newKnob = deserialized.find { it is KnobModule } as KnobModule
+
+        // Range must be preserved as -2.0 to 2.0 (NOT inherited from the connected oscillator's frequency range)
+        assertEquals(-2.0, newKnob.valueIn.min)
+        assertEquals(2.0, newKnob.valueIn.max)
     }
 }

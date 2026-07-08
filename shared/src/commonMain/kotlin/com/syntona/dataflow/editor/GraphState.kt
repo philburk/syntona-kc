@@ -42,6 +42,7 @@ import androidx.compose.ui.input.key.isCtrlPressed
 class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
     var engine: DataFlowEngine? = null
     var onChange: (() -> Unit)? = null
+    var isDeserializing = false
 
     var onModuleAddedCallback: ((Module) -> Unit)? = null
     var onModuleRemovedCallback: ((Module) -> Unit)? = null
@@ -358,6 +359,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
     }
 
     private fun syncRangeFromConnections(output: OutputJack) {
+        if (isDeserializing) return
         val valueIn = when (val m = output.module) {
             is FaderModule -> m.valueIn
             is KnobModule -> m.valueIn
