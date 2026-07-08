@@ -23,8 +23,8 @@
       "id": 1,
       "type": "clock",
       "name": "clock",
-      "x": 102.875,
-      "y": 75,
+      "x": 114.875,
+      "y": 195,
       "jacks": {
         "period(ms)": {
           "v": 142.43951642689802,
@@ -37,8 +37,8 @@
       "id": 2,
       "type": "seq8",
       "name": "seq8",
-      "x": 228.875,
-      "y": 69,
+      "x": 211.875,
+      "y": 159,
       "jacks": {
         "in0": {
           "v": 52,
@@ -86,8 +86,8 @@
       "id": 3,
       "type": "polyPatch",
       "name": "polyPatch",
-      "x": 594.875,
-      "y": 174,
+      "x": 597.875,
+      "y": 109,
       "jacks": {},
       "maxVoices": 4,
       "windowX": 829.9439,
@@ -289,16 +289,16 @@
       "id": 4,
       "type": "loadKick",
       "name": "loadKick",
-      "x": 15.125,
-      "y": 23,
+      "x": 23.125,
+      "y": 224,
       "jacks": {}
     },
     {
       "id": 5,
       "type": "knob",
       "name": "pitchBend",
-      "x": 189,
-      "y": 386.875,
+      "x": 185,
+      "y": 427.875,
       "jacks": {
         "in": {
           "v": 0,
@@ -311,8 +311,8 @@
       "id": 6,
       "type": "packNote",
       "name": "packNote",
-      "x": 431.875,
-      "y": 92,
+      "x": 418.875,
+      "y": 160,
       "jacks": {
         "tag": {
           "v": -1,
@@ -335,16 +335,16 @@
       "id": 7,
       "type": "showVoice",
       "name": "showVoice",
-      "x": 605,
-      "y": 269.125,
+      "x": 558,
+      "y": 283.125,
       "jacks": {}
     },
     {
       "id": 8,
       "type": "packBend",
       "name": "packBend",
-      "x": 340.875,
-      "y": 356,
+      "x": 418.875,
+      "y": 387,
       "jacks": {
         "tag": {
           "v": -1,
@@ -357,8 +357,8 @@
       "id": 9,
       "type": "+",
       "name": "+",
-      "x": 373,
-      "y": 226.875,
+      "x": 368,
+      "y": 288.875,
       "jacks": {
         "B": {
           "v": 4,
@@ -366,6 +366,17 @@
           "max": 12
         }
       }
+    },
+    {
+      "id": 10,
+      "type": "comment",
+      "name": "comment",
+      "x": 46.899994,
+      "y": 13.075012,
+      "jacks": {},
+      "text": "A polyPatch is a patch with multiple voices so it can play chords. It accepts VoiceMessages, for example, NOTE_ON, NOTE_OFF and PITCH_BEND. The packNote module is used to format VoiceMessages.",
+      "w": 498.82324,
+      "h": 99.25
     }
   ],
   "connections": [
