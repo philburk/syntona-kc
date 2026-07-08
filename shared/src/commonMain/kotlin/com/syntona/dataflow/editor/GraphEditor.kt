@@ -60,6 +60,7 @@ import com.syntona.dataflow.modules.InputModule
 import com.syntona.dataflow.modules.KnobModule
 import com.syntona.dataflow.modules.OutputModule
 import com.syntona.dataflow.modules.PatchModule
+import com.syntona.dataflow.modules.PolyPatchModule
 import com.syntona.dataflow.modules.ScopeModule
 import com.syntona.dataflow.modules.ShowModule
 import com.syntona.dataflow.modules.CommentModule
@@ -900,8 +901,9 @@ fun PatchModuleNode(module: PatchModule, state: GraphState) {
                         mdiState.open(window)
                     }
             ) {
+                val displayName = if (module is PolyPatchModule) "${module.name}[${module.maxVoices}]" else module.name
                 Text(
-                    text = module.name,
+                    text = displayName,
                     color = Color.White,
                     fontSize = 12.sp,
                     modifier = Modifier.padding(horizontal = 4.dp)
