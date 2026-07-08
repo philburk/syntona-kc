@@ -191,4 +191,46 @@ class PolyPatchModuleTest {
         assertEquals(-2.0, newKnob.valueIn.min)
         assertEquals(2.0, newKnob.valueIn.max)
     }
+
+    @Test
+    fun testCutTriOscFromPolyPatchAndPasteToParent() = kotlinx.coroutines.runBlocking {
+        val rootGraph = GraphState()
+        val polyPatch = PolyPatchModule()
+        rootGraph.addModule(polyPatch, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.initializeVoices(1)
+
+        // Add a triOsc inside the polyPatch
+        val triOsc = UnitGeneratorModule("triOsc", com.softsynth.ksyn.unitgen.TriangleOscillator())
+        polyPatch.graphState.addModule(triOsc, androidx.compose.ui.geometry.Offset.Zero)
+
+        // Connect the triOsc output to output in the polyPatch
+        val outJack = triOsc.outputs.find { it.name == "output" }!!
+        val outputModule = polyPatch.graphState.modules.find { it.name == "output" }!!
+        val inJack = outputModule.inputs.find { it.name == "input" }!!
+        polyPatch.graphState.connect(outJack, inJack)
+
+        // Run synthesis engine to start pulling data
+        val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
+        engine.generateNextBuffer()
+
+        // Cut the triOsc (remove from polyPatch)
+        polyPatch.graphState.removeModulesDirectly(listOf(triOsc))
+
+        // Trigger buffer generation immediately after removal (checks for race condition / NPE)
+        engine.generateNextBuffer()
+
+        // Paste it to the parent patch (instantiate a new triOsc module in rootGraph)
+        val pastedTriOsc = UnitGeneratorModule("triOsc", com.softsynth.ksyn.unitgen.TriangleOscillator())
+        rootGraph.addModule(pastedTriOsc, androidx.compose.ui.geometry.Offset.Zero)
+
+        // Connect it in the parent patch
+        val parentOutput = AudioOutputModule()
+        rootGraph.addModule(parentOutput, androidx.compose.ui.geometry.Offset.Zero)
+        val pastedOutJack = pastedTriOsc.outputs.find { it.name == "output" }!!
+        val parentInJack = parentOutput.inputs.find { it.name == "input" }!!
+        rootGraph.connect(pastedOutJack, parentInJack)
+
+        // Run buffer generation to ensure no crashes or NPEs
+        engine.generateNextBuffer()
+    }
 }

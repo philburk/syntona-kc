@@ -105,10 +105,10 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
     internal fun removeModulesDirectly(modulesToRemove: List<Module>) {
         modulesToRemove.forEach { module ->
             module.teardown()
-            connections
-                .filter { it.output.module === module || it.input.module === module }
-                .forEach { it.output.disconnect(it.input) }
-            connections.removeAll { it.output.module === module || it.input.module === module }
+            val connsToRemove = connections.filter { it.output.module === module || it.input.module === module }
+            connsToRemove.forEach { conn ->
+                disconnect(conn.output, conn.input)
+            }
             module.inputs.forEach { jackOffsets.remove(it) }
             module.outputs.forEach { jackOffsets.remove(it) }
             if (editingModule === module) editingModule = null
