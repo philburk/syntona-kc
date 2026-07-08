@@ -19,75 +19,78 @@ import com.syntona.dataflow.registry.ModuleRegistry
 object GraphSerializer {
 
     fun serialize(graphState: GraphState, modules: List<Module>, density: Float = 1f): String {
-        val rawJson = buildString {
-            val internalConns = graphState.connections.filter { conn ->
-                modules.any { it === conn.output.module } &&
-                modules.any { it === conn.input.module }
-            }
-            append("{\"modules\":[")
-            modules.forEachIndexed { i, module ->
-                if (i > 0) append(",")
-                val pos = graphState.modulePositions[module] ?: Offset.Zero
-                // Store positions as dp (divide by density) so they load correctly on any screen density
-                val xDp = pos.x / density
-                val yDp = pos.y / density
-                append("{\"id\":$i,\"type\":\"${module.type.jsonEscape}\",\"name\":\"${module.name.jsonEscape}\"")
-                append(",\"x\":$xDp,\"y\":$yDp,\"jacks\":{")
-                val valueJacks = module.inputs.filter { jack ->
-                    jack !is CommandJack && !jack.isKickable &&
-                    (jack.lastMessage is Message.FloatValue || jack is AudioInputJack)
-                }
-                valueJacks.forEachIndexed { j, jack ->
-                    if (j > 0) append(",")
-                    append("\"${jack.name.jsonEscape}\":{\"v\":${jack.getValue()},\"min\":${jack.min},\"max\":${jack.max}}")
-                }
-                append("}")
-                if (module is CommentModule) {
-                    append(",\"text\":\"${module.text.jsonEscape}\"")
-                    append(",\"w\":${module.width},\"h\":${module.height}")
-                }
-                if (module is ScopeModule) {
-                    append(",\"w\":${module.width},\"h\":${module.height}")
-                }
-                if (module is LinkModule) {
-                    append(",\"filePath\":\"${module.filePath.jsonEscape}\"")
-                    append(",\"buttonText\":\"${module.buttonText.jsonEscape}\"")
-                }
-                if (module is KeyMatchModule) {
-                    append(",\"keyChar\":\"${module.keyChar.toString().jsonEscape}\"")
-                }
-                if (module is SegmentedEnvelopeModule) {
-                    val env = module.envelope
-                    val data = DoubleArray(env.numFrames * 2)
-                    env.read(data)
-                    val dataJson = data.joinToString(prefix = "[", postfix = "]") { it.toString() }
-                    append(",\"envData\":$dataJson")
-                    append(",\"sustainBegin\":${env.sustainBegin}")
-                    append(",\"sustainEnd\":${env.sustainEnd}")
-                    append(",\"releaseBegin\":${env.releaseBegin}")
-                    append(",\"releaseEnd\":${env.releaseEnd}")
-                }
-                if (module is PolyPatchModule) {
-                    append(",\"maxVoices\":${module.maxVoices}")
-                }
-                // Recursively embed patch contents so jacks are restored on paste/load
-                if (module is PatchModule) {
-                    append(",\"patch\":")
-                    append(serialize(module.graphState, module.graphState.modules.toList(), density))
-                }
-                append("}")
-            }
-            append("],\"connections\":[")
-            internalConns.forEachIndexed { i, conn ->
-                if (i > 0) append(",")
-                val fromIdx = modules.indexOfFirst { it === conn.output.module }
-                val toIdx = modules.indexOfFirst { it === conn.input.module }
-                append("{\"from\":$fromIdx,\"fromJack\":\"${conn.output.name.jsonEscape}\"")
-                append(",\"to\":$toIdx,\"toJack\":\"${conn.input.name.jsonEscape}\"}")
-            }
-            append("]}")
+        return prettyPrintJson(buildRawJson(graphState, modules, density))
+    }
+
+    // Builds compact JSON. Recursive PatchModule calls stay on this raw path so only the
+    // outermost serialize() call pays for the parse+pretty-print pass.
+    private fun buildRawJson(graphState: GraphState, modules: List<Module>, density: Float): String = buildString {
+        val internalConns = graphState.connections.filter { conn ->
+            modules.any { it === conn.output.module } &&
+            modules.any { it === conn.input.module }
         }
-        return prettyPrintJson(rawJson)
+        append("{\"modules\":[")
+        modules.forEachIndexed { i, module ->
+            if (i > 0) append(",")
+            val pos = graphState.modulePositions[module] ?: Offset.Zero
+            // Store positions as dp (divide by density) so they load correctly on any screen density
+            val xDp = pos.x / density
+            val yDp = pos.y / density
+            append("{\"id\":$i,\"type\":\"${module.type.jsonEscape}\",\"name\":\"${module.name.jsonEscape}\"")
+            append(",\"x\":$xDp,\"y\":$yDp,\"jacks\":{")
+            val valueJacks = module.inputs.filter { jack ->
+                jack !is CommandJack && !jack.isKickable &&
+                (jack.lastMessage is Message.FloatValue || jack is AudioInputJack)
+            }
+            valueJacks.forEachIndexed { j, jack ->
+                if (j > 0) append(",")
+                append("\"${jack.name.jsonEscape}\":{\"v\":${jack.getValue()},\"min\":${jack.min},\"max\":${jack.max}}")
+            }
+            append("}")
+            if (module is CommentModule) {
+                append(",\"text\":\"${module.text.jsonEscape}\"")
+                append(",\"w\":${module.width},\"h\":${module.height}")
+            }
+            if (module is ScopeModule) {
+                append(",\"w\":${module.width},\"h\":${module.height}")
+            }
+            if (module is LinkModule) {
+                append(",\"filePath\":\"${module.filePath.jsonEscape}\"")
+                append(",\"buttonText\":\"${module.buttonText.jsonEscape}\"")
+            }
+            if (module is KeyMatchModule) {
+                append(",\"keyChar\":\"${module.keyChar.toString().jsonEscape}\"")
+            }
+            if (module is SegmentedEnvelopeModule) {
+                val env = module.envelope
+                val data = DoubleArray(env.numFrames * 2)
+                env.read(data)
+                val dataJson = data.joinToString(prefix = "[", postfix = "]") { it.toString() }
+                append(",\"envData\":$dataJson")
+                append(",\"sustainBegin\":${env.sustainBegin}")
+                append(",\"sustainEnd\":${env.sustainEnd}")
+                append(",\"releaseBegin\":${env.releaseBegin}")
+                append(",\"releaseEnd\":${env.releaseEnd}")
+            }
+            if (module is PolyPatchModule) {
+                append(",\"maxVoices\":${module.maxVoices}")
+            }
+            // Recursively embed patch contents so jacks are restored on paste/load
+            if (module is PatchModule) {
+                append(",\"patch\":")
+                append(buildRawJson(module.graphState, module.graphState.modules.toList(), density))
+            }
+            append("}")
+        }
+        append("],\"connections\":[")
+        internalConns.forEachIndexed { i, conn ->
+            if (i > 0) append(",")
+            val fromIdx = modules.indexOfFirst { it === conn.output.module }
+            val toIdx = modules.indexOfFirst { it === conn.input.module }
+            append("{\"from\":$fromIdx,\"fromJack\":\"${conn.output.name.jsonEscape}\"")
+            append(",\"to\":$toIdx,\"toJack\":\"${conn.input.name.jsonEscape}\"}")
+        }
+        append("]}")
     }
 
     private fun prettyPrintJson(json: String): String {
@@ -159,12 +162,6 @@ object GraphSerializer {
             }
             // Restore patch internals before parent connections so jacks (in1, out1, …) exist
             if (module is PatchModule) {
-                if (module is PolyPatchModule) {
-                    val maxV = (obj?.map?.get("maxVoices") as? JsonValue.Num)?.value?.toInt()
-                    if (maxV != null) {
-                        module.initializeVoices(maxV)
-                    }
-                }
                 val patchObj = obj?.map?.get("patch") as? JsonValue.Obj
                 if (patchObj != null) {
                     deserializeObj(module.graphState, patchObj, Offset.Zero, density)

@@ -1,6 +1,5 @@
 package com.syntona.dataflow.modules
 
-import com.softsynth.ksyn.AudioSample
 import com.softsynth.ksyn.ports.UnitInputPort
 import com.softsynth.ksyn.ports.UnitOutputPort
 import com.softsynth.ksyn.shared.time.TimeStamp
@@ -14,7 +13,6 @@ import com.syntona.dataflow.model.Module
 class DynamicPitchedVoice : Circuit(), PitchedVoice {
     val outputPassThrough = PassThrough()
     val moduleToUnitMap = mutableMapOf<Module, UnitGenerator>()
-    val voiceIndex = nextIndex++
 
     init {
         add(outputPassThrough)
@@ -27,7 +25,6 @@ class DynamicPitchedVoice : Circuit(), PitchedVoice {
     override fun noteOn(pitch: Double, amplitude: Double, timeStamp: TimeStamp) {
         val pitchPort = getPortByName("Pitch") as? UnitInputPort
         pitchPort?.set(pitch.toFloat(), timeStamp)
-        print("DynamicPitchedVoice[$voiceIndex].noteOn($pitch, $amplitude)\n")
 
         val amplitudePort = getPortByName("Amplitude") as? UnitInputPort
         amplitudePort?.set(amplitude.toFloat(), timeStamp)
@@ -57,9 +54,5 @@ class DynamicPitchedVoice : Circuit(), PitchedVoice {
 
     fun teardown() {
         flattenOutputs()
-    }
-
-    companion object {
-        var nextIndex = 0
     }
 }

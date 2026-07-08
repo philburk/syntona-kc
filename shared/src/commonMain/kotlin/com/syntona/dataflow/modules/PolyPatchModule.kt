@@ -64,7 +64,11 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
         if (jack === voiceInputJack) {
             if (msg is Message.VoiceMessage) {
                 val instrument = polyphonicInstrument ?: return
-                val timeStamp = SynthKSyn.synth.createTimeStamp() // TODO // TimeStamp(msg.time.nanoseconds / 1_000_000_000.0)
+                // NOTE: msg.time (ScoreTime) is not yet applied here; it measures elapsed time
+                // since an app-level ScoreClock mark, while TimeStamp is the Synthesizer's own
+                // transport time, and there is no shared origin to convert between the two yet.
+                // Until that clock mapping exists, voice messages always fire at "now".
+                val timeStamp = SynthKSyn.synth.createTimeStamp()
                 when (msg.opcode) {
                     Message.VoiceOpcode.NOTE_ON -> {
                         instrument.noteOn(msg.tag, msg.value, msg.extra, timeStamp)
@@ -73,18 +77,38 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
                         instrument.noteOff(msg.tag, timeStamp)
                     }
                     Message.VoiceOpcode.CONTROL_CHANGE -> {
-                        instrument.setPort(msg.tag, "Ctrl${msg.extra.toInt()}", msg.value, timeStamp)
+                        setVoicePort(msg.tag, "Ctrl${msg.extra.toInt()}", msg.value, timeStamp)
                     }
                     Message.VoiceOpcode.PRESSURE -> {
-                        instrument.setPort(msg.tag, "Pressure", msg.value, timeStamp)
+                        setVoicePort(msg.tag, "Pressure", msg.value, timeStamp)
                     }
                     Message.VoiceOpcode.PITCH_BEND -> {
-                        instrument.setPort(msg.tag, "PitchBend", msg.value, timeStamp)
+                        setVoicePort(msg.tag, "PitchBend", msg.value, timeStamp)
                     }
                 }
             }
         }
         super.onMessageReceived(jack, msg)
+    }
+
+    /**
+     * Routes a controller value to the voice allocated to [tag], or — per the CONTROL_CHANGE /
+     * PRESSURE / PITCH_BEND contract in DESIGN.md — broadcasts it to every voice when [tag] is
+     * -1. [PolyphonicInstrument.setPort] only targets a single allocated voice, so the -1 case
+     * is handled directly here via the public voice list, wrapped in the same queueCommand
+     * used internally by PolyphonicInstrument to stay on the audio thread.
+     */
+    private fun setVoicePort(tag: Int, portName: String, value: Double, timeStamp: TimeStamp) {
+        val instrument = polyphonicInstrument ?: return
+        if (tag == -1) {
+            SynthKSyn.synth.queueCommand {
+                for (voice in instrument.voices) {
+                    voice.setPort(portName, value.toFloat(), timeStamp)
+                }
+            }
+        } else {
+            instrument.setPort(tag, portName, value, timeStamp)
+        }
     }
 
     fun syncInputJackValue(jack: AudioInputJack, value: Double) {

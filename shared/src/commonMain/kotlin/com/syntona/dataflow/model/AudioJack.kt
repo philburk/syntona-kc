@@ -29,7 +29,8 @@ class AudioInputJack(
 
     override fun getValue(): Double = unitInputPort.get(partIndex).toDouble()
 
-
+    // setValue() is inherited from InputJack: it calls receive(), which both applies the
+    // value to the KSyn port and syncs it to any polyPatch background voices below.
 
     override fun receive(msg: Message) {
         super.receive(msg)
