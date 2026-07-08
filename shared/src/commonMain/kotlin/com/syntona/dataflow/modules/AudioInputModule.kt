@@ -28,6 +28,7 @@ class AudioInputModule : Module("aInput") {
         set(value) {
             _name = value
             patchJack?.name = value
+            (patch as? PolyPatchModule)?.onAudioInputNameChanged(this, value)
         }
 
     internal var patch: PatchModule? = null

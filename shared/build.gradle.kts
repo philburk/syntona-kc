@@ -57,8 +57,8 @@ kotlin {
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
 
-            implementation("com.softsynth.ksyn:ksyn:1.1.1")
-            implementation("com.softsynth.ksyn.compose:ksyn-compose:1.1.1")
+            implementation("com.softsynth.ksyn:ksyn:1.2.0")
+            implementation("com.softsynth.ksyn.compose:ksyn-compose:1.2.0")
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
 
         }

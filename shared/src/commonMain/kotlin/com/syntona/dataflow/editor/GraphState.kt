@@ -43,6 +43,11 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
     var engine: DataFlowEngine? = null
     var onChange: (() -> Unit)? = null
 
+    var onModuleAddedCallback: ((Module) -> Unit)? = null
+    var onModuleRemovedCallback: ((Module) -> Unit)? = null
+    var onConnectionAddedCallback: ((OutputJack, InputJack) -> Unit)? = null
+    var onConnectionRemovedCallback: ((OutputJack, InputJack) -> Unit)? = null
+
     private fun notifyChanged() { onChange?.invoke() }
 
     fun markChanged() { notifyChanged() }
@@ -69,6 +74,11 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
         modules.add(module)
         modulePositions[module] = position
         notifyChanged()
+        onModuleAddedCallback?.invoke(module)
+        if (module is com.syntona.dataflow.modules.PolyPatchModule && !module.isInitialized) {
+            com.syntona.dataflow.modules.PolyPatchPrompter.activePromptModule = module
+            com.syntona.dataflow.modules.PolyPatchPrompter.activePromptGraphState = this
+        }
     }
 
     // Used by DeleteModulesCommand.undo() to re-add modules without posting to engine
@@ -77,6 +87,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
         if (module is EngineAware) engine?.let { module.setEngine(it) }
         modules.add(module)
         modulePositions[module] = position
+        onModuleAddedCallback?.invoke(module)
     }
 
     // Used by DeleteModulesCommand.undo() to re-create connections without posting to engine
@@ -86,6 +97,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
             connections.add(UIConnection(output, input))
         }
         syncRangeFromConnections(output)
+        onConnectionAddedCallback?.invoke(output, input)
     }
 
     // Core deletion logic used by DeleteModulesCommand.execute()
@@ -102,6 +114,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
             modulePositions.remove(module)
             moduleSizes.remove(module)
             modules.remove(module)
+            onModuleRemovedCallback?.invoke(module)
         }
         selectedModules.removeAll(modulesToRemove)
         notifyChanged()
@@ -333,6 +346,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
         }
         syncRangeFromConnections(output)
         notifyChanged()
+        onConnectionAddedCallback?.invoke(output, input)
     }
 
     fun disconnect(output: OutputJack, input: InputJack) {
@@ -340,6 +354,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
         connections.removeAll { it.output == output && it.input == input }
         syncRangeFromConnections(output)
         notifyChanged()
+        onConnectionRemovedCallback?.invoke(output, input)
     }
 
     private fun syncRangeFromConnections(output: OutputJack) {

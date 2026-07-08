@@ -10,7 +10,7 @@ import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.model.OutputJack
 
-class PatchModule(name: String = "patch") : Module(name), EngineAware {
+open class PatchModule(name: String = "patch") : Module(name), EngineAware {
 
     // Maps jacks on this PatchModule to the I/O modules inside the patch
     private val inputLinks = mutableMapOf<InputJack, InputModule>()
@@ -25,6 +25,7 @@ class PatchModule(name: String = "patch") : Module(name), EngineAware {
     }
 
     private fun onChildModuleAdded(module: Module) {
+        module.parentPatch = this
         when (module) {
             is InputModule -> {
                 val proposedName = if (module.name == "input") "in${inputLinks.size + 1}" else module.name
