@@ -26,6 +26,7 @@ fun main() = application {
     ) {
         var mdiState by remember { mutableStateOf<MdiState?>(null) }
         val scope = rememberCoroutineScope()
+        val density = androidx.compose.ui.platform.LocalDensity.current.density
         val examplesList by produceState<List<String>>(emptyList()) {
             value = com.syntona.SharedResources.getFilesIndex()
                 .filter { it.startsWith("examples/") && it.endsWith(".json") }
@@ -50,7 +51,11 @@ fun main() = application {
                                     gs.clearAllModules()
                                     engine?.clearHistory()
                                     state.closeAllClosable()
-                                    GraphSerializer.deserialize(gs, content)
+                                    val rootPatch = state.windows.find { !it.closable }?.id as? com.syntona.dataflow.modules.PatchModule
+                                    GraphSerializer.deserialize(gs, content, density = density)
+                                    if (rootPatch != null) {
+                                        restoreRootWindowGeometry(state, rootPatch, content, density)
+                                    }
                                     FileState.markSaved(path)
                                     gs.kickLoadKickModules()
                                 } catch (e: Exception) {
@@ -83,7 +88,11 @@ fun main() = application {
                                     gs.clearAllModules()
                                     engine?.clearHistory()
                                     state.closeAllClosable()
-                                    GraphSerializer.deserialize(gs, content)
+                                    val rootPatch = state.windows.find { !it.closable }?.id as? com.syntona.dataflow.modules.PatchModule
+                                    GraphSerializer.deserialize(gs, content, density = density)
+                                    if (rootPatch != null) {
+                                        restoreRootWindowGeometry(state, rootPatch, content, density)
+                                    }
                                     FileState.markSaved(name)
                                     gs.kickLoadKickModules()
                                 }
@@ -97,7 +106,14 @@ fun main() = application {
                         enabled = FileState.isDirty
                     ) {
                         if (gs != null) {
-                            val json = GraphSerializer.serialize(gs, gs.modules.toList())
+                            val rootPatch = state.windows.find { !it.closable }?.id as? com.syntona.dataflow.modules.PatchModule
+                            val json = GraphSerializer.serialize(
+                                gs, gs.modules.toList(), density,
+                                rootWindowX = rootPatch?.windowX,
+                                rootWindowY = rootPatch?.windowY,
+                                rootWindowWidth = rootPatch?.windowWidth,
+                                rootWindowHeight = rootPatch?.windowHeight
+                            )
                             val path = FileState.currentFilePath
                             if (path != null) {
                                 saveFileDirect(path, json)
@@ -109,8 +125,15 @@ fun main() = application {
                     }
                     Item("Save As...", shortcut = KeyShortcut(Key.S, meta = true, shift = true)) {
                         if (gs != null) {
+                            val rootPatch = state.windows.find { !it.closable }?.id as? com.syntona.dataflow.modules.PatchModule
                             showSaveFileDialog(
-                                GraphSerializer.serialize(gs, gs.modules.toList()),
+                                GraphSerializer.serialize(
+                                    gs, gs.modules.toList(), density,
+                                    rootWindowX = rootPatch?.windowX,
+                                    rootWindowY = rootPatch?.windowY,
+                                    rootWindowWidth = rootPatch?.windowWidth,
+                                    rootWindowHeight = rootPatch?.windowHeight
+                                ),
                                 FileState.currentFileName ?: "patch.json"
                             ) { FileState.markSaved(it) }
                         }
@@ -184,6 +207,7 @@ fun androidx.compose.ui.window.MenuScope.RenderMenuNode(
             .thenBy { it.name }
     )
 
+    val density = androidx.compose.ui.platform.LocalDensity.current.density
     for (child in sortedChildren) {
         val path = child.path
         if (path != null) {
@@ -198,7 +222,11 @@ fun androidx.compose.ui.window.MenuScope.RenderMenuNode(
                                 gs.clearAllModules()
                                 engine?.clearHistory()
                                 state.closeAllClosable()
-                                GraphSerializer.deserialize(gs, content)
+                                val rootPatch = state.windows.find { !it.closable }?.id as? com.syntona.dataflow.modules.PatchModule
+                                GraphSerializer.deserialize(gs, content, density = density)
+                                if (rootPatch != null) {
+                                    restoreRootWindowGeometry(state, rootPatch, content, density)
+                                }
                                 FileState.markSaved(path)
                                 gs.kickLoadKickModules()
                             } catch (e: Exception) {

@@ -91,8 +91,8 @@
       "y": 174,
       "jacks": {},
       "maxVoices": 4,
-      "windowX": 833.8839,
-      "windowY": 0,
+      "windowX": 831.9723,
+      "windowY": 35.911613,
       "windowWidth": 583.00946,
       "windowHeight": 589.9957,
       "patch": {
@@ -462,5 +462,9 @@
       "to": 6,
       "toJack": "input"
     }
-  ]
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 821.98779296875,
+  "windowHeight": 647.8756103515625
 }

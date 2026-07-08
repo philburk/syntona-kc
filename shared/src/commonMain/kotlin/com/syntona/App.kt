@@ -58,7 +58,7 @@ import kotlinx.coroutines.CoroutineScope
  * to the already-open root window and syncs them back onto [rootPatch] so a subsequent Save
  * round-trips correctly even if the window isn't touched again.
  */
-private fun restoreRootWindowGeometry(
+fun restoreRootWindowGeometry(
     mdiState: MdiState,
     rootPatch: PatchModule,
     content: String,
@@ -97,6 +97,10 @@ fun App(
 
         val rootPatch = remember {
             PatchModule("root").also { it.graphState.engine = syntonaModel.engine }.apply {
+                windowX = 10f
+                windowY = 10f
+                windowWidth = 800f
+                windowHeight = 500f
                 graphState.apply {
                     /*
                     val kick = KickModule()
@@ -137,16 +141,17 @@ fun App(
                     height = rootPatch.windowHeight?.dp ?: 500.dp,
                     content = { GraphEditor(rootPatch.graphState) }
                 )
-                // Root patch has no module entry of its own, so its window geometry is stored
-                // directly on rootPatch and saved/restored as top-level JSON fields (see
-                // GraphSerializer.serialize's rootWindow* params / readRootWindowGeometry).
-                rootWindow.onGeometryChanged = {
-                    rootPatch.windowX = rootWindow.position.x / appDensity
-                    rootPatch.windowY = rootWindow.position.y / appDensity
-                    rootPatch.windowWidth = rootWindow.width.value
-                    rootPatch.windowHeight = rootWindow.height.value
-                }
                 mdi.open(rootWindow)
+            }
+        }
+
+        val rootWindow = mdiState.windows.find { it.id == rootPatch }
+        if (rootWindow != null) {
+            rootWindow.onGeometryChanged = {
+                rootPatch.windowX = rootWindow.position.x / appDensity
+                rootPatch.windowY = rootWindow.position.y / appDensity
+                rootPatch.windowWidth = rootWindow.width.value
+                rootPatch.windowHeight = rootWindow.height.value
             }
         }
         SideEffect {
