@@ -844,6 +844,7 @@ fun FaderModuleNode(module: FaderModule, state: GraphState) {
 fun PatchModuleNode(module: PatchModule, state: GraphState) {
     val position = state.modulePositions[module] ?: Offset.Zero
     val mdiState = LocalMdiState.current
+    val density = LocalDensity.current
     val isSelected = state.selectedModules.contains(module)
     val borderColor = if (isSelected) Color(0xFFFFA500) else Color.Black
     val borderWidth = if (isSelected) 2.dp else 1.dp
@@ -866,18 +867,34 @@ fun PatchModuleNode(module: PatchModule, state: GraphState) {
                     .height(24.dp)
                     .background(Color(0xFF2E7D52))
                     .headerGestures(state, module) {
-                        mdiState.open(
-                            MdiWindowInfo(
-                                id = module,
-                                title = module.name,
-                                position = Offset(
-                                    (state.modulePositions[module]?.x ?: 100f) + 20f,
-                                    (state.modulePositions[module]?.y ?: 100f) + 30f
-                                ),
-                                graphState = module.graphState,
-                                content = { GraphEditor(state = module.graphState) }
+                        val savedX = module.windowX
+                        val savedY = module.windowY
+                        val restoredPosition = if (savedX != null && savedY != null) {
+                            Offset(savedX * density.density, savedY * density.density)
+                        } else {
+                            Offset(
+                                (state.modulePositions[module]?.x ?: 100f) + 20f,
+                                (state.modulePositions[module]?.y ?: 100f) + 30f
                             )
+                        }
+                        val window = MdiWindowInfo(
+                            id = module,
+                            title = module.name,
+                            position = restoredPosition,
+                            width = module.windowWidth?.dp ?: 600.dp,
+                            height = module.windowHeight?.dp ?: 450.dp,
+                            graphState = module.graphState,
+                            content = { GraphEditor(state = module.graphState) }
                         )
+                        // Explicit callback (fired directly from MdiState's mutation sites)
+                        // rather than reactive recomposition, so Save always sees current geometry.
+                        window.onGeometryChanged = {
+                            module.windowX = window.position.x / density.density
+                            module.windowY = window.position.y / density.density
+                            module.windowWidth = window.width.value
+                            module.windowHeight = window.height.value
+                        }
+                        mdiState.open(window)
                     }
             ) {
                 Text(

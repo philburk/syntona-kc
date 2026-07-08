@@ -33,6 +33,10 @@ class MdiWindowInfo(
     private var savedWidth = width
     private var savedHeight = height
 
+    // Fired whenever position/width/height change, so owners (e.g. PatchModuleNode) can
+    // persist the current geometry without relying on recomposition to observe it.
+    var onGeometryChanged: (() -> Unit)? = null
+
     fun toggleExpand() {
         if (expanded) {
             width = savedWidth
@@ -44,6 +48,7 @@ class MdiWindowInfo(
             height = height * 1.6f
         }
         expanded = !expanded
+        onGeometryChanged?.invoke()
     }
 }
 
@@ -128,6 +133,7 @@ class MdiState {
                 (window.position.x + delta.x).coerceIn(0f, maxX),
                 (window.position.y + delta.y).coerceIn(0f, maxY)
             )
+            window.onGeometryChanged?.invoke()
         }
     }
 
@@ -141,6 +147,7 @@ class MdiState {
             val maxH = (maxHPx / density).dp
             window.width = (window.width + (deltaX / density).dp).coerceIn(minW, maxW)
             window.height = (window.height + (deltaY / density).dp).coerceIn(minH, maxH)
+            window.onGeometryChanged?.invoke()
         }
     }
 

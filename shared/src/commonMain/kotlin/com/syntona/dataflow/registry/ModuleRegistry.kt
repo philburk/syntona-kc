@@ -47,6 +47,7 @@ object ModuleRegistry {
         math.modules.add(ModuleEntry("compare") { CompareModule() })
         math.modules.add(ModuleEntry("cos") { CosineModule() })
         math.modules.add(ModuleEntry("floor") { FloorModule() })
+        math.modules.add(ModuleEntry("mod") { ModModule() })
         math.modules.add(ModuleEntry("random") { RandomModule() })
         math.modules.add(ModuleEntry("round") { RoundModule() })
         math.modules.add(ModuleEntry("sin") { SineModule() })

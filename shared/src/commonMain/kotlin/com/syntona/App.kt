@@ -52,6 +52,28 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.CoroutineScope
 
 
+/**
+ * The root patch has no module entry of its own in the saved JSON (only its children are
+ * serialized), so its window's position/size travel as top-level fields instead. Applies them
+ * to the already-open root window and syncs them back onto [rootPatch] so a subsequent Save
+ * round-trips correctly even if the window isn't touched again.
+ */
+private fun restoreRootWindowGeometry(
+    mdiState: MdiState,
+    rootPatch: PatchModule,
+    content: String,
+    density: Float
+) {
+    val geometry = GraphSerializer.readRootWindowGeometry(content) ?: return
+    val rootWindow = mdiState.windows.find { it.id == rootPatch } ?: return
+    if (geometry.x != null && geometry.y != null) {
+        rootWindow.position = Offset(geometry.x * density, geometry.y * density)
+    }
+    geometry.width?.let { rootWindow.width = it.dp }
+    geometry.height?.let { rootWindow.height = it.dp }
+    rootWindow.onGeometryChanged?.invoke()
+}
+
 @Composable
 @Preview
 fun App(
@@ -99,18 +121,32 @@ fun App(
             MdiState().also { mdi ->
                 mdi.rootGraphState = rootPatch.graphState
                 mdi.activeGraphState = rootPatch.graphState
-                mdi.open(
-                    MdiWindowInfo(
-                        id = rootPatch,
-                        title = rootPatch.name,
-                        position = Offset(10f, 10f),
-                        closable = false,
-                        graphState = rootPatch.graphState,
-                        width = 800.dp,
-                        height = 500.dp,
-                        content = { GraphEditor(rootPatch.graphState) }
-                    )
+                val savedX = rootPatch.windowX
+                val savedY = rootPatch.windowY
+                val rootWindow = MdiWindowInfo(
+                    id = rootPatch,
+                    title = rootPatch.name,
+                    position = if (savedX != null && savedY != null) {
+                        Offset(savedX * appDensity, savedY * appDensity)
+                    } else {
+                        Offset(10f, 10f)
+                    },
+                    closable = false,
+                    graphState = rootPatch.graphState,
+                    width = rootPatch.windowWidth?.dp ?: 800.dp,
+                    height = rootPatch.windowHeight?.dp ?: 500.dp,
+                    content = { GraphEditor(rootPatch.graphState) }
                 )
+                // Root patch has no module entry of its own, so its window geometry is stored
+                // directly on rootPatch and saved/restored as top-level JSON fields (see
+                // GraphSerializer.serialize's rootWindow* params / readRootWindowGeometry).
+                rootWindow.onGeometryChanged = {
+                    rootPatch.windowX = rootWindow.position.x / appDensity
+                    rootPatch.windowY = rootWindow.position.y / appDensity
+                    rootPatch.windowWidth = rootWindow.width.value
+                    rootPatch.windowHeight = rootWindow.height.value
+                }
+                mdi.open(rootWindow)
             }
         }
         SideEffect {
@@ -309,6 +345,7 @@ fun App(
                                                              engine.clearHistory()
                                                              mdiState.closeAllClosable()
                                                              GraphSerializer.deserialize(gs, content, density = appDensity)
+                                                             restoreRootWindowGeometry(mdiState, rootPatch, content, appDensity)
                                                              FileState.markSaved(name)
                                                              gs.kickLoadKickModules()
                                                          }
@@ -322,7 +359,13 @@ fun App(
                                                  enabled = FileState.isDirty,
                                                  onClick = {
                                                      fileExpanded = false
-                                                     val json = GraphSerializer.serialize(gs, gs.modules.toList(), appDensity)
+                                                     val json = GraphSerializer.serialize(
+                                                         gs, gs.modules.toList(), appDensity,
+                                                         rootWindowX = rootPatch.windowX,
+                                                         rootWindowY = rootPatch.windowY,
+                                                         rootWindowWidth = rootPatch.windowWidth,
+                                                         rootWindowHeight = rootPatch.windowHeight
+                                                     )
                                                      val path = FileState.currentFilePath
                                                      if (path != null) {
                                                          saveFileDirect(path, json)
@@ -338,7 +381,13 @@ fun App(
                                                  onClick = {
                                                      fileExpanded = false
                                                      showSaveFileDialog(
-                                                         GraphSerializer.serialize(gs, gs.modules.toList(), appDensity),
+                                                         GraphSerializer.serialize(
+                                                             gs, gs.modules.toList(), appDensity,
+                                                             rootWindowX = rootPatch.windowX,
+                                                             rootWindowY = rootPatch.windowY,
+                                                             rootWindowWidth = rootPatch.windowWidth,
+                                                             rootWindowHeight = rootPatch.windowHeight
+                                                         ),
                                                          FileState.currentFileName ?: "patch.json"
                                                      ) { FileState.markSaved(it) }
                                                  }
@@ -453,7 +502,7 @@ fun App(
                                                      onDismissRequest = { examplesExpanded = false },
                                                      offset = androidx.compose.ui.unit.DpOffset(x = itemWidthDp, y = (-48).dp)
                                                  ) {
-                                                     RenderDropdownMenuNode(examplesTree, mdiState, scope, onClose = {
+                                                     RenderDropdownMenuNode(examplesTree, mdiState, rootPatch, scope, onClose = {
                                                          examplesExpanded = false
                                                          helpExpanded = false
                                                      })
@@ -483,7 +532,7 @@ fun App(
                                                      onDismissRequest = { tutorialsExpanded = false },
                                                      offset = androidx.compose.ui.unit.DpOffset(x = itemWidthDp, y = (-48).dp)
                                                  ) {
-                                                     RenderDropdownMenuNode(tutorialsTree, mdiState, scope, onClose = {
+                                                     RenderDropdownMenuNode(tutorialsTree, mdiState, rootPatch, scope, onClose = {
                                                          tutorialsExpanded = false
                                                          helpExpanded = false
                                                      })
@@ -800,6 +849,7 @@ fun buildMenuTree(paths: List<String>, rootPrefix: String): MenuNode {
 fun RenderDropdownMenuNode(
     node: MenuNode,
     state: MdiState,
+    rootPatch: PatchModule,
     scope: CoroutineScope,
     onClose: () -> Unit
 ) {
@@ -816,20 +866,23 @@ fun RenderDropdownMenuNode(
                 text = { Text(child.name) },
                 onClick = {
                     onClose()
-                    val activeGs = state.activeGraphState
-                    val activeEngine = activeGs?.engine
-                    if (activeGs != null) {
+                    // Examples/Tutorials always replace the whole document, so they load into
+                    // the root graph regardless of which sub-patch window happens to be active.
+                    val rootGs = state.rootGraphState
+                    val rootEngine = rootGs?.engine
+                    if (rootGs != null) {
                         FileState.requestIfDirty {
                             scope.launch {
                                 try {
                                     val bytes = com.syntona.SharedResources.readBytes("files/$path")
                                     val content = bytes.decodeToString()
-                                    activeGs.clearAllModules()
-                                    activeEngine?.clearHistory()
+                                    rootGs.clearAllModules()
+                                    rootEngine?.clearHistory()
                                     state.closeAllClosable()
-                                    GraphSerializer.deserialize(activeGs, content, density = density)
+                                    GraphSerializer.deserialize(rootGs, content, density = density)
+                                    restoreRootWindowGeometry(state, rootPatch, content, density)
                                     FileState.markSaved(path)
-                                    activeGs.kickLoadKickModules()
+                                    rootGs.kickLoadKickModules()
                                 } catch (e: Exception) {
                                     println("Failed to load: ${e.message}")
                                 }
@@ -869,7 +922,7 @@ fun RenderDropdownMenuNode(
                     onDismissRequest = { isExpanded = false },
                     offset = androidx.compose.ui.unit.DpOffset(x = widthDp, y = (-48).dp)
                 ) {
-                    RenderDropdownMenuNode(child, state, scope, onClose = {
+                    RenderDropdownMenuNode(child, state, rootPatch, scope, onClose = {
                         isExpanded = false
                         onClose()
                     })

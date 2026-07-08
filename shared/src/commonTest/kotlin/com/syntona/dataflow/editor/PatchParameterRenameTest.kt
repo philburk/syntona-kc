@@ -88,4 +88,91 @@ class PatchParameterRenameTest {
         assertEquals(1, newPatchModule.inputs.size)
         assertEquals("amplitude", newPatchModule.inputs[0].name)
     }
+
+    @Test
+    fun testPatchWindowGeometrySerializationAndDeserialization() {
+        val rootGraph = GraphState()
+        val patchModule = PatchModule()
+        rootGraph.addModule(patchModule, androidx.compose.ui.geometry.Offset.Zero)
+
+        // Simulate a user having moved/resized the patch's editing window
+        patchModule.windowX = 123f
+        patchModule.windowY = 45f
+        patchModule.windowWidth = 640f
+        patchModule.windowHeight = 480f
+
+        val json = GraphSerializer.serialize(rootGraph, rootGraph.modules)
+        assertTrue(json.contains("\"windowX\": 123"))
+        assertTrue(json.contains("\"windowY\": 45"))
+        assertTrue(json.contains("\"windowWidth\": 640"))
+        assertTrue(json.contains("\"windowHeight\": 480"))
+
+        val newRootGraph = GraphState()
+        val deserializedModules = GraphSerializer.deserialize(newRootGraph, json)
+        val newPatchModule = deserializedModules[0] as PatchModule
+
+        assertEquals(123f, newPatchModule.windowX)
+        assertEquals(45f, newPatchModule.windowY)
+        assertEquals(640f, newPatchModule.windowWidth)
+        assertEquals(480f, newPatchModule.windowHeight)
+    }
+
+    @Test
+    fun testPatchWindowGeometryDefaultsToNullWhenNeverSet() {
+        val rootGraph = GraphState()
+        val patchModule = PatchModule()
+        rootGraph.addModule(patchModule, androidx.compose.ui.geometry.Offset.Zero)
+
+        val json = GraphSerializer.serialize(rootGraph, rootGraph.modules)
+        assertTrue(!json.contains("windowX"))
+
+        val newRootGraph = GraphState()
+        val deserializedModules = GraphSerializer.deserialize(newRootGraph, json)
+        val newPatchModule = deserializedModules[0] as PatchModule
+
+        assertEquals(null, newPatchModule.windowX)
+        assertEquals(null, newPatchModule.windowWidth)
+    }
+
+    @Test
+    fun testRootWindowGeometrySerializationAndDeserialization() {
+        val rootGraph = GraphState()
+        val childModule = PatchModule()
+        rootGraph.addModule(childModule, androidx.compose.ui.geometry.Offset.Zero)
+
+        // The root patch has no module entry of its own, so its geometry is passed in
+        // separately and lives as top-level fields, not nested under any module.
+        val json = GraphSerializer.serialize(
+            rootGraph, rootGraph.modules,
+            rootWindowX = 15f,
+            rootWindowY = 25f,
+            rootWindowWidth = 900f,
+            rootWindowHeight = 700f
+        )
+        assertTrue(json.contains("\"windowX\": 15"))
+        assertTrue(json.contains("\"windowY\": 25"))
+        assertTrue(json.contains("\"windowWidth\": 900"))
+        assertTrue(json.contains("\"windowHeight\": 700"))
+
+        val geometry = GraphSerializer.readRootWindowGeometry(json)
+        assertNotNull(geometry)
+        assertEquals(15f, geometry.x)
+        assertEquals(25f, geometry.y)
+        assertEquals(900f, geometry.width)
+        assertEquals(700f, geometry.height)
+
+        // Deserializing the modules must still work normally alongside the extra root fields
+        val newRootGraph = GraphState()
+        val deserializedModules = GraphSerializer.deserialize(newRootGraph, json)
+        assertEquals(1, deserializedModules.size)
+    }
+
+    @Test
+    fun testRootWindowGeometryAbsentWhenNotProvided() {
+        val rootGraph = GraphState()
+        rootGraph.addModule(PatchModule(), androidx.compose.ui.geometry.Offset.Zero)
+
+        val json = GraphSerializer.serialize(rootGraph, rootGraph.modules)
+        assertEquals(null, GraphSerializer.readRootWindowGeometry(json))
+    }
 }

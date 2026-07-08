@@ -91,6 +91,10 @@
       "y": 174,
       "jacks": {},
       "maxVoices": 4,
+      "windowX": 833.8839,
+      "windowY": 0,
+      "windowWidth": 583.00946,
+      "windowHeight": 589.9957,
       "patch": {
         "modules": [
           {

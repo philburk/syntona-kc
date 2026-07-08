@@ -18,10 +18,43 @@ import com.syntona.dataflow.modules.FaderModule
 import com.softsynth.ksyn.data.SegmentedEnvelope
 import com.syntona.dataflow.registry.ModuleRegistry
 
+/** Position/size (in dp) of the root patch's own MDI window, which has no module entry of its own. */
+data class RootWindowGeometry(val x: Float?, val y: Float?, val width: Float?, val height: Float?)
+
 object GraphSerializer {
 
-    fun serialize(graphState: GraphState, modules: List<Module>, density: Float = 1f): String {
-        return prettyPrintJson(buildRawJson(graphState, modules, density))
+    fun serialize(
+        graphState: GraphState,
+        modules: List<Module>,
+        density: Float = 1f,
+        rootWindowX: Float? = null,
+        rootWindowY: Float? = null,
+        rootWindowWidth: Float? = null,
+        rootWindowHeight: Float? = null
+    ): String {
+        val raw = buildRawJson(graphState, modules, density)
+        if (rootWindowX == null && rootWindowY == null && rootWindowWidth == null && rootWindowHeight == null) {
+            return prettyPrintJson(raw)
+        }
+        val parsedRoot = try { JsonParser(raw).parse() as? JsonValue.Obj } catch (_: Exception) { null }
+            ?: return prettyPrintJson(raw)
+        val merged = LinkedHashMap(parsedRoot.map)
+        rootWindowX?.let { merged["windowX"] = JsonValue.Num(it.toDouble()) }
+        rootWindowY?.let { merged["windowY"] = JsonValue.Num(it.toDouble()) }
+        rootWindowWidth?.let { merged["windowWidth"] = JsonValue.Num(it.toDouble()) }
+        rootWindowHeight?.let { merged["windowHeight"] = JsonValue.Num(it.toDouble()) }
+        return JsonValue.Obj(merged).stringify(0)
+    }
+
+    /** Reads the root patch window's saved geometry, if any, without touching module data. */
+    fun readRootWindowGeometry(json: String): RootWindowGeometry? {
+        val root = try { JsonParser(json).parse() as? JsonValue.Obj } catch (_: Exception) { null } ?: return null
+        val x = (root.map["windowX"] as? JsonValue.Num)?.value?.toFloat()
+        val y = (root.map["windowY"] as? JsonValue.Num)?.value?.toFloat()
+        val w = (root.map["windowWidth"] as? JsonValue.Num)?.value?.toFloat()
+        val h = (root.map["windowHeight"] as? JsonValue.Num)?.value?.toFloat()
+        if (x == null && y == null && w == null && h == null) return null
+        return RootWindowGeometry(x, y, w, h)
     }
 
     // Builds compact JSON. Recursive PatchModule calls stay on this raw path so only the
@@ -80,6 +113,10 @@ object GraphSerializer {
             }
             // Recursively embed patch contents so jacks are restored on paste/load
             if (module is PatchModule) {
+                module.windowX?.let { append(",\"windowX\":$it") }
+                module.windowY?.let { append(",\"windowY\":$it") }
+                module.windowWidth?.let { append(",\"windowWidth\":$it") }
+                module.windowHeight?.let { append(",\"windowHeight\":$it") }
                 append(",\"patch\":")
                 append(buildRawJson(module.graphState, module.graphState.modules.toList(), density))
             }
@@ -167,6 +204,10 @@ object GraphSerializer {
             }
             // Restore patch internals before parent connections so jacks (in1, out1, …) exist
             if (module is PatchModule) {
+                (obj?.map?.get("windowX") as? JsonValue.Num)?.value?.let { module.windowX = it.toFloat() }
+                (obj?.map?.get("windowY") as? JsonValue.Num)?.value?.let { module.windowY = it.toFloat() }
+                (obj?.map?.get("windowWidth") as? JsonValue.Num)?.value?.let { module.windowWidth = it.toFloat() }
+                (obj?.map?.get("windowHeight") as? JsonValue.Num)?.value?.let { module.windowHeight = it.toFloat() }
                 val patchObj = obj?.map?.get("patch") as? JsonValue.Obj
                 if (patchObj != null) {
                     module.graphState.removeModulesDirectly(module.graphState.modules.toList())

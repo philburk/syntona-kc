@@ -1,5 +1,8 @@
 package com.syntona.dataflow.modules
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.syntona.dataflow.editor.GraphState
 import com.syntona.dataflow.engine.DataFlowEngine
 import com.syntona.dataflow.engine.EngineAware
@@ -17,6 +20,13 @@ open class PatchModule(name: String = "patch") : Module(name), EngineAware {
     protected val outputLinks = mutableMapOf<OutputJack, OutputModule>()
     protected val audioInputLinks = mutableMapOf<AudioInputJack, AudioInputModule>()
     protected val audioOutputLinks = mutableMapOf<AudioOutputJack, AudioOutputModule>()
+
+    // Last known position/size (in dp) of this patch's editing window, kept live-synced by
+    // PatchModuleNode while the window is open so it can be saved and restored with the patch.
+    var windowX by mutableStateOf<Float?>(null)
+    var windowY by mutableStateOf<Float?>(null)
+    var windowWidth by mutableStateOf<Float?>(null)
+    var windowHeight by mutableStateOf<Float?>(null)
 
     val graphState = GraphState(onModuleAdded = ::onChildModuleAdded)
 
