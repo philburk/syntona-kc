@@ -21,6 +21,9 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.drag
 import kotlinx.coroutines.withTimeoutOrNull
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
@@ -70,7 +73,7 @@ import com.syntona.dataflow.modules.LinkModule
 import com.syntona.dataflow.modules.KeyMatchModule
 import com.syntona.dataflow.modules.KickModule
 import com.syntona.dataflow.modules.LoadKickModule
-import com.syntona.dataflow.modules.ShowVoiceModule
+import com.syntona.dataflow.modules.ShowManyModule
 import com.softsynth.ksyn.compose.SegmentedEnvelopeEditor
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.text.TextStyle
@@ -283,22 +286,33 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color = Color.Blu
             if (module is ShowModule) {
                 Box(modifier = Modifier.fillMaxWidth().padding(8.dp).background(Color.Black)) {
                     Text(
-                        text = formatNumber(module.displayValue),
+                        text = module.displayText,
                         color = Color.Green,
-                        fontSize = 18.sp,
+                        fontSize = 14.sp,
                         modifier = Modifier.align(Alignment.Center)
                     )
                 }
             }
 
-            // Show custom content for ShowVoiceModule: last N VoiceMessages, one per line
-            if (module is ShowVoiceModule) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(8.dp).background(Color.Black)
+            // Show custom content for ShowManyModule: scrolling list of messages
+            if (module is ShowManyModule) {
+                val scrollState = rememberLazyListState()
+                LaunchedEffect(module.messages.size) {
+                    if (module.messages.isNotEmpty()) {
+                        scrollState.scrollToItem(module.messages.size - 1)
+                    }
+                }
+                LazyColumn(
+                    state = scrollState,
+                    modifier = Modifier
+                        .width(220.dp)
+                        .height(120.dp)
+                        .background(Color.Black)
+                        .padding(4.dp)
                 ) {
-                    module.messages.forEach { msg ->
+                    items(module.messages) { msgText ->
                         Text(
-                            text = "${msg.opcode} t=${msg.tag} v=${formatNumber(msg.value)} x=${formatNumber(msg.extra)}",
+                            text = msgText,
                             color = Color.Green,
                             fontSize = 10.sp
                         )

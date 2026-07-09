@@ -10,13 +10,19 @@ sealed class Message {
     abstract val time: ScoreTime
 
     /** A message carrying a floating-point value (e.g., Frequency, Volume). */
-    data class FloatValue(override val time: ScoreTime, val value: Double) : Message()
+    data class FloatValue(override val time: ScoreTime, val value: Double) : Message() {
+        override fun toString(): String = formatVal(value)
+    }
 
     /** A message carrying a text string (e.g., Command, File Path). */
-    data class TextValue(override val time: ScoreTime, val value: String) : Message()
+    data class TextValue(override val time: ScoreTime, val value: String) : Message() {
+        override fun toString(): String = value
+    }
 
     /** A message carrying an arbitrary object (e.g., Waveform data, Sysex buffer). */
-    data class ObjectValue(override val time: ScoreTime, val value: Any?) : Message()
+    data class ObjectValue(override val time: ScoreTime, val value: Any?) : Message() {
+        override fun toString(): String = value?.toString() ?: "null"
+    }
 
     enum class DataQueueOpcode {
         QUEUE, QUEUE_ON, QUEUE_OFF
@@ -27,7 +33,9 @@ sealed class Message {
         override val time: ScoreTime,
         val data: Any,
         val opcode: DataQueueOpcode
-    ) : Message()
+    ) : Message() {
+        override fun toString(): String = "$opcode data=$data"
+    }
 
     /** Commands for [VoiceMessage], modeled after MIDI Channel Voice Messages. */
     enum class VoiceOpcode {
@@ -52,5 +60,17 @@ sealed class Message {
         val tag: Int,
         val value: Double,
         val extra: Double
-    ) : Message()
+    ) : Message() {
+        override fun toString(): String = "$opcode t=$tag v=${formatVal(value)} x=${formatVal(extra)}"
+    }
+}
+
+private fun formatVal(v: Double): String {
+    if (!v.isFinite()) return v.toString()
+    if (v == 0.0) return "0"
+    val longVal = v.toLong()
+    if (longVal.toDouble() == v) return longVal.toString()
+    val factor = 1000.0
+    val rounded = kotlin.math.round(v * factor) / factor
+    return rounded.toString().removeSuffix(".0")
 }

@@ -299,4 +299,18 @@ class PolyPatchModuleTest {
         val restoredSeq = deserialized.find { it is SequenceModule } as SequenceModule
         assertEquals(42.0, restoredSeq.values[3])
     }
+
+    @Test
+    fun testShowVoiceToShowManyMapping() {
+        val rootGraph = GraphState()
+        val json = """
+            {"modules":[{"id":0,"type":"showVoice","name":"monitor","x":10.0,"y":20.0,"jacks":{}}],"connections":[]}
+        """.trimIndent()
+
+        val deserialized = GraphSerializer.deserialize(rootGraph, json)
+        assertEquals(1, deserialized.size)
+        val module = deserialized[0]
+        assertTrue(module is ShowManyModule)
+        assertEquals("monitor", module.name)
+    }
 }

@@ -135,21 +135,3 @@ class PackBendModule : Module("packBend"), EngineAware {
             tag, bend, 0.0))
     }
 }
-
-/**
- * Displays the last [capacity] [Message.VoiceMessage]s received, oldest at top, most recent
- * at bottom.
- */
-class ShowVoiceModule : Module("showVoice") {
-    val input = addInput("in", isKickable = true)
-
-    val capacity = 8
-    val messages = mutableStateListOf<Message.VoiceMessage>()
-
-    override fun execute(triggerMessage: Message) {
-        if (triggerMessage is Message.VoiceMessage) {
-            messages.add(triggerMessage)
-            while (messages.size > capacity) messages.removeAt(0)
-        }
-    }
-}

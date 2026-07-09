@@ -13,12 +13,10 @@ class ShowModule : Module("show") {
     val input = addInput("in", isKickable = true)
 
     // We use a mutable state to update the UI when a message arrives
-    var displayValue by mutableStateOf(0.0)
+    var displayText by mutableStateOf("0")
         private set
 
     override fun execute(triggerMessage: Message) {
-        if (triggerMessage is Message.FloatValue) {
-            displayValue = triggerMessage.value
-        }
+        displayText = triggerMessage.toString()
     }
 }

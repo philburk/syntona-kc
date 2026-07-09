@@ -64,10 +64,10 @@ object ModuleRegistry {
 
         val view = getOrCreateBundle(core, "view")
         view.modules.add(ModuleEntry("show") { ShowModule() })
+        view.modules.add(ModuleEntry("showMany") { ShowManyModule() })
         view.modules.add(ModuleEntry("print") { PrintModule() })
 
         val voices = getOrCreateBundle(root, "voices")
-        voices.modules.add(ModuleEntry("showVoice") { ShowVoiceModule() })
         voices.modules.add(ModuleEntry("packVoice") { PackVoiceModule() })
         voices.modules.add(ModuleEntry("packBend") { PackBendModule() })
         voices.modules.add(ModuleEntry("packNote") { PackNoteModule() })

@@ -333,14 +333,6 @@
     },
     {
       "id": 7,
-      "type": "showVoice",
-      "name": "showVoice",
-      "x": 558,
-      "y": 283.125,
-      "jacks": {}
-    },
-    {
-      "id": 8,
       "type": "packBend",
       "name": "packBend",
       "x": 418.875,
@@ -354,7 +346,7 @@
       }
     },
     {
-      "id": 9,
+      "id": 8,
       "type": "+",
       "name": "+",
       "x": 368,
@@ -368,7 +360,7 @@
       }
     },
     {
-      "id": 10,
+      "id": 9,
       "type": "comment",
       "name": "comment",
       "x": 46.899994,
@@ -377,6 +369,14 @@
       "text": "A polyPatch is a patch with multiple voices so it can play chords. It accepts VoiceMessages, for example, NOTE_ON, NOTE_OFF and PITCH_BEND. The packNote module is used to format VoiceMessages.",
       "w": 498.82324,
       "h": 99.25
+    },
+    {
+      "id": 10,
+      "type": "showMany",
+      "name": "showMany",
+      "x": 565.9441,
+      "y": 287.88818,
+      "jacks": {}
     }
   ],
   "connections": [
@@ -401,32 +401,20 @@
     {
       "from": 6,
       "fromJack": "out",
-      "to": 7,
-      "toJack": "in"
-    },
-    {
-      "from": 6,
-      "fromJack": "out",
       "to": 3,
       "toJack": "input"
     },
     {
       "from": 5,
       "fromJack": "out",
-      "to": 8,
+      "to": 7,
       "toJack": "bend"
     },
     {
-      "from": 8,
+      "from": 7,
       "fromJack": "out",
       "to": 3,
       "toJack": "input"
-    },
-    {
-      "from": 8,
-      "fromJack": "out",
-      "to": 7,
-      "toJack": "in"
     },
     {
       "from": 2,
@@ -449,11 +437,11 @@
     {
       "from": 2,
       "fromJack": "out4",
-      "to": 9,
+      "to": 8,
       "toJack": "A"
     },
     {
-      "from": 9,
+      "from": 8,
       "fromJack": "out",
       "to": 6,
       "toJack": "pitch"
@@ -463,6 +451,18 @@
       "fromJack": "out5",
       "to": 6,
       "toJack": "pitch"
+    },
+    {
+      "from": 7,
+      "fromJack": "out",
+      "to": 10,
+      "toJack": "in"
+    },
+    {
+      "from": 6,
+      "fromJack": "out",
+      "to": 10,
+      "toJack": "in"
     }
   ],
   "windowX": 10,
