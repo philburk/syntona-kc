@@ -87,7 +87,7 @@ fun BundleView(
                                     mdiState.cancelTreeDrag()
                                     if (creator != null) {
                                         val target = mdiState.graphStateAtPosition(pos, density)
-                                        target?.addModule(creator(), pos - target.rootOffset)
+                                        target?.addModule(creator(), (pos - target.rootOffset) / density)
                                     }
                                 },
                                 onDragCancel = {

@@ -180,7 +180,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
         }
     }
 
-    fun selectModulesInRect(rectStart: Offset, rectEnd: Offset) {
+    fun selectModulesInRect(rectStart: Offset, rectEnd: Offset, density: Float) {
         val left = kotlin.math.min(rectStart.x, rectEnd.x)
         val top = kotlin.math.min(rectStart.y, rectEnd.y)
         val right = kotlin.math.max(rectStart.x, rectEnd.x)
@@ -189,13 +189,15 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
         clearSelection()
 
         modules.forEach { module ->
-            val pos = modulePositions[module] ?: Offset.Zero
+            val posDp = modulePositions[module] ?: Offset.Zero
+            val posX = posDp.x * density
+            val posY = posDp.y * density
             val size = moduleSizes[module]
-            val width = size?.x ?: 150f
-            val height = size?.y ?: 250f
+            val width = size?.x ?: (150f * density)
+            val height = size?.y ?: (250f * density)
             // Check if module rect overlaps selection rect
-            if (pos.x < right && pos.x + width > left &&
-                pos.y < bottom && pos.y + height > top) {
+            if (posX < right && posX + width > left &&
+                posY < bottom && posY + height > top) {
                 selectModule(module)
             }
         }

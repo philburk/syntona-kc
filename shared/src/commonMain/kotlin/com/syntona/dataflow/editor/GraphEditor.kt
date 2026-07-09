@@ -138,7 +138,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                 val rectStart = state.selectionRectStart
                 val rectEnd = state.selectionRectEnd
                 if (rectStart != null && rectEnd != null) {
-                    state.selectModulesInRect(rectStart, rectEnd)
+                    state.selectModulesInRect(rectStart, rectEnd, density)
                 }
                 state.selectionRectStart = null
                 state.selectionRectEnd = null
@@ -267,7 +267,7 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color? = null, la
 
     Surface(
         modifier = Modifier
-            .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
+            .offset { IntOffset((position.x * density).roundToInt(), (position.y * density).roundToInt()) }
             .width(IntrinsicSize.Max)
             .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
             .onSizeChanged { size ->
@@ -356,7 +356,7 @@ fun KeyMatchModuleNode(module: KeyMatchModule, state: GraphState) {
 
     Surface(
         modifier = Modifier
-            .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
+            .offset { IntOffset((position.x * density).roundToInt(), (position.y * density).roundToInt()) }
             .size(width = 80.dp, height = 80.dp)
             .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
             .onSizeChanged { size ->
@@ -811,7 +811,7 @@ fun FaderModuleNode(module: FaderModule, state: GraphState) {
 
     Surface(
         modifier = Modifier
-            .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
+            .offset { IntOffset((position.x * density).roundToInt(), (position.y * density).roundToInt()) }
             .width(70.dp)
             .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
             .onSizeChanged { size ->
@@ -893,7 +893,7 @@ fun PatchModuleNode(module: PatchModule, state: GraphState) {
 
     Surface(
         modifier = Modifier
-            .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
+            .offset { IntOffset((position.x * density.density).roundToInt(), (position.y * density.density).roundToInt()) }
             .width(120.dp)
             .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
             .onSizeChanged { size ->
@@ -914,9 +914,10 @@ fun PatchModuleNode(module: PatchModule, state: GraphState) {
                         val restoredPosition = if (savedX != null && savedY != null) {
                             Offset(savedX * density.density, savedY * density.density)
                         } else {
+                            val pos = state.modulePositions[module] ?: Offset(100f, 100f)
                             Offset(
-                                (state.modulePositions[module]?.x ?: 100f) + 20f,
-                                (state.modulePositions[module]?.y ?: 100f) + 30f
+                                (pos.x + 20f) * density.density,
+                                (pos.y + 30f) * density.density
                             )
                         }
                         val window = MdiWindowInfo(
@@ -969,7 +970,7 @@ fun DoubleEntryModuleNode(module: DoubleEntryModule, state: GraphState) {
 
     Surface(
         modifier = Modifier
-            .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
+            .offset { IntOffset((position.x * density).roundToInt(), (position.y * density).roundToInt()) }
             .width(140.dp)
             .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
             .onSizeChanged { size ->
@@ -1030,7 +1031,7 @@ fun SequenceModuleNode(module: SequenceModule, state: GraphState) {
 
     Surface(
         modifier = Modifier
-            .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
+            .offset { IntOffset((position.x * density).roundToInt(), (position.y * density).roundToInt()) }
             .width(110.dp)
             .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
             .onSizeChanged { size ->
@@ -1114,7 +1115,7 @@ fun KnobModuleNode(module: KnobModule, state: GraphState) {
 
     Surface(
         modifier = Modifier
-            .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
+            .offset { IntOffset((position.x * density).roundToInt(), (position.y * density).roundToInt()) }
             .width(90.dp)
             .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
             .onSizeChanged { size ->
@@ -1213,7 +1214,7 @@ fun ResizableModuleBox(
 
     Surface(
         modifier = Modifier
-            .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
+            .offset { IntOffset((position.x * density.density).roundToInt(), (position.y * density.density).roundToInt()) }
             .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
             .onSizeChanged { size ->
                 state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
@@ -1332,13 +1333,14 @@ fun SegmentedEnvelopeModuleNode(module: SegmentedEnvelopeModule, state: GraphSta
     val colors = LocalGraphColors.current
     val position = state.modulePositions[module] ?: Offset.Zero
     val mdiState = LocalMdiState.current
+    val density = LocalDensity.current
     val isSelected = state.selectedModules.contains(module)
     val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
     val borderWidth = if (isSelected) 2.dp else 1.dp
 
     Surface(
         modifier = Modifier
-            .offset { IntOffset(position.x.roundToInt(), position.y.roundToInt()) }
+            .offset { IntOffset((position.x * density.density).roundToInt(), (position.y * density.density).roundToInt()) }
             .width(IntrinsicSize.Max)
             .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
             .onSizeChanged { size ->
@@ -1359,8 +1361,8 @@ fun SegmentedEnvelopeModuleNode(module: SegmentedEnvelopeModule, state: GraphSta
                                 id = module,
                                 title = module.name,
                                 position = Offset(
-                                    (state.modulePositions[module]?.x ?: 100f) + 20f,
-                                    (state.modulePositions[module]?.y ?: 100f) + 30f
+                                    ((state.modulePositions[module]?.x ?: 100f) + 20f) * density.density,
+                                    ((state.modulePositions[module]?.y ?: 100f) + 30f) * density.density
                                 ),
                                 content = {
                                     val localMdi = LocalMdiState.current
@@ -1426,7 +1428,7 @@ fun Modifier.headerGestures(
         drag(down.id) { change ->
             change.consume()
             wasDragged = true
-            val dragAmount = change.position - change.previousPosition
+            val dragAmount = (change.position - change.previousPosition) / density
             if (state.selectedModules.contains(module)) {
                 state.selectedModules.forEach { m ->
                     state.updateModulePosition(m, dragAmount)

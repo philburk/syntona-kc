@@ -69,9 +69,8 @@ object GraphSerializer {
         modules.forEachIndexed { i, module ->
             if (i > 0) append(",")
             val pos = graphState.modulePositions[module] ?: Offset.Zero
-            // Store positions as dp (divide by density) so they load correctly on any screen density
-            val xDp = pos.x / density
-            val yDp = pos.y / density
+            val xDp = pos.x
+            val yDp = pos.y
             append("{\"id\":$i,\"type\":\"${module.type.jsonEscape}\",\"name\":\"${module.name.jsonEscape}\"")
             append(",\"x\":$xDp,\"y\":$yDp,\"jacks\":{")
             val valueJacks = module.inputs.filter { jack ->
@@ -192,8 +191,8 @@ object GraphSerializer {
                 }
             }
 
-            // x/y are stored as dp; convert to physical pixels by multiplying by density
-            graphState.addModule(module, Offset(x * density + offset.x, y * density + offset.y))
+            // x/y are stored as dp; store directly in GraphState
+            graphState.addModule(module, Offset(x + offset.x, y + offset.y))
             jacks?.map?.forEach { (jackName, jackValue) ->
                 val inputJack = module.inputs.find { it.name == jackName } as? InputJack ?: return@forEach
                 when (jackValue) {
