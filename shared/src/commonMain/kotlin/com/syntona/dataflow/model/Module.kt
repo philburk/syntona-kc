@@ -75,6 +75,18 @@ abstract class Module(val type: String) {
         return jack
     }
 
+    protected fun addVoiceInput(name: String, isKickable: Boolean = false): VoiceInputJack {
+        val jack = VoiceInputJack(name, this, isKickable)
+        _inputs.add(jack)
+        return jack
+    }
+
+    protected fun addVoiceOutput(name: String): VoiceOutputJack {
+        val jack = VoiceOutputJack(name, this)
+        _outputs.add(jack)
+        return jack
+    }
+
     /**
      * Called when any [InputJack] receives a message.
      * If the jack is kickable, [execute] is called.

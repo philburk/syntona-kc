@@ -23,7 +23,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
     var isInitialized = false
         private set
 
-    val voiceInputJack = addInput("input", isKickable = true)
+    val voiceInputJack = addVoiceInput("input", isKickable = true)
 
     init {
         // Setup graphState lifecycle callbacks to sync edits to background voices

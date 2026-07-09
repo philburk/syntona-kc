@@ -82,6 +82,7 @@ import kotlin.math.roundToInt
 
 @Composable
 fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
+    val colors = LocalGraphColors.current
     val mdiState = LocalMdiState.current
     val focusRequester = remember { FocusRequester() }
     val editingModule = state.editingModule
@@ -96,7 +97,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
             focusRequester.requestFocus()
         }
     }
-    Box(modifier = modifier.fillMaxSize().background(Color(0xFF1E1E1E))
+    Box(modifier = modifier.fillMaxSize().background(colors.background)
         .focusRequester(focusRequester)
         .focusable()
         .onKeyEvent { keyEvent ->
@@ -155,10 +156,10 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                 is KnobModule -> KnobModuleNode(module, state)
                 is PatchModule -> PatchModuleNode(module, state)
                 is SequenceModule -> SequenceModuleNode(module, state)
-                is InputModule -> ModuleNode(module, state, headerColor = Color(0xFF6A3D00), label = module.name)
-                is OutputModule -> ModuleNode(module, state, headerColor = Color(0xFF6A3D00), label = module.name)
-                is AudioInputModule -> ModuleNode(module, state, headerColor = Color(0xFF1A5C1A), label = module.name)
-                is AudioOutputModule -> ModuleNode(module, state, headerColor = Color(0xFF1A5C1A), label = module.name)
+                is InputModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
+                is OutputModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
+                is AudioInputModule -> ModuleNode(module, state, headerColor = colors.headerAudio, label = module.name)
+                is AudioOutputModule -> ModuleNode(module, state, headerColor = colors.headerAudio, label = module.name)
                 is ScopeModule -> ScopeModuleNode(module, state)
                 is CommentModule -> CommentModuleNode(module, state)
                 is SegmentedEnvelopeModule -> SegmentedEnvelopeModuleNode(module, state)
@@ -177,13 +178,13 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                 val right = maxOf(selRectStart.x, selRectEnd.x)
                 val bottom = maxOf(selRectStart.y, selRectEnd.y)
                 drawRect(
-                    color = Color.Cyan,
+                    color = colors.selectionRect,
                     topLeft = Offset(left, top),
                     size = Size(right - left, bottom - top),
                     style = Stroke(width = 1.dp.toPx())
                 )
                 drawRect(
-                    color = Color.Cyan.copy(alpha = 0.1f),
+                    color = colors.selectionRect.copy(alpha = 0.1f),
                     topLeft = Offset(left, top),
                     size = Size(right - left, bottom - top)
                 )
@@ -210,14 +211,19 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
 
 @Composable
 fun WireRenderer(state: GraphState) {
+    val colors = LocalGraphColors.current
     Canvas(modifier = Modifier.fillMaxSize()) {
         state.connections.forEach { conn ->
             val start = state.jackOffsets[conn.output] ?: Offset.Zero
             val end = state.jackOffsets[conn.input] ?: Offset.Zero
 
             if (start != Offset.Zero && end != Offset.Zero) {
-                val isAudio = conn.output is AudioOutputJack
-                val wireColor = if (isAudio) Color(0xFF44DD44) else Color.Gray
+                val wireColor = when (conn.output) {
+                    is AudioOutputJack -> colors.wireAudio
+                    is VoiceOutputJack -> colors.wireVoice
+                    is DataQueueOutputJack -> colors.wireDataQueue
+                    else -> colors.wireDefault
+                }
                 val path = Path().apply {
                     moveTo(start.x, start.y)
                     val controlX = (start.x + end.x) / 2
@@ -233,9 +239,14 @@ fun WireRenderer(state: GraphState) {
             val start = state.jackOffsets[draggingOutput] ?: Offset.Zero
             val end = state.dragPointerPosition
             if (start != Offset.Zero) {
-                val isAudio = draggingOutput is AudioOutputJack
+                val wireColor = when (draggingOutput) {
+                    is AudioOutputJack -> colors.wireAudio
+                    is VoiceOutputJack -> colors.wireVoice
+                    is DataQueueOutputJack -> colors.wireDataQueue
+                    else -> colors.wireDragging
+                }
                 drawLine(
-                    color = if (isAudio) Color(0xFF44DD44) else Color.Yellow,
+                    color = wireColor,
                     start = start,
                     end = end,
                     strokeWidth = 3f
@@ -246,10 +257,12 @@ fun WireRenderer(state: GraphState) {
 }
 
 @Composable
-fun ModuleNode(module: Module, state: GraphState, headerColor: Color = Color.Blue, label: String = module.name) {
+fun ModuleNode(module: Module, state: GraphState, headerColor: Color? = null, label: String = module.name) {
+    val colors = LocalGraphColors.current
+    val resolvedHeaderColor = headerColor ?: colors.headerDefault
     val position = state.modulePositions[module] ?: Offset.Zero
     val isSelected = state.selectedModules.contains(module)
-    val borderColor = if (isSelected) Color(0xFFFFA500) else Color.Black
+    val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
     val borderWidth = if (isSelected) 2.dp else 1.dp
 
     Surface(
@@ -261,7 +274,7 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color = Color.Blu
                 state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
             },
         shape = RoundedCornerShape(4.dp),
-        color = Color.DarkGray
+        color = colors.moduleBackground
     ) {
         Column(modifier = Modifier.width(IntrinsicSize.Max)) {
             // Drag handle
@@ -269,7 +282,7 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color = Color.Blu
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(24.dp)
-                    .background(headerColor)
+                    .background(resolvedHeaderColor)
                     .headerGestures(state, module) {
                         state.editingModule = module
                     }
@@ -335,9 +348,10 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color = Color.Blu
 
 @Composable
 fun KeyMatchModuleNode(module: KeyMatchModule, state: GraphState) {
+    val colors = LocalGraphColors.current
     val position = state.modulePositions[module] ?: Offset.Zero
     val isSelected = state.selectedModules.contains(module)
-    val borderColor = if (isSelected) Color(0xFFFFA500) else Color.Black
+    val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
     val borderWidth = if (isSelected) 2.dp else 1.dp
 
     Surface(
@@ -349,7 +363,7 @@ fun KeyMatchModuleNode(module: KeyMatchModule, state: GraphState) {
                 state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
             },
         shape = RoundedCornerShape(4.dp),
-        color = Color.DarkGray
+        color = colors.moduleBackground
     ) {
         Column {
             // Drag handle (header bar matching standard modules)
@@ -357,7 +371,7 @@ fun KeyMatchModuleNode(module: KeyMatchModule, state: GraphState) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(24.dp)
-                    .background(Color.Blue)
+                    .background(colors.headerDefault)
                     .headerGestures(state, module) {
                         state.editingModule = module
                     }
@@ -380,7 +394,7 @@ fun KeyMatchModuleNode(module: KeyMatchModule, state: GraphState) {
             ) {
                 // Button
                 var isPressed by remember { mutableStateOf(false) }
-                val buttonBg = if (isPressed) Color.Gray else Color(0xFF3E3E3E)
+                val buttonBg = if (isPressed) colors.buttonBgPressed else colors.buttonBg
 
                 Box(
                     contentAlignment = Alignment.Center,
@@ -442,7 +456,8 @@ fun KeyMatchModuleNode(module: KeyMatchModule, state: GraphState) {
 
 @Composable
 fun UnlabelledJackView(jack: Jack, state: GraphState) {
-    val connectorColor = Color.Cyan
+    val colors = LocalGraphColors.current
+    val connectorColor = colors.jackDefault
     var jackRootPosition by remember { mutableStateOf(Offset.Zero) }
 
     Box(
@@ -495,18 +510,21 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
         CommandOutputJackView(jack, state, isLeft)
         return
     }
+    val colors = LocalGraphColors.current
     val connectorColor = when {
-        jack is InputJack && jack.isKickable -> Color.Red
-        jack is AudioInputJack || jack is AudioOutputJack -> Color(0xFF44DD44)
-        jack is DataQueueInputJack || jack is DataQueueOutputJack -> Color.Yellow
-        else -> Color.Cyan
+        jack is InputJack && jack.isKickable -> colors.jackKickable
+        jack is AudioInputJack || jack is AudioOutputJack -> colors.jackAudio
+        jack is VoiceInputJack || jack is VoiceOutputJack -> colors.jackVoice
+        jack is DataQueueInputJack || jack is DataQueueOutputJack -> colors.jackDataQueue
+        else -> colors.jackDefault
     }
     val textColor = if (jack.isHighlighted) Color.Black else Color.LightGray
     val backgroundColor = when {
-        jack.isHighlighted -> Color(180, 170, 130)
-        jack is AudioInputJack || jack is AudioOutputJack -> Color(0xFF1A3A1A)
-        jack is DataQueueInputJack || jack is DataQueueOutputJack -> Color(0xFF3A3A1A)
-        else -> Color.DarkGray
+        jack.isHighlighted -> colors.jackBgHighlighted
+        jack is AudioInputJack || jack is AudioOutputJack -> colors.jackBgAudio
+        jack is VoiceInputJack || jack is VoiceOutputJack -> colors.jackBgVoice
+        jack is DataQueueInputJack || jack is DataQueueOutputJack -> colors.jackBgDataQueue
+        else -> colors.jackBgDefault
     }
 
     var isHovered by remember { mutableStateOf(false) }
@@ -620,6 +638,7 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
 
 @Composable
 fun CommandJackView(jack: CommandJack, state: GraphState, isLeft: Boolean) {
+    val colors = LocalGraphColors.current
     var jackRootPosition by remember { mutableStateOf(Offset.Zero) }
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -650,7 +669,7 @@ fun CommandJackView(jack: CommandJack, state: GraphState, isLeft: Boolean) {
             }
     ) {
         if (isLeft) {
-            Box(modifier = Modifier.size(8.dp).background(Color.Red))
+            Box(modifier = Modifier.size(8.dp).background(colors.jackKickable))
             Spacer(modifier = Modifier.width(4.dp))
         }
         Button(
@@ -669,13 +688,14 @@ fun CommandJackView(jack: CommandJack, state: GraphState, isLeft: Boolean) {
         }
         if (!isLeft) {
             Spacer(modifier = Modifier.width(4.dp))
-            Box(modifier = Modifier.size(8.dp).background(Color.Red))
+            Box(modifier = Modifier.size(8.dp).background(colors.jackKickable))
         }
     }
 }
 
 @Composable
 fun CommandOutputJackView(jack: CommandOutputJack, state: GraphState, isLeft: Boolean) {
+    val colors = LocalGraphColors.current
     var jackRootPosition by remember { mutableStateOf(Offset.Zero) }
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -706,7 +726,7 @@ fun CommandOutputJackView(jack: CommandOutputJack, state: GraphState, isLeft: Bo
             }
     ) {
         if (isLeft) {
-            Box(modifier = Modifier.size(8.dp).background(Color.Red))
+            Box(modifier = Modifier.size(8.dp).background(colors.jackKickable))
             Spacer(modifier = Modifier.width(4.dp))
         }
         Button(
@@ -726,7 +746,7 @@ fun CommandOutputJackView(jack: CommandOutputJack, state: GraphState, isLeft: Bo
         }
         if (!isLeft) {
             Spacer(modifier = Modifier.width(4.dp))
-            Box(modifier = Modifier.size(8.dp).background(Color.Red))
+            Box(modifier = Modifier.size(8.dp).background(colors.jackKickable))
         }
     }
 }
@@ -737,11 +757,13 @@ fun CommandOutputJackView(jack: CommandOutputJack, state: GraphState, isLeft: Bo
  */
 @Composable
 fun CompactJackConnector(jack: Jack, state: GraphState, isLeft: Boolean) {
+    val colors = LocalGraphColors.current
     val connectorColor = when {
-        jack is InputJack && jack.isKickable -> Color.Red
-        jack is AudioInputJack || jack is AudioOutputJack -> Color(0xFF44DD44)
-        jack is DataQueueInputJack || jack is DataQueueOutputJack -> Color.Yellow
-        else -> Color.Cyan
+        jack is InputJack && jack.isKickable -> colors.jackKickable
+        jack is AudioInputJack || jack is AudioOutputJack -> colors.jackAudio
+        jack is VoiceInputJack || jack is VoiceOutputJack -> colors.jackVoice
+        jack is DataQueueInputJack || jack is DataQueueOutputJack -> colors.jackDataQueue
+        else -> colors.jackDefault
     }
     var jackRootPosition by remember { mutableStateOf(Offset.Zero) }
 
@@ -749,7 +771,7 @@ fun CompactJackConnector(jack: Jack, state: GraphState, isLeft: Boolean) {
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .size(12.dp)
-            .then(if (jack.isHighlighted) Modifier.background(Color(190, 180, 130), shape = RoundedCornerShape(3.dp)) else Modifier)
+            .then(if (jack.isHighlighted) Modifier.background(colors.jackBgHighlighted, shape = RoundedCornerShape(3.dp)) else Modifier)
             .onGloballyPositioned { coords ->
                 jackRootPosition = coords.positionInRoot()
                 val size = coords.size
@@ -781,9 +803,10 @@ fun CompactJackConnector(jack: Jack, state: GraphState, isLeft: Boolean) {
 
 @Composable
 fun FaderModuleNode(module: FaderModule, state: GraphState) {
+    val colors = LocalGraphColors.current
     val position = state.modulePositions[module] ?: Offset.Zero
     val isSelected = state.selectedModules.contains(module)
-    val borderColor = if (isSelected) Color(0xFFFFA500) else Color.Black
+    val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
     val borderWidth = if (isSelected) 2.dp else 1.dp
 
     Surface(
@@ -795,14 +818,14 @@ fun FaderModuleNode(module: FaderModule, state: GraphState) {
                 state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
             },
         shape = RoundedCornerShape(4.dp),
-        color = Color.DarkGray
+        color = colors.moduleBackground
     ) {
         Column {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(24.dp)
-                    .background(Color.Blue)
+                    .background(colors.headerDefault)
                     .headerGestures(state, module) {
                         state.editingModule = module
                     }
@@ -860,11 +883,12 @@ fun FaderModuleNode(module: FaderModule, state: GraphState) {
 
 @Composable
 fun PatchModuleNode(module: PatchModule, state: GraphState) {
+    val colors = LocalGraphColors.current
     val position = state.modulePositions[module] ?: Offset.Zero
     val mdiState = LocalMdiState.current
     val density = LocalDensity.current
     val isSelected = state.selectedModules.contains(module)
-    val borderColor = if (isSelected) Color(0xFFFFA500) else Color.Black
+    val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
     val borderWidth = if (isSelected) 2.dp else 1.dp
 
     Surface(
@@ -876,14 +900,14 @@ fun PatchModuleNode(module: PatchModule, state: GraphState) {
                 state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
             },
         shape = RoundedCornerShape(4.dp),
-        color = Color(0xFF1A3A2A)
+        color = colors.modulePatchBackground
     ) {
         Column {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(24.dp)
-                    .background(Color(0xFF2E7D52))
+                    .background(colors.headerPatch)
                     .headerGestures(state, module) {
                         val savedX = module.windowX
                         val savedY = module.windowY
@@ -937,9 +961,10 @@ fun PatchModuleNode(module: PatchModule, state: GraphState) {
 
 @Composable
 fun DoubleEntryModuleNode(module: DoubleEntryModule, state: GraphState) {
+    val colors = LocalGraphColors.current
     val position = state.modulePositions[module] ?: Offset.Zero
     val isSelected = state.selectedModules.contains(module)
-    val borderColor = if (isSelected) Color(0xFFFFA500) else Color.Black
+    val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
     val borderWidth = if (isSelected) 2.dp else 1.dp
 
     Surface(
@@ -951,14 +976,14 @@ fun DoubleEntryModuleNode(module: DoubleEntryModule, state: GraphState) {
                 state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
             },
         shape = RoundedCornerShape(4.dp),
-        color = Color.DarkGray
+        color = colors.moduleBackground
     ) {
         Column {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(24.dp)
-                    .background(Color.Blue)
+                    .background(colors.headerDefault)
                     .headerGestures(state, module) {
                         state.editingModule = module
                     }
@@ -997,9 +1022,10 @@ fun DoubleEntryModuleNode(module: DoubleEntryModule, state: GraphState) {
 
 @Composable
 fun SequenceModuleNode(module: SequenceModule, state: GraphState) {
+    val colors = LocalGraphColors.current
     val position = state.modulePositions[module] ?: Offset.Zero
     val isSelected = state.selectedModules.contains(module)
-    val borderColor = if (isSelected) Color(0xFFFFA500) else Color.Black
+    val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
     val borderWidth = if (isSelected) 2.dp else 1.dp
 
     Surface(
@@ -1011,14 +1037,14 @@ fun SequenceModuleNode(module: SequenceModule, state: GraphState) {
                 state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
             },
         shape = RoundedCornerShape(4.dp),
-        color = Color.DarkGray
+        color = colors.moduleBackground
     ) {
         Column {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(28.dp)
-                    .background(Color(0xFF2B506E))
+                    .background(colors.headerSequence)
                     .headerGestures(state, module) {
                         state.editingModule = module
                     }
@@ -1080,9 +1106,10 @@ fun SequenceModuleNode(module: SequenceModule, state: GraphState) {
 
 @Composable
 fun KnobModuleNode(module: KnobModule, state: GraphState) {
+    val colors = LocalGraphColors.current
     val position = state.modulePositions[module] ?: Offset.Zero
     val isSelected = state.selectedModules.contains(module)
-    val borderColor = if (isSelected) Color(0xFFFFA500) else Color.Black
+    val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
     val borderWidth = if (isSelected) 2.dp else 1.dp
 
     Surface(
@@ -1094,7 +1121,7 @@ fun KnobModuleNode(module: KnobModule, state: GraphState) {
                 state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
             },
         shape = RoundedCornerShape(4.dp),
-        color = Color.DarkGray
+        color = colors.moduleBackground
     ) {
         Column {
             // Title bar — drag to move, double-tap to open editor
@@ -1102,7 +1129,7 @@ fun KnobModuleNode(module: KnobModule, state: GraphState) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(24.dp)
-                    .background(Color(0xFF1565C0))
+                    .background(colors.headerKnob)
                     .headerGestures(state, module) {
                         state.editingModule = module
                     }
@@ -1173,9 +1200,10 @@ fun ResizableModuleBox(
     onResize: (Dp, Dp) -> Unit = { _, _ -> },
     content: @Composable BoxScope.(Dp, Dp) -> Unit
 ) {
+    val colors = LocalGraphColors.current
     val position = state.modulePositions[module] ?: Offset.Zero
     val isSelected = state.selectedModules.contains(module)
-    val borderColor = if (isSelected) Color(0xFFFFA500) else Color.Black
+    val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
     val borderWidth = if (isSelected) 2.dp else 1.dp
     val density = LocalDensity.current
 
@@ -1191,7 +1219,7 @@ fun ResizableModuleBox(
                 state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
             },
         shape = RoundedCornerShape(4.dp),
-        color = Color.DarkGray
+        color = colors.moduleBackground
     ) {
         Column {
             Box(
@@ -1230,11 +1258,11 @@ fun ResizableModuleBox(
                                 val dh: Dp = (dragAmount.y / density.density).dp
                                 currentWidth = (currentWidth + dw).coerceAtLeast(minWidth)
                                 currentHeight = (currentHeight + dh).coerceAtLeast(minHeight)
-                            }
+                             }
                         }
                 ) {
                     Canvas(modifier = Modifier.fillMaxSize()) {
-                        val grip = Color(0xFF888888)
+                        val grip = colors.faderGrip
                         for (i in 1..3) {
                             val d = size.width * i / 4f
                             drawLine(grip, Offset(d, size.height), Offset(size.width, d), strokeWidth = 1.5f)
@@ -1248,10 +1276,11 @@ fun ResizableModuleBox(
 
 @Composable
 fun CommentModuleNode(module: CommentModule, state: GraphState) {
+    val colors = LocalGraphColors.current
     ResizableModuleBox(
         module = module,
         state = state,
-        headerColor = Color(0xFF4A4A4A),
+        headerColor = colors.headerComment,
         initialWidth = module.width.dp,
         initialHeight = module.height.dp,
         onResize = { w, h ->
@@ -1270,10 +1299,11 @@ fun CommentModuleNode(module: CommentModule, state: GraphState) {
 
 @Composable
 fun ScopeModuleNode(module: ScopeModule, state: GraphState) {
+    val colors = LocalGraphColors.current
     ResizableModuleBox(
         module = module,
         state = state,
-        headerColor = Color(0xFF1A3A1A),
+        headerColor = colors.headerAudio,
         initialWidth = module.width.dp,
         initialHeight = module.height.dp,
         onResize = { w, h ->
@@ -1299,10 +1329,11 @@ fun ScopeModuleNode(module: ScopeModule, state: GraphState) {
 
 @Composable
 fun SegmentedEnvelopeModuleNode(module: SegmentedEnvelopeModule, state: GraphState) {
+    val colors = LocalGraphColors.current
     val position = state.modulePositions[module] ?: Offset.Zero
     val mdiState = LocalMdiState.current
     val isSelected = state.selectedModules.contains(module)
-    val borderColor = if (isSelected) Color(0xFFFFA500) else Color.Black
+    val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
     val borderWidth = if (isSelected) 2.dp else 1.dp
 
     Surface(
@@ -1314,14 +1345,14 @@ fun SegmentedEnvelopeModuleNode(module: SegmentedEnvelopeModule, state: GraphSta
                 state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
             },
         shape = RoundedCornerShape(4.dp),
-        color = Color.DarkGray
+        color = colors.moduleBackground
     ) {
         Column {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(24.dp)
-                    .background(Color(0xFF6A3D00))
+                    .background(colors.headerInputOutput)
                     .headerGestures(state, module) {
                         mdiState.open(
                             MdiWindowInfo(
@@ -1337,7 +1368,7 @@ fun SegmentedEnvelopeModuleNode(module: SegmentedEnvelopeModule, state: GraphSta
                                     Column(
                                         modifier = Modifier
                                             .fillMaxSize()
-                                            .background(Color(0xFF1E1E1E))
+                                            .background(colors.background)
                                             .padding(12.dp),
                                         verticalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {

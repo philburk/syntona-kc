@@ -18,6 +18,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import com.syntona.dataflow.editor.LocalGraphColors
+import com.syntona.dataflow.editor.DarkGraphColors
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -122,7 +124,8 @@ fun App(
     showFileMenuInToolbar: Boolean = true,
 ) {
     MaterialTheme {
-        var showContent by remember { mutableStateOf(true) }
+        CompositionLocalProvider(LocalGraphColors provides DarkGraphColors) {
+            var showContent by remember { mutableStateOf(true) }
         val scope = rememberCoroutineScope()
         val examplesList by produceState<List<String>>(emptyList()) {
             value = com.syntona.SharedResources.getFilesIndex()
@@ -851,6 +854,7 @@ fun App(
                 }
             }
         }
+    }
     }
 }
 

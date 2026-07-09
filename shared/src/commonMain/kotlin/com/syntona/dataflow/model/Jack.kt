@@ -107,3 +107,6 @@ open class OutputJack(
  */
 class CommandOutputJack(name: String, module: Module) : OutputJack(name, module)
 
+class VoiceInputJack(name: String, module: Module, isKickable: Boolean = false) : InputJack(name, module, isKickable)
+class VoiceOutputJack(name: String, module: Module) : OutputJack(name, module)
+

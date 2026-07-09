@@ -20,7 +20,7 @@ class PackVoiceModule : Module("packVoice") {
     val tagIn = addInput("tag", isKickable = true)
     val valueIn = addInput("value")
     val extraIn = addInput("extra")
-    val output = addOutput("out")
+    val output = addVoiceOutput("out")
 
     init {
         opcodeIn.setValue(Message.VoiceOpcode.NOTE_ON.ordinal.toDouble())
@@ -67,7 +67,7 @@ class PackNoteModule : Module("packNote"), EngineAware {
         it.min = 0.0
         it.max = 1000.0
     }
-    val output = addOutput("out")
+    val output = addVoiceOutput("out")
 
     private var engine: DataFlowEngine? = null
 
@@ -114,7 +114,7 @@ class PackBendModule : Module("packBend"), EngineAware {
         it.min = -1.0
         it.max = 127.0
     }
-    val output = addOutput("out")
+    val output = addVoiceOutput("out")
 
     private var engine: DataFlowEngine? = null
 
