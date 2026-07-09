@@ -1,1 +1,224 @@
-{"modules":[{"id":0,"type":"comment","x":18.875,"y":8.0,"jacks":{},"text":"Click on the first knob and drag up to increase the amplitude (volume).\nClick on the second knob and drag to control the oscillator frequency.\nDouble click on the \"segEnv\" header to open the segmented envelope editor.\nThe clock is triggering note on and off events by queuing envelope segments.","w":570.1186,"h":83.28953},{"id":1,"type":"sawOscBL","x":448.875,"y":188.0,"jacks":{"frequency":{"v":305.5713195800781,"min":40.0,"max":8000.0},"amplitude":{"v":0.0,"min":0.0,"max":1.0}}},{"id":2,"type":"lineOut","x":573.9116,"y":181.91162,"jacks":{"input0":{"v":0.0,"min":0.0,"max":1.0},"input1":{"v":0.0,"min":0.0,"max":1.0}}},{"id":3,"type":"knob","x":309.875,"y":142.0,"jacks":{"in":{"v":305.5713195800781,"min":40.0,"max":8000.0}}},{"id":4,"type":"monoRdr","x":335.0,"y":275.125,"jacks":{"amplitude":{"v":0.0,"min":0.0,"max":1.0},"rate":{"v":1.0,"min":0.0,"max":1.0}}},{"id":5,"type":"segEnv","x":228.875,"y":278.0,"jacks":{},"envData":[0.019999999552965164, 0.8999999761581421, 0.10000000149011612, 0.5, 0.06333333253860474, 0.3405405282974243, 0.07999998331069946, 0.5081080794334412, 0.1900000274181366, 0.2108108103275299, 0.22282323241233826, 0.06285714358091354, 0.23131674528121948, 0.0],"sustainBegin":2,"sustainEnd":4,"releaseBegin":-1,"releaseEnd":-1},{"id":6,"type":"seq2","x":166.0,"y":280.875,"jacks":{}},{"id":7,"type":"clock","x":78.875,"y":281.0,"jacks":{}},{"id":8,"type":"knob","x":111.0,"y":142.875,"jacks":{"in":{"v":0.0,"min":0.0,"max":1.0}}},{"id":9,"type":"loadKick","x":8.911621,"y":191.08838,"jacks":{}},{"id":10,"type":"link","x":453.875,"y":121.0,"jacks":{},"filePath":"tutorials/02_editing/01_connections.json","buttonText":">> Next, editing connections"}],"connections":[{"from":1,"fromJack":"output","to":2,"toJack":"input0"},{"from":3,"fromJack":"out","to":1,"toJack":"frequency"},{"from":7,"fromJack":"output","to":6,"toJack":"in"},{"from":6,"fromJack":"out0","to":5,"toJack":"queueOn"},{"from":6,"fromJack":"out1","to":5,"toJack":"queueOff"},{"from":5,"fromJack":"output","to":4,"toJack":"data"},{"from":4,"fromJack":"output","to":1,"toJack":"amplitude"},{"from":8,"fromJack":"out","to":4,"toJack":"amplitude"},{"from":9,"fromJack":"kick","to":7,"toJack":"start"},{"from":1,"fromJack":"output","to":2,"toJack":"input1"}]}
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "comment",
+      "name": "comment",
+      "x": 18.875,
+      "y": 8,
+      "jacks": {},
+      "text": "Click on the first knob and drag up to increase the amplitude (volume).\nClick on the second knob and drag to control the oscillator frequency.\nDouble click on the \"segEnv\" header to open the segmented envelope editor.\nThe clock is triggering note on and off events by queuing envelope segments.",
+      "w": 570.1186,
+      "h": 83.28953
+    },
+    {
+      "id": 1,
+      "type": "sawOscBL",
+      "name": "sawOscBL",
+      "x": 505.875,
+      "y": 204,
+      "jacks": {
+        "frequency": {
+          "v": 305.5713195800781,
+          "min": 40,
+          "max": 8000
+        },
+        "amplitude": {
+          "v": 0,
+          "min": 0,
+          "max": 1
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "lineOut",
+      "name": "lineOut",
+      "x": 630.9116,
+      "y": 197.91162,
+      "jacks": {
+        "input0": {
+          "v": 0,
+          "min": 0,
+          "max": 1
+        },
+        "input1": {
+          "v": 0,
+          "min": 0,
+          "max": 1
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "knob",
+      "name": "knob",
+      "x": 366.875,
+      "y": 158,
+      "jacks": {
+        "in": {
+          "v": 305.5713195800781,
+          "min": 40,
+          "max": 8000
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "monoRdr",
+      "name": "monoRdr",
+      "x": 392,
+      "y": 291.125,
+      "jacks": {
+        "amplitude": {
+          "v": 0.28226330876350403,
+          "min": 0,
+          "max": 1
+        },
+        "rate": {
+          "v": 1,
+          "min": 0,
+          "max": 1
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "segEnv",
+      "name": "segEnv",
+      "x": 285.875,
+      "y": 294,
+      "jacks": {},
+      "envData": [0.019999999552965164, 0.8999999761581421, 0.10000000149011612, 0.5, 0.06333333253860474, 0.3405405282974243, 0.07999998331069946, 0.5081080794334412, 0.1900000274181366, 0.2108108103275299, 0.22282323241233826, 0.06285714358091354, 0.23131674528121948, 0],
+      "sustainBegin": 2,
+      "sustainEnd": 4,
+      "releaseBegin": -1,
+      "releaseEnd": -1
+    },
+    {
+      "id": 6,
+      "type": "seq2",
+      "name": "seq2",
+      "x": 166,
+      "y": 280.875,
+      "jacks": {
+        "in0": {
+          "v": 0,
+          "min": 0,
+          "max": 100
+        },
+        "in1": {
+          "v": 0,
+          "min": 0,
+          "max": 100
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "clock",
+      "name": "clock",
+      "x": 78.875,
+      "y": 281,
+      "jacks": {}
+    },
+    {
+      "id": 8,
+      "type": "knob",
+      "name": "knob",
+      "x": 111,
+      "y": 142.875,
+      "jacks": {
+        "in": {
+          "v": 0.28226330876350403,
+          "min": 0,
+          "max": 1
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "loadKick",
+      "name": "loadKick",
+      "x": 8.911621,
+      "y": 191.08838,
+      "jacks": {}
+    },
+    {
+      "id": 10,
+      "type": "link",
+      "name": "link",
+      "x": 526.875,
+      "y": 128,
+      "jacks": {},
+      "filePath": "tutorials/02_editing/01_connections.json",
+      "buttonText": ">> Next, editing connections"
+    }
+  ],
+  "connections": [
+    {
+      "from": 1,
+      "fromJack": "output",
+      "to": 2,
+      "toJack": "input0"
+    },
+    {
+      "from": 3,
+      "fromJack": "out",
+      "to": 1,
+      "toJack": "frequency"
+    },
+    {
+      "from": 7,
+      "fromJack": "output",
+      "to": 6,
+      "toJack": "in"
+    },
+    {
+      "from": 6,
+      "fromJack": "out0",
+      "to": 5,
+      "toJack": "queueOn"
+    },
+    {
+      "from": 6,
+      "fromJack": "out1",
+      "to": 5,
+      "toJack": "queueOff"
+    },
+    {
+      "from": 5,
+      "fromJack": "output",
+      "to": 4,
+      "toJack": "data"
+    },
+    {
+      "from": 4,
+      "fromJack": "output",
+      "to": 1,
+      "toJack": "amplitude"
+    },
+    {
+      "from": 8,
+      "fromJack": "out",
+      "to": 4,
+      "toJack": "amplitude"
+    },
+    {
+      "from": 9,
+      "fromJack": "kick",
+      "to": 7,
+      "toJack": "start"
+    },
+    {
+      "from": 1,
+      "fromJack": "output",
+      "to": 2,
+      "toJack": "input1"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 800,
+  "windowHeight": 500
+}
