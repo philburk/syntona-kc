@@ -77,6 +77,10 @@ object ModuleRegistry {
         ksyn.modules.add(ModuleEntry("aInput") { AudioInputModule() })
         ksyn.modules.add(ModuleEntry("aOutput") { AudioOutputModule() })
 
+        val ksynInput = getOrCreateBundle(ksyn, "input")
+        ksynInput.modules.add(ModuleEntry("keyboard13") { Keyboard13Module() })
+        ksynInput.modules.add(ModuleEntry("keyboard25") { Keyboard25Module() })
+
         val sources = getOrCreateBundle(ksyn, "sources")
         addKSynModule(sources, "sineOsc", ::SineOscillator)
         addKSynModule(sources, "sineOscPM", ::SineOscillatorPhaseModulated)

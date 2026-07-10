@@ -7,6 +7,7 @@ import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.modules.CommentModule
+import com.syntona.dataflow.modules.KeyboardModule
 import com.syntona.dataflow.modules.ScopeModule
 import com.syntona.dataflow.modules.PatchModule
 import com.syntona.dataflow.modules.PolyPatchModule
@@ -86,6 +87,9 @@ object GraphSerializer {
             append("}")
             if (module is CommentModule) {
                 append(",\"text\":\"${module.text.jsonEscape}\"")
+                append(",\"w\":${module.width},\"h\":${module.height}")
+            }
+            if (module is KeyboardModule) {
                 append(",\"w\":${module.width},\"h\":${module.height}")
             }
             if (module is ScopeModule) {
@@ -169,6 +173,10 @@ object GraphSerializer {
             (obj?.map?.get("name") as? JsonValue.Str)?.value?.let { module.name = it }
             if (module is CommentModule) {
                 (obj?.map?.get("text") as? JsonValue.Str)?.value?.let { module.text = it }
+                (obj?.map?.get("w") as? JsonValue.Num)?.value?.let { module.width = it.toFloat() }
+                (obj?.map?.get("h") as? JsonValue.Num)?.value?.let { module.height = it.toFloat() }
+            }
+            if (module is KeyboardModule) {
                 (obj?.map?.get("w") as? JsonValue.Num)?.value?.let { module.width = it.toFloat() }
                 (obj?.map?.get("h") as? JsonValue.Num)?.value?.let { module.height = it.toFloat() }
             }

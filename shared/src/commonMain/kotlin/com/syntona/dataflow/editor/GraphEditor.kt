@@ -67,6 +67,8 @@ import com.syntona.dataflow.modules.PolyPatchModule
 import com.syntona.dataflow.modules.ScopeModule
 import com.syntona.dataflow.modules.ShowModule
 import com.syntona.dataflow.modules.CommentModule
+import com.syntona.dataflow.modules.KeyboardModule
+import com.softsynth.ksyn.compose.BlackWhiteKeyboard
 import com.syntona.dataflow.modules.SequenceModule
 import com.syntona.dataflow.modules.SegmentedEnvelopeModule
 import com.syntona.dataflow.modules.LinkModule
@@ -161,6 +163,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                 is AudioInputModule -> ModuleNode(module, state, headerColor = colors.headerAudio, label = module.name)
                 is AudioOutputModule -> ModuleNode(module, state, headerColor = colors.headerAudio, label = module.name)
                 is ScopeModule -> ScopeModuleNode(module, state)
+                is KeyboardModule -> KeyboardModuleNode(module, state)
                 is CommentModule -> CommentModuleNode(module, state)
                 is SegmentedEnvelopeModule -> SegmentedEnvelopeModuleNode(module, state)
                 is KeyMatchModule -> KeyMatchModuleNode(module, state)
@@ -1295,6 +1298,76 @@ fun CommentModuleNode(module: CommentModule, state: GraphState) {
             modifier = Modifier.fillMaxSize().padding(8.dp),
             textStyle = TextStyle(color = Color.White, fontSize = 14.sp)
         )
+    }
+}
+
+@Composable
+fun KeyboardModuleNode(module: KeyboardModule, state: GraphState) {
+    val colors = LocalGraphColors.current
+    ResizableModuleBox(
+        module = module,
+        state = state,
+        headerColor = colors.headerInputOutput,
+        initialWidth = module.width.dp,
+        initialHeight = module.height.dp,
+        minWidth = 150.dp,
+        minHeight = 80.dp,
+        onResize = { w, h ->
+            module.width = w.value
+            module.height = h.value
+        }
+    ) { _, _ ->
+        Row(
+            modifier = Modifier.fillMaxSize().padding(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier.weight(1f).fillMaxHeight()
+            ) {
+                BlackWhiteKeyboard(
+                    modifier = Modifier.fillMaxSize(),
+                    onKeyDown = { noteNumber ->
+                        val e = state.engine
+                        val msg = Message.VoiceMessage(
+                            time = ScoreClock.now(),
+                            opcode = Message.VoiceOpcode.NOTE_ON,
+                            tag = noteNumber,
+                            value = noteNumber.toDouble(),
+                            extra = 0.2
+                        )
+                        if (e != null) {
+                            e.post(SendOutputCommand(module.output, msg))
+                        } else {
+                            module.output.send(msg)
+                        }
+                    },
+                    onKeyUp = { noteNumber ->
+                        val e = state.engine
+                        val msg = Message.VoiceMessage(
+                            time = ScoreClock.now(),
+                            opcode = Message.VoiceOpcode.NOTE_OFF,
+                            tag = noteNumber,
+                            value = noteNumber.toDouble(),
+                            extra = 0.2
+                        )
+                        if (e != null) {
+                            e.post(SendOutputCommand(module.output, msg))
+                        } else {
+                            module.output.send(msg)
+                        }
+                    },
+                    numNotes = module.numNotes,
+                    startingNote = 60
+                )
+            }
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.fillMaxHeight().padding(start = 4.dp)
+            ) {
+                module.outputs.forEach { CompactJackConnector(it, state, isLeft = false) }
+            }
+        }
     }
 }
 
