@@ -4,6 +4,7 @@ import com.softsynth.ksyn.unitgen.SineOscillator
 import com.softsynth.ksyn.unitgen.PassThrough
 import com.syntona.dataflow.modules.*
 import com.syntona.dataflow.model.*
+import com.softsynth.ksyn.ports.UnitInputPort
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -313,4 +314,52 @@ class PolyPatchModuleTest {
         assertTrue(module is ShowManyModule)
         assertEquals("monitor", module.name)
     }
+
+    @Test
+    fun testCustomAudioInputConnectionToVoices() = kotlinx.coroutines.runBlocking {
+        val polyPatch = PolyPatchModule()
+        polyPatch.initializeVoices(2)
+
+        val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
+        engine.generateNextBuffer()
+
+        // 1. Add custom AudioInputModule inside polyPatch
+        val vibratoIn = AudioInputModule()
+        vibratoIn.name = "vibrato"
+        polyPatch.graphState.addModule(vibratoIn, androidx.compose.ui.geometry.Offset.Zero)
+
+        // Run engine buffer to process connection commands queued on synth thread
+        engine.generateNextBuffer()
+
+        // Verify the connection: template passThrough's output should connect to the instrument's "vibrato" port
+        val instrument = polyPatch.polyphonicInstrument
+        assertNotNull(instrument)
+        val instrumentPort = instrument.getPortByName("vibrato") as? UnitInputPort
+        assertNotNull(instrumentPort)
+
+        val outputPart = vibratoIn.passThrough.output.parts[0]
+        assertEquals(1, outputPart.connectionCount)
+        assertEquals(instrumentPort.parts[0], outputPart.getConnection(0))
+
+        // 2. Rename custom AudioInputModule
+        vibratoIn.name = "lfoMod"
+        engine.generateNextBuffer()
+
+        // Old port should be gone or disconnected
+        val oldInstPort = instrument.getPortByName("vibrato")
+        assertTrue(oldInstPort == null)
+
+        val newInstPort = instrument.getPortByName("lfoMod") as? UnitInputPort
+        assertNotNull(newInstPort)
+        assertEquals(1, outputPart.connectionCount)
+        assertEquals(newInstPort.parts[0], outputPart.getConnection(0))
+
+        // 3. Remove custom AudioInputModule
+        polyPatch.graphState.removeModulesDirectly(listOf(vibratoIn))
+        engine.generateNextBuffer()
+
+        assertEquals(0, outputPart.connectionCount)
+        assertTrue(instrument.getPortByName("lfoMod") == null)
+    }
 }
+

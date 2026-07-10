@@ -263,7 +263,14 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
         // Export input ports on PolyphonicInstrument if AudioInputModule was added
         if (module is AudioInputModule) {
             if (!isSpecialVoiceInput(module.name)) {
-                polyphonicInstrument?.exportNamedInputPort(module.name)
+                val instrument = polyphonicInstrument
+                if (instrument != null) {
+                    instrument.exportNamedInputPort(module.name)
+                    val instPort = instrument.getPortByName(module.name) as? UnitInputPort
+                    if (instPort != null) {
+                        module.passThrough.output.connect(instPort)
+                    }
+                }
             }
         }
 
@@ -343,6 +350,15 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
         if (module is AudioOutputModule && module.name != "output") {
             syncAuxOutputRemoved(module)
         }
+
+        // Disconnect template passThrough from instrument port before removing ports
+        if (module is AudioInputModule) {
+            val instPort = polyphonicInstrument?.getPortByName(module.name) as? UnitInputPort
+            if (instPort != null) {
+                module.passThrough.output.disconnect(instPort)
+            }
+        }
+
         for (voice in voices) {
             val bgUnit = voice.moduleToUnitMap.remove(module) ?: continue
             if (module is AudioInputModule) {
@@ -350,12 +366,6 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
                 if (port != null) {
                     voice.removePort(port)
                     voice.removePortAlias(module.name)
-                }
-                // Remove port from PolyphonicInstrument
-                val instPort = polyphonicInstrument?.getPortByName(module.name)
-                if (instPort != null) {
-                    polyphonicInstrument?.removePort(instPort)
-                    polyphonicInstrument?.removePortAlias(module.name)
                 }
                 voice.remove(bgUnit)
             } else if (module is AudioOutputModule) {
@@ -369,6 +379,14 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
                 }
             } else {
                 voice.remove(bgUnit)
+            }
+        }
+
+        if (module is AudioInputModule) {
+            val instPort = polyphonicInstrument?.getPortByName(module.name)
+            if (instPort != null) {
+                polyphonicInstrument?.removePort(instPort)
+                polyphonicInstrument?.removePortAlias(module.name)
             }
         }
     }
@@ -409,30 +427,42 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
         }
     }
 
-    fun onAudioInputNameChanged(module: AudioInputModule, newName: String) {
+       fun onAudioInputNameChanged(module: AudioInputModule, newName: String) {
         if (!isInitialized) return
+        val firstVoice = voices.firstOrNull() ?: return
+        val firstBgUnit = firstVoice.moduleToUnitMap[module] as? PassThrough ?: return
+        val oldName = firstVoice.getPorts().find { it === firstBgUnit.input }?.name ?: return
+        if (oldName.lowercase() == newName.lowercase()) return
+
+        // 1. Disconnect template passThrough output from old instrument port
+        val oldInstPort = polyphonicInstrument?.getPortByName(oldName) as? UnitInputPort
+        if (oldInstPort != null) {
+            module.passThrough.output.disconnect(oldInstPort)
+        }
+
+        // 2. Update voice ports for all voices
         for (voice in voices) {
             val bgUnit = voice.moduleToUnitMap[module] as? PassThrough ?: continue
-            val oldName = voice.getPorts().find { it === bgUnit.input }?.name ?: continue
-            if (oldName.lowercase() == newName.lowercase()) continue
-
-            // Remove old alias/port from voice
             voice.removePort(bgUnit.input)
             voice.removePortAlias(oldName)
-
-            // Add new alias/port to voice
             voice.addPort(bgUnit.input, newName)
+        }
 
-            // Sync on PolyphonicInstrument
-                        val oldInstPort = polyphonicInstrument?.getPortByName(oldName)
-            if (oldInstPort != null) {
-                polyphonicInstrument?.removePort(oldInstPort)
-                polyphonicInstrument?.removePortAlias(oldName)
-            }
-            if (!isSpecialVoiceInput(newName)) {
-                polyphonicInstrument?.exportNamedInputPort(newName)
+        // 3. Remove old port from PolyphonicInstrument
+        if (oldInstPort != null) {
+            polyphonicInstrument?.removePort(oldInstPort)
+            polyphonicInstrument?.removePortAlias(oldName)
+        }
+
+        // 4. Export new port on PolyphonicInstrument and connect template passThrough
+        if (!isSpecialVoiceInput(newName)) {
+            polyphonicInstrument?.exportNamedInputPort(newName)
+            val newInstPort = polyphonicInstrument?.getPortByName(newName) as? UnitInputPort
+            if (newInstPort != null) {
+                module.passThrough.output.connect(newInstPort)
             }
         }
+
         for (voice in voices) {
             wirePitchBendIfBothExist(voice)
         }

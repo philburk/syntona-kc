@@ -320,7 +320,7 @@
           "max": 127
         },
         "amplitude": {
-          "v": 0.4612857135773816,
+          "v": 0.23717004680996231,
           "min": 0,
           "max": 100
         },
@@ -463,6 +463,12 @@
       "fromJack": "out",
       "to": 10,
       "toJack": "in"
+    },
+    {
+      "from": 3,
+      "fromJack": "output",
+      "to": 0,
+      "toJack": "input1"
     }
   ],
   "windowX": 10,
