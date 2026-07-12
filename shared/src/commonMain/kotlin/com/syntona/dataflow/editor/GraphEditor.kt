@@ -79,6 +79,7 @@ import com.syntona.dataflow.modules.ShowManyModule
 import com.softsynth.ksyn.compose.SegmentedEnvelopeEditor
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import kotlin.math.pow
 import kotlin.math.roundToInt
 
@@ -632,7 +633,24 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
             Spacer(modifier = Modifier.width(4.dp))
         } else {
             Spacer(modifier = Modifier.width(4.dp))
-            Text(displayText, color = textColor, fontSize = 10.sp)
+            Box(
+                contentAlignment = Alignment.CenterEnd
+            ) {
+                Text(
+                    text = jack.name,
+                    color = Color.Transparent,
+                    fontSize = 10.sp,
+                    maxLines = 1
+                )
+                Text(
+                    text = displayText,
+                    color = textColor,
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    textAlign = TextAlign.End,
+                    modifier = Modifier.matchParentSize()
+                )
+            }
             Spacer(modifier = Modifier.width(4.dp))
             Box(modifier = Modifier.size(8.dp).background(connectorColor))
         }
