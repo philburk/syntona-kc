@@ -399,9 +399,9 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
     }
 
     fun startDraggingFromInput(input: InputJack) {
-        // If an InputJack with a Wire connected is clicked then the first connection should be disconnected from the InputJack
+        // If an InputJack with a Wire connected is clicked then the last connection should be disconnected from the InputJack
         // and a rubber-band line to the connected OutputJack should be drawn.
-        val existing = connections.firstOrNull { it.input == input }
+        val existing = connections.lastOrNull { it.input == input }
         if (existing != null) {
             val output = existing.output
             deleteConnection(existing)

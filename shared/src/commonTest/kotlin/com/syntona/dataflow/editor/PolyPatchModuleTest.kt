@@ -394,5 +394,33 @@ class PolyPatchModuleTest {
         assertEquals(0, outputPart.connectionCount)
         assertTrue(instrument.getPortByName("lfoMod") == null)
     }
+
+    @Test
+    fun testStartDraggingFromInputChoosesLastConnection() {
+        val graphState = GraphState()
+        val mod1 = CounterModule()
+        val mod2 = CounterModule()
+        val mod3 = CounterModule()
+        graphState.addModule(mod1, androidx.compose.ui.geometry.Offset.Zero)
+        graphState.addModule(mod2, androidx.compose.ui.geometry.Offset.Zero)
+        graphState.addModule(mod3, androidx.compose.ui.geometry.Offset.Zero)
+
+        // Connect mod1.output to mod3.reset
+        graphState.connect(mod1.output, mod3.reset)
+        // Connect mod2.output to mod3.reset
+        graphState.connect(mod2.output, mod3.reset)
+
+        assertEquals(2, graphState.connections.size)
+        assertEquals(mod1.output, graphState.connections[0].output)
+        assertEquals(mod2.output, graphState.connections[1].output)
+
+        // Start dragging from input
+        graphState.startDraggingFromInput(mod3.reset)
+
+        // The last connection (from mod2.output) should have been deleted
+        assertEquals(1, graphState.connections.size)
+        assertEquals(mod1.output, graphState.connections[0].output)
+        assertEquals(mod2.output, graphState.draggingWireByOutput)
+    }
 }
 
