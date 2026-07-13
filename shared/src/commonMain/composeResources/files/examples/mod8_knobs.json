@@ -1,0 +1,217 @@
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "sineOsc",
+      "name": "sineOsc",
+      "x": 479,
+      "y": 49.125,
+      "jacks": {
+        "frequency": {
+          "v": 654.8097534179688,
+          "min": 40,
+          "max": 8000
+        },
+        "amplitude": {
+          "v": 1,
+          "min": 0,
+          "max": 1
+        }
+      }
+    },
+    {
+      "id": 1,
+      "type": "clock",
+      "name": "clock",
+      "x": 93,
+      "y": 109.125,
+      "jacks": {
+        "period(ms)": {
+          "v": 153.00676509266256,
+          "min": 1,
+          "max": 10000
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "knob",
+      "name": "knob",
+      "x": 345.875,
+      "y": 37,
+      "jacks": {
+        "in": {
+          "v": 552.63720703125,
+          "min": 40,
+          "max": 8000
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "lineOut",
+      "name": "lineOut",
+      "x": 642.875,
+      "y": 170,
+      "jacks": {
+        "input0": {
+          "v": 0,
+          "min": 0,
+          "max": 1
+        },
+        "input1": {
+          "v": 0,
+          "min": 0,
+          "max": 1
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "knob",
+      "name": "knob",
+      "x": 331.875,
+      "y": 184,
+      "jacks": {
+        "in": {
+          "v": 1445.11376953125,
+          "min": 40,
+          "max": 8000
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "knob",
+      "name": "knob",
+      "x": 340.875,
+      "y": 325,
+      "jacks": {
+        "in": {
+          "v": 654.8097534179688,
+          "min": 40,
+          "max": 8000
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "redNoise",
+      "name": "redNoise",
+      "x": 482,
+      "y": 194.125,
+      "jacks": {
+        "frequency": {
+          "v": 654.8097534179688,
+          "min": 40,
+          "max": 8000
+        },
+        "amplitude": {
+          "v": 1,
+          "min": 0,
+          "max": 1
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "loadKick",
+      "name": "loadKick",
+      "x": 13.911621,
+      "y": 16.088379,
+      "jacks": {}
+    },
+    {
+      "id": 8,
+      "type": "mod8",
+      "name": "mod8",
+      "x": 202.875,
+      "y": 63,
+      "jacks": {}
+    }
+  ],
+  "connections": [
+    {
+      "from": 0,
+      "fromJack": "output",
+      "to": 3,
+      "toJack": "input0"
+    },
+    {
+      "from": 4,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "frequency"
+    },
+    {
+      "from": 5,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "frequency"
+    },
+    {
+      "from": 2,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "frequency"
+    },
+    {
+      "from": 2,
+      "fromJack": "out",
+      "to": 6,
+      "toJack": "frequency"
+    },
+    {
+      "from": 4,
+      "fromJack": "out",
+      "to": 6,
+      "toJack": "frequency"
+    },
+    {
+      "from": 5,
+      "fromJack": "out",
+      "to": 6,
+      "toJack": "frequency"
+    },
+    {
+      "from": 6,
+      "fromJack": "output",
+      "to": 3,
+      "toJack": "input1"
+    },
+    {
+      "from": 7,
+      "fromJack": "kick",
+      "to": 1,
+      "toJack": "start"
+    },
+    {
+      "from": 1,
+      "fromJack": "output",
+      "to": 8,
+      "toJack": "in"
+    },
+    {
+      "from": 8,
+      "fromJack": "out0",
+      "to": 2,
+      "toJack": "kick"
+    },
+    {
+      "from": 8,
+      "fromJack": "out2",
+      "to": 4,
+      "toJack": "kick"
+    },
+    {
+      "from": 8,
+      "fromJack": "out4",
+      "to": 5,
+      "toJack": "kick"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 823.98779296875,
+  "windowHeight": 716.7506103515625
+}

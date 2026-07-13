@@ -1,6 +1,7 @@
 examples/drum_rhythm.json
 examples/key_control.json
 examples/keyboard13.json
+examples/mod8_knobs.json
 examples/poly_patch.json
 examples/pulse_scope.json
 examples/sampler.json

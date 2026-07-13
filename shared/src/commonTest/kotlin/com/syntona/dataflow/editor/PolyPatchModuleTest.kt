@@ -302,6 +302,39 @@ class PolyPatchModuleTest {
     }
 
     @Test
+    fun testModuloSelectModuleBehaviorAndSerialization() {
+        val rootGraph = GraphState()
+        val mod = ModuloSelectModule(8)
+        rootGraph.addModule(mod, androidx.compose.ui.geometry.Offset.Zero)
+
+        // Initial highlighted jack is output 0
+        assertTrue(mod.stepOutputs[0].isHighlighted)
+
+        // Send value 10.5 to 'in'
+        mod.increment.receive(Message.FloatValue(com.syntona.core.model.ScoreTime.Zero, 10.5))
+
+        // Modulo 8 of 10.5 is 2.5, which floors to index 2
+        assertEquals(2.5, mod.stepOutputs[2].getValue())
+        assertTrue(mod.stepOutputs[2].isHighlighted)
+        kotlin.test.assertFalse(mod.stepOutputs[0].isHighlighted)
+
+        // Send reset signal
+        mod.reset.receive(Message.FloatValue(com.syntona.core.model.ScoreTime.Zero, 1.0))
+        assertEquals(0.0, mod.stepOutputs[0].getValue())
+        assertTrue(mod.stepOutputs[0].isHighlighted)
+        kotlin.test.assertFalse(mod.stepOutputs[2].isHighlighted)
+
+        // Serialize
+        val json = GraphSerializer.serialize(rootGraph, rootGraph.modules)
+
+        // Deserialize and check restored type
+        val newRootGraph = GraphState()
+        val deserialized = GraphSerializer.deserialize(newRootGraph, json)
+        val restoredMod = deserialized.find { it is ModuloSelectModule } as ModuloSelectModule
+        assertEquals(8, restoredMod.numOutputs)
+    }
+
+    @Test
     fun testShowVoiceToShowManyMapping() {
         val rootGraph = GraphState()
         val json = """

@@ -70,6 +70,7 @@ import com.syntona.dataflow.modules.CommentModule
 import com.syntona.dataflow.modules.KeyboardModule
 import com.softsynth.ksyn.compose.BlackWhiteKeyboard
 import com.syntona.dataflow.modules.SequenceModule
+import com.syntona.dataflow.modules.ModuloSelectModule
 import com.syntona.dataflow.modules.SegmentedEnvelopeModule
 import com.syntona.dataflow.modules.LinkModule
 import com.syntona.dataflow.modules.KeyMatchModule
@@ -159,6 +160,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                 is KnobModule -> KnobModuleNode(module, state)
                 is PatchModule -> PatchModuleNode(module, state)
                 is SequenceModule -> SequenceModuleNode(module, state)
+                is ModuloSelectModule -> ModuleNode(module, state, headerColor = colors.headerSequence)
                 is InputModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
                 is OutputModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
                 is AudioInputModule -> ModuleNode(module, state, headerColor = colors.headerAudio, label = module.name)

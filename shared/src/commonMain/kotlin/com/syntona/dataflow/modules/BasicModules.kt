@@ -67,3 +67,37 @@ open class SequenceModule(val numOutputs: Int) : Module("seq" + numOutputs) {
         output.isHighlighted = true
     }
 }
+
+open class ModuloSelectModule(val numOutputs: Int) : Module("mod" + numOutputs) {
+    val reset = addInput("reset", isKickable = true)
+    val increment = addInput("in", isKickable = true)
+
+    val stepOutputs = List(numOutputs) { index ->
+        addOutput("out$index")
+    }
+
+    init {
+        stepOutputs[0].isHighlighted = true
+    }
+
+    override fun execute(triggerMessage: Message) {
+        val valToUse = if (reset.isKicked) {
+            0.0
+        } else {
+            increment.getDoubleValue()
+        }
+        val moduloValue = ((valToUse % numOutputs) + numOutputs) % numOutputs
+        val activeIndex = kotlin.math.floor(moduloValue).toInt().coerceIn(0, numOutputs - 1)
+
+        for (i in 0 until numOutputs) {
+            stepOutputs[i].isHighlighted = false
+        }
+        stepOutputs[activeIndex].send(Message.FloatValue(triggerMessage.time, moduloValue))
+        stepOutputs[activeIndex].isHighlighted = true
+    }
+}
+
+class Mod2Module : ModuloSelectModule(2)
+class Mod4Module : ModuloSelectModule(4)
+class Mod8Module : ModuloSelectModule(8)
+class Mod16Module : ModuloSelectModule(16)
