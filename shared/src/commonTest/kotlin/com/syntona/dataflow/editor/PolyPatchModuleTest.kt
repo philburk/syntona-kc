@@ -422,5 +422,32 @@ class PolyPatchModuleTest {
         assertEquals(mod1.output, graphState.connections[0].output)
         assertEquals(mod2.output, graphState.draggingWireByOutput)
     }
+
+    @Test
+    fun testInputJackDropTargetBounds() {
+        val graphState = GraphState()
+        val mod1 = CounterModule()
+        val mod2 = CounterModule()
+        graphState.addModule(mod1, androidx.compose.ui.geometry.Offset.Zero)
+        graphState.addModule(mod2, androidx.compose.ui.geometry.Offset.Zero)
+
+        // Set the jack offset and bounds size (e.g. 100 x 30) for mod2's reset jack
+        val offset = androidx.compose.ui.geometry.Offset(150f, 100f)
+        val size = androidx.compose.ui.geometry.Size(100f, 30f)
+        graphState.updateJackOffset(mod2.reset, offset, size)
+
+        // Start dragging from mod1's output jack
+        graphState.startDraggingFromOutput(mod1.output)
+
+        // Drop on pointer position within the input jack's bounding box
+        // This is 50 pixels away on the x-axis, but inside the 100x30 bounding box
+        graphState.onPointerMove(androidx.compose.ui.geometry.Offset(200f, 105f))
+        graphState.onPointerUp(null)
+
+        // Verify that the connection is successfully made
+        assertEquals(1, graphState.connections.size)
+        assertEquals(mod2.reset, graphState.connections[0].input)
+        assertEquals(mod1.output, graphState.connections[0].output)
+    }
 }
 

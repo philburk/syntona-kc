@@ -474,7 +474,7 @@ fun UnlabelledJackView(jack: Jack, state: GraphState) {
                 val size = layoutCoordinates.size
                 val pos = jackRootPosition - state.rootOffset
                 val edgeOffset = Offset(size.width.toFloat(), size.height / 2f)
-                state.updateJackOffset(jack, pos + edgeOffset)
+                state.updateJackOffset(jack, pos + edgeOffset, Size(size.width.toFloat(), size.height.toFloat()))
             }
             .pointerInput(jack) {
                 detectDragGestures(
@@ -560,7 +560,7 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
                 } else {
                     Offset(size.width.toFloat(), size.height / 2f)
                 }
-                state.updateJackOffset(jack, pos + edgeOffset)
+                state.updateJackOffset(jack, pos + edgeOffset, Size(size.width.toFloat(), size.height.toFloat()))
             }
             .background(backgroundColor)
             // Hover detection
@@ -674,7 +674,7 @@ fun CommandJackView(jack: CommandJack, state: GraphState, isLeft: Boolean) {
                 val size = coords.size
                 val edgeOffset = if (isLeft) Offset(0f, size.height / 2f)
                                  else Offset(size.width.toFloat(), size.height / 2f)
-                state.updateJackOffset(jack, jackRootPosition - state.rootOffset + edgeOffset)
+                state.updateJackOffset(jack, jackRootPosition - state.rootOffset + edgeOffset, Size(size.width.toFloat(), size.height.toFloat()))
             }
             .pointerInput(jack) {
                 detectDragGestures(
@@ -731,7 +731,7 @@ fun CommandOutputJackView(jack: CommandOutputJack, state: GraphState, isLeft: Bo
                 val size = coords.size
                 val edgeOffset = if (isLeft) Offset(0f, size.height / 2f)
                                  else Offset(size.width.toFloat(), size.height / 2f)
-                state.updateJackOffset(jack, jackRootPosition - state.rootOffset + edgeOffset)
+                state.updateJackOffset(jack, jackRootPosition - state.rootOffset + edgeOffset, Size(size.width.toFloat(), size.height.toFloat()))
             }
             .pointerInput(jack) {
                 detectDragGestures(
@@ -801,7 +801,8 @@ fun CompactJackConnector(jack: Jack, state: GraphState, isLeft: Boolean) {
                 val edgeX = if (isLeft) 0f else size.width.toFloat()
                 state.updateJackOffset(
                     jack,
-                    jackRootPosition - state.rootOffset + Offset(edgeX, size.height / 2f)
+                    jackRootPosition - state.rootOffset + Offset(edgeX, size.height / 2f),
+                    Size(size.width.toFloat(), size.height.toFloat())
                 )
             }
             .pointerInput(jack) {

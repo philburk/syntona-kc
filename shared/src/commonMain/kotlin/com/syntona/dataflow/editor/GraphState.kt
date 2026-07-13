@@ -6,6 +6,8 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import com.syntona.dataflow.engine.DataFlowEngine
 import com.syntona.dataflow.engine.EngineAware
 import com.syntona.dataflow.model.AudioInputJack
@@ -59,6 +61,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
 
     // Maps each Jack to its global offset on the canvas for drawing wires
     val jackOffsets = mutableStateMapOf<Jack, Offset>()
+    val jackBounds = mutableStateMapOf<Jack, Rect>()
     private val pressedKeyCodes = mutableSetOf<Int>()
     var isKeyboardModeActive by mutableStateOf(false)
 
@@ -109,8 +112,14 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
             connsToRemove.forEach { conn ->
                 disconnect(conn.output, conn.input)
             }
-            module.inputs.forEach { jackOffsets.remove(it) }
-            module.outputs.forEach { jackOffsets.remove(it) }
+            module.inputs.forEach {
+                jackOffsets.remove(it)
+                jackBounds.remove(it)
+            }
+            module.outputs.forEach {
+                jackOffsets.remove(it)
+                jackBounds.remove(it)
+            }
             if (editingModule === module) editingModule = null
             modulePositions.remove(module)
             moduleSizes.remove(module)
@@ -130,8 +139,15 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
         moduleSizes[module] = Offset(width, height)
     }
 
-    fun updateJackOffset(jack: Jack, offset: Offset) {
+    fun updateJackOffset(jack: Jack, offset: Offset, size: Size = Size.Zero) {
         jackOffsets[jack] = offset
+        if (size != Size.Zero) {
+            val left = if (jack is InputJack) offset.x else offset.x - size.width
+            val top = offset.y - size.height / 2f
+            jackBounds[jack] = Rect(left, top, left + size.width, top + size.height)
+        } else {
+            jackBounds[jack] = Rect(offset.x - 20f, offset.y - 20f, offset.x + 20f, offset.y + 20f)
+        }
     }
 
     /**
@@ -426,6 +442,12 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
     }
 
     private fun findInputJackAt(offset: Offset): InputJack? {
+        val hit = jackBounds.entries
+            .filter { it.key is InputJack }
+            .firstOrNull { it.value.inflate(8f).contains(offset) }
+            ?.key as? InputJack
+        if (hit != null) return hit
+
         return jackOffsets.entries
             .filter { it.key is InputJack }
             .minByOrNull { (it.value - offset).getDistance() }
