@@ -57,6 +57,7 @@ import com.syntona.dataflow.model.*
 import com.softsynth.ksyn.compose.Oscilloscope
 import com.syntona.dataflow.modules.DoubleEntryModule
 import com.syntona.dataflow.modules.FaderModule
+import com.syntona.dataflow.modules.MixerModule
 import com.syntona.dataflow.modules.AudioInputModule
 import com.syntona.dataflow.modules.AudioOutputModule
 import com.syntona.dataflow.modules.InputModule
@@ -160,6 +161,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                 is KnobModule -> KnobModuleNode(module, state)
                 is PatchModule -> PatchModuleNode(module, state)
                 is SequenceModule -> SequenceModuleNode(module, state)
+                is MixerModule -> MixerModuleNode(module, state)
                 is ModuloSelectModule -> ModuleNode(module, state, headerColor = colors.headerSequence)
                 is InputModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
                 is OutputModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
@@ -1541,4 +1543,145 @@ fun Modifier.headerGestures(
         }
     }
 }
+
+@Composable
+fun MixerModuleNode(module: MixerModule, state: GraphState) {
+    val colors = LocalGraphColors.current
+    val position = state.modulePositions[module] ?: Offset.Zero
+    val isSelected = state.selectedModules.contains(module)
+    val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
+    val borderWidth = if (isSelected) 2.dp else 1.dp
+
+    Surface(
+        modifier = Modifier
+            .offset { IntOffset((position.x * density).roundToInt(), (position.y * density).roundToInt()) }
+            .width(150.dp)
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
+            .onSizeChanged { size ->
+                state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
+            },
+        shape = RoundedCornerShape(4.dp),
+        color = colors.moduleBackground
+    ) {
+        Column {
+            // Title bar — drag to move, double-tap to open editor
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(24.dp)
+                    .background(colors.headerAudio)
+                    .headerGestures(state, module) {
+                        state.editingModule = module
+                    }
+            ) {
+                Text(
+                    text = module.name,
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(horizontal = 4.dp)
+                )
+            }
+
+            // Channel strips
+            for (i in 0 until module.numInputs) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .padding(horizontal = 6.dp)
+                ) {
+                    val inputJack = module.getInputJack(i)
+                    if (inputJack != null) {
+                        CompactJackConnector(inputJack, state, isLeft = true)
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "${i + 1}",
+                        color = Color.LightGray,
+                        fontSize = 11.sp
+                    )
+
+                    Spacer(modifier = Modifier.weight(1f))
+
+                    // Left knob: Volume (exponential taper sets gain)
+                    RotaryKnob(
+                        value = module.getVolumeKnobValue(i),
+                        onValueChange = { v ->
+                            val gainJack = module.getGainJack(i)
+                            if (gainJack != null) {
+                                val gainVal = (50.0.pow(v.toDouble()) - 1.0) / 49.0
+                                val e = state.engine
+                                if (e != null) e.post(SetValueCommand(gainJack, gainVal, ScoreClock.now()))
+                                else gainJack.setValue(gainVal)
+                            }
+                            state.markChanged()
+                        },
+                        modifier = Modifier.size(40.dp)
+                    )
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    // Right knob: Pan (-1 to +1)
+                    RotaryKnob(
+                        value = module.getPanKnobValue(i),
+                        onValueChange = { v ->
+                            val panJack = module.getPanJack(i)
+                            if (panJack != null) {
+                                val e = state.engine
+                                if (e != null) e.post(SetValueCommand(panJack, v.toDouble(), ScoreClock.now()))
+                                else panJack.setValue(v.toDouble())
+                            }
+                            state.markChanged()
+                        },
+                        valueRange = -1f..1f,
+                        modifier = Modifier.size(40.dp)
+                    )
+
+                    Spacer(modifier = Modifier.weight(1f))
+                    Spacer(modifier = Modifier.width(28.dp))
+                }
+            }
+
+            // Master / Output Row
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 4.dp, vertical = 4.dp)
+            ) {
+                val ampJack = module.inputs.find { it.name == "amplitude" }
+                if (ampJack != null) {
+                    CompactJackConnector(ampJack, state, isLeft = true)
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("amp", color = Color.LightGray, fontSize = 10.sp)
+                }
+
+                Spacer(modifier = Modifier.weight(1f))
+                Text("Master", color = Color.Gray, fontSize = 11.sp)
+                Spacer(modifier = Modifier.weight(1f))
+
+                Column(horizontalAlignment = Alignment.End) {
+                    val out0 = module.outputs.find { it.name == "output0" }
+                    val out1 = module.outputs.find { it.name == "output1" }
+                    if (out0 != null) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("L", color = Color.LightGray, fontSize = 10.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            CompactJackConnector(out0, state, isLeft = false)
+                        }
+                    }
+                    if (out1 != null) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("R", color = Color.LightGray, fontSize = 10.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            CompactJackConnector(out1, state, isLeft = false)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 

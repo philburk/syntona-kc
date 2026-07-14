@@ -5,6 +5,7 @@ import com.softsynth.ksyn.unitgen.PassThrough
 import com.syntona.dataflow.modules.*
 import com.syntona.dataflow.model.*
 import com.softsynth.ksyn.ports.UnitInputPort
+import kotlin.math.pow
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -448,6 +449,52 @@ class PolyPatchModuleTest {
         assertEquals(1, graphState.connections.size)
         assertEquals(mod2.reset, graphState.connections[0].input)
         assertEquals(mod1.output, graphState.connections[0].output)
+    }
+
+    @Test
+    fun testMixerModules() {
+        val rootGraph = PatchModule()
+        val mixer8 = Mixer8x2Module()
+        val mixer4 = Mixer4x2Module()
+
+        // Verify ports
+        assertNotNull(mixer8.getGainJack(0))
+        assertNotNull(mixer8.getPanJack(0))
+        assertNotNull(mixer8.getInputJack(0))
+        assertNotNull(mixer8.inputs.find { it.name == "amplitude" })
+        assertEquals(2, mixer8.outputs.size)
+
+        assertNotNull(mixer4.getGainJack(0))
+        assertNotNull(mixer4.getPanJack(0))
+        assertNotNull(mixer4.getInputJack(0))
+        assertNotNull(mixer4.inputs.find { it.name == "amplitude" })
+        assertEquals(2, mixer4.outputs.size)
+
+        // Verify volume/pan helpers
+        val gainJack = mixer8.getGainJack(0)!!
+        val panJack = mixer8.getPanJack(0)!!
+
+        // Set raw volume knob position to 0.5f and verify gain calculations
+        val gainVal = 50.0.pow(0.5) - 1.0
+        val scaledGainVal = gainVal / 49.0
+        gainJack.setValue(scaledGainVal)
+        assertEquals(0.5f, mixer8.getVolumeKnobValue(0), 1e-4f)
+
+        // Set pan knob to -0.5f
+        panJack.setValue(-0.5)
+        assertEquals(-0.5f, mixer8.getPanKnobValue(0), 1e-4f)
+
+        // Verify serialization
+        rootGraph.graphState.addModule(mixer8, androidx.compose.ui.geometry.Offset.Zero)
+        val json = GraphSerializer.serialize(rootGraph.graphState, listOf(mixer8))
+
+        // Remove and deserialize
+        rootGraph.graphState.removeModulesDirectly(listOf(mixer8))
+        val deserialized = GraphSerializer.deserialize(rootGraph.graphState, json)
+        assertEquals(1, deserialized.size)
+        val newMixer = deserialized[0] as Mixer8x2Module
+        assertEquals(scaledGainVal, newMixer.getGainJack(0)!!.getValue(), 1e-4)
+        assertEquals(-0.5, newMixer.getPanJack(0)!!.getValue(), 1e-4)
     }
 }
 

@@ -2,25 +2,6 @@
   "modules": [
     {
       "id": 0,
-      "type": "lineOut",
-      "name": "lineOut",
-      "x": 747.875,
-      "y": 81,
-      "jacks": {
-        "input0": {
-          "v": 0,
-          "min": 0,
-          "max": 1
-        },
-        "input1": {
-          "v": 0,
-          "min": 0,
-          "max": 1
-        }
-      }
-    },
-    {
-      "id": 1,
       "type": "clock",
       "name": "clock",
       "x": 16.875,
@@ -34,7 +15,7 @@
       }
     },
     {
-      "id": 2,
+      "id": 1,
       "type": "seq8",
       "name": "seq8",
       "x": 195.875,
@@ -83,7 +64,7 @@
       }
     },
     {
-      "id": 3,
+      "id": 2,
       "type": "loadKick",
       "name": "loadKick",
       "x": 15.125,
@@ -91,25 +72,25 @@
       "jacks": {}
     },
     {
-      "id": 4,
+      "id": 3,
       "type": "comment",
       "name": "comment",
       "x": 46.899994,
       "y": 13.075012,
       "jacks": {},
-      "text": "A polyPatch is a patch with multiple voices so it can play chords. It accepts VoiceMessages, for example, NOTE_ON, NOTE_OFF and PITCH_BEND. The packNote module is used to format VoiceMessages.",
+      "text": "Drum pattern controlled by seq8 modules.",
       "w": 498.82324,
       "h": 99.25
     },
     {
-      "id": 5,
+      "id": 4,
       "type": "patch",
       "name": "patch",
       "x": 486.875,
       "y": 186,
       "jacks": {
         "in1": {
-          "v": 0,
+          "v": 64,
           "min": 0,
           "max": 100
         }
@@ -249,7 +230,7 @@
       }
     },
     {
-      "id": 6,
+      "id": 5,
       "type": "patch",
       "name": "patch",
       "x": 484.875,
@@ -261,7 +242,7 @@
           "max": 100
         }
       },
-      "windowX": 476.875,
+      "windowX": 477.75,
       "windowY": 326.75,
       "windowWidth": 600,
       "windowHeight": 450,
@@ -298,7 +279,7 @@
             "y": 45,
             "jacks": {
               "amplitude": {
-                "v": 0.36206087470054626,
+                "v": 0.8740626573562622,
                 "min": 0,
                 "max": 1
               },
@@ -441,7 +422,7 @@
       }
     },
     {
-      "id": 7,
+      "id": 6,
       "type": "patch",
       "name": "patch",
       "x": 487.875,
@@ -490,7 +471,7 @@
             "y": 45,
             "jacks": {
               "amplitude": {
-                "v": 0.3294556736946106,
+                "v": 0.9329485893249512,
                 "min": 0,
                 "max": 1
               },
@@ -709,26 +690,7 @@
       }
     },
     {
-      "id": 8,
-      "type": "seq2",
-      "name": "seq2",
-      "x": 69.875,
-      "y": 445,
-      "jacks": {
-        "in0": {
-          "v": 0,
-          "min": 0,
-          "max": 100
-        },
-        "in1": {
-          "v": 0,
-          "min": 0,
-          "max": 100
-        }
-      }
-    },
-    {
-      "id": 9,
+      "id": 7,
       "type": "seq8",
       "name": "seq8",
       "x": 195.875,
@@ -777,14 +739,14 @@
       }
     },
     {
-      "id": 10,
+      "id": 8,
       "type": "patch",
       "name": "patch",
       "x": 489.875,
       "y": 433,
       "jacks": {
         "in1": {
-          "v": 1,
+          "v": 0,
           "min": 0,
           "max": 100
         }
@@ -826,7 +788,7 @@
             "y": 45,
             "jacks": {
               "amplitude": {
-                "v": 0.3294556736946106,
+                "v": 0.7251962423324585,
                 "min": 0,
                 "max": 1
               },
@@ -1043,138 +1005,247 @@
           }
         ]
       }
+    },
+    {
+      "id": 9,
+      "type": "mod2",
+      "name": "mod2",
+      "x": 111.875,
+      "y": 403,
+      "jacks": {}
+    },
+    {
+      "id": 10,
+      "type": "mixer4x2",
+      "name": "mixer4x2",
+      "x": 653.8882,
+      "y": 222.05591,
+      "jacks": {
+        "input0": {
+          "v": 0,
+          "min": 0,
+          "max": 1
+        },
+        "input1": {
+          "v": 0,
+          "min": 0,
+          "max": 1
+        },
+        "input2": {
+          "v": 0,
+          "min": 0,
+          "max": 1
+        },
+        "input3": {
+          "v": 0,
+          "min": 0,
+          "max": 1
+        },
+        "gain0": {
+          "v": 0.6775915622711182,
+          "min": 0,
+          "max": 1
+        },
+        "gain1": {
+          "v": 0.35255199670791626,
+          "min": 0,
+          "max": 1
+        },
+        "gain2": {
+          "v": 0.3874344229698181,
+          "min": 0,
+          "max": 1
+        },
+        "gain3": {
+          "v": 0.6667070984840393,
+          "min": 0,
+          "max": 1
+        },
+        "amplitude": {
+          "v": 0.7206068634986877,
+          "min": 0,
+          "max": 1
+        },
+        "pan0": {
+          "v": -0.7156850695610046,
+          "min": -1,
+          "max": 1
+        },
+        "pan1": {
+          "v": 0.8659629225730896,
+          "min": -1,
+          "max": 1
+        },
+        "pan2": {
+          "v": 0.11370036751031876,
+          "min": -1,
+          "max": 1
+        },
+        "pan3": {
+          "v": -0.19177718460559845,
+          "min": -1,
+          "max": 1
+        }
+      }
+    },
+    {
+      "id": 11,
+      "type": "lineOut",
+      "name": "lineOut",
+      "x": 844.875,
+      "y": 410,
+      "jacks": {
+        "input0": {
+          "v": 0,
+          "min": 0,
+          "max": 1
+        },
+        "input1": {
+          "v": 0,
+          "min": 0,
+          "max": 1
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": "knob",
+      "name": "knob",
+      "x": 485.875,
+      "y": 511,
+      "jacks": {
+        "in": {
+          "v": 0.7206068634986877,
+          "min": 0,
+          "max": 1
+        }
+      }
     }
   ],
   "connections": [
     {
-      "from": 3,
+      "from": 2,
       "fromJack": "kick",
-      "to": 1,
+      "to": 0,
       "toJack": "start"
     },
     {
-      "from": 5,
-      "fromJack": "aOut1",
-      "to": 0,
-      "toJack": "input0"
-    },
-    {
-      "from": 5,
-      "fromJack": "aOut1",
-      "to": 0,
-      "toJack": "input1"
-    },
-    {
-      "from": 6,
-      "fromJack": "aOut1",
-      "to": 0,
-      "toJack": "input0"
-    },
-    {
-      "from": 6,
-      "fromJack": "aOut1",
-      "to": 0,
-      "toJack": "input1"
-    },
-    {
-      "from": 2,
+      "from": 1,
       "fromJack": "out2",
-      "to": 5,
+      "to": 4,
       "toJack": "in1"
     },
     {
-      "from": 2,
+      "from": 1,
       "fromJack": "out0",
-      "to": 6,
-      "toJack": "in1"
-    },
-    {
-      "from": 7,
-      "fromJack": "aOut1",
-      "to": 0,
-      "toJack": "input0"
-    },
-    {
-      "from": 7,
-      "fromJack": "aOut1",
-      "to": 0,
-      "toJack": "input1"
-    },
-    {
-      "from": 2,
-      "fromJack": "out5",
-      "to": 5,
-      "toJack": "in1"
-    },
-    {
-      "from": 2,
-      "fromJack": "out0",
-      "to": 7,
-      "toJack": "in1"
-    },
-    {
-      "from": 2,
-      "fromJack": "out4",
-      "to": 7,
-      "toJack": "in1"
-    },
-    {
-      "from": 2,
-      "fromJack": "out6",
       "to": 5,
       "toJack": "in1"
     },
     {
       "from": 1,
-      "fromJack": "output",
+      "fromJack": "out5",
+      "to": 4,
+      "toJack": "in1"
+    },
+    {
+      "from": 1,
+      "fromJack": "out0",
+      "to": 6,
+      "toJack": "in1"
+    },
+    {
+      "from": 1,
+      "fromJack": "out4",
+      "to": 6,
+      "toJack": "in1"
+    },
+    {
+      "from": 1,
+      "fromJack": "out6",
+      "to": 4,
+      "toJack": "in1"
+    },
+    {
+      "from": 7,
+      "fromJack": "out0",
       "to": 8,
+      "toJack": "in1"
+    },
+    {
+      "from": 7,
+      "fromJack": "out1",
+      "to": 8,
+      "toJack": "in1"
+    },
+    {
+      "from": 0,
+      "fromJack": "output",
+      "to": 1,
       "toJack": "in"
     },
     {
-      "from": 8,
-      "fromJack": "out0",
+      "from": 7,
+      "fromJack": "out5",
+      "to": 8,
+      "toJack": "in1"
+    },
+    {
+      "from": 0,
+      "fromJack": "output",
       "to": 9,
       "toJack": "in"
     },
     {
       "from": 9,
       "fromJack": "out0",
-      "to": 10,
-      "toJack": "in1"
+      "to": 7,
+      "toJack": "in"
     },
     {
-      "from": 9,
-      "fromJack": "out1",
-      "to": 10,
-      "toJack": "in1"
-    },
-    {
-      "from": 10,
+      "from": 4,
       "fromJack": "aOut1",
-      "to": 0,
+      "to": 10,
       "toJack": "input0"
     },
     {
       "from": 10,
-      "fromJack": "aOut1",
-      "to": 0,
+      "fromJack": "output0",
+      "to": 11,
+      "toJack": "input0"
+    },
+    {
+      "from": 10,
+      "fromJack": "output1",
+      "to": 11,
       "toJack": "input1"
     },
     {
-      "from": 1,
-      "fromJack": "output",
-      "to": 2,
-      "toJack": "in"
+      "from": 5,
+      "fromJack": "aOut1",
+      "to": 10,
+      "toJack": "input1"
     },
     {
-      "from": 9,
-      "fromJack": "out5",
+      "from": 6,
+      "fromJack": "aOut1",
       "to": 10,
-      "toJack": "in1"
+      "toJack": "input2"
+    },
+    {
+      "from": 8,
+      "fromJack": "aOut1",
+      "to": 10,
+      "toJack": "input3"
+    },
+    {
+      "from": 12,
+      "fromJack": "out",
+      "to": 10,
+      "toJack": "amplitude"
     }
   ],
   "windowX": 10,
   "windowY": 10,
-  "windowWidth": 823.98779296875,
-  "windowHeight": 716.7506103515625
+  "windowWidth": 944.8692016601562,
+  "windowHeight": 703.6651611328125
 }

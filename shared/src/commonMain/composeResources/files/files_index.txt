@@ -1,3 +1,4 @@
+drum_rhythm.json
 examples/drum_rhythm.json
 examples/key_control.json
 examples/keyboard13.json

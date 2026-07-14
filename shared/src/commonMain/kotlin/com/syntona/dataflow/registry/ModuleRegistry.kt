@@ -132,6 +132,10 @@ object ModuleRegistry {
         addKSynModule(amath, "aMin", ::Minimum)
         addKSynModule(amath, "aMax", ::Maximum)
         addKSynModule(amath, "aRanger", ::RangeConverter)
+        ksynFactories["mixer8x2"] = { MixerStereoRamped(8) }
+        ksynFactories["mixer4x2"] = { MixerStereoRamped(4) }
+        amath.modules.add(ModuleEntry("mixer8x2") { Mixer8x2Module() })
+        amath.modules.add(ModuleEntry("mixer4x2") { Mixer4x2Module() })
 
         val filters = getOrCreateBundle(ksyn, "filters")
         addKSynModule(filters, "lowPass", ::FilterLowPass)
