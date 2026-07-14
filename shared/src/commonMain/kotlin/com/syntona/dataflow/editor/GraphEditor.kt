@@ -79,6 +79,8 @@ import com.syntona.dataflow.modules.KickModule
 import com.syntona.dataflow.modules.LoadKickModule
 import com.syntona.dataflow.modules.ShowManyModule
 import com.softsynth.ksyn.compose.SegmentedEnvelopeEditor
+import com.syntona.dataflow.model.cleanKotlinIdentifier
+import com.syntona.dataflow.editor.FileState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -102,118 +104,168 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
             focusRequester.requestFocus()
         }
     }
-    Box(modifier = modifier.fillMaxSize().background(colors.background)
-        .focusRequester(focusRequester)
-        .focusable()
-        .onKeyEvent { keyEvent ->
-            var handled = state.onKeyEvent(keyEvent)
-            if (!handled) {
-                if (keyEvent.type == KeyEventType.KeyDown &&
-                    (keyEvent.key == Key.Backspace || keyEvent.key == Key.Delete)) {
-                    state.deleteSelectedModules()
-                    handled = true
-                } else if (keyEvent.type == KeyEventType.KeyDown &&
-                    keyEvent.key == Key.Z &&
-                    (keyEvent.isMetaPressed || keyEvent.isCtrlPressed)) {
-                    if (keyEvent.isShiftPressed) state.engine?.redo()
-                    else state.engine?.undo()
-                    handled = true
-                }
-            }
-            handled
-        }
-        .onGloballyPositioned { state.updateRootOffset(it.positionInRoot()) }
-        .pointerInput(state) {
-            detectTapGestures {
-                focusRequester.requestFocus()
-                mdiState.activeGraphState = state
-                // Tap on background clears selection
-                state.clearSelection()
-            }
-        }
-        .pointerInput(state) {
-            awaitEachGesture {
-                val down = awaitFirstDown()
-                state.selectionRectStart = down.position
-                state.selectionRectEnd = down.position
-                drag(down.id) { change ->
-                    change.consume()
-                    state.selectionRectEnd = change.position
-                }
-                val rectStart = state.selectionRectStart
-                val rectEnd = state.selectionRectEnd
-                if (rectStart != null && rectEnd != null) {
-                    state.selectModulesInRect(rectStart, rectEnd, density)
-                }
-                state.selectionRectStart = null
-                state.selectionRectEnd = null
-            }
-        }
-    ) {
-        // Draw Wires behind modules
-        WireRenderer(state)
-
-        // Draw Modules — add cases here for modules with custom layouts
-        state.modules.forEach { module ->
-            when (module) {
-                is DoubleEntryModule -> DoubleEntryModuleNode(module, state)
-                is FaderModule -> FaderModuleNode(module, state)
-                is KnobModule -> KnobModuleNode(module, state)
-                is PatchModule -> PatchModuleNode(module, state)
-                is SequenceModule -> SequenceModuleNode(module, state)
-                is MixerModule -> MixerModuleNode(module, state)
-                is ModuloSelectModule -> ModuleNode(module, state, headerColor = colors.headerSequence)
-                is InputModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
-                is OutputModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
-                is AudioInputModule -> ModuleNode(module, state, headerColor = colors.headerAudio, label = module.name)
-                is AudioOutputModule -> ModuleNode(module, state, headerColor = colors.headerAudio, label = module.name)
-                is ScopeModule -> ScopeModuleNode(module, state)
-                is KeyboardModule -> KeyboardModuleNode(module, state)
-                is CommentModule -> CommentModuleNode(module, state)
-                is SegmentedEnvelopeModule -> SegmentedEnvelopeModuleNode(module, state)
-                is KeyMatchModule -> KeyMatchModuleNode(module, state)
-                else -> ModuleNode(module, state)
-            }
-        }
-
-        // Draw selection rectangle (in screen space, account for rootOffset)
-        val selRectStart = state.selectionRectStart
-        val selRectEnd = state.selectionRectEnd
-        if (selRectStart != null && selRectEnd != null) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val left = minOf(selRectStart.x, selRectEnd.x)
-                val top = minOf(selRectStart.y, selRectEnd.y)
-                val right = maxOf(selRectStart.x, selRectEnd.x)
-                val bottom = maxOf(selRectStart.y, selRectEnd.y)
-                drawRect(
-                    color = colors.selectionRect,
-                    topLeft = Offset(left, top),
-                    size = Size(right - left, bottom - top),
-                    style = Stroke(width = 1.dp.toPx())
-                )
-                drawRect(
-                    color = colors.selectionRect.copy(alpha = 0.1f),
-                    topLeft = Offset(left, top),
-                    size = Size(right - left, bottom - top)
-                )
-            }
-        }
-
-        // Editor overlay — backdrop + panel
-        state.editingModule?.let { module ->
-            Box(
+    Column(modifier = modifier.fillMaxSize()) {
+        val parentPatch = state.parentPatch
+        if (parentPatch != null && parentPatch.name != "root") {
+            Row(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.Black.copy(alpha = 0.4f))
-                    .pointerInput(Unit) { detectTapGestures { state.editingModule = null } }
-            )
-            ModuleEditor(
-                module = module,
-                onDismiss = { state.editingModule = null },
-                modifier = Modifier.align(Alignment.Center)
-            )
+                    .fillMaxWidth()
+                    .background(colors.moduleBackground)
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Patch Name:",
+                    color = if (colors.background == Color(0xFF1E1E1E)) Color.LightGray else Color.DarkGray,
+                    fontSize = 12.sp
+                )
+                var tempName by remember(parentPatch) { mutableStateOf(parentPatch.name) }
+                Box(
+                    modifier = Modifier
+                        .width(200.dp)
+                        .background(colors.background, RoundedCornerShape(4.dp))
+                        .border(1.dp, colors.moduleBorder, RoundedCornerShape(4.dp))
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                ) {
+                    BasicTextField(
+                        value = tempName,
+                        onValueChange = { input ->
+                            val filtered = cleanKotlinIdentifier(input)
+                            tempName = filtered
+                            if (filtered.isNotEmpty()) {
+                                parentPatch.name = filtered
+                                mdiState.windows.find { it.id === parentPatch }?.let { win ->
+                                    win.title = filtered
+                                }
+                                FileState.markDirty()
+                            }
+                        },
+                        textStyle = TextStyle(
+                            color = if (colors.background == Color(0xFF1E1E1E)) Color.White else Color.Black,
+                            fontSize = 12.sp
+                        ),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+            HorizontalDivider(color = colors.gridLines, thickness = 1.dp)
         }
 
+        Box(modifier = Modifier.weight(1f).fillMaxWidth().background(colors.background)
+            .focusRequester(focusRequester)
+            .focusable()
+            .onKeyEvent { keyEvent ->
+                var handled = state.onKeyEvent(keyEvent)
+                if (!handled) {
+                    if (keyEvent.type == KeyEventType.KeyDown &&
+                        (keyEvent.key == Key.Backspace || keyEvent.key == Key.Delete)) {
+                        state.deleteSelectedModules()
+                        handled = true
+                    } else if (keyEvent.type == KeyEventType.KeyDown &&
+                        keyEvent.key == Key.Z &&
+                        (keyEvent.isMetaPressed || keyEvent.isCtrlPressed)) {
+                        if (keyEvent.isShiftPressed) state.engine?.redo()
+                        else state.engine?.undo()
+                        handled = true
+                    }
+                }
+                handled
+            }
+            .onGloballyPositioned { state.updateRootOffset(it.positionInRoot()) }
+            .pointerInput(state) {
+                detectTapGestures {
+                    focusRequester.requestFocus()
+                    mdiState.activeGraphState = state
+                    // Tap on background clears selection
+                    state.clearSelection()
+                }
+            }
+            .pointerInput(state) {
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    state.selectionRectStart = down.position
+                    state.selectionRectEnd = down.position
+                    drag(down.id) { change ->
+                        change.consume()
+                        state.selectionRectEnd = change.position
+                    }
+                    val rectStart = state.selectionRectStart
+                    val rectEnd = state.selectionRectEnd
+                    if (rectStart != null && rectEnd != null) {
+                        state.selectModulesInRect(rectStart, rectEnd, density)
+                    }
+                    state.selectionRectStart = null
+                    state.selectionRectEnd = null
+                }
+            }
+        ) {
+            // Draw Wires behind modules
+            WireRenderer(state)
+
+            // Draw Modules — add cases here for modules with custom layouts
+            state.modules.forEach { module ->
+                when (module) {
+                    is DoubleEntryModule -> DoubleEntryModuleNode(module, state)
+                    is FaderModule -> FaderModuleNode(module, state)
+                    is KnobModule -> KnobModuleNode(module, state)
+                    is PatchModule -> PatchModuleNode(module, state)
+                    is SequenceModule -> SequenceModuleNode(module, state)
+                    is MixerModule -> MixerModuleNode(module, state)
+                    is ModuloSelectModule -> ModuleNode(module, state, headerColor = colors.headerSequence)
+                    is InputModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
+                    is OutputModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
+                    is AudioInputModule -> ModuleNode(module, state, headerColor = colors.headerAudio, label = module.name)
+                    is AudioOutputModule -> ModuleNode(module, state, headerColor = colors.headerAudio, label = module.name)
+                    is ScopeModule -> ScopeModuleNode(module, state)
+                    is KeyboardModule -> KeyboardModuleNode(module, state)
+                    is CommentModule -> CommentModuleNode(module, state)
+                    is SegmentedEnvelopeModule -> SegmentedEnvelopeModuleNode(module, state)
+                    is KeyMatchModule -> KeyMatchModuleNode(module, state)
+                    else -> ModuleNode(module, state)
+                }
+            }
+
+            // Draw selection rectangle (in screen space, account for rootOffset)
+            val selRectStart = state.selectionRectStart
+            val selRectEnd = state.selectionRectEnd
+            if (selRectStart != null && selRectEnd != null) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val left = minOf(selRectStart.x, selRectEnd.x)
+                    val top = minOf(selRectStart.y, selRectEnd.y)
+                    val right = maxOf(selRectStart.x, selRectEnd.x)
+                    val bottom = maxOf(selRectStart.y, selRectEnd.y)
+                    drawRect(
+                        color = colors.selectionRect,
+                        topLeft = Offset(left, top),
+                        size = Size(right - left, bottom - top),
+                        style = Stroke(width = 1.dp.toPx())
+                    )
+                    drawRect(
+                        color = colors.selectionRect.copy(alpha = 0.1f),
+                        topLeft = Offset(left, top),
+                        size = Size(right - left, bottom - top)
+                    )
+                }
+            }
+
+            // Editor overlay — backdrop + panel
+            state.editingModule?.let { module ->
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.4f))
+                        .pointerInput(Unit) { detectTapGestures { state.editingModule = null } }
+                )
+                ModuleEditor(
+                    module = module,
+                    onDismiss = { state.editingModule = null },
+                    modifier = Modifier.align(Alignment.Center)
+                )
+            }
+
+        }
     }
 }
 

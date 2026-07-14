@@ -29,7 +29,9 @@ open class PatchModule(name: String = "patch") : Module(name), EngineAware {
     var windowHeight by mutableStateOf<Float?>(null)
     var isWindowOpen by mutableStateOf(false)
 
-    val graphState = GraphState(onModuleAdded = ::onChildModuleAdded)
+    val graphState = GraphState(onModuleAdded = ::onChildModuleAdded).also {
+        it.parentPatch = this
+    }
 
     override fun setEngine(engine: DataFlowEngine) {
         graphState.engine = engine

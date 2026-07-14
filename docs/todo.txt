@@ -1,0 +1,43 @@
+
+Maybe be able click on wires to select and disconnect by BACKSPACE.
+
+Combine segEnv and monoRdr?
+Widget to put wires in front and label wires with order (1) (2)
+
+Mixers with pan and master gain. Knobs should have no text. Exponential taper. over -100 dB.
+
+Seq8 reset should not kick.
+Seq8 should support feedback cycle.
+seq16
+
+Add ability to save patches in a file.
+Add "Save Patch..." to the File menu. It will save the front patch or polyPatch and its children to a file.
+Add "Load Patch..." item to the File menu. It will load the file as a patch or polyPatch into the front patch.
+A patch loaded from or saved to a file will display the file path in the editor window header, after the patch name.
+The "Save As..." File menu item will continue to save the entire patch hierarchy.
+When a patch hierarchy contains a patch from a file it will only save a reference to the file, unless the patch has been modified.
+If modified, it will ask the user if they want to save the modified patch into a file, defaulting to the original path.
+Or they can "detach" the patch from the file, which will remove the reference to the file.
+Then the patch contents will be saved in the parent JSON data.
+Also add a "Detach File" File menu item that will remove the file reference from the front patch if set.
+
+Save full module path in the JSON file.
+
+Right click on a module for a menu with "Help...".
+It will be enabled if a file called "help/{bundle}/{moduleName}.json" exists.
+
+Tutorial asks user to click on core then input
+But there are two things labeled input. One is the parameter parameter input
+
+Tooltip help when hovering over a module header or when hovering over a module in the module tree.
+
+Double is a bad name for a floating Point number module.
+
+In tutorial the backspace key might be called delete like on my MacBook Air
+
+Enter key on the MacBook Air is called return
+
+Possible bug the CMR knob on the drum rhythm for the does not seem to affect the sound!
+
+
+Add a resource folder with a "library" of patches. Add a "Load Patch from Library" file item, similar to the Help menu items.

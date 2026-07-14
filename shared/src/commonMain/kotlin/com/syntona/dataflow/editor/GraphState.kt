@@ -45,6 +45,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
     var engine: DataFlowEngine? = null
     var onChange: (() -> Unit)? = null
     var isDeserializing = false
+    var parentPatch: PatchModule? = null
 
     var onModuleAddedCallback: ((Module) -> Unit)? = null
     var onModuleRemovedCallback: ((Module) -> Unit)? = null

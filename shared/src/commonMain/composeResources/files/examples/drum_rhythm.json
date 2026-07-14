@@ -85,12 +85,12 @@
     {
       "id": 4,
       "type": "patch",
-      "name": "patch",
+      "name": "chuff",
       "x": 486.875,
       "y": 186,
       "jacks": {
         "in1": {
-          "v": 64,
+          "v": 0,
           "min": 0,
           "max": 100
         }
@@ -120,7 +120,8 @@
               "input": {
                 "v": 0,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               }
             }
           },
@@ -134,12 +135,14 @@
               "amplitude": {
                 "v": 1,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               },
               "rate": {
                 "v": 1,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               }
             }
           },
@@ -166,12 +169,14 @@
               "frequency": {
                 "v": 3868.1484375,
                 "min": 40,
-                "max": 8000
+                "max": 8000,
+                "add": false
               },
               "amplitude": {
                 "v": 1,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               }
             }
           },
@@ -185,12 +190,14 @@
               "frequency": {
                 "v": 2030.347900390625,
                 "min": 40,
-                "max": 8000
+                "max": 8000,
+                "add": false
               },
               "amplitude": {
                 "v": 1,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               }
             }
           }
@@ -232,7 +239,7 @@
     {
       "id": 5,
       "type": "patch",
-      "name": "patch",
+      "name": "fmdink",
       "x": 484.875,
       "y": 266,
       "jacks": {
@@ -267,7 +274,8 @@
               "input": {
                 "v": 0,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               }
             }
           },
@@ -281,12 +289,14 @@
               "amplitude": {
                 "v": 0.8740626573562622,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               },
               "rate": {
                 "v": 1,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               }
             }
           },
@@ -313,12 +323,14 @@
               "frequency": {
                 "v": 887.45361328125,
                 "min": 40,
-                "max": 8000
+                "max": 8000,
+                "add": false
               },
               "amplitude": {
                 "v": 0.8794658780097961,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               }
             }
           },
@@ -332,17 +344,20 @@
               "frequency": {
                 "v": 437.99993896484375,
                 "min": 40,
-                "max": 8000
+                "max": 8000,
+                "add": false
               },
               "amplitude": {
                 "v": 0.36570432782173157,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               },
               "modulation": {
                 "v": 0,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               }
             }
           },
@@ -424,12 +439,12 @@
     {
       "id": 6,
       "type": "patch",
-      "name": "patch",
+      "name": "fmkick",
       "x": 487.875,
       "y": 354,
       "jacks": {
         "in1": {
-          "v": 67,
+          "v": 52,
           "min": 0,
           "max": 100
         }
@@ -459,7 +474,8 @@
               "input": {
                 "v": 0,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               }
             }
           },
@@ -473,12 +489,14 @@
               "amplitude": {
                 "v": 0.9329485893249512,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               },
               "rate": {
                 "v": 1,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               }
             }
           },
@@ -505,12 +523,14 @@
               "frequency": {
                 "v": 137.73387145996094,
                 "min": 40,
-                "max": 8000
+                "max": 8000,
+                "add": false
               },
               "amplitude": {
                 "v": 3.4029345512390137,
                 "min": 0,
-                "max": 4
+                "max": 4,
+                "add": false
               }
             }
           },
@@ -524,17 +544,20 @@
               "frequency": {
                 "v": 72.05987548828125,
                 "min": 40,
-                "max": 8000
+                "max": 8000,
+                "add": false
               },
               "amplitude": {
                 "v": 0.36570432782173157,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               },
               "modulation": {
                 "v": 0,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               }
             }
           },
@@ -603,12 +626,14 @@
               "amplitude": {
                 "v": 2.274266242980957,
                 "min": 0,
-                "max": 4
+                "max": 4,
+                "add": false
               },
               "rate": {
                 "v": 1,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               }
             }
           }
@@ -741,7 +766,7 @@
     {
       "id": 8,
       "type": "patch",
-      "name": "patch",
+      "name": "fmlow",
       "x": 489.875,
       "y": 433,
       "jacks": {
@@ -776,7 +801,8 @@
               "input": {
                 "v": 0,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               }
             }
           },
@@ -790,12 +816,14 @@
               "amplitude": {
                 "v": 0.7251962423324585,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               },
               "rate": {
                 "v": 1,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               }
             }
           },
@@ -822,12 +850,14 @@
               "frequency": {
                 "v": 99.50625610351562,
                 "min": 40,
-                "max": 8000
+                "max": 8000,
+                "add": false
               },
               "amplitude": {
                 "v": 3.4029345512390137,
                 "min": 0,
-                "max": 4
+                "max": 4,
+                "add": false
               }
             }
           },
@@ -841,17 +871,20 @@
               "frequency": {
                 "v": 52.05987548828125,
                 "min": 40,
-                "max": 8000
+                "max": 8000,
+                "add": false
               },
               "amplitude": {
                 "v": 0.36570432782173157,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               },
               "modulation": {
                 "v": 0,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               }
             }
           },
@@ -920,12 +953,14 @@
               "amplitude": {
                 "v": 2.274266242980957,
                 "min": 0,
-                "max": 4
+                "max": 4,
+                "add": false
               },
               "rate": {
                 "v": 1,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               }
             }
           }
@@ -1024,67 +1059,80 @@
         "input0": {
           "v": 0,
           "min": 0,
-          "max": 1
+          "max": 1,
+          "add": false
         },
         "input1": {
           "v": 0,
           "min": 0,
-          "max": 1
+          "max": 1,
+          "add": false
         },
         "input2": {
           "v": 0,
           "min": 0,
-          "max": 1
+          "max": 1,
+          "add": false
         },
         "input3": {
           "v": 0,
           "min": 0,
-          "max": 1
+          "max": 1,
+          "add": false
         },
         "gain0": {
-          "v": 0.6775915622711182,
+          "v": 0.5938600897789001,
           "min": 0,
-          "max": 1
+          "max": 1,
+          "add": false
         },
         "gain1": {
-          "v": 0.35255199670791626,
+          "v": 0.48259902000427246,
           "min": 0,
-          "max": 1
+          "max": 1,
+          "add": false
         },
         "gain2": {
-          "v": 0.3874344229698181,
+          "v": 0.4564617872238159,
           "min": 0,
-          "max": 1
+          "max": 1,
+          "add": false
         },
         "gain3": {
-          "v": 0.6667070984840393,
+          "v": 0.6433377265930176,
           "min": 0,
-          "max": 1
+          "max": 1,
+          "add": false
         },
         "amplitude": {
           "v": 0.7206068634986877,
           "min": 0,
-          "max": 1
+          "max": 1,
+          "add": false
         },
         "pan0": {
           "v": -0.7156850695610046,
           "min": -1,
-          "max": 1
+          "max": 1,
+          "add": false
         },
         "pan1": {
           "v": 0.8659629225730896,
           "min": -1,
-          "max": 1
+          "max": 1,
+          "add": false
         },
         "pan2": {
           "v": 0.11370036751031876,
           "min": -1,
-          "max": 1
+          "max": 1,
+          "add": false
         },
         "pan3": {
           "v": -0.19177718460559845,
           "min": -1,
-          "max": 1
+          "max": 1,
+          "add": false
         }
       }
     },
@@ -1098,12 +1146,14 @@
         "input0": {
           "v": 0,
           "min": 0,
-          "max": 1
+          "max": 1,
+          "add": false
         },
         "input1": {
           "v": 0,
           "min": 0,
-          "max": 1
+          "max": 1,
+          "add": false
         }
       }
     },
