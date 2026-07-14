@@ -82,7 +82,11 @@ object GraphSerializer {
             }
             valueJacks.forEachIndexed { j, jack ->
                 if (j > 0) append(",")
-                append("\"${jack.name.jsonEscape}\":{\"v\":${jack.getValue()},\"min\":${jack.min},\"max\":${jack.max}}")
+                append("\"${jack.name.jsonEscape}\":{\"v\":${jack.getValue()},\"min\":${jack.min},\"max\":${jack.max}")
+                if (jack is AudioInputJack) {
+                    append(",\"add\":${jack.isValueAdded}")
+                }
+                append("}")
             }
             append("}")
             if (module is CommentModule) {
@@ -209,6 +213,9 @@ object GraphSerializer {
                         (jackValue.map["min"] as? JsonValue.Num)?.value?.let { inputJack.min = it }
                         (jackValue.map["max"] as? JsonValue.Num)?.value?.let { inputJack.max = it }
                         (jackValue.map["v"] as? JsonValue.Num)?.value?.let { inputJack.setValue(it) }
+                        if (inputJack is AudioInputJack) {
+                            (jackValue.map["add"] as? JsonValue.Bool)?.value?.let { inputJack.isValueAdded = it }
+                        }
                     }
                     else -> {}
                 }

@@ -1,4 +1,3 @@
-drum_rhythm.json
 examples/drum_rhythm.json
 examples/key_control.json
 examples/keyboard13.json
@@ -14,4 +13,5 @@ tutorials/02_editing/01_connections.json
 tutorials/02_editing/02_add_modules.json
 tutorials/02_editing/03_edit_jacks.json
 tutorials/02_editing/04_precise_values.json
+tutorials/02_editing/05_add_knob_audio.json
 tutorials/02_editing/05_edit_module.json

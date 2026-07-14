@@ -1,0 +1,122 @@
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "sineOsc",
+      "name": "sineOsc",
+      "x": 327.91162,
+      "y": 197.91162,
+      "jacks": {
+        "frequency": {
+          "v": 681.9468383789062,
+          "min": 40,
+          "max": 8000,
+          "add": true
+        },
+        "amplitude": {
+          "v": 1,
+          "min": 0,
+          "max": 1,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 1,
+      "type": "lineOut",
+      "name": "lineOut",
+      "x": 528.9441,
+      "y": 187.11182,
+      "jacks": {
+        "input0": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "add": false
+        },
+        "input1": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "triOsc",
+      "name": "triOsc",
+      "x": 210.896,
+      "y": 329.06934,
+      "jacks": {
+        "frequency": {
+          "v": 3.597822427749634,
+          "min": 0.10000000149011612,
+          "max": 10,
+          "add": false
+        },
+        "amplitude": {
+          "v": 262.5420837402344,
+          "min": 0,
+          "max": 500,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "knob",
+      "name": "frequency",
+      "x": 65.875,
+      "y": 206,
+      "jacks": {
+        "in": {
+          "v": 681.9468383789062,
+          "min": 40,
+          "max": 4000
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "comment",
+      "name": "comment",
+      "x": 56.88141,
+      "y": 23.03952,
+      "jacks": {},
+      "text": "In the module editor of the sineOsc, you can see that the \"Add?\" checkbox is set.  This allows the value from the knob to be added to the modulation value from the triOsc.\nDouble click on the \"sineOsc\" header to see the module editor.",
+      "w": 464.66162,
+      "h": 92.08839
+    }
+  ],
+  "connections": [
+    {
+      "from": 0,
+      "fromJack": "output",
+      "to": 1,
+      "toJack": "input1"
+    },
+    {
+      "from": 2,
+      "fromJack": "output",
+      "to": 0,
+      "toJack": "frequency"
+    },
+    {
+      "from": 3,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "frequency"
+    },
+    {
+      "from": 0,
+      "fromJack": "output",
+      "to": 1,
+      "toJack": "input0"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 800,
+  "windowHeight": 500
+}

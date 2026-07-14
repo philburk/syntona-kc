@@ -27,6 +27,12 @@ class AudioInputJack(
         get() = unitInputPort.maximum.toDouble()
         set(value) { unitInputPort.maximum = value.toFloat() }
 
+    /** When true, the value set() on this jack is added to the audio values of connected ports
+     * instead of being ignored while an audio-rate connection is present. */
+    var isValueAdded: Boolean
+        get() = unitInputPort.isValueAdded
+        set(value) { unitInputPort.isValueAdded = value }
+
     override fun getValue(): Double = unitInputPort.get(partIndex).toDouble()
 
     // setValue() is inherited from InputJack: it calls receive(), which both applies the

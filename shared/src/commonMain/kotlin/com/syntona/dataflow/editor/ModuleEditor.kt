@@ -8,6 +8,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -20,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
@@ -175,6 +177,22 @@ private fun JackEditorRow(jack: InputJack) {
                     onCommit = { jack.max = it },
                     modifier = Modifier.width(80.dp)
                 )
+
+                if (jack is AudioInputJack) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Add?", fontSize = 11.sp, color = LABEL_COLOR)
+                    var isValueAdded by remember(jack) { mutableStateOf(jack.isValueAdded) }
+                    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
+                        Checkbox(
+                            checked = isValueAdded,
+                            onCheckedChange = {
+                                isValueAdded = it
+                                jack.isValueAdded = it
+                            },
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
             }
 
             // Fader
