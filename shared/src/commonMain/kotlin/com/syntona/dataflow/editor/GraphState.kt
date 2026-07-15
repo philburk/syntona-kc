@@ -106,7 +106,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
     }
 
     // Core deletion logic used by DeleteModulesCommand.execute()
-    internal fun removeModulesDirectly(modulesToRemove: List<Module>) {
+    fun removeModulesDirectly(modulesToRemove: List<Module>) {
         modulesToRemove.forEach { module ->
             module.teardown()
             val connsToRemove = connections.filter { it.output.module === module || it.input.module === module }
@@ -222,6 +222,40 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
 
     fun clearAllModules() {
         removeModulesDirectly(modules.toList())
+    }
+
+    fun replaceModule(oldModule: Module, newModule: Module) {
+        val position = modulePositions[oldModule] ?: Offset.Zero
+        val size = moduleSizes[oldModule] ?: Offset.Zero
+
+        // Find all connections that involve oldModule
+        val oldConns = connections.filter { it.output.module === oldModule || it.input.module === oldModule }
+
+        // Remove oldModule
+        removeModulesDirectly(listOf(oldModule))
+
+        // Add newModule
+        addModuleDirectly(newModule, position)
+        if (size != Offset.Zero) {
+            moduleSizes[newModule] = size
+        }
+
+        // Reconnect
+        oldConns.forEach { conn ->
+            if (conn.output.module === oldModule) {
+                val newOutput = newModule.outputs.find { it.name == conn.output.name }
+                if (newOutput != null) {
+                    connectDirectly(newOutput, conn.input)
+                }
+            } else if (conn.input.module === oldModule) {
+                val newInput = newModule.inputs.find { it.name == conn.input.name }
+                if (newInput != null) {
+                    connectDirectly(conn.output, newInput)
+                }
+            }
+        }
+
+        notifyChanged()
     }
 
     fun kickLoadKickModules() {

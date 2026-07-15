@@ -27,7 +27,7 @@ Right click on a module for a menu with "Help...".
 It will be enabled if a file called "help/{bundle}/{moduleName}.json" exists.
 
 Tutorial asks user to click on core then input
-But there are two things labeled input. One is the parameter parameter input
+But there are two things labeled input. One is the parameter input
 
 Tooltip help when hovering over a module header or when hovering over a module in the module tree.
 

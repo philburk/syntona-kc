@@ -17,6 +17,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.changedToDown
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInRoot
@@ -74,7 +75,14 @@ fun MdiWindowFrame(window: MdiWindowInfo, mdiState: MdiState) {
             .height(window.height)
             .border(1.dp, Color(0xFF555555), RoundedCornerShape(8.dp))
             .pointerInput(window.id) {
-                detectTapGestures { mdiState.bringToFront(window) }
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                        if (event.changes.any { it.changedToDown() }) {
+                            mdiState.bringToFront(window)
+                        }
+                    }
+                }
             },
         shape = RoundedCornerShape(8.dp),
         color = Color(0xFF2D2D2D),

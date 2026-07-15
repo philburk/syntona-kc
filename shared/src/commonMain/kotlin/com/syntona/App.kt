@@ -199,26 +199,18 @@ fun App(
         }
         SideEffect {
             onMdiStateReady?.invoke(mdiState)
-            rootPatch.graphState.onChange = { FileState.markDirty() }
+            rootPatch.graphState.onChange = {
+                if (!rootPatch.graphState.isDeserializing) {
+                    rootPatch.isModified = true
+                }
+                FileState.markDirty()
+            }
         }
         LaunchedEffect(Unit) {
             syntonaModel.start()
         }
         LaunchedEffect(FileState.currentFilePath) {
-            val rootWindow = mdiState.windows.find { it.id == rootPatch }
-            if (rootWindow != null) {
-                val path = FileState.currentFilePath
-                rootWindow.title = if (path == null) {
-                    rootPatch.name
-                } else {
-                    val marker = "composeResources/files/"
-                    if (path.contains(marker)) {
-                        path.substringAfter(marker)
-                    } else {
-                        path
-                    }
-                }
-            }
+            rootPatch.filePath = FileState.currentFilePath
         }
         LaunchedEffect(mdiState, scope) {
             LinkModule.onTriggerLoad = { path ->
@@ -370,78 +362,211 @@ fun App(
                                              expanded = fileExpanded,
                                              onDismissRequest = { fileExpanded = false }
                                          ) {
-                                             DropdownMenuItem(
-                                                 text = { Text("New") },
-                                                 trailingIcon = { ShortcutHint("⌘N") },
-                                                 onClick = {
-                                                     fileExpanded = false
-                                                     FileState.requestIfDirty {
-                                                         gs.clearAllModules()
-                                                         engine.clearHistory()
-                                                         FileState.markNew()
-                                                         mdiState.closeAllClosable()
-                                                     }
-                                                 }
-                                             )
-                                             DropdownMenuItem(
-                                                 text = { Text("Open...") },
-                                                 trailingIcon = { ShortcutHint("⌘O") },
-                                                 onClick = {
-                                                     fileExpanded = false
-                                                     FileState.requestIfDirty {
-                                                         showOpenFileDialog { name, content ->
-                                                             gs.clearAllModules()
-                                                             engine.clearHistory()
-                                                             mdiState.closeAllClosable()
-                                                             GraphSerializer.deserialize(gs, content, density = appDensity)
-                                                             restoreWindowStates(mdiState, gs, appDensity)
-                                                             restoreRootWindowGeometry(mdiState, rootPatch, content, appDensity)
-                                                             FileState.markSaved(name)
-                                                             gs.kickLoadKickModules()
-                                                         }
-                                                     }
-                                                 }
-                                             )
-                                             HorizontalDivider()
-                                             DropdownMenuItem(
-                                                 text = { Text("Save") },
-                                                 trailingIcon = { ShortcutHint("⌘S") },
-                                                 enabled = FileState.isDirty,
-                                                 onClick = {
-                                                     fileExpanded = false
-                                                     val json = GraphSerializer.serialize(
-                                                         gs, gs.modules.toList(), appDensity,
-                                                         rootWindowX = rootPatch.windowX,
-                                                         rootWindowY = rootPatch.windowY,
-                                                         rootWindowWidth = rootPatch.windowWidth,
-                                                         rootWindowHeight = rootPatch.windowHeight
-                                                     )
-                                                     val path = FileState.currentFilePath
-                                                     if (path != null) {
-                                                         saveFileDirect(path, json)
-                                                         FileState.markSaved(path)
-                                                     } else {
-                                                         showSaveFileDialog(json, "patch.json") { FileState.markSaved(it) }
-                                                     }
-                                                 }
-                                             )
-                                             DropdownMenuItem(
-                                                 text = { Text("Save As...") },
-                                                 trailingIcon = { ShortcutHint("⌘⇧S") },
-                                                 onClick = {
-                                                     fileExpanded = false
-                                                     showSaveFileDialog(
-                                                         GraphSerializer.serialize(
-                                                             gs, gs.modules.toList(), appDensity,
-                                                             rootWindowX = rootPatch.windowX,
-                                                             rootWindowY = rootPatch.windowY,
-                                                             rootWindowWidth = rootPatch.windowWidth,
-                                                             rootWindowHeight = rootPatch.windowHeight
-                                                         ),
-                                                         FileState.currentFileName ?: "patch.json"
-                                                     ) { FileState.markSaved(it) }
-                                                 }
-                                             )
+                                              DropdownMenuItem(
+                                                  text = { Text("New") },
+                                                  trailingIcon = { ShortcutHint("⌘N") },
+                                                  onClick = {
+                                                      fileExpanded = false
+                                                      FileState.requestIfDirty {
+                                                          gs.clearAllModules()
+                                                          engine.clearHistory()
+                                                          rootPatch.clearModifiedRecursively()
+                                                          FileState.markNew()
+                                                          mdiState.closeAllClosable()
+                                                      }
+                                                  }
+                                              )
+                                              DropdownMenuItem(
+                                                  text = { Text("Open...") },
+                                                  trailingIcon = { ShortcutHint("⌘O") },
+                                                  onClick = {
+                                                      fileExpanded = false
+                                                      FileState.requestIfDirty {
+                                                          showOpenFileDialog { name, content ->
+                                                              gs.clearAllModules()
+                                                              engine.clearHistory()
+                                                              mdiState.closeAllClosable()
+                                                              GraphSerializer.deserialize(gs, content, density = appDensity)
+                                                              restoreWindowStates(mdiState, gs, appDensity)
+                                                              restoreRootWindowGeometry(mdiState, rootPatch, content, appDensity)
+                                                              rootPatch.clearModifiedRecursively()
+                                                              FileState.markSaved(name)
+                                                              gs.kickLoadKickModules()
+                                                          }
+                                                      }
+                                                  }
+                                              )
+                                              DropdownMenuItem(
+                                                   text = { Text("Add Patch from File...") },
+                                                   onClick = {
+                                                       fileExpanded = false
+                                                       val activeGs = mdiState.activeGraphState
+                                                       if (activeGs != null) {
+                                                           showOpenFileDialog { path, content ->
+                                                               val parsed = try { JsonParser(content).parse() as? JsonValue.Obj } catch (_: Exception) { null }
+                                                               if (parsed != null) {
+                                                                   val fileType = (parsed.map["type"] as? JsonValue.Str)?.value ?: "patch"
+                                                                   val fileName = path.substringAfterLast('/').substringAfterLast('\\').substringBeforeLast(".json")
+                                                                   val newPatch = if (fileType == "polyPatch") {
+                                                                       val poly = PolyPatchModule(fileName)
+                                                                       val maxV = (parsed.map["maxVoices"] as? JsonValue.Num)?.value?.toInt() ?: 4
+                                                                       poly.initializeVoices(maxV)
+                                                                       poly
+                                                                   } else {
+                                                                       PatchModule(fileName)
+                                                                   }
+                                                                   newPatch.filePath = path
+                                                                   newPatch.clearModifiedRecursively()
+
+                                                                   newPatch.graphState.isDeserializing = true
+                                                                   try {
+                                                                       newPatch.graphState.removeModulesDirectly(newPatch.graphState.modules.toList())
+                                                                       GraphSerializer.deserialize(newPatch.graphState, content, Offset.Zero, appDensity)
+                                                                       if (newPatch is PolyPatchModule) {
+                                                                           newPatch.ensureDefaultModulesExist()
+                                                                       }
+                                                                   } finally {
+                                                                       newPatch.graphState.isDeserializing = false
+                                                                   }
+                                                                   newPatch.clearModifiedRecursively()
+
+                                                                   activeGs.addModule(newPatch, Offset(100f, 100f))
+                                                               }
+                                                           }
+                                                       }
+                                                   }
+                                               )
+                                              HorizontalDivider()
+                                              DropdownMenuItem(
+                                                  text = { Text("Save") },
+                                                  trailingIcon = { ShortcutHint("⌘S") },
+                                                  enabled = FileState.isDirty,
+                                                  onClick = {
+                                                      fileExpanded = false
+                                                      val modifiedChildren = rootPatch.findModifiedReferencedPatches()
+                                                      if (modifiedChildren.isNotEmpty()) {
+                                                          FileState.patchesToConfirmSave.clear()
+                                                          FileState.patchesToConfirmSave.addAll(modifiedChildren)
+                                                          FileState.postConfirmationSaveAction = {
+                                                              val json = GraphSerializer.serialize(
+                                                                  gs, gs.modules.toList(), appDensity,
+                                                                  rootWindowX = rootPatch.windowX,
+                                                                  rootWindowY = rootPatch.windowY,
+                                                                  rootWindowWidth = rootPatch.windowWidth,
+                                                                  rootWindowHeight = rootPatch.windowHeight
+                                                              )
+                                                              val path = FileState.currentFilePath
+                                                              if (path != null) {
+                                                                  saveFileDirect(path, json)
+                                                                  rootPatch.filePath = path
+                                                                  rootPatch.clearModifiedRecursively()
+                                                                  FileState.markSaved(path)
+                                                              } else {
+                                                                  showSaveFileDialog(json, "patch.json") { savedPath ->
+                                                                      rootPatch.filePath = savedPath
+                                                                      rootPatch.clearModifiedRecursively()
+                                                                      FileState.markSaved(savedPath)
+                                                                  }
+                                                              }
+                                                          }
+                                                      } else {
+                                                          val json = GraphSerializer.serialize(
+                                                              gs, gs.modules.toList(), appDensity,
+                                                              rootWindowX = rootPatch.windowX,
+                                                              rootWindowY = rootPatch.windowY,
+                                                              rootWindowWidth = rootPatch.windowWidth,
+                                                              rootWindowHeight = rootPatch.windowHeight
+                                                          )
+                                                          val path = FileState.currentFilePath
+                                                          if (path != null) {
+                                                              saveFileDirect(path, json)
+                                                              rootPatch.filePath = path
+                                                              rootPatch.clearModifiedRecursively()
+                                                              FileState.markSaved(path)
+                                                          } else {
+                                                              showSaveFileDialog(json, "patch.json") { savedPath ->
+                                                                  rootPatch.filePath = savedPath
+                                                                  rootPatch.clearModifiedRecursively()
+                                                                  FileState.markSaved(savedPath)
+                                                              }
+                                                          }
+                                                      }
+                                                  }
+                                              )
+                                              DropdownMenuItem(
+                                                  text = { Text("Save As...") },
+                                                  trailingIcon = { ShortcutHint("⌘⇧S") },
+                                                  onClick = {
+                                                      fileExpanded = false
+                                                      val modifiedChildren = rootPatch.findModifiedReferencedPatches()
+                                                      if (modifiedChildren.isNotEmpty()) {
+                                                          FileState.patchesToConfirmSave.clear()
+                                                          FileState.patchesToConfirmSave.addAll(modifiedChildren)
+                                                          FileState.postConfirmationSaveAction = {
+                                                              showSaveFileDialog(
+                                                                  GraphSerializer.serialize(
+                                                                      gs, gs.modules.toList(), appDensity,
+                                                                      rootWindowX = rootPatch.windowX,
+                                                                      rootWindowY = rootPatch.windowY,
+                                                                      rootWindowWidth = rootPatch.windowWidth,
+                                                                      rootWindowHeight = rootPatch.windowHeight
+                                                                  ),
+                                                                  FileState.currentFileName ?: "patch.json"
+                                                              ) { savedPath ->
+                                                                  rootPatch.filePath = savedPath
+                                                                  rootPatch.clearModifiedRecursively()
+                                                                  FileState.markSaved(savedPath)
+                                                              }
+                                                          }
+                                                      } else {
+                                                          showSaveFileDialog(
+                                                              GraphSerializer.serialize(
+                                                                  gs, gs.modules.toList(), appDensity,
+                                                                  rootWindowX = rootPatch.windowX,
+                                                                  rootWindowY = rootPatch.windowY,
+                                                                  rootWindowWidth = rootPatch.windowWidth,
+                                                                  rootWindowHeight = rootPatch.windowHeight
+                                                              ),
+                                                              FileState.currentFileName ?: "patch.json"
+                                                          ) { savedPath ->
+                                                              rootPatch.filePath = savedPath
+                                                              rootPatch.clearModifiedRecursively()
+                                                              FileState.markSaved(savedPath)
+                                                          }
+                                                      }
+                                                  }
+                                              )
+                                              DropdownMenuItem(
+                                                  text = { Text("Save Patch As...") },
+                                                  onClick = {
+                                                      fileExpanded = false
+                                                      val target = mdiState.activeGraphState?.parentPatch
+                                                      if (target != null) {
+                                                          val json = GraphSerializer.serializePatch(target, appDensity)
+                                                          val defaultName = target.filePath?.let { p ->
+                                                              p.substringAfterLast('/').substringAfterLast('\\').ifEmpty { p }
+                                                          } ?: "${target.name}.json"
+                                                          showSaveFileDialog(json, defaultName) { path ->
+                                                              target.filePath = path
+                                                              target.clearModifiedRecursively()
+                                                              if (target === rootPatch) {
+                                                                  FileState.markSaved(path)
+                                                              }
+                                                          }
+                                                      }
+                                                  }
+                                              )
+                                              DropdownMenuItem(
+                                                  text = { Text("Detach File from Patch") },
+                                                  enabled = mdiState.activeGraphState?.parentPatch?.filePath != null,
+                                                  onClick = {
+                                                      fileExpanded = false
+                                                      val target = mdiState.activeGraphState?.parentPatch
+                                                      if (target != null) {
+                                                          target.filePath = null
+                                                      }
+                                                  }
+                                              )
                                          }
                                      }
                                  }
@@ -783,6 +908,49 @@ fun App(
                                 .border(1.dp, Color.Cyan, RoundedCornerShape(4.dp))
                         )
                     }
+                    if (FileState.patchesToConfirmSave.isNotEmpty()) {
+                        val patchToConfirm = FileState.patchesToConfirmSave.first()
+                        AlertDialog(
+                            onDismissRequest = {
+                                FileState.patchesToConfirmSave.clear()
+                                FileState.postConfirmationSaveAction = null
+                            },
+                            title = { Text("Save Referenced Patch") },
+                            text = { Text("The referenced patch '${patchToConfirm.name}' has been modified. Do you want to save its changes back to '${patchToConfirm.filePath}' or detach it?") },
+                            confirmButton = {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(onClick = {
+                                        val childJson = GraphSerializer.serializePatch(patchToConfirm, appDensity)
+                                        saveFileDirect(patchToConfirm.filePath!!, childJson)
+                                        patchToConfirm.clearModifiedRecursively()
+                                        FileState.patchesToConfirmSave.removeAt(0)
+                                        if (FileState.patchesToConfirmSave.isEmpty()) {
+                                            FileState.postConfirmationSaveAction?.invoke()
+                                            FileState.postConfirmationSaveAction = null
+                                        }
+                                    }) { Text("Save") }
+                                    Button(onClick = {
+                                        patchToConfirm.filePath = null
+                                        patchToConfirm.clearModifiedRecursively()
+                                        FileState.patchesToConfirmSave.removeAt(0)
+                                        if (FileState.patchesToConfirmSave.isEmpty()) {
+                                            FileState.postConfirmationSaveAction?.invoke()
+                                            FileState.postConfirmationSaveAction = null
+                                        }
+                                    }) { Text("Detach") }
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = {
+                                    FileState.patchesToConfirmSave.clear()
+                                    FileState.postConfirmationSaveAction = null
+                                }) {
+                                    Text("Cancel")
+                                }
+                            }
+                        )
+                    }
+
                     FileState.pendingAction?.let { pendingAction ->
                         AlertDialog(
                             onDismissRequest = { FileState.pendingAction = null },

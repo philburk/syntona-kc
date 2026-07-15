@@ -12,10 +12,17 @@ import com.syntona.dataflow.editor.CopyPasteService
 import com.syntona.dataflow.editor.FileState
 import com.syntona.dataflow.editor.GraphSerializer
 import com.syntona.dataflow.editor.MdiState
+import com.syntona.dataflow.editor.MdiWindowInfo
+import com.syntona.dataflow.editor.GraphEditor
+import com.syntona.dataflow.editor.JsonParser
+import com.syntona.dataflow.editor.JsonValue
 import com.syntona.dataflow.editor.saveFileDirect
 import com.syntona.dataflow.editor.showOpenFileDialog
 import com.syntona.dataflow.editor.showSaveFileDialog
 import com.syntona.dataflow.modules.LinkModule
+import com.syntona.dataflow.modules.PatchModule
+import com.syntona.dataflow.modules.PolyPatchModule
+import androidx.compose.ui.geometry.Offset
 import kotlinx.coroutines.launch
 
 fun main() = application {
@@ -78,6 +85,8 @@ fun main() = application {
                         FileState.requestIfDirty {
                             gs?.clearAllModules()
                             engine?.clearHistory()
+                            val rootPatch = state.windows.find { !it.closable }?.id as? PatchModule
+                            rootPatch?.clearModifiedRecursively()
                             FileState.markNew()
                             state.closeAllClosable()
                         }
@@ -89,14 +98,51 @@ fun main() = application {
                                     gs.clearAllModules()
                                     engine?.clearHistory()
                                     state.closeAllClosable()
-                                    val rootPatch = state.windows.find { !it.closable }?.id as? com.syntona.dataflow.modules.PatchModule
+                                    val rootPatch = state.windows.find { !it.closable }?.id as? PatchModule
                                     GraphSerializer.deserialize(gs, content, density = density)
                                     com.syntona.restoreWindowStates(state, gs, density)
                                     if (rootPatch != null) {
                                         restoreRootWindowGeometry(state, rootPatch, content, density)
+                                        rootPatch.clearModifiedRecursively()
                                     }
                                     FileState.markSaved(name)
                                     gs.kickLoadKickModules()
+                                }
+                            }
+                        }
+                    }
+                    Item("Add Patch from File...") {
+                        val activeGs = state.activeGraphState
+                        if (activeGs != null) {
+                            showOpenFileDialog { path, content ->
+                                val parsed = try { JsonParser(content).parse() as? JsonValue.Obj } catch (_: Exception) { null }
+                                if (parsed != null) {
+                                    val fileType = (parsed.map["type"] as? JsonValue.Str)?.value ?: "patch"
+                                    val fileName = path.substringAfterLast('/').substringAfterLast('\\').substringBeforeLast(".json")
+                                    val newPatch = if (fileType == "polyPatch") {
+                                        val poly = PolyPatchModule(fileName)
+                                        val maxV = (parsed.map["maxVoices"] as? JsonValue.Num)?.value?.toInt() ?: 4
+                                        poly.initializeVoices(maxV)
+                                        poly
+                                    } else {
+                                        PatchModule(fileName)
+                                    }
+                                    newPatch.filePath = path
+                                    newPatch.clearModifiedRecursively()
+
+                                    newPatch.graphState.isDeserializing = true
+                                    try {
+                                        newPatch.graphState.removeModulesDirectly(newPatch.graphState.modules.toList())
+                                        GraphSerializer.deserialize(newPatch.graphState, content, Offset.Zero, density)
+                                        if (newPatch is PolyPatchModule) {
+                                            newPatch.ensureDefaultModulesExist()
+                                        }
+                                    } finally {
+                                        newPatch.graphState.isDeserializing = false
+                                    }
+                                    newPatch.clearModifiedRecursively()
+
+                                    activeGs.addModule(newPatch, Offset(100f, 100f))
                                 }
                             }
                         }
@@ -108,36 +154,126 @@ fun main() = application {
                         enabled = FileState.isDirty
                     ) {
                         if (gs != null) {
-                            val rootPatch = state.windows.find { !it.closable }?.id as? com.syntona.dataflow.modules.PatchModule
-                            val json = GraphSerializer.serialize(
-                                gs, gs.modules.toList(), density,
-                                rootWindowX = rootPatch?.windowX,
-                                rootWindowY = rootPatch?.windowY,
-                                rootWindowWidth = rootPatch?.windowWidth,
-                                rootWindowHeight = rootPatch?.windowHeight
-                            )
-                            val path = FileState.currentFilePath
-                            if (path != null) {
-                                saveFileDirect(path, json)
-                                FileState.markSaved(path)
-                            } else {
-                                showSaveFileDialog(json, "patch.json") { FileState.markSaved(it) }
+                            val rootPatch = state.windows.find { !it.closable }?.id as? PatchModule
+                            if (rootPatch != null) {
+                                val modifiedChildren = rootPatch.findModifiedReferencedPatches()
+                                if (modifiedChildren.isNotEmpty()) {
+                                    FileState.patchesToConfirmSave.clear()
+                                    FileState.patchesToConfirmSave.addAll(modifiedChildren)
+                                    FileState.postConfirmationSaveAction = {
+                                        val json = GraphSerializer.serialize(
+                                            gs, gs.modules.toList(), density,
+                                            rootWindowX = rootPatch.windowX,
+                                            rootWindowY = rootPatch.windowY,
+                                            rootWindowWidth = rootPatch.windowWidth,
+                                            rootWindowHeight = rootPatch.windowHeight
+                                        )
+                                        val path = FileState.currentFilePath
+                                        if (path != null) {
+                                            saveFileDirect(path, json)
+                                            rootPatch.filePath = path
+                                            rootPatch.clearModifiedRecursively()
+                                            FileState.markSaved(path)
+                                        } else {
+                                            showSaveFileDialog(json, "patch.json") { savedPath ->
+                                                rootPatch.filePath = savedPath
+                                                rootPatch.clearModifiedRecursively()
+                                                FileState.markSaved(savedPath)
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    val json = GraphSerializer.serialize(
+                                        gs, gs.modules.toList(), density,
+                                        rootWindowX = rootPatch.windowX,
+                                        rootWindowY = rootPatch.windowY,
+                                        rootWindowWidth = rootPatch.windowWidth,
+                                        rootWindowHeight = rootPatch.windowHeight
+                                    )
+                                    val path = FileState.currentFilePath
+                                    if (path != null) {
+                                        saveFileDirect(path, json)
+                                        rootPatch.filePath = path
+                                        rootPatch.clearModifiedRecursively()
+                                        FileState.markSaved(path)
+                                    } else {
+                                        showSaveFileDialog(json, "patch.json") { savedPath ->
+                                            rootPatch.filePath = savedPath
+                                            rootPatch.clearModifiedRecursively()
+                                            FileState.markSaved(savedPath)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                     Item("Save As...", shortcut = KeyShortcut(Key.S, meta = true, shift = true)) {
                         if (gs != null) {
-                            val rootPatch = state.windows.find { !it.closable }?.id as? com.syntona.dataflow.modules.PatchModule
-                            showSaveFileDialog(
-                                GraphSerializer.serialize(
-                                    gs, gs.modules.toList(), density,
-                                    rootWindowX = rootPatch?.windowX,
-                                    rootWindowY = rootPatch?.windowY,
-                                    rootWindowWidth = rootPatch?.windowWidth,
-                                    rootWindowHeight = rootPatch?.windowHeight
-                                ),
-                                FileState.currentFileName ?: "patch.json"
-                            ) { FileState.markSaved(it) }
+                            val rootPatch = state.windows.find { !it.closable }?.id as? PatchModule
+                            if (rootPatch != null) {
+                                val modifiedChildren = rootPatch.findModifiedReferencedPatches()
+                                if (modifiedChildren.isNotEmpty()) {
+                                    FileState.patchesToConfirmSave.clear()
+                                    FileState.patchesToConfirmSave.addAll(modifiedChildren)
+                                    FileState.postConfirmationSaveAction = {
+                                        showSaveFileDialog(
+                                            GraphSerializer.serialize(
+                                                gs, gs.modules.toList(), density,
+                                                rootWindowX = rootPatch.windowX,
+                                                rootWindowY = rootPatch.windowY,
+                                                rootWindowWidth = rootPatch.windowWidth,
+                                                rootWindowHeight = rootPatch.windowHeight
+                                            ),
+                                            FileState.currentFileName ?: "patch.json"
+                                        ) { savedPath ->
+                                            rootPatch.filePath = savedPath
+                                            rootPatch.clearModifiedRecursively()
+                                            FileState.markSaved(savedPath)
+                                        }
+                                    }
+                                } else {
+                                    showSaveFileDialog(
+                                        GraphSerializer.serialize(
+                                            gs, gs.modules.toList(), density,
+                                            rootWindowX = rootPatch.windowX,
+                                            rootWindowY = rootPatch.windowY,
+                                            rootWindowWidth = rootPatch.windowWidth,
+                                            rootWindowHeight = rootPatch.windowHeight
+                                        ),
+                                        FileState.currentFileName ?: "patch.json"
+                                    ) { savedPath ->
+                                        rootPatch.filePath = savedPath
+                                        rootPatch.clearModifiedRecursively()
+                                        FileState.markSaved(savedPath)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Item("Save Patch As...") {
+                        val target = state.activeGraphState?.parentPatch
+                        if (target != null) {
+                            val json = GraphSerializer.serializePatch(target, density)
+                            val defaultName = target.filePath?.let { p ->
+                                p.substringAfterLast('/').substringAfterLast('\\').ifEmpty { p }
+                            } ?: "${target.name}.json"
+                            showSaveFileDialog(json, defaultName) { path ->
+                                target.filePath = path
+                                target.clearModifiedRecursively()
+                                val rootPatch = state.windows.find { !it.closable }?.id as? PatchModule
+                                if (target === rootPatch) {
+                                    FileState.markSaved(path)
+                                }
+                            }
+                        }
+                    }
+                    Item(
+                        "Detach File from Patch",
+                        enabled = state.activeGraphState?.parentPatch?.filePath != null
+                    ) {
+                        val target = state.activeGraphState?.parentPatch
+                        if (target != null) {
+                            target.filePath = null
                         }
                     }
                 }

@@ -664,6 +664,8 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
                             val e = state.engine
                             if (e != null) e.post(SetValueCommand(inputJack, newValue, ScoreClock.now()))
                             else inputJack.setValue(newValue)
+                            state.markChanged()
+                            FileState.markDirty()
                         } else {
                             state.onPointerMove(state.dragPointerPosition + dragAmount)
                         }
@@ -1018,7 +1020,8 @@ fun PatchModuleNode(module: PatchModule, state: GraphState) {
                         mdiState.open(window)
                     }
             ) {
-                val displayName = if (module is PolyPatchModule) "${module.name}[${module.maxVoices}]" else module.name
+                val suffix = if (module.isModified) "*" else ""
+                val displayName = if (module is PolyPatchModule) "${module.name}$suffix[${module.maxVoices}]" else "${module.name}$suffix"
                 Text(
                     text = displayName,
                     color = Color.White,
@@ -1533,7 +1536,13 @@ fun SegmentedEnvelopeModuleNode(module: SegmentedEnvelopeModule, state: GraphSta
                                         androidx.compose.material3.HorizontalDivider(color = Color.Gray, thickness = 1.dp)
 
                                         Box(modifier = Modifier.weight(1f)) {
-                                            SegmentedEnvelopeEditor(module.envelope)
+                                            SegmentedEnvelopeEditor(
+                                                envelope = module.envelope,
+                                                onChanged = {
+                                                    state.markChanged()
+                                                    FileState.markDirty()
+                                                }
+                                            )
                                         }
                                     }
                                 }

@@ -19,7 +19,7 @@ class KeyMatchModuleTest {
         val module = KeyMatchModule()
         assertEquals("keyMatch", module.name)
         assertEquals('X', module.keyChar)
-        
+
         val onOutput = module.outputs.find { it.name == "on" }
         assertNotNull(onOutput, "KeyMatchModule should have an output named 'on'")
 

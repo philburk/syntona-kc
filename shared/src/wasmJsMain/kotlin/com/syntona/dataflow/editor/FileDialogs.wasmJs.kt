@@ -55,3 +55,5 @@ actual fun chooseWavRecordFile(defaultName: String, onSelected: (path: String) -
     }
 }
 
+actual fun readFileDirect(path: String): String? = null
+

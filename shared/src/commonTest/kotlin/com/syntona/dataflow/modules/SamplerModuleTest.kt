@@ -17,7 +17,7 @@ class SamplerModuleTest {
     fun testModuleCreationAndPorts() {
         val module = SamplerModule()
         assertEquals("sampler", module.name)
-        
+
         // Assert input jack order: kick should be above input
         assertEquals(2, module.inputs.size)
         assertEquals("kick", module.inputs[0].name)

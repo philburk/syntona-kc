@@ -29,8 +29,59 @@ open class PatchModule(name: String = "patch") : Module(name), EngineAware {
     var windowHeight by mutableStateOf<Float?>(null)
     var isWindowOpen by mutableStateOf(false)
 
-    val graphState = GraphState(onModuleAdded = ::onChildModuleAdded).also {
-        it.parentPatch = this
+    var filePath by mutableStateOf<String?>(null)
+    var isModified by mutableStateOf(false)
+
+    val headerTitle: String
+        get() {
+            val suffix = if (isModified) "*" else ""
+            val path = filePath
+            return if (path == null) {
+                "$name$suffix"
+            } else {
+                val marker = "composeResources/files/"
+                val formattedPath = if (path.contains(marker)) {
+                    path.substringAfter(marker)
+                } else {
+                    path
+                }
+                "$name$suffix - $formattedPath"
+            }
+        }
+
+    val graphState: GraphState = GraphState(onModuleAdded = ::onChildModuleAdded).also { gs ->
+        gs.parentPatch = this
+        gs.onChange = {
+            if (!gs.isDeserializing) {
+                isModified = true
+                parentPatch?.graphState?.markChanged()
+            }
+        }
+    }
+
+    fun findModifiedReferencedPatches(): List<PatchModule> {
+        val result = mutableListOf<PatchModule>()
+        fun traverse(patch: PatchModule) {
+            for (module in patch.graphState.modules) {
+                if (module is PatchModule) {
+                    if (module.filePath != null && module.isModified) {
+                        result.add(module)
+                    }
+                    traverse(module)
+                }
+            }
+        }
+        traverse(this)
+        return result
+    }
+
+    fun clearModifiedRecursively() {
+        isModified = false
+        for (module in graphState.modules) {
+            if (module is PatchModule) {
+                module.clearModifiedRecursively()
+            }
+        }
     }
 
     override fun setEngine(engine: DataFlowEngine) {

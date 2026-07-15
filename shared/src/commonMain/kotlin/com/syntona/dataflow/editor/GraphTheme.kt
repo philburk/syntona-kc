@@ -15,7 +15,7 @@ data class GraphColors(
     val moduleBackgroundSelected: Color,
     val modulePatchBackground: Color,
     val moduleScopeBackground: Color,
-    
+
     // Header backgrounds
     val headerDefault: Color,
     val headerPatch: Color,
@@ -28,14 +28,14 @@ data class GraphColors(
     // Button backgrounds (kick/load etc.)
     val buttonBg: Color,
     val buttonBgPressed: Color,
-    
+
     // Jack connector color indicators
     val jackDefault: Color,
     val jackKickable: Color,
     val jackAudio: Color,
     val jackVoice: Color,
     val jackDataQueue: Color,
-    
+
     // Jack background pads
     val jackBgDefault: Color,
     val jackBgAudio: Color,

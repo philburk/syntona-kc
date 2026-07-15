@@ -59,6 +59,21 @@ object GraphSerializer {
         return RootWindowGeometry(x, y, w, h)
     }
 
+    fun serializePatch(patch: PatchModule, density: Float = 1f): String {
+        val raw = buildRawJson(patch.graphState, patch.graphState.modules.toList(), density)
+        val parsed = try { JsonParser(raw).parse() as? JsonValue.Obj } catch (_: Exception) { null }
+            ?: return raw
+        val merged = LinkedHashMap<String, JsonValue>()
+        if (patch is PolyPatchModule) {
+            merged["type"] = JsonValue.Str("polyPatch")
+            merged["maxVoices"] = JsonValue.Num(patch.maxVoices.toDouble())
+        } else {
+            merged["type"] = JsonValue.Str("patch")
+        }
+        merged["patch"] = parsed
+        return JsonValue.Obj(merged).stringify(0)
+    }
+
     // Builds compact JSON. Recursive PatchModule calls stay on this raw path so only the
     // outermost serialize() call pays for the parse+pretty-print pass.
     private fun buildRawJson(graphState: GraphState, modules: List<Module>, density: Float): String = buildString {
@@ -127,8 +142,16 @@ object GraphSerializer {
                 module.windowWidth?.let { append(",\"windowWidth\":$it") }
                 module.windowHeight?.let { append(",\"windowHeight\":$it") }
                 append(",\"windowOpen\":${module.isWindowOpen}")
-                append(",\"patch\":")
-                append(buildRawJson(module.graphState, module.graphState.modules.toList(), density))
+                val path = module.filePath
+                if (path != null && !module.isModified) {
+                    append(",\"filePath\":\"${path.jsonEscape}\"")
+                } else {
+                    if (path != null) {
+                        append(",\"filePath\":\"${path.jsonEscape}\"")
+                    }
+                    append(",\"patch\":")
+                    append(buildRawJson(module.graphState, module.graphState.modules.toList(), density))
+                }
             }
             append("}")
         }
@@ -149,8 +172,15 @@ object GraphSerializer {
     }
 
     fun deserialize(graphState: GraphState, json: String, offset: Offset = Offset.Zero, density: Float = 1f): List<Module> {
-        val rootVal = try { JsonParser(json).parse() } catch (_: Exception) { return emptyList() }
-        return deserializeObj(graphState, rootVal as? JsonValue.Obj ?: return emptyList(), offset, density)
+        val rootVal = try { JsonParser(json).parse() as? JsonValue.Obj } catch (_: Exception) { null } ?: return emptyList()
+        val type = (rootVal.map["type"] as? JsonValue.Str)?.value
+        if (type == "patch" || type == "polyPatch") {
+            val innerPatchObj = rootVal.map["patch"] as? JsonValue.Obj
+            if (innerPatchObj != null) {
+                return deserializeObj(graphState, innerPatchObj, offset, density)
+            }
+        }
+        return deserializeObj(graphState, rootVal, offset, density)
     }
 
     private fun deserializeObj(graphState: GraphState, rootObj: JsonValue.Obj, offset: Offset, density: Float = 1f): List<Module> {
@@ -227,12 +257,58 @@ object GraphSerializer {
                 (obj?.map?.get("windowWidth") as? JsonValue.Num)?.value?.let { module.windowWidth = it.toFloat() }
                 (obj?.map?.get("windowHeight") as? JsonValue.Num)?.value?.let { module.windowHeight = it.toFloat() }
                 (obj?.map?.get("windowOpen") as? JsonValue.Bool)?.value?.let { module.isWindowOpen = it }
-                val patchObj = obj?.map?.get("patch") as? JsonValue.Obj
-                if (patchObj != null) {
-                    module.graphState.removeModulesDirectly(module.graphState.modules.toList())
-                    deserializeObj(module.graphState, patchObj, Offset.Zero, density)
-                    if (module is PolyPatchModule) {
-                        module.ensureDefaultModulesExist()
+                val filePath = (obj?.map?.get("filePath") as? JsonValue.Str)?.value
+                if (filePath != null) {
+                    module.filePath = filePath
+                    val fileContent = readFileDirect(filePath)
+                    if (fileContent != null) {
+                        val childRootVal = try { JsonParser(fileContent).parse() as? JsonValue.Obj } catch (_: Exception) { null }
+                        if (childRootVal != null) {
+                            module.graphState.isDeserializing = true
+                            try {
+                                module.graphState.removeModulesDirectly(module.graphState.modules.toList())
+                                val innerPatchObj = childRootVal.map["patch"] as? JsonValue.Obj
+                                if (innerPatchObj != null) {
+                                    deserializeObj(module.graphState, innerPatchObj, Offset.Zero, density)
+                                } else {
+                                    deserializeObj(module.graphState, childRootVal, Offset.Zero, density)
+                                }
+                                if (module is PolyPatchModule) {
+                                    module.ensureDefaultModulesExist()
+                                }
+                            } finally {
+                                module.graphState.isDeserializing = false
+                            }
+                        }
+                    } else {
+                        val patchObj = obj?.map?.get("patch") as? JsonValue.Obj
+                        if (patchObj != null) {
+                            module.graphState.isDeserializing = true
+                            try {
+                                module.graphState.removeModulesDirectly(module.graphState.modules.toList())
+                                deserializeObj(module.graphState, patchObj, Offset.Zero, density)
+                                if (module is PolyPatchModule) {
+                                    module.ensureDefaultModulesExist()
+                                }
+                            } finally {
+                                module.graphState.isDeserializing = false
+                            }
+                        }
+                    }
+                    module.isModified = false
+                } else {
+                    val patchObj = obj?.map?.get("patch") as? JsonValue.Obj
+                    if (patchObj != null) {
+                        module.graphState.isDeserializing = true
+                        try {
+                            module.graphState.removeModulesDirectly(module.graphState.modules.toList())
+                            deserializeObj(module.graphState, patchObj, Offset.Zero, density)
+                            if (module is PolyPatchModule) {
+                                module.ensureDefaultModulesExist()
+                            }
+                        } finally {
+                            module.graphState.isDeserializing = false
+                        }
                     }
                 }
             }
@@ -281,7 +357,7 @@ internal val String.jsonEscape: String
         .replace("\r", "\\r")
         .replace("\t", "\\t")
 
-internal sealed class JsonValue {
+sealed class JsonValue {
     abstract fun stringify(indentLevel: Int): String
 
     object Null : JsonValue() {
@@ -347,7 +423,7 @@ internal sealed class JsonValue {
     }
 }
 
-internal class JsonParser(private val input: String) {
+class JsonParser(private val input: String) {
     private var pos = 0
 
     fun parse(): JsonValue {

@@ -29,7 +29,7 @@ class ConnectionTest {
         // Locate jacks
         val dataQueueOut = segEnv.outputs.first { it is DataQueueOutputJack }
         val dataQueueIn = monoRdr.inputs.first { it is DataQueueInputJack }
-        
+
         val audioOut = sineOsc.outputs.first { it is AudioOutputJack }
         val audioIn = monoRdr.inputs.first { it.name == "amplitude" && it is AudioInputJack }
 

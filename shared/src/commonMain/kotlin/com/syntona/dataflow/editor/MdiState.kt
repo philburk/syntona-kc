@@ -24,7 +24,23 @@ class MdiWindowInfo(
     val graphState: GraphState? = null,
     val content: @Composable () -> Unit
 ) {
-    var title by mutableStateOf(title)
+    private var _title by mutableStateOf(title)
+    var title: String
+        get() {
+            val module = id as? com.syntona.dataflow.modules.PatchModule
+            if (module != null) {
+                return module.headerTitle
+            }
+            return _title
+        }
+        set(value) {
+            val module = id as? com.syntona.dataflow.modules.PatchModule
+            if (module != null) {
+                module.name = value
+            } else {
+                _title = value
+            }
+        }
     var position by mutableStateOf(position)
     var minimized by mutableStateOf(minimized)
     var width by mutableStateOf(width)

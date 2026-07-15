@@ -8,3 +8,5 @@ actual fun saveFileDirect(path: String, content: String) {}
 
 actual fun chooseWavRecordFile(defaultName: String, onSelected: (path: String) -> Unit) {}
 
+actual fun readFileDirect(path: String): String? = null
+

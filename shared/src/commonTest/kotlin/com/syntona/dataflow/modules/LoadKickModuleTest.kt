@@ -59,7 +59,7 @@ class LoadKickModuleTest {
     @Test
     fun testKickLoadKickModulesNested() {
         val rootGraphState = GraphState()
-        
+
         // Add a PatchModule (nested graph)
         val patchModule = PatchModule("testPatch")
         rootGraphState.addModule(patchModule, androidx.compose.ui.geometry.Offset.Zero)

@@ -4,7 +4,7 @@ import java.io.File
 import javax.swing.JFileChooser
 import javax.swing.filechooser.FileNameExtensionFilter
 private var lastDirectory: File? = File(System.getProperty("user.home"),
-    "gitrepos/syntona-kc/shared/src/commonMain/composeResources/files/").takeIf { it.exists() }
+    "work/syntona-kc/shared/src/commonMain/composeResources/files/").takeIf { it.exists() }
 actual fun showOpenFileDialog(onResult: (path: String, content: String) -> Unit) {
     val chooser = JFileChooser().apply {
         dialogTitle = "Open Patch"
@@ -76,6 +76,14 @@ actual fun chooseWavRecordFile(defaultName: String, onSelected: (path: String) -
         }
 
         onSelected(file.absolutePath)
+    }
+}
+
+actual fun readFileDirect(path: String): String? {
+    return try {
+        java.io.File(path).readText()
+    } catch (e: Exception) {
+        null
     }
 }
 

@@ -12,6 +12,9 @@ object FileState {
     var currentFilePath by mutableStateOf<String?>(null)
         private set
 
+    val patchesToConfirmSave = androidx.compose.runtime.mutableStateListOf<com.syntona.dataflow.modules.PatchModule>()
+    var postConfirmationSaveAction by mutableStateOf<(() -> Unit)?>(null)
+
     val currentFileName: String?
         get() = currentFilePath?.let { p ->
             p.substringAfterLast('/').substringAfterLast('\\').ifEmpty { p }

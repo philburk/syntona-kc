@@ -18,7 +18,7 @@ class KeyModuleTest {
     fun testModuleCreationAndPorts() {
         val module = KeyModule()
         assertEquals("key", module.name)
-        
+
         val onOutput = module.outputs.find { it.name == "on" }
         assertNotNull(onOutput, "KeyModule should have an output named 'on'")
 
