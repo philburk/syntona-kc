@@ -65,7 +65,6 @@ object ModuleRegistry {
         input.modules.add(ModuleEntry("comment") { CommentModule() })
         input.modules.add(ModuleEntry("key") { KeyModule() })
         input.modules.add(ModuleEntry("keyMatch") { KeyMatchModule() })
-        input.modules.add(ModuleEntry("keyNotes") { KeyNotesModule() })
 
         val view = getOrCreateBundle(core, "view")
         view.modules.add(ModuleEntry("show") { ShowModule() })
@@ -76,6 +75,7 @@ object ModuleRegistry {
         val musicInput = getOrCreateBundle(music, "input")
         musicInput.modules.add(ModuleEntry("keyboard13") { Keyboard13Module() })
         musicInput.modules.add(ModuleEntry("keyboard25") { Keyboard25Module() })
+        musicInput.modules.add(ModuleEntry("keyNotes") { KeyNotesModule() })
         val voices = getOrCreateBundle(music, "voices")
         voices.modules.add(ModuleEntry("packVoice") { PackVoiceModule() })
         voices.modules.add(ModuleEntry("packBend") { PackBendModule() })
@@ -85,7 +85,6 @@ object ModuleRegistry {
         addKSynModule(ksyn, "lineOut", ::LineOut)
         ksyn.modules.add(ModuleEntry("aInput") { AudioInputModule() })
         ksyn.modules.add(ModuleEntry("aOutput") { AudioOutputModule() })
-
 
         val sources = getOrCreateBundle(ksyn, "sources")
         addKSynModule(sources, "sineOsc", ::SineOscillator)

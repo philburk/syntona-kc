@@ -4,8 +4,6 @@ Try not using the CTRL+K key entry mode.
 
 Change keyboard13 so we can drag between notes for legato sweeps. ON/ON/OFF/OFF.
 
-Add an ASCII keyboard module with an editable string.
-
 Combine segEnv and monoRdr?
 Widget to put wires in front and label wires with order (1) (2)
 
@@ -16,8 +14,6 @@ That will be useful if we support a more DAW-like interface.,
 Seq8 reset should not kick.
 Seq8 should support feedback cycle.
 seq16
-
-Save full module path in the JSON file.
 
 Right click on a module for a menu with "Help...".
 It will be enabled if a file called "help/{bundle}/{moduleName}.json" exists.

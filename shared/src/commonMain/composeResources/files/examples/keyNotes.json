@@ -287,7 +287,7 @@
     },
     {
       "id": 6,
-      "type": "core.input.keyNotes",
+      "type": "music.input.keyNotes",
       "name": "keyNotes",
       "x": 159.87744,
       "y": 214.0245,
