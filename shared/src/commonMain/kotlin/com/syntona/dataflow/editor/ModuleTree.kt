@@ -67,8 +67,7 @@ fun BundleView(
             bundle.modules.forEach { module ->
                 var localOffset by remember { mutableStateOf(Offset.Zero) }
 
-                Text(
-                    text = module.name,
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .onGloballyPositioned { localOffset = it.positionInRoot() }
@@ -96,9 +95,16 @@ fun BundleView(
                             )
                         }
                         .padding(start = 16.dp, top = 2.dp, bottom = 2.dp),
-                    fontSize = 13.sp,
-                    color = Color.Cyan
-                )
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TooltipArea(text = getModuleEntryTooltipText(module)) {
+                        Text(
+                            text = module.name,
+                            fontSize = 13.sp,
+                            color = Color.Cyan
+                        )
+                    }
+                }
             }
         }
     }

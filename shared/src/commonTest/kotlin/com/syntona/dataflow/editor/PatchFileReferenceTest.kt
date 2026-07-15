@@ -7,6 +7,7 @@ import com.syntona.dataflow.modules.InputModule
 import com.syntona.dataflow.modules.OutputModule
 import com.syntona.dataflow.model.Module
 import androidx.compose.ui.geometry.Offset
+import com.syntona.dataflow.registry.ModuleRegistry
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -266,5 +267,23 @@ class PatchFileReferenceTest {
         assertFalse(grandchild.isModified)
         assertFalse(child.isModified)
         assertFalse(root.isModified)
+    }
+
+    @Test
+    fun testTooltipTextGeneration() {
+        val root = PatchModule("root")
+        val text = getModuleTooltipText(root)
+        assertEquals("core.patch", text)
+
+        val poly = PolyPatchModule("poly")
+        val polyText = getModuleTooltipText(poly)
+        assertEquals("core.polyPatch", polyText)
+
+        val clockEntry = ModuleRegistry.root.subBundles.find { it.name == "core" }
+            ?.subBundles?.find { it.name == "basic" }
+            ?.modules?.find { it.name == "clock" }
+        assertNotNull(clockEntry)
+        val entryText = getModuleEntryTooltipText(clockEntry!!)
+        assertEquals("core.basic.clock", entryText)
     }
 }

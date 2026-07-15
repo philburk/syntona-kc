@@ -175,6 +175,21 @@ object ModuleRegistry {
         return searchBundle(root)
     }
 
+    fun getBundlePath(typeName: String): String? {
+        fun searchBundle(bundle: Bundle, currentPath: List<String>): String? {
+            val nextPath = if (bundle.name == "Modules") currentPath else currentPath + bundle.name
+            if (bundle.modules.any { it.name == typeName }) {
+                return (nextPath + typeName).joinToString(".")
+            }
+            for (sub in bundle.subBundles) {
+                val found = searchBundle(sub, nextPath)
+                if (found != null) return found
+            }
+            return null
+        }
+        return searchBundle(root, emptyList())
+    }
+
     private fun getOrCreateBundle(parent: Bundle, name: String): Bundle {
         return parent.subBundles.find { it.name == name }
             ?: Bundle(name).also { parent.subBundles.add(it) }
