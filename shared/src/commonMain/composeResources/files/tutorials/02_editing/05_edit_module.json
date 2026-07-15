@@ -1,1 +1,79 @@
-{"modules":[{"id":0,"type":"comment","x":20.875,"y":14.0,"jacks":{},"text":"Edit a Module\n\n1. Double click on the blue bar of the \"+\" module.\n2. Change the \"min\" value of the B port to 500 and the \"max\" value to 1000. Don't forget to press ENTER.\n3. Change the B slider to change the value between 500 and 1000.\n4. Click in the background to close the editor.\n","w":712.8425,"h":136.02344},{"id":1,"type":"knob","x":162.0,"y":337.875,"jacks":{"in":{"v":0.0,"min":0.0,"max":100.0}}},{"id":2,"type":"+","x":413.88818,"y":350.9441,"jacks":{"B":{"v":0.0,"min":0.0,"max":100.0}}},{"id":3,"type":"show","x":641.875,"y":352.0,"jacks":{}}],"connections":[{"from":1,"fromJack":"out","to":2,"toJack":"A"},{"from":2,"fromJack":"out","to":3,"toJack":"in"}]}
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "comment",
+      "name": "comment",
+      "x": 20.875,
+      "y": 14,
+      "jacks": {},
+      "text": "Edit a Module\n\n1. Double click on the blue bar of the \"+\" module.\n2. Change the \"min\" value of the B port to 500 and the \"max\" value to 1000. Don't forget to press ENTER or RETURN.\n3. Change the B slider to change the value between 500 and 1000.\n4. Click in the background to close the editor.\n",
+      "w": 717.7175,
+      "h": 138.02344
+    },
+    {
+      "id": 1,
+      "type": "knob",
+      "name": "knob",
+      "x": 162,
+      "y": 337.875,
+      "jacks": {
+        "in": {
+          "v": 0,
+          "min": 0,
+          "max": 100
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "+",
+      "name": "+",
+      "x": 413.88818,
+      "y": 350.9441,
+      "jacks": {
+        "B": {
+          "v": 0,
+          "min": 0,
+          "max": 100
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "show",
+      "name": "show",
+      "x": 641.875,
+      "y": 352,
+      "jacks": {}
+    },
+    {
+      "id": 4,
+      "type": "link",
+      "name": "link",
+      "x": 553,
+      "y": 183.125,
+      "jacks": {},
+      "filePath": "tutorials/02_editing/06_add_knob_audio.json",
+      "buttonText": ">>Next, add knob and audio"
+    }
+  ],
+  "connections": [
+    {
+      "from": 1,
+      "fromJack": "out",
+      "to": 2,
+      "toJack": "A"
+    },
+    {
+      "from": 2,
+      "fromJack": "out",
+      "to": 3,
+      "toJack": "in"
+    }
+  ],
+  "windowX": 5,
+  "windowY": 5,
+  "windowWidth": 800,
+  "windowHeight": 500
+}

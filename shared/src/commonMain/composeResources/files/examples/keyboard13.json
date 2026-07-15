@@ -10,12 +10,14 @@
         "input0": {
           "v": 0,
           "min": 0,
-          "max": 1
+          "max": 1,
+          "add": false
         },
         "input1": {
           "v": 0,
           "min": 0,
-          "max": 1
+          "max": 1,
+          "add": false
         }
       }
     },
@@ -44,7 +46,8 @@
               "input": {
                 "v": 0,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               }
             }
           },
@@ -58,7 +61,8 @@
               "input": {
                 "v": 60,
                 "min": 0,
-                "max": 127
+                "max": 127,
+                "add": false
               }
             }
           },
@@ -72,12 +76,14 @@
               "frequency": {
                 "v": 9.147310256958008,
                 "min": 0.10000000149011612,
-                "max": 10
+                "max": 10,
+                "add": false
               },
               "amplitude": {
                 "v": 0.2694341242313385,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               }
             }
           },
@@ -123,12 +129,14 @@
               "frequency": {
                 "v": 440,
                 "min": 40,
-                "max": 8000
+                "max": 8000,
+                "add": false
               },
               "amplitude": {
                 "v": 1,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               }
             }
           },
@@ -142,42 +150,50 @@
               "input": {
                 "v": 0,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               },
               "delay": {
                 "v": 0,
                 "min": 0,
-                "max": 2
+                "max": 2,
+                "add": false
               },
               "attack": {
                 "v": 0.010893763042986393,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               },
               "hold": {
                 "v": 0,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               },
               "decay": {
                 "v": 0.34479954838752747,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               },
               "sustain": {
                 "v": 0.45036154985427856,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               },
               "release": {
                 "v": 2.7154958248138428,
                 "min": 0,
-                "max": 15
+                "max": 15,
+                "add": false
               },
               "amplitude": {
                 "v": 1,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               }
             }
           }
@@ -230,7 +246,7 @@
       "y": 456.875,
       "jacks": {
         "in": {
-          "v": 0.5495420694351196,
+          "v": 0,
           "min": -2,
           "max": 2
         }

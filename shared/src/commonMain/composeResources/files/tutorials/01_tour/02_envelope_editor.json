@@ -21,12 +21,14 @@
         "frequency": {
           "v": 305.5713195800781,
           "min": 40,
-          "max": 8000
+          "max": 8000,
+          "add": false
         },
         "amplitude": {
           "v": 0,
           "min": 0,
-          "max": 1
+          "max": 1,
+          "add": false
         }
       }
     },
@@ -40,12 +42,14 @@
         "input0": {
           "v": 0,
           "min": 0,
-          "max": 1
+          "max": 1,
+          "add": false
         },
         "input1": {
           "v": 0,
           "min": 0,
-          "max": 1
+          "max": 1,
+          "add": false
         }
       }
     },
@@ -71,14 +75,16 @@
       "y": 291.125,
       "jacks": {
         "amplitude": {
-          "v": 0.28226330876350403,
+          "v": 0,
           "min": 0,
-          "max": 1
+          "max": 1,
+          "add": false
         },
         "rate": {
           "v": 1,
           "min": 0,
-          "max": 1
+          "max": 1,
+          "add": false
         }
       }
     },
@@ -130,7 +136,7 @@
       "y": 142.875,
       "jacks": {
         "in": {
-          "v": 0.28226330876350403,
+          "v": 0,
           "min": 0,
           "max": 1
         }
@@ -148,8 +154,8 @@
       "id": 10,
       "type": "link",
       "name": "link",
-      "x": 526.875,
-      "y": 128,
+      "x": 549.875,
+      "y": 136,
       "jacks": {},
       "filePath": "tutorials/02_editing/01_connections.json",
       "buttonText": ">> Next, editing connections"

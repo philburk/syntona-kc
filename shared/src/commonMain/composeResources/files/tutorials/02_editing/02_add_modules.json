@@ -1,1 +1,30 @@
-{"modules":[{"id":0,"type":"comment","x":37.875,"y":39.0,"jacks":{},"text":"Let's learn how to add and remove modules from a patch.\n\nThe panel at the left has a menu of the available modules.\n\n1. Click on \"core >> input\" to display a list of input modules.\n2. Click and drag a \"knob\" module into this patch window, to the right of this comment.\n3. Click on \"core >> view\" item.\n4. Click and drag a \"show\" module into this patch, to the right of the knob.\n5. Connect the knob to the show module and move the knob.\n\nYou can remove modules from the patch.\n\n1. Click on the blue bar at the top of the \"knob\" module.\n2. Notice that it has an orange highlight border to show that it is selected.\n3. Press the BACKSPACE key.\n4. Notice that the knob module is now gone.\n\nWhen you are done, click the \">> Next\" link at the top right to move to the next page.\n","w":509.75,"h":358.75},{"id":1,"type":"link","x":611.8882,"y":18.055908,"jacks":{},"filePath":"tutorials/02_editing/03_edit_jacks.json","buttonText":">> Next, edit jacks"}],"connections":[]}
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "comment",
+      "name": "comment",
+      "x": 37.875,
+      "y": 39,
+      "jacks": {},
+      "text": "Let's learn how to add and remove modules from a patch.\n\nThe panel at the left has a menu of the available modules.\n\n1. Click on \"input\" in the \"core\" bundle to display a list of input modules.\n2. Click and drag a \"knob\" module into this patch window, to the right of this comment.\n3. Click on the \"core >> view\" item.\n4. Click and drag a \"show\" module into this patch, to the right of the knob.\n5. Connect the knob to the show module and move the knob.\n\nYou can remove modules from the patch.\n\n1. Click on the blue bar at the top of the \"knob\" module.\n2. Notice that it has an orange highlight border to show that it is selected.\n3. Press the DELETE or BACKSPACE key.\n4. Notice that the knob module is now gone.\n\nWhen you are done, click the \">> Next\" link at the top right to move to the next page.\n",
+      "w": 509.75,
+      "h": 358.75
+    },
+    {
+      "id": 1,
+      "type": "link",
+      "name": "link",
+      "x": 611.8882,
+      "y": 18.055908,
+      "jacks": {},
+      "filePath": "tutorials/02_editing/03_edit_jacks.json",
+      "buttonText": ">> Next, edit jacks"
+    }
+  ],
+  "connections": [],
+  "windowX": 5,
+  "windowY": 5,
+  "windowWidth": 800,
+  "windowHeight": 500
+}
