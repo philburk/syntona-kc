@@ -16,6 +16,9 @@ import com.syntona.dataflow.modules.SegmentedEnvelopeModule
 import com.syntona.dataflow.modules.LinkModule
 import com.syntona.dataflow.modules.KeyMatchModule
 import com.syntona.dataflow.modules.KeyNotesModule
+import com.syntona.dataflow.modules.PianoRollModule
+import com.syntona.dataflow.modules.PianoRollNote
+import com.syntona.dataflow.modules.Ratio
 import com.syntona.dataflow.modules.KnobModule
 import com.syntona.dataflow.modules.FaderModule
 import com.syntona.dataflow.modules.SequenceModule
@@ -143,6 +146,20 @@ object GraphSerializer {
                 append(",\"bottomOctaveKeys\":\"${module.bottomOctaveKeys.jsonEscape}\"")
                 append(",\"topOctaveKeys\":\"${module.topOctaveKeys.jsonEscape}\"")
                 append(",\"startingNote\":${module.startingNote}")
+            }
+            if (module is PianoRollModule) {
+                append(",\"bpm\":${module.bpm}")
+                append(",\"playStart\":${module.playStartTicks}")
+                module.windowX?.let { append(",\"windowX\":$it") }
+                module.windowY?.let { append(",\"windowY\":$it") }
+                module.windowWidth?.let { append(",\"windowWidth\":$it") }
+                module.windowHeight?.let { append(",\"windowHeight\":$it") }
+                append(",\"notes\":[")
+                module.notes.forEachIndexed { j, n ->
+                    if (j > 0) append(",")
+                    append("[${n.id},${n.startTicks},${n.durationTicks},${n.parentId},${n.ratio.n},${n.ratio.d},${n.rootPitch}]")
+                }
+                append("]")
             }
             if (module is SegmentedEnvelopeModule) {
                 val env = module.envelope
@@ -374,6 +391,49 @@ object GraphSerializer {
                             module.graphState.isDeserializing = false
                         }
                     }
+                }
+            }
+            if (module is PianoRollModule) {
+                (obj?.map?.get("bpm") as? JsonValue.Num)?.value?.toInt()?.let { module.bpm = it }
+                (obj?.map?.get("playStart") as? JsonValue.Num)?.value?.toInt()?.let { module.playStartTicks = it }
+                (obj?.map?.get("windowX") as? JsonValue.Num)?.value?.let { module.windowX = it.toFloat() }
+                (obj?.map?.get("windowY") as? JsonValue.Num)?.value?.let { module.windowY = it.toFloat() }
+                (obj?.map?.get("windowWidth") as? JsonValue.Num)?.value?.let { module.windowWidth = it.toFloat() }
+                (obj?.map?.get("windowHeight") as? JsonValue.Num)?.value?.let { module.windowHeight = it.toFloat() }
+                val notesArr = (obj?.map?.get("notes") as? JsonValue.Arr)?.items
+                if (notesArr != null) {
+                    for (row in notesArr) {
+                        val fields = (row as? JsonValue.Arr)?.items
+                        if (fields == null || fields.size < 7) {
+                            reportProblem("pianoRoll '${module.name}': skipping malformed note entry.")
+                            continue
+                        }
+                        val nums = fields.map { (it as? JsonValue.Num)?.value }
+                        if (nums.any { it == null }) {
+                            reportProblem("pianoRoll '${module.name}': skipping non-numeric note entry.")
+                            continue
+                        }
+                        module.notes.add(
+                            PianoRollNote(
+                                id = nums[0]!!.toInt(),
+                                startTicks = nums[1]!!.toInt(),
+                                durationTicks = nums[2]!!.toInt(),
+                                parentId = nums[3]!!.toInt(),
+                                ratio = Ratio(nums[4]!!.toInt(), nums[5]!!.toInt()),
+                                rootPitch = nums[6]!!,
+                            )
+                        )
+                    }
+                    // Defensive: orphaned parent references become root notes at their current pitch.
+                    for (note in module.notes) {
+                        if (!note.isRoot && module.findNote(note.parentId) == null) {
+                            reportProblem("pianoRoll '${module.name}': note ${note.id} references missing parent ${note.parentId}; converting to root.")
+                            note.rootPitch = 60.0 + note.ratio.semitones
+                            note.parentId = -1
+                            note.ratio = Ratio.UNISON
+                        }
+                    }
+                    module.resetNextNoteId()
                 }
             }
             if (module is SegmentedEnvelopeModule) {

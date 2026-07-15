@@ -13,6 +13,22 @@ import com.syntona.dataflow.model.Module
 
 val LocalMdiState = compositionLocalOf<MdiState> { error("No MdiState provided") }
 
+/**
+ * Implemented by editors hosted in MDI windows (e.g. the piano-roll) that want the
+ * global Edit menu and its keyboard shortcuts routed to them while their window is
+ * frontmost. Windows without a handler fall through to the graph-level behavior.
+ */
+interface EditActionHandler {
+    fun canCut(): Boolean = canCopy()
+    fun canCopy(): Boolean
+    fun canPaste(): Boolean
+    fun canDelete(): Boolean
+    fun cut()
+    fun copy()
+    fun paste()
+    fun delete()
+}
+
 class MdiWindowInfo(
     val id: Any,
     title: String,
@@ -53,6 +69,9 @@ class MdiWindowInfo(
     // persist the current geometry without relying on recomposition to observe it.
     var onGeometryChanged: (() -> Unit)? = null
 
+    // Receives Edit menu actions (Cut/Copy/Paste/Delete) while this window is frontmost.
+    var editHandler by mutableStateOf<EditActionHandler?>(null)
+
     fun toggleExpand() {
         if (expanded) {
             width = savedWidth
@@ -71,6 +90,13 @@ class MdiWindowInfo(
 class MdiState {
     val windows = mutableStateListOf<MdiWindowInfo>()
     var activeGraphState by mutableStateOf<GraphState?>(null)
+
+    /**
+     * Edit handler of the frontmost (non-minimized) window, or null when that window
+     * has none — in which case Edit actions fall through to [activeGraphState].
+     */
+    val activeEditHandler: EditActionHandler?
+        get() = windows.lastOrNull { !it.minimized }?.editHandler
     var rootGraphState by mutableStateOf<GraphState?>(null)
 
     // Container size and position in pixels, updated by MdiDesktop

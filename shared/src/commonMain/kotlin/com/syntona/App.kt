@@ -287,7 +287,12 @@ fun App(
                                     mdiState.activeGraphState?.onKeyEvent(keyEvent) == true -> true
                                     keyEvent.type == KeyEventType.KeyDown &&
                                     (keyEvent.key == Key.Backspace || keyEvent.key == Key.Delete) -> {
-                                        mdiState.activeGraphState?.deleteSelectedModules()
+                                        val handler = mdiState.activeEditHandler
+                                        if (handler != null) {
+                                            if (handler.canDelete()) handler.delete()
+                                        } else {
+                                            mdiState.activeGraphState?.deleteSelectedModules()
+                                        }
                                         true
                                     }
                                     keyEvent.type == KeyEventType.KeyDown &&
@@ -300,26 +305,41 @@ fun App(
                                     keyEvent.type == KeyEventType.KeyDown &&
                                     keyEvent.key == Key.C &&
                                     (keyEvent.isMetaPressed || keyEvent.isCtrlPressed) -> {
-                                        val gs = mdiState.activeGraphState
-                                        if (gs != null && gs.selectedModules.isNotEmpty()) {
-                                            CopyPasteService.copy(gs, gs.selectedModules.toList(), appDensity)
+                                        val handler = mdiState.activeEditHandler
+                                        if (handler != null) {
+                                            if (handler.canCopy()) handler.copy()
+                                        } else {
+                                            val gs = mdiState.activeGraphState
+                                            if (gs != null && gs.selectedModules.isNotEmpty()) {
+                                                CopyPasteService.copy(gs, gs.selectedModules.toList(), appDensity)
+                                            }
                                         }
                                         true
                                     }
                                     keyEvent.type == KeyEventType.KeyDown &&
                                     keyEvent.key == Key.X &&
                                     (keyEvent.isMetaPressed || keyEvent.isCtrlPressed) -> {
-                                        val gs = mdiState.activeGraphState
-                                        if (gs != null && gs.selectedModules.isNotEmpty()) {
-                                            CopyPasteService.copy(gs, gs.selectedModules.toList(), appDensity)
-                                            gs.deleteSelectedModules()
+                                        val handler = mdiState.activeEditHandler
+                                        if (handler != null) {
+                                            if (handler.canCut()) handler.cut()
+                                        } else {
+                                            val gs = mdiState.activeGraphState
+                                            if (gs != null && gs.selectedModules.isNotEmpty()) {
+                                                CopyPasteService.copy(gs, gs.selectedModules.toList(), appDensity)
+                                                gs.deleteSelectedModules()
+                                            }
                                         }
                                         true
                                     }
                                     keyEvent.type == KeyEventType.KeyDown &&
                                     keyEvent.key == Key.V &&
                                     (keyEvent.isMetaPressed || keyEvent.isCtrlPressed) -> {
-                                        mdiState.activeGraphState?.let { CopyPasteService.paste(it, appDensity) }
+                                        val handler = mdiState.activeEditHandler
+                                        if (handler != null) {
+                                            if (handler.canPaste()) handler.paste()
+                                        } else {
+                                            mdiState.activeGraphState?.let { CopyPasteService.paste(it, appDensity) }
+                                        }
                                         true
                                     }
                                     else -> false
@@ -572,6 +592,7 @@ fun App(
                                  }
                                 if (showEditMenuInToolbar) {
                                     val activeGs = mdiState.activeGraphState
+                                    val editHandler = mdiState.activeEditHandler
                                     val hasSelection = activeGs?.selectedModules?.isNotEmpty() == true
                                     var editExpanded by remember { mutableStateOf(false) }
                                     Box {
@@ -600,30 +621,46 @@ fun App(
                                             DropdownMenuItem(
                                                 text = { Text("Cut") },
                                                 trailingIcon = { ShortcutHint("⌘X") },
-                                                enabled = hasSelection,
+                                                enabled = editHandler?.canCut() ?: hasSelection,
                                                 onClick = {
-                                                    val gs = activeGs ?: return@DropdownMenuItem
-                                                    CopyPasteService.copy(gs, gs.selectedModules.toList(), appDensity)
-                                                    gs.deleteSelectedModules()
+                                                    if (editHandler != null) {
+                                                        editHandler.cut()
+                                                    } else {
+                                                        val gs = activeGs
+                                                        if (gs != null) {
+                                                            CopyPasteService.copy(gs, gs.selectedModules.toList(), appDensity)
+                                                            gs.deleteSelectedModules()
+                                                        }
+                                                    }
                                                     editExpanded = false
                                                 }
                                             )
                                             DropdownMenuItem(
                                                 text = { Text("Copy") },
                                                 trailingIcon = { ShortcutHint("⌘C") },
-                                                enabled = hasSelection,
+                                                enabled = editHandler?.canCopy() ?: hasSelection,
                                                 onClick = {
-                                                    val gs = activeGs ?: return@DropdownMenuItem
-                                                    CopyPasteService.copy(gs, gs.selectedModules.toList(), appDensity)
+                                                    if (editHandler != null) {
+                                                        editHandler.copy()
+                                                    } else {
+                                                        val gs = activeGs
+                                                        if (gs != null) {
+                                                            CopyPasteService.copy(gs, gs.selectedModules.toList(), appDensity)
+                                                        }
+                                                    }
                                                     editExpanded = false
                                                 }
                                             )
                                             DropdownMenuItem(
                                                 text = { Text("Paste") },
                                                 trailingIcon = { ShortcutHint("⌘V") },
-                                                enabled = CopyPasteService.pasteBuffer != null,
+                                                enabled = editHandler?.canPaste() ?: (CopyPasteService.pasteBuffer != null),
                                                 onClick = {
-                                                    activeGs?.let { CopyPasteService.paste(it, appDensity) }
+                                                    if (editHandler != null) {
+                                                        editHandler.paste()
+                                                    } else {
+                                                        activeGs?.let { CopyPasteService.paste(it, appDensity) }
+                                                    }
                                                     editExpanded = false
                                                 }
                                             )
