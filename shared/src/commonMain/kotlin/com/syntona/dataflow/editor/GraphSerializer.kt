@@ -195,7 +195,11 @@ object GraphSerializer {
         for (item in modulesArr) {
             val obj = item as? JsonValue.Obj
             val rawTypeName = (obj?.map?.get("type") as? JsonValue.Str)?.value
-            val typeName = if (rawTypeName == "showVoice") "showMany" else rawTypeName
+            val typeName = when (rawTypeName) {
+                "showVoice" -> "showMany"
+                "double" -> "number"
+                else -> rawTypeName
+            }
             val x = (obj?.map?.get("x") as? JsonValue.Num)?.value?.toFloat() ?: 100f
             val y = (obj?.map?.get("y") as? JsonValue.Num)?.value?.toFloat() ?: 100f
             val jacks = obj?.map?.get("jacks") as? JsonValue.Obj

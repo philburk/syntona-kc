@@ -55,7 +55,7 @@ import com.syntona.dataflow.engine.SetValueCommand
 import com.syntona.dataflow.engine.SendOutputCommand
 import com.syntona.dataflow.model.*
 import com.softsynth.ksyn.compose.Oscilloscope
-import com.syntona.dataflow.modules.DoubleEntryModule
+import com.syntona.dataflow.modules.NumberModule
 import com.syntona.dataflow.modules.FaderModule
 import com.syntona.dataflow.modules.MixerModule
 import com.syntona.dataflow.modules.AudioInputModule
@@ -207,7 +207,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
             // Draw Modules — add cases here for modules with custom layouts
             state.modules.forEach { module ->
                 when (module) {
-                    is DoubleEntryModule -> DoubleEntryModuleNode(module, state)
+                    is NumberModule -> NumberModuleNode(module, state)
                     is FaderModule -> FaderModuleNode(module, state)
                     is KnobModule -> KnobModuleNode(module, state)
                     is PatchModule -> PatchModuleNode(module, state)
@@ -836,7 +836,7 @@ fun CommandOutputJackView(jack: CommandOutputJack, state: GraphState, isLeft: Bo
 
 /**
  * Connector dot with wire-drag support but no name label.
- * Used by compact module layouts such as [DoubleEntryModuleNode].
+ * Used by compact module layouts such as [NumberModuleNode].
  */
 @Composable
 fun CompactJackConnector(jack: Jack, state: GraphState, isLeft: Boolean) {
@@ -1050,7 +1050,7 @@ fun PatchModuleNode(module: PatchModule, state: GraphState) {
 }
 
 @Composable
-fun DoubleEntryModuleNode(module: DoubleEntryModule, state: GraphState) {
+fun NumberModuleNode(module: NumberModule, state: GraphState) {
     val colors = LocalGraphColors.current
     val position = state.modulePositions[module] ?: Offset.Zero
     val isSelected = state.selectedModules.contains(module)

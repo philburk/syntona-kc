@@ -18,10 +18,6 @@ It will be enabled if a file called "help/{bundle}/{moduleName}.json" exists.
 Tutorial asks user to click on core then input
 But there are two things labeled input. One is the parameter input
 
-Tooltip help when hovering over a module header or when hovering over a module in the module tree.
-The tooltip should show the module type, in case it was renamed.
-For KSyn modules added using addKSynModule(), the full package and class name should be shown.
-
 Double is a bad name for a floating Point number module.
 
 In tutorial the backspace key might be called delete like on my MacBook Air

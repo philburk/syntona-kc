@@ -15,7 +15,7 @@ import com.syntona.dataflow.model.Module
  * - [valueIn]: sets [value] from incoming FloatValue messages.
  * - [output]: emits the [value] when kicked.
  */
-class DoubleEntryModule : Module("double") {
+class NumberModule : Module("number") {
     val kick = addInput("kick", isKickable = true)
     val valueIn = addInput("in")
     val output = addOutput("out")

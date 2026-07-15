@@ -286,4 +286,33 @@ class PatchFileReferenceTest {
         val entryText = getModuleEntryTooltipText(clockEntry!!)
         assertEquals("core.basic.clock", entryText)
     }
+
+    @Test
+    fun testDoubleToNumberDeserializationMapping() {
+        val json = """
+            {
+                "modules": [
+                    {
+                        "id": 0,
+                        "type": "double",
+                        "name": "myDouble",
+                        "x": 10.0,
+                        "y": 20.0,
+                        "jacks": {
+                            "in": 42.5
+                        }
+                    }
+                ],
+                "connections": []
+            }
+        """.trimIndent()
+        val graph = GraphState()
+        val deserialized = GraphSerializer.deserialize(graph, json)
+        assertEquals(1, deserialized.size)
+        val numModule = deserialized[0]
+        assertTrue(numModule is com.syntona.dataflow.modules.NumberModule)
+        assertEquals("number", numModule.type)
+        assertEquals("myDouble", numModule.name)
+        assertEquals(42.5, numModule.value)
+    }
 }

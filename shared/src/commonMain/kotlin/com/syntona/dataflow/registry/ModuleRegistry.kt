@@ -57,7 +57,7 @@ object ModuleRegistry {
         math.modules.add(ModuleEntry("sin") { SineModule() })
 
         val input = getOrCreateBundle(core, "input")
-        input.modules.add(ModuleEntry("double") { DoubleEntryModule() })
+        input.modules.add(ModuleEntry("number") { NumberModule() })
         input.modules.add(ModuleEntry("fader") { FaderModule() })
         input.modules.add(ModuleEntry("knob") { KnobModule() })
         input.modules.add(ModuleEntry("kick") { KickModule() })
@@ -176,10 +176,11 @@ object ModuleRegistry {
     }
 
     fun getBundlePath(typeName: String): String? {
+        val resolvedTypeName = if (typeName == "double") "number" else typeName
         fun searchBundle(bundle: Bundle, currentPath: List<String>): String? {
             val nextPath = if (bundle.name == "Modules") currentPath else currentPath + bundle.name
-            if (bundle.modules.any { it.name == typeName }) {
-                return (nextPath + typeName).joinToString(".")
+            if (bundle.modules.any { it.name == resolvedTypeName }) {
+                return (nextPath + resolvedTypeName).joinToString(".")
             }
             for (sub in bundle.subBundles) {
                 val found = searchBundle(sub, nextPath)
