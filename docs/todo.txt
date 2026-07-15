@@ -1,6 +1,8 @@
-KSyn BUG: open example/keyboard13 , click on note and then drag off the note. The note sticks. Works OK after that.
-
 Maybe be able click on wires to select and disconnect by BACKSPACE.
+
+Try not using the CTRL+K key entry mode.
+
+Add an ASCII keyboard module with an editable string.
 
 Combine segEnv and monoRdr?
 Widget to put wires in front and label wires with order (1) (2)
@@ -17,13 +19,6 @@ Save full module path in the JSON file.
 
 Right click on a module for a menu with "Help...".
 It will be enabled if a file called "help/{bundle}/{moduleName}.json" exists.
-
-Tutorial asks user to click on core then input
-But there are two things labeled input. One is the parameter input
-
-In tutorial the backspace key might be called delete like on my MacBook Air
-
-Enter key on the MacBook Air is called return
 
 Possible bug the CMR knob on the drum rhythm for the does not seem to affect the sound!
 

@@ -72,7 +72,7 @@ class PatchParameterRenameTest {
 
         // Serialize
         val json = GraphSerializer.serialize(rootGraph, rootGraph.modules)
-        assertTrue(json.contains("\"type\": \"input\""))
+        assertTrue(json.contains("\"type\": \"core.input\"") || json.contains("\"type\": \"input\""))
         assertTrue(json.contains("\"name\": \"amplitude\""))
 
         // Deserialize

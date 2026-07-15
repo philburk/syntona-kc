@@ -969,6 +969,16 @@ fun App(
                             }
                         )
                     }
+                    FileState.loadingProblemsReport?.let { report ->
+                        AlertDialog(
+                            onDismissRequest = { FileState.loadingProblemsReport = null },
+                            title = { Text("Load Problems Report") },
+                            text = { Text(report) },
+                            confirmButton = {
+                                Button(onClick = { FileState.loadingProblemsReport = null }) { Text("OK") }
+                            }
+                        )
+                    }
                     com.syntona.dataflow.modules.PolyPatchPrompter.activePromptModule?.let { module ->
                         var voiceCountText by remember { mutableStateOf("8") }
                         AlertDialog(

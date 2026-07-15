@@ -47,7 +47,7 @@ class ModuleRenameTest {
 
         // Serialize
         val jsonStr = GraphSerializer.serialize(graphState, graphState.modules)
-        assertTrue(jsonStr.contains("\"type\": \"key\""), "JSON should contain the original type 'key'")
+        assertTrue(jsonStr.contains("\"type\": \"core.input.key\"") || jsonStr.contains("\"type\": \"key\""), "JSON should contain type 'core.input.key' or 'key'")
         assertTrue(jsonStr.contains("\"name\": \"ampEnv\""), "JSON should contain the customized name 'ampEnv'")
 
         // Deserialize

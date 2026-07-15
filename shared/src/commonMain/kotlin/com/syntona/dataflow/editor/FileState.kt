@@ -29,6 +29,9 @@ object FileState {
     // When non-null, the app shows an "unsaved changes" confirmation dialog.
     var pendingAction by mutableStateOf<(() -> Unit)?>(null)
 
+    // When non-null, the app shows an import/load problems report dialog.
+    var loadingProblemsReport by mutableStateOf<String?>(null)
+
     fun markDirty() { isDirty = true }
 
     fun markSaved(path: String) {

@@ -166,13 +166,86 @@ object ModuleRegistry {
         data.modules.add(ModuleEntry("segEnv") { SegmentedEnvelopeModule() })
     }
 
-    fun findCreator(typeName: String): (() -> Module)? {
+    private data class Candidate(val path: String, val creator: () -> Module)
+
+    private fun findAllCandidates(name: String): List<Candidate> {
+        val list = mutableListOf<Candidate>()
+        fun collect(bundle: Bundle, currentPath: List<String>) {
+            val nextPath = if (bundle.name == "Modules") currentPath else currentPath + bundle.name
+            bundle.modules.forEach { mod ->
+                if (mod.name == name) {
+                    val fullPath = (nextPath + mod.name).joinToString(".")
+                    list.add(Candidate(fullPath, mod.creator))
+                }
+            }
+            bundle.subBundles.forEach { collect(it, nextPath) }
+        }
+        collect(root, emptyList())
+        return list
+    }
+
+    private fun getMatchScore(targetParts: List<String>, candParts: List<String>): Int {
+        var score = 0
+        val tSize = targetParts.size
+        val cSize = candParts.size
+        val minSize = minOf(tSize, cSize)
+        for (i in 1..minSize) {
+            if (targetParts[tSize - i] == candParts[cSize - i]) {
+                score++
+            } else {
+                break
+            }
+        }
+        return score
+    }
+
+    private fun findCreatorByPath(path: String): (() -> Module)? {
+        val parts = path.split('.')
+        if (parts.size <= 1) return null
+        var current = root
+        for (i in 0..<parts.size - 1) {
+            val part = parts[i]
+            if (i == 0 && part == "Modules") continue
+            current = current.subBundles.find { it.name == part } ?: return null
+        }
+        return current.modules.find { it.name == parts.last() }?.creator
+    }
+
+    private fun findCreatorByShortName(name: String): (() -> Module)? {
         fun searchBundle(bundle: Bundle): (() -> Module)? {
-            bundle.modules.firstOrNull { it.name == typeName }?.let { return it.creator }
+            bundle.modules.firstOrNull { it.name == name }?.let { return it.creator }
             bundle.subBundles.forEach { searchBundle(it)?.let { c -> return c } }
             return null
         }
         return searchBundle(root)
+    }
+
+    fun findCreator(typeName: String): (() -> Module)? {
+        val resolvedTypeName = when (typeName) {
+            "showVoice" -> "showMany"
+            "double" -> "number"
+            else -> typeName
+        }
+
+        // 1. Try to find by exact full path
+        if (resolvedTypeName.contains('.')) {
+            findCreatorByPath(resolvedTypeName)?.let { return it }
+        } else {
+            findCreatorByShortName(resolvedTypeName)?.let { return it }
+        }
+
+        // 2. Try to find by final part and get the closest match
+        val parts = resolvedTypeName.split('.')
+        val finalPart = parts.last()
+
+        val candidates = findAllCandidates(finalPart)
+        if (candidates.isEmpty()) return null
+
+        val bestCandidate = candidates.maxByOrNull { cand ->
+            getMatchScore(parts, cand.path.split('.'))
+        }
+
+        return bestCandidate?.creator
     }
 
     fun getBundlePath(typeName: String): String? {
