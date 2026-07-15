@@ -75,6 +75,7 @@ import com.syntona.dataflow.modules.ModuloSelectModule
 import com.syntona.dataflow.modules.SegmentedEnvelopeModule
 import com.syntona.dataflow.modules.LinkModule
 import com.syntona.dataflow.modules.KeyMatchModule
+import com.syntona.dataflow.modules.KeyNotesModule
 import com.syntona.dataflow.modules.KickModule
 import com.syntona.dataflow.modules.LoadKickModule
 import com.syntona.dataflow.modules.ShowManyModule
@@ -127,6 +128,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                         .background(colors.background, RoundedCornerShape(4.dp))
                         .border(1.dp, colors.moduleBorder, RoundedCornerShape(4.dp))
                         .padding(horizontal = 8.dp, vertical = 4.dp)
+                        .onKeyEvent { true }
                 ) {
                     BasicTextField(
                         value = tempName,
@@ -157,6 +159,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
             .focusRequester(focusRequester)
             .focusable()
             .onKeyEvent { keyEvent ->
+                if (state.editingModule != null) return@onKeyEvent false
                 var handled = state.onKeyEvent(keyEvent)
                 if (!handled) {
                     if (keyEvent.type == KeyEventType.KeyDown &&
@@ -1389,7 +1392,7 @@ fun CommentModuleNode(module: CommentModule, state: GraphState) {
         BasicTextField(
             value = module.text,
             onValueChange = { module.text = it },
-            modifier = Modifier.fillMaxSize().padding(8.dp),
+            modifier = Modifier.fillMaxSize().padding(8.dp).onKeyEvent { true },
             textStyle = TextStyle(color = Color.White, fontSize = 14.sp)
         )
     }

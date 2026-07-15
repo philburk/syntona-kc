@@ -1,6 +1,8 @@
-Maybe be able click on wires to select and disconnect by BACKSPACE.
+Maybe be able to click on wires to select and disconnect by BACKSPACE.
 
 Try not using the CTRL+K key entry mode.
+
+Change keyboard13 so we can drag between notes for legato sweeps. ON/ON/OFF/OFF.
 
 Add an ASCII keyboard module with an editable string.
 
@@ -20,7 +22,20 @@ Save full module path in the JSON file.
 Right click on a module for a menu with "Help...".
 It will be enabled if a file called "help/{bundle}/{moduleName}.json" exists.
 
-Possible bug the CMR knob on the drum rhythm for the does not seem to affect the sound!
+Possible bug the CMR knob on the drum rhythm for it does not seem to affect the sound!
 
+Convert Syntona timestamps to KSyn timestamps and apply small "advance-time" for jitter reduction.
 
 Add a resource folder with a "library" of patches. Add a "Load Patch from Library" file item, similar to the Help menu items.
+
+Add Granular synthesis.
+
+Add my old recursive generator algorithm.
+
+Add Gaussian distribution and histogram.
+
+Add Piano Roll editor with support for Relative Just Intonation.
+
+Add MIDI in/out support using VoiceMessages.
+
+Add Audio input support.

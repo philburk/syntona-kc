@@ -65,6 +65,7 @@ fun NumberField(
                     true
                 } else false
             }
+            .onKeyEvent { true }
     )
 }
 

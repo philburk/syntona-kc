@@ -49,6 +49,7 @@ fun getEventCharCode(event: KeyEvent): Int {
         Key.Eight -> '8'.code
         Key.Nine -> '9'.code
         Key.Spacebar -> 32
+        Key.Comma -> ','.code
         else -> 0
     }
 }

@@ -15,6 +15,7 @@ import com.syntona.dataflow.modules.PolyPatchModule
 import com.syntona.dataflow.modules.SegmentedEnvelopeModule
 import com.syntona.dataflow.modules.LinkModule
 import com.syntona.dataflow.modules.KeyMatchModule
+import com.syntona.dataflow.modules.KeyNotesModule
 import com.syntona.dataflow.modules.KnobModule
 import com.syntona.dataflow.modules.FaderModule
 import com.syntona.dataflow.modules.SequenceModule
@@ -137,6 +138,11 @@ object GraphSerializer {
             }
             if (module is KeyMatchModule) {
                 append(",\"keyChar\":\"${module.keyChar.toString().jsonEscape}\"")
+            }
+            if (module is KeyNotesModule) {
+                append(",\"bottomOctaveKeys\":\"${module.bottomOctaveKeys.jsonEscape}\"")
+                append(",\"topOctaveKeys\":\"${module.topOctaveKeys.jsonEscape}\"")
+                append(",\"startingNote\":${module.startingNote}")
             }
             if (module is SegmentedEnvelopeModule) {
                 val env = module.envelope
@@ -267,6 +273,21 @@ object GraphSerializer {
             }
             if (module is KeyMatchModule) {
                 (obj?.map?.get("keyChar") as? JsonValue.Str)?.value?.firstOrNull()?.let { module.keyChar = it }
+            }
+            if (module is KeyNotesModule) {
+                (obj?.map?.get("bottomOctaveKeys") as? JsonValue.Str)?.value?.let { module.bottomOctaveKeys = it }
+                (obj?.map?.get("topOctaveKeys") as? JsonValue.Str)?.value?.let { module.topOctaveKeys = it }
+                (obj?.map?.get("mappingString") as? JsonValue.Str)?.value?.let { oldMap ->
+                    val commaIdx = oldMap.indexOf(',')
+                    if (commaIdx >= 0) {
+                        module.bottomOctaveKeys = oldMap.substring(0, commaIdx + 1)
+                        module.topOctaveKeys = oldMap.substring(commaIdx + 1)
+                    } else {
+                        module.bottomOctaveKeys = oldMap.take(13)
+                        module.topOctaveKeys = oldMap.drop(13)
+                    }
+                }
+                (obj?.map?.get("startingNote") as? JsonValue.Num)?.value?.toInt()?.let { module.startingNote = it }
             }
 
             if (module is PolyPatchModule) {

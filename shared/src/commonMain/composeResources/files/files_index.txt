@@ -1,4 +1,5 @@
 examples/drum_rhythm.json
+examples/keyNotes.json
 examples/key_control.json
 examples/keyboard13.json
 examples/mod8_knobs.json

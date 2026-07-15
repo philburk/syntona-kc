@@ -28,6 +28,7 @@ import com.syntona.dataflow.modules.LoadKickModule
 import com.syntona.dataflow.modules.PatchModule
 import com.syntona.dataflow.modules.KeyModule
 import com.syntona.dataflow.modules.KeyMatchModule
+import com.syntona.dataflow.modules.KeyNotesModule
 import com.syntona.getEventCharCode
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
@@ -36,6 +37,7 @@ import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isShiftPressed
 
 /**
  * Manages the UI state of the graph editor, including module positions
@@ -305,10 +307,10 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
             else -> return false
         }
 
-        return handleKeyStroke(charCode, isDown)
+        return handleKeyStroke(charCode, isDown, event.isShiftPressed)
     }
 
-    fun handleKeyStroke(charCode: Int, isDown: Boolean): Boolean {
+    fun handleKeyStroke(charCode: Int, isDown: Boolean, isShiftPressed: Boolean = false): Boolean {
         if (isDown) {
             if (pressedKeyCodes.contains(charCode)) {
                 return true // Ignore auto-repeat
@@ -341,6 +343,11 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
                     } else {
                         jack.send(msg)
                     }
+                    processed = true
+                }
+            } else if (module is KeyNotesModule) {
+                val char = charCode.toChar().lowercaseChar()
+                if (module.handleKeyStroke(char, isDown, isShiftPressed, time, e)) {
                     processed = true
                 }
             } else if (module is PatchModule) {

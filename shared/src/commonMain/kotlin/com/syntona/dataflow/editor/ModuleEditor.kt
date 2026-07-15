@@ -21,12 +21,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.input.key.onKeyEvent
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.modules.LinkModule
 import com.syntona.dataflow.modules.KeyMatchModule
+import com.syntona.dataflow.modules.KeyNotesModule
 import com.syntona.dataflow.modules.PackVoiceModule
 import com.syntona.dataflow.editor.FileState
 
@@ -88,6 +90,7 @@ fun ModuleEditor(module: Module, onDismiss: () -> Unit, modifier: Modifier = Mod
             .width(480.dp)
             .background(PANEL_COLOR, RoundedCornerShape(8.dp))
             .border(1.dp, BORDER_COLOR, RoundedCornerShape(8.dp))
+            .onKeyEvent { true }
     ) {
         Column {
             // Header
@@ -119,6 +122,8 @@ fun ModuleEditor(module: Module, onDismiss: () -> Unit, modifier: Modifier = Mod
                     LinkModuleEditor(module)
                 } else if (module is KeyMatchModule) {
                     KeyMatchModuleEditor(module)
+                } else if (module is KeyNotesModule) {
+                    KeyNotesModuleEditor(module)
                 } else if (module is PackVoiceModule) {
                     PackVoiceModuleEditor(module)
                 } else {
@@ -403,6 +408,89 @@ private fun KeyMatchModuleEditor(module: KeyMatchModule) {
                         keyCharText = newText
                         module.keyChar = if (newText.isNotEmpty()) newText[0] else ' '
                         FileState.markDirty()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun KeyNotesModuleEditor(module: KeyNotesModule) {
+    var bottomKeysText by remember(module) { mutableStateOf(module.bottomOctaveKeys) }
+    var topKeysText by remember(module) { mutableStateOf(module.topOctaveKeys) }
+    var startingNoteText by remember(module) { mutableStateOf(module.startingNote.toString()) }
+
+    Column(
+        modifier = Modifier.padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Column {
+            Text("Top Octave Keys:", fontSize = 12.sp, color = LABEL_COLOR)
+            Spacer(modifier = Modifier.height(4.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, BORDER_COLOR, RoundedCornerShape(4.dp))
+                    .background(Color.White)
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+            ) {
+                androidx.compose.foundation.text.BasicTextField(
+                    value = topKeysText,
+                    onValueChange = {
+                        topKeysText = it
+                        module.topOctaveKeys = it
+                        FileState.markDirty()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp)
+                )
+            }
+        }
+
+        Column {
+            Text("Bottom Octave Keys:", fontSize = 12.sp, color = LABEL_COLOR)
+            Spacer(modifier = Modifier.height(4.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, BORDER_COLOR, RoundedCornerShape(4.dp))
+                    .background(Color.White)
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+            ) {
+                androidx.compose.foundation.text.BasicTextField(
+                    value = bottomKeysText,
+                    onValueChange = {
+                        bottomKeysText = it
+                        module.bottomOctaveKeys = it
+                        FileState.markDirty()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp)
+                )
+            }
+        }
+
+        Column {
+            Text("Starting Midi Note:", fontSize = 12.sp, color = LABEL_COLOR)
+            Spacer(modifier = Modifier.height(4.dp))
+            Box(
+                modifier = Modifier
+                    .width(80.dp)
+                    .border(1.dp, BORDER_COLOR, RoundedCornerShape(4.dp))
+                    .background(Color.White)
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+            ) {
+                androidx.compose.foundation.text.BasicTextField(
+                    value = startingNoteText,
+                    onValueChange = {
+                        startingNoteText = it
+                        it.toIntOrNull()?.let { note ->
+                            module.startingNote = note
+                            FileState.markDirty()
+                        }
                     },
                     modifier = Modifier.fillMaxWidth(),
                     textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp)
