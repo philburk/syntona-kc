@@ -76,6 +76,7 @@ import com.syntona.dataflow.modules.SegmentedEnvelopeModule
 import com.syntona.dataflow.modules.LinkModule
 import com.syntona.dataflow.modules.KeyMatchModule
 import com.syntona.dataflow.modules.KeyNotesModule
+import com.syntona.dataflow.modules.PianoRollModule
 import com.syntona.dataflow.modules.KickModule
 import com.syntona.dataflow.modules.LoadKickModule
 import com.syntona.dataflow.modules.ShowManyModule
@@ -225,6 +226,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                     is KeyboardModule -> KeyboardModuleNode(module, state)
                     is CommentModule -> CommentModuleNode(module, state)
                     is SegmentedEnvelopeModule -> SegmentedEnvelopeModuleNode(module, state)
+                    is PianoRollModule -> PianoRollModuleNode(module, state)
                     is KeyMatchModule -> KeyMatchModuleNode(module, state)
                     else -> ModuleNode(module, state)
                 }
@@ -1568,6 +1570,82 @@ fun SegmentedEnvelopeModuleNode(module: SegmentedEnvelopeModule, state: GraphSta
                                     }
                                 )
                             )
+                        }
+                ) {
+                    Text(
+                        text = module.name,
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+                }
+            }
+            // Draw jacks.
+            module.inputs.forEach { JackView(it, state, isLeft = true) }
+            if (module.inputs.isNotEmpty() && module.outputs.isNotEmpty()) {
+                HorizontalDivider(color = Color.Black, thickness = 1.dp)
+            }
+            module.outputs.forEach { JackView(it, state, isLeft = false) }
+        }
+    }
+}
+
+
+@Composable
+fun PianoRollModuleNode(module: PianoRollModule, state: GraphState) {
+    val colors = LocalGraphColors.current
+    val position = state.modulePositions[module] ?: Offset.Zero
+    val mdiState = LocalMdiState.current
+    val density = LocalDensity.current
+    val isSelected = state.selectedModules.contains(module)
+    val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
+    val borderWidth = if (isSelected) 2.dp else 1.dp
+
+    Surface(
+        modifier = Modifier
+            .offset { IntOffset((position.x * density.density).roundToInt(), (position.y * density.density).roundToInt()) }
+            .width(IntrinsicSize.Max)
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
+            .onSizeChanged { size ->
+                state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
+            },
+        shape = RoundedCornerShape(4.dp),
+        color = colors.moduleBackground
+    ) {
+        Column {
+            TooltipArea(text = getModuleTooltipText(module)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(24.dp)
+                        .background(colors.headerSequence)
+                        .headerGestures(state, module) {
+                            val savedX = module.windowX
+                            val savedY = module.windowY
+                            val restoredPosition = if (savedX != null && savedY != null) {
+                                Offset(savedX * density.density, savedY * density.density)
+                            } else {
+                                val pos = state.modulePositions[module] ?: Offset(100f, 100f)
+                                Offset(
+                                    (pos.x + 20f) * density.density,
+                                    (pos.y + 30f) * density.density
+                                )
+                            }
+                            val window = MdiWindowInfo(
+                                id = module,
+                                title = module.name,
+                                position = restoredPosition,
+                                width = module.windowWidth?.dp ?: 800.dp,
+                                height = module.windowHeight?.dp ?: 500.dp,
+                                content = { PianoRollEditor(module, state) }
+                            )
+                            window.onGeometryChanged = {
+                                module.windowX = window.position.x / density.density
+                                module.windowY = window.position.y / density.density
+                                module.windowWidth = window.width.value
+                                module.windowHeight = window.height.value
+                            }
+                            mdiState.open(window)
                         }
                 ) {
                     Text(

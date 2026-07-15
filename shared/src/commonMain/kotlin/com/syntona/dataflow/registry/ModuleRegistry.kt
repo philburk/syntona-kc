@@ -76,6 +76,7 @@ object ModuleRegistry {
         musicInput.modules.add(ModuleEntry("keyboard13") { Keyboard13Module() })
         musicInput.modules.add(ModuleEntry("keyboard25") { Keyboard25Module() })
         musicInput.modules.add(ModuleEntry("keyNotes") { KeyNotesModule() })
+        musicInput.modules.add(ModuleEntry("pianoRoll") { PianoRollModule() })
         val voices = getOrCreateBundle(music, "voices")
         voices.modules.add(ModuleEntry("packVoice") { PackVoiceModule() })
         voices.modules.add(ModuleEntry("packBend") { PackBendModule() })
