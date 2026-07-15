@@ -137,8 +137,10 @@ class MdiState {
     }
 
     fun bringToFront(window: MdiWindowInfo) {
-        windows.remove(window)
-        windows.add(window)
+        if (windows.lastOrNull() !== window) {
+            windows.remove(window)
+            windows.add(window)
+        }
         window.graphState?.let { activeGraphState = it }
     }
 
