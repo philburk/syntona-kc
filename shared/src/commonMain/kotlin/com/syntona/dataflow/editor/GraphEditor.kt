@@ -106,12 +106,6 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
             focusRequester.requestFocus()
         }
     }
-    val isKeyboardActive = state.isKeyboardModeActive
-    LaunchedEffect(isKeyboardActive) {
-        if (isKeyboardActive) {
-            focusRequester.requestFocus()
-        }
-    }
     Column(modifier = modifier.fillMaxSize()) {
         val parentPatch = state.parentPatch
         if (parentPatch != null && parentPatch.name != "root") {

@@ -66,7 +66,6 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
     val jackOffsets = mutableStateMapOf<Jack, Offset>()
     val jackBounds = mutableStateMapOf<Jack, Rect>()
     private val pressedKeyCodes = mutableSetOf<Int>()
-    var isKeyboardModeActive by mutableStateOf(false)
 
     var rootOffset by mutableStateOf(Offset.Zero)
         private set
@@ -281,19 +280,6 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
     }
 
     fun onKeyEvent(event: KeyEvent): Boolean {
-        // Toggle keyboard mode on Cmd+K / Ctrl+K
-        if (event.type == KeyEventType.KeyDown && event.key == Key.K && (event.isMetaPressed || event.isCtrlPressed)) {
-            isKeyboardModeActive = !isKeyboardModeActive
-            if (!isKeyboardModeActive) {
-                pressedKeyCodes.clear()
-            }
-            return true
-        }
-
-        if (!isKeyboardModeActive) {
-            pressedKeyCodes.clear()
-            return false
-        }
 
         val rawCharCode = getEventCharCode(event)
         if (rawCharCode == 0 || rawCharCode == 65535) return false
