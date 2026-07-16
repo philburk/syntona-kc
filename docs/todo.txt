@@ -26,8 +26,9 @@ Add a resource folder with a "library" of patches. Add a "Load Patch from Librar
 
 Add Granular synthesis.
 
-Add my old recursive generator algorithm.
 Scales for pentatonic noodling. Scale degrees could be fractional pitches, eg. 7.02 for the fifth. Maybe allow 4/3. Turn red while editing.
+
+Add my old recursive generator algorithm.
 
 In module editor, allow setting of kickable property.
 

@@ -86,7 +86,7 @@
           "max": 100
         }
       },
-      "equation": "x*y + z"
+      "equation": "x*y + z^3"
     },
     {
       "id": 7,
@@ -117,7 +117,7 @@
       "x": 42.9729,
       "y": 7.1220093,
       "jacks": {},
-      "text": "Use equations in your patches. The text background will turn red while editing. Press ENTER or RETURN to compile the equation. If the compilation succeeds then the background will turn white.  If the compilation fails then it will turns orange.",
+      "text": "Use equations in your patches. The text background will turn red while editing. Press ENTER or RETURN to compile the equation.\nIf the compilation succeeds then the background will turn white.\nIf the compilation fails then it will turn orange.",
       "w": 457.875,
       "h": 91
     }
