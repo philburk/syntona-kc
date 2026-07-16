@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -980,7 +981,8 @@ private fun PianoRollToolbar(
                         color = if (selected) PR_NOTE_PLAYING else Color(0x33FFFFFF),
                         shape = RoundedCornerShape(4.dp),
                     )
-                    .height(30.dp),
+                    .height(30.dp)
+                    .focusProperties { canFocus = false },
             ) {
                 Text(t.label, fontSize = 11.sp, color = if (selected) Color.White else PR_RULER_TEXT)
             }
@@ -990,7 +992,9 @@ private fun PianoRollToolbar(
 
         TextButton(
             onClick = { module.requestPlayToggle() },
-            modifier = Modifier.height(30.dp),
+            modifier = Modifier
+                .height(30.dp)
+                .focusProperties { canFocus = false },
         ) {
             Text(
                 if (module.isPlaying) "◼ Stop" else "▶ Play",
@@ -1033,7 +1037,12 @@ private fun DurationSelector(durationTicks: Int, onChange: (Int) -> Unit) {
         Triple("1", "w", PianoRollTiming.TPB * 4),
     )
     Box {
-        TextButton(onClick = { expanded = true }, modifier = Modifier.height(30.dp)) {
+        TextButton(
+            onClick = { expanded = true },
+            modifier = Modifier
+                .height(30.dp)
+                .focusProperties { canFocus = false }
+        ) {
             val label = options.find { it.third == durationTicks }?.first ?: "1/4"
             Text("Dur: $label", fontSize = 11.sp, color = PR_RULER_TEXT)
         }
@@ -1055,7 +1064,12 @@ private fun DurationSelector(durationTicks: Int, onChange: (Int) -> Unit) {
 private fun BpmSelector(module: PianoRollModule) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        TextButton(onClick = { expanded = true }, modifier = Modifier.height(30.dp)) {
+        TextButton(
+            onClick = { expanded = true },
+            modifier = Modifier
+                .height(30.dp)
+                .focusProperties { canFocus = false }
+        ) {
             Text("${module.bpm} BPM", fontSize = 11.sp, color = PR_RULER_TEXT)
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
