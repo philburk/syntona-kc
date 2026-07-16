@@ -1026,21 +1026,21 @@ private fun PianoRollToolbar(
 private fun DurationSelector(durationTicks: Int, onChange: (Int) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     val options = listOf(
-        "1/16" to PianoRollTiming.TPB / 4,
-        "1/8" to PianoRollTiming.TPB / 2,
-        "1/4" to PianoRollTiming.TPB,
-        "1/2" to PianoRollTiming.TPB * 2,
-        "1" to PianoRollTiming.TPB * 4,
+        Triple("1/16", "s", PianoRollTiming.TPB / 4),
+        Triple("1/8", "e", PianoRollTiming.TPB / 2),
+        Triple("1/4", "q", PianoRollTiming.TPB),
+        Triple("1/2", "h", PianoRollTiming.TPB * 2),
+        Triple("1", "w", PianoRollTiming.TPB * 4),
     )
     Box {
         TextButton(onClick = { expanded = true }, modifier = Modifier.height(30.dp)) {
-            val label = options.find { it.second == durationTicks }?.first ?: "1/4"
+            val label = options.find { it.third == durationTicks }?.first ?: "1/4"
             Text("Dur: $label", fontSize = 11.sp, color = PR_RULER_TEXT)
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            options.forEach { (label, ticks) ->
+            options.forEach { (label, shortcut, ticks) ->
                 DropdownMenuItem(
-                    text = { Text(label) },
+                    text = { Text("$label ($shortcut)") },
                     onClick = {
                         onChange(ticks)
                         expanded = false
