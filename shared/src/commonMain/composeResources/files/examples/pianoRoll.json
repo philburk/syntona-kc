@@ -80,7 +80,7 @@
                 "add": false
               },
               "amplitude": {
-                "v": 0.2694341242313385,
+                "v": 0.07174260169267654,
                 "min": 0,
                 "max": 1,
                 "add": false
@@ -273,7 +273,7 @@
       "x": 46.899994,
       "y": 13.075012,
       "jacks": {},
-      "text": "The pianoRoll editor lets you edit a note sequence using equal-temperament or relative just intonation.",
+      "text": "The pianoRoll editor lets you edit a note sequence using equal-temperament or relative just intonation.\nClick on the center of a note and drag to create a realatively tuned note.\nClick on the right edge of a note to change the duration.\nClick on the left edge of a note to drag it.  ",
       "w": 498.82324,
       "h": 99.25
     },
@@ -294,17 +294,17 @@
       "jacks": {},
       "bpm": 120,
       "playStart": 0,
-      "windowX": 449.85938,
-      "windowY": 520.01904,
+      "windowX": 408.98438,
+      "windowY": 498.01904,
       "windowWidth": 800,
       "windowHeight": 500,
       "notes": [
-        [0, 60, 240, -1, 1, 1, 60],
-        [1, 300, 240, 0, 6, 5, 60],
-        [2, 540, 120, 1, 5, 4, 60],
-        [5, 780, 120, 2, 3, 4, 60],
-        [6, 780, 120, 5, 5, 4, 60],
-        [7, 780, 120, 6, 4, 3, 60]
+        [0, 0, 240, -1, 1, 1, 60],
+        [1, 240, 240, 0, 6, 5, 60],
+        [2, 480, 120, 1, 5, 4, 60],
+        [5, 720, 120, 2, 3, 4, 60],
+        [6, 720, 120, 5, 5, 4, 60],
+        [7, 720, 120, 6, 4, 3, 60]
       ]
     },
     {

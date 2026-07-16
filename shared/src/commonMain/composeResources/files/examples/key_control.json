@@ -1,1 +1,238 @@
-{"modules":[{"id":0,"type":"key","name":"key","x":33.96048,"y":208.11859,"jacks":{}},{"id":1,"type":"show","name":"show","x":124.8851,"y":126.049225,"jacks":{}},{"id":2,"type":"show","name":"show","x":126.875,"y":253.0,"jacks":{}},{"id":3,"type":"counter","name":"counter","x":226.875,"y":123.0,"jacks":{}},{"id":4,"type":"show","name":"show","x":340.875,"y":141.0,"jacks":{}},{"id":5,"type":"counter","name":"counter","x":247.875,"y":250.0,"jacks":{}},{"id":6,"type":"show","name":"show","x":348.875,"y":253.0,"jacks":{}},{"id":7,"type":"kick","name":"kick","x":18.875,"y":17.0,"jacks":{}},{"id":8,"type":"show","name":"show","x":532.88513,"y":124.049225,"jacks":{}},{"id":9,"type":"show","name":"show","x":534.875,"y":251.0,"jacks":{}},{"id":10,"type":"counter","name":"counter","x":634.875,"y":121.0,"jacks":{}},{"id":11,"type":"show","name":"show","x":748.875,"y":139.0,"jacks":{}},{"id":12,"type":"counter","name":"counter","x":643.875,"y":253.0,"jacks":{}},{"id":13,"type":"show","name":"show","x":756.875,"y":251.0,"jacks":{}},{"id":14,"type":"keyMatch","name":"keyMatch","x":429.0,"y":192.875,"jacks":{},"keyChar":"Y"},{"id":15,"type":"comment","name":"comment","x":162.875,"y":14.0,"jacks":{},"text":"For live performance you can generate messages by pressing keys.\nPress Ctrl+K to enable to enable the key detection!","w":584.8787,"h":52.03032}],"connections":[{"from":0,"fromJack":"on","to":1,"toJack":"in"},{"from":0,"fromJack":"off","to":2,"toJack":"in"},{"from":0,"fromJack":"off","to":5,"toJack":"inc"},{"from":5,"fromJack":"out","to":6,"toJack":"in"},{"from":0,"fromJack":"on","to":3,"toJack":"inc"},{"from":3,"fromJack":"out","to":4,"toJack":"in"},{"from":7,"fromJack":"kick","to":3,"toJack":"reset"},{"from":7,"fromJack":"kick","to":5,"toJack":"reset"},{"from":12,"fromJack":"out","to":13,"toJack":"in"},{"from":10,"fromJack":"out","to":11,"toJack":"in"},{"from":14,"fromJack":"on","to":8,"toJack":"in"},{"from":14,"fromJack":"on","to":10,"toJack":"inc"},{"from":14,"fromJack":"off","to":9,"toJack":"in"},{"from":14,"fromJack":"off","to":12,"toJack":"inc"},{"from":7,"fromJack":"kick","to":10,"toJack":"reset"},{"from":7,"fromJack":"kick","to":12,"toJack":"reset"}]}
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "core.input.key",
+      "name": "key",
+      "x": 33.96048,
+      "y": 208.11859,
+      "jacks": {}
+    },
+    {
+      "id": 1,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 124.8851,
+      "y": 126.049225,
+      "jacks": {}
+    },
+    {
+      "id": 2,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 126.875,
+      "y": 253,
+      "jacks": {}
+    },
+    {
+      "id": 3,
+      "type": "core.basic.counter",
+      "name": "counter",
+      "x": 226.875,
+      "y": 123,
+      "jacks": {}
+    },
+    {
+      "id": 4,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 340.875,
+      "y": 141,
+      "jacks": {}
+    },
+    {
+      "id": 5,
+      "type": "core.basic.counter",
+      "name": "counter",
+      "x": 247.875,
+      "y": 250,
+      "jacks": {}
+    },
+    {
+      "id": 6,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 348.875,
+      "y": 253,
+      "jacks": {}
+    },
+    {
+      "id": 7,
+      "type": "core.input.kick",
+      "name": "kick",
+      "x": 18.875,
+      "y": 17,
+      "jacks": {}
+    },
+    {
+      "id": 8,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 532.88513,
+      "y": 124.049225,
+      "jacks": {}
+    },
+    {
+      "id": 9,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 534.875,
+      "y": 251,
+      "jacks": {}
+    },
+    {
+      "id": 10,
+      "type": "core.basic.counter",
+      "name": "counter",
+      "x": 634.875,
+      "y": 121,
+      "jacks": {}
+    },
+    {
+      "id": 11,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 748.875,
+      "y": 139,
+      "jacks": {}
+    },
+    {
+      "id": 12,
+      "type": "core.basic.counter",
+      "name": "counter",
+      "x": 643.875,
+      "y": 253,
+      "jacks": {}
+    },
+    {
+      "id": 13,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 756.875,
+      "y": 251,
+      "jacks": {}
+    },
+    {
+      "id": 14,
+      "type": "core.input.keyMatch",
+      "name": "keyMatch",
+      "x": 429,
+      "y": 192.875,
+      "jacks": {},
+      "keyChar": "Y"
+    },
+    {
+      "id": 15,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 162.875,
+      "y": 14,
+      "jacks": {},
+      "text": "For live performance you can generate messages by pressing keys.\nThe keyMatch module will fire when a specific key is pressed.",
+      "w": 584.8787,
+      "h": 52.03032
+    }
+  ],
+  "connections": [
+    {
+      "from": 0,
+      "fromJack": "on",
+      "to": 1,
+      "toJack": "in"
+    },
+    {
+      "from": 0,
+      "fromJack": "off",
+      "to": 2,
+      "toJack": "in"
+    },
+    {
+      "from": 0,
+      "fromJack": "off",
+      "to": 5,
+      "toJack": "inc"
+    },
+    {
+      "from": 5,
+      "fromJack": "out",
+      "to": 6,
+      "toJack": "in"
+    },
+    {
+      "from": 0,
+      "fromJack": "on",
+      "to": 3,
+      "toJack": "inc"
+    },
+    {
+      "from": 3,
+      "fromJack": "out",
+      "to": 4,
+      "toJack": "in"
+    },
+    {
+      "from": 7,
+      "fromJack": "kick",
+      "to": 3,
+      "toJack": "reset"
+    },
+    {
+      "from": 7,
+      "fromJack": "kick",
+      "to": 5,
+      "toJack": "reset"
+    },
+    {
+      "from": 12,
+      "fromJack": "out",
+      "to": 13,
+      "toJack": "in"
+    },
+    {
+      "from": 10,
+      "fromJack": "out",
+      "to": 11,
+      "toJack": "in"
+    },
+    {
+      "from": 14,
+      "fromJack": "on",
+      "to": 8,
+      "toJack": "in"
+    },
+    {
+      "from": 14,
+      "fromJack": "on",
+      "to": 10,
+      "toJack": "inc"
+    },
+    {
+      "from": 14,
+      "fromJack": "off",
+      "to": 9,
+      "toJack": "in"
+    },
+    {
+      "from": 14,
+      "fromJack": "off",
+      "to": 12,
+      "toJack": "inc"
+    },
+    {
+      "from": 7,
+      "fromJack": "kick",
+      "to": 10,
+      "toJack": "reset"
+    },
+    {
+      "from": 7,
+      "fromJack": "kick",
+      "to": 12,
+      "toJack": "reset"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 821.98779296875,
+  "windowHeight": 647.8756103515625
+}

@@ -1,17 +1,24 @@
-Maybe be able to click on wires to select and disconnect by BACKSPACE.
 
 Try not using the CTRL+K key entry mode.
 
+Scales for pentatonic noodling. Scale degrees could be fractional pitches, eg. 7.02 for the fifth. Maybe allow 4/3. Turn red while editing.
+
+Add my old recursive generator algorithm.
+
+Seq8 reset should not kick.
+
 Change keyboard13 so we can drag between notes for legato sweeps. ON/ON/OFF/OFF.
 
+Maybe be able to click on wires to select and disconnect by BACKSPACE.
+
 Combine segEnv and monoRdr?
+
 Widget to put wires in front and label wires with order (1) (2)
 
 Move mixers to their own bundle.
 Maybe add a MixerSend and then have a separate mixer panel separate from the dataflow.
 That will be useful if we support a more DAW-like interface.,
 
-Seq8 reset should not kick.
 Seq8 should support feedback cycle.
 seq16
 
@@ -25,10 +32,6 @@ Convert Syntona timestamps to KSyn timestamps and apply small "advance-time" for
 Add a resource folder with a "library" of patches. Add a "Load Patch from Library" file item, similar to the Help menu items.
 
 Add Granular synthesis.
-
-Scales for pentatonic noodling. Scale degrees could be fractional pitches, eg. 7.02 for the fifth. Maybe allow 4/3. Turn red while editing.
-
-Add my old recursive generator algorithm.
 
 In module editor, allow setting of kickable property.
 
