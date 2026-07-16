@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -831,6 +832,119 @@ fun PianoRollEditor(module: PianoRollModule, state: GraphState) {
                 val px = view.xOf(it.toFloat())
                 drawLine(PR_PLAYHEAD, Offset(px, 0f), Offset(px, size.height), strokeWidth = 2f)
             }
+        }
+
+        PianoRollScrollBar(view, module, playheadTicks)
+    }
+}
+
+@Composable
+private fun PianoRollScrollBar(
+    view: PianoRollView,
+    module: PianoRollModule,
+    playheadTicks: Double?,
+    modifier: Modifier = Modifier
+) {
+    val minScroll = -PianoRollTiming.TICKS_PER_MEASURE.toFloat()
+    val maxNoteTicks = module.notes.maxOfOrNull { it.endTicks }?.toFloat() ?: 0f
+    val maxPlayhead = playheadTicks?.toFloat() ?: 0f
+    val maxPlayStart = module.playStartTicks.toFloat()
+    
+    val totalContentEnd = maxOf(maxNoteTicks, maxPlayhead, maxPlayStart)
+    val contentEndWithPadding = totalContentEnd + PianoRollTiming.TICKS_PER_MEASURE.toFloat()
+    
+    val visibleWidthTicks = if (view.zoom > 0f) view.widthPx / view.zoom else 1000f
+    val totalRangeTicks = contentEndWithPadding - minScroll
+    val maxScroll = maxOf(minScroll, contentEndWithPadding - visibleWidthTicks)
+    
+    val currentScroll = view.scrollTicks.coerceIn(minScroll, maxScroll)
+    
+    Canvas(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(16.dp)
+            .background(PR_RULER_BG)
+            .pointerHoverIcon(PointerIcon.Hand)
+            .pointerInput(minScroll, maxScroll, totalRangeTicks, visibleWidthTicks) {
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    
+                    val trackWidth = size.width.toFloat()
+                    if (trackWidth <= 0f) return@awaitEachGesture
+                    
+                    val thumbWidthFraction = (visibleWidthTicks / totalRangeTicks).coerceIn(0.05f, 1.0f)
+                    val thumbWidth = trackWidth * thumbWidthFraction
+                    val scrollFraction = ((view.scrollTicks - minScroll) / totalRangeTicks).coerceIn(0f, 1f - thumbWidthFraction)
+                    val thumbX = trackWidth * scrollFraction
+                    
+                    val clickX = down.position.x
+                    val isInsideThumb = clickX >= thumbX && clickX <= (thumbX + thumbWidth)
+                    
+                    val startScroll = view.scrollTicks
+                    
+                    fun updateScroll(currentX: Float) {
+                        if (isInsideThumb) {
+                            val dx = currentX - clickX
+                            val dScroll = (dx / trackWidth) * totalRangeTicks
+                            view.scrollTicks = (startScroll + dScroll).coerceIn(minScroll, maxScroll)
+                        } else {
+                            val targetScroll = minScroll + (currentX / trackWidth) * totalRangeTicks - (visibleWidthTicks / 2f)
+                            view.scrollTicks = targetScroll.coerceIn(minScroll, maxScroll)
+                        }
+                    }
+                    
+                    if (!isInsideThumb) {
+                        updateScroll(clickX)
+                    }
+                    down.consume()
+                    
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.find { it.id == down.id } ?: break
+                        if (!change.pressed) break
+                        updateScroll(change.position.x)
+                        change.consume()
+                    }
+                }
+            }
+    ) {
+        val trackWidth = size.width
+        val trackHeight = size.height
+        
+        // Draw top separator border
+        drawLine(
+            color = Color(0x14FFFFFF),
+            start = Offset(0f, 0f),
+            end = Offset(trackWidth, 0f),
+            strokeWidth = 1f
+        )
+        
+        // Draw thin track background line in the middle
+        val barHeight = 6.dp.toPx()
+        val barY = (trackHeight - barHeight) / 2f
+        
+        drawRoundRect(
+            color = Color(0x14FFFFFF),
+            topLeft = Offset(0f, barY),
+            size = Size(trackWidth, barHeight),
+            cornerRadius = CornerRadius(barHeight / 2f)
+        )
+        
+        // Calculate thumb width and position
+        if (totalRangeTicks > 0f) {
+            val thumbWidthFraction = (visibleWidthTicks / totalRangeTicks).coerceIn(0.05f, 1.0f)
+            val thumbWidth = trackWidth * thumbWidthFraction
+            
+            val scrollFraction = ((currentScroll - minScroll) / totalRangeTicks).coerceIn(0f, 1f - thumbWidthFraction)
+            val thumbX = trackWidth * scrollFraction
+            
+            // Draw thumb
+            drawRoundRect(
+                color = PR_NOTE_PLAYING,
+                topLeft = Offset(thumbX, barY),
+                size = Size(thumbWidth, barHeight),
+                cornerRadius = CornerRadius(barHeight / 2f)
+            )
         }
     }
 }
