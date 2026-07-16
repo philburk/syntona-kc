@@ -45,6 +45,7 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -205,6 +206,25 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                 }
             }
         ) {
+            val isRootGraph = parentPatch == null || parentPatch.name == "root"
+            if (isRootGraph && !FileState.isDirty && FileState.currentFilePath == null && state.modules.isEmpty()) {
+                Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "💡 Look in the Help menu for Examples and Tutorials!",
+                        color = Color(0xAAFFFFFF),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier
+                            .background(Color(0x11FFFFFF), RoundedCornerShape(8.dp))
+                            .border(1.dp, Color(0x14FFFFFF), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 24.dp, vertical = 12.dp)
+                    )
+                }
+            }
+
             // Draw Wires behind modules
             WireRenderer(state)
 

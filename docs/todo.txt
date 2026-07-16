@@ -27,10 +27,13 @@ Add a resource folder with a "library" of patches. Add a "Load Patch from Librar
 Add Granular synthesis.
 
 Add my old recursive generator algorithm.
+Scales for pentatonic noodling.
 
 Add Gaussian distribution and histogram.
 
-Add Piano Roll editor with support for Relative Just Intonation.
+Add amplitude/velocity editing in pianoRoll editor.
+
+Note processing elements. unpackNote, packNote, scaleAmp, transpose.
 
 Add MIDI in/out support using VoiceMessages.
 
