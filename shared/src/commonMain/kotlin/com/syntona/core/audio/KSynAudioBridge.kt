@@ -16,7 +16,7 @@
 
 package com.syntona.core.audio
 
-import com.mobileer.audiobridge.writeSuspending
+import com.softsynth.audiobridge.writeSuspending
 import com.softsynth.ksyn.Synthesizer
 import com.softsynth.ksyn.io.AudioFifo
 import kotlin.concurrent.Volatile

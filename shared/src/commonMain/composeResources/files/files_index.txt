@@ -3,6 +3,7 @@ examples/keyNotes.json
 examples/key_control.json
 examples/keyboard13.json
 examples/mod8_knobs.json
+examples/pianoRoll.json
 examples/poly_patch.json
 examples/pulse_scope.json
 examples/sampler.json
