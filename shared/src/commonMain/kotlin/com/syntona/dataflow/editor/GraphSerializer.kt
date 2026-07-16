@@ -64,21 +64,7 @@ object GraphSerializer {
         return RootWindowGeometry(x, y, w, h)
     }
 
-    private val activeProblems = ThreadLocal<MutableList<String>>()
 
-    private fun startCollectingProblems() {
-        activeProblems.set(mutableListOf())
-    }
-
-    private fun reportProblem(problem: String) {
-        activeProblems.get()?.add(problem)
-    }
-
-    private fun finishCollectingProblems(): List<String>? {
-        val problems = activeProblems.get()
-        activeProblems.remove()
-        return problems
-    }
 
     fun serializePatch(patch: PatchModule, density: Float = 1f): String {
         val raw = buildRawJson(patch.graphState, patch.graphState.modules.toList(), density)
@@ -212,36 +198,38 @@ object GraphSerializer {
     }
 
     fun deserialize(graphState: GraphState, json: String, offset: Offset = Offset.Zero, density: Float = 1f): List<Module> {
-        startCollectingProblems()
-        try {
-            val rootVal = try { JsonParser(json).parse() as? JsonValue.Obj } catch (e: Exception) {
-                reportProblem("Failed to parse JSON: ${e.message}")
-                null
-            } ?: return emptyList()
-            val type = (rootVal.map["type"] as? JsonValue.Str)?.value
-            val finalType = type?.substringAfterLast('.')
-            val result = if (finalType == "patch" || finalType == "polyPatch") {
-                val innerPatchObj = rootVal.map["patch"] as? JsonValue.Obj
-                if (innerPatchObj != null) {
-                    deserializeObj(graphState, innerPatchObj, offset, density)
-                } else {
-                    deserializeObj(graphState, rootVal, offset, density)
-                }
+        val problems = mutableListOf<String>()
+        val rootVal = try {
+            JsonParser(json).parse() as? JsonValue.Obj
+        } catch (e: Exception) {
+            problems.add("Failed to parse JSON: ${e.message}")
+            null
+        } ?: return emptyList()
+        val type = (rootVal.map["type"] as? JsonValue.Str)?.value
+        val finalType = type?.substringAfterLast('.')
+        val result = if (finalType == "patch" || finalType == "polyPatch") {
+            val innerPatchObj = rootVal.map["patch"] as? JsonValue.Obj
+            if (innerPatchObj != null) {
+                deserializeObj(graphState, innerPatchObj, offset, density, problems)
             } else {
-                deserializeObj(graphState, rootVal, offset, density)
+                deserializeObj(graphState, rootVal, offset, density, problems)
             }
-            val problems = finishCollectingProblems()
-            if (!problems.isNullOrEmpty()) {
-                FileState.loadingProblemsReport = problems.joinToString("\n")
-            }
-            return result
-        } catch (t: Throwable) {
-            finishCollectingProblems()
-            throw t
+        } else {
+            deserializeObj(graphState, rootVal, offset, density, problems)
         }
+        if (problems.isNotEmpty()) {
+            FileState.loadingProblemsReport = problems.joinToString("\n")
+        }
+        return result
     }
 
-    private fun deserializeObj(graphState: GraphState, rootObj: JsonValue.Obj, offset: Offset, density: Float = 1f): List<Module> {
+    private fun deserializeObj(
+        graphState: GraphState,
+        rootObj: JsonValue.Obj,
+        offset: Offset,
+        density: Float = 1f,
+        problems: MutableList<String>
+    ): List<Module> {
         graphState.isDeserializing = true
         try {
             val modulesArr = (rootObj.map["modules"] as? JsonValue.Arr)?.items ?: return emptyList()
@@ -264,7 +252,7 @@ object GraphSerializer {
 
             val creator = typeName?.let { ModuleRegistry.findCreator(it) }
             if (creator == null) {
-                reportProblem("Module type '$typeName' not found in registry (name: '${obj?.map?.get("name") ?: "unknown"}').")
+                problems.add("Module type '$typeName' not found in registry (name: '${obj?.map?.get("name") ?: "unknown"}').")
                 created.add(null)
                 continue
             }
@@ -350,9 +338,9 @@ object GraphSerializer {
                                 module.graphState.removeModulesDirectly(module.graphState.modules.toList())
                                 val innerPatchObj = childRootVal.map["patch"] as? JsonValue.Obj
                                 if (innerPatchObj != null) {
-                                    deserializeObj(module.graphState, innerPatchObj, Offset.Zero, density)
+                                    deserializeObj(module.graphState, innerPatchObj, Offset.Zero, density, problems)
                                 } else {
-                                    deserializeObj(module.graphState, childRootVal, Offset.Zero, density)
+                                    deserializeObj(module.graphState, childRootVal, Offset.Zero, density, problems)
                                 }
                                 if (module is PolyPatchModule) {
                                     module.ensureDefaultModulesExist()
@@ -367,7 +355,7 @@ object GraphSerializer {
                             module.graphState.isDeserializing = true
                             try {
                                 module.graphState.removeModulesDirectly(module.graphState.modules.toList())
-                                deserializeObj(module.graphState, patchObj, Offset.Zero, density)
+                                deserializeObj(module.graphState, patchObj, Offset.Zero, density, problems)
                                 if (module is PolyPatchModule) {
                                     module.ensureDefaultModulesExist()
                                 }
@@ -383,7 +371,7 @@ object GraphSerializer {
                         module.graphState.isDeserializing = true
                         try {
                             module.graphState.removeModulesDirectly(module.graphState.modules.toList())
-                            deserializeObj(module.graphState, patchObj, Offset.Zero, density)
+                            deserializeObj(module.graphState, patchObj, Offset.Zero, density, problems)
                             if (module is PolyPatchModule) {
                                 module.ensureDefaultModulesExist()
                             }
@@ -405,12 +393,12 @@ object GraphSerializer {
                     for (row in notesArr) {
                         val fields = (row as? JsonValue.Arr)?.items
                         if (fields == null || fields.size < 7) {
-                            reportProblem("pianoRoll '${module.name}': skipping malformed note entry.")
+                            problems.add("pianoRoll '${module.name}': skipping malformed note entry.")
                             continue
                         }
                         val nums = fields.map { (it as? JsonValue.Num)?.value }
                         if (nums.any { it == null }) {
-                            reportProblem("pianoRoll '${module.name}': skipping non-numeric note entry.")
+                            problems.add("pianoRoll '${module.name}': skipping non-numeric note entry.")
                             continue
                         }
                         module.notes.add(
@@ -427,7 +415,7 @@ object GraphSerializer {
                     // Defensive: orphaned parent references become root notes at their current pitch.
                     for (note in module.notes) {
                         if (!note.isRoot && module.findNote(note.parentId) == null) {
-                            reportProblem("pianoRoll '${module.name}': note ${note.id} references missing parent ${note.parentId}; converting to root.")
+                            problems.add("pianoRoll '${module.name}': note ${note.id} references missing parent ${note.parentId}; converting to root.")
                             note.rootPitch = 60.0 + note.ratio.semitones
                             note.parentId = -1
                             note.ratio = Ratio.UNISON
@@ -462,28 +450,28 @@ object GraphSerializer {
             val toJack = (obj.map["toJack"] as? JsonValue.Str)?.value
 
             if (fromIdx == null || fromJack == null || toIdx == null || toJack == null) {
-                reportProblem("Connection entry is missing required fields (from: $fromIdx, fromJack: $fromJack, to: $toIdx, toJack: $toJack).")
+                problems.add("Connection entry is missing required fields (from: $fromIdx, fromJack: $fromJack, to: $toIdx, toJack: $toJack).")
                 continue
             }
 
             val fromModule = created.getOrNull(fromIdx)
             if (fromModule == null) {
-                reportProblem("Connection source module ID $fromIdx not found.")
+                problems.add("Connection source module ID $fromIdx not found.")
                 continue
             }
             val toModule = created.getOrNull(toIdx)
             if (toModule == null) {
-                reportProblem("Connection target module ID $toIdx not found.")
+                problems.add("Connection target module ID $toIdx not found.")
                 continue
             }
             val output = fromModule.outputs.find { it.name == fromJack }
             if (output == null) {
-                reportProblem("Output jack '$fromJack' not found on module '${fromModule.name}' (type: ${fromModule.type}).")
+                problems.add("Output jack '$fromJack' not found on module '${fromModule.name}' (type: ${fromModule.type}).")
                 continue
             }
             val input = toModule.inputs.find { it.name == toJack }
             if (input == null) {
-                reportProblem("Input jack '$toJack' not found on module '${toModule.name}' (type: ${toModule.type}).")
+                problems.add("Input jack '$toJack' not found on module '${toModule.name}' (type: ${toModule.type}).")
                 continue
             }
             graphState.connect(output, input)
