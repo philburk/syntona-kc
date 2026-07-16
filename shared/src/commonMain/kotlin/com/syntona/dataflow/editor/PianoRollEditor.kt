@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
@@ -1010,6 +1011,13 @@ private fun PianoRollToolbar(
             onValueChange = onZoomChange,
             valueRange = 0.1f..2f,
             modifier = Modifier.width(110.dp),
+            thumb = {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .background(PR_NOTE_PLAYING, shape = androidx.compose.foundation.shape.CircleShape)
+                )
+            }
         )
     }
 }
