@@ -55,6 +55,9 @@ object ModuleRegistry {
         math.modules.add(ModuleEntry("random") { RandomModule() })
         math.modules.add(ModuleEntry("round") { RoundModule() })
         math.modules.add(ModuleEntry("sin") { SineModule() })
+        math.modules.add(ModuleEntry("f(x)") { EquationModule("f(x)") })
+        math.modules.add(ModuleEntry("f(x,y)") { EquationModule("f(x,y)") })
+        math.modules.add(ModuleEntry("f(x,y,z)") { EquationModule("f(x,y,z)") })
 
         val input = getOrCreateBundle(core, "input")
         input.modules.add(ModuleEntry("number") { NumberModule() })

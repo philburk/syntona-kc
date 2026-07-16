@@ -22,6 +22,7 @@ import com.syntona.dataflow.modules.Ratio
 import com.syntona.dataflow.modules.KnobModule
 import com.syntona.dataflow.modules.FaderModule
 import com.syntona.dataflow.modules.SequenceModule
+import com.syntona.dataflow.modules.EquationModule
 import com.softsynth.ksyn.data.SegmentedEnvelope
 import com.syntona.dataflow.registry.ModuleRegistry
 
@@ -114,6 +115,9 @@ object GraphSerializer {
             if (module is CommentModule) {
                 append(",\"text\":\"${module.text.jsonEscape}\"")
                 append(",\"w\":${module.width},\"h\":${module.height}")
+            }
+            if (module is EquationModule) {
+                append(",\"equation\":\"${module.equation.jsonEscape}\"")
             }
             if (module is KeyboardModule) {
                 append(",\"w\":${module.width},\"h\":${module.height}")
@@ -263,6 +267,9 @@ object GraphSerializer {
                 (obj?.map?.get("text") as? JsonValue.Str)?.value?.let { module.text = it }
                 (obj?.map?.get("w") as? JsonValue.Num)?.value?.let { module.width = it.toFloat() }
                 (obj?.map?.get("h") as? JsonValue.Num)?.value?.let { module.height = it.toFloat() }
+            }
+            if (module is EquationModule) {
+                (obj?.map?.get("equation") as? JsonValue.Str)?.value?.let { module.compile(it) }
             }
             if (module is KeyboardModule) {
                 (obj?.map?.get("w") as? JsonValue.Num)?.value?.let { module.width = it.toFloat() }

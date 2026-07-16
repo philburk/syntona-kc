@@ -60,6 +60,7 @@ kotlin {
             implementation("com.softsynth.ksyn:ksyn:1.2.0")
             implementation("com.softsynth.ksyn.compose:ksyn-compose:1.2.0")
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
+            implementation("space.kscience:kmath-core:0.5.0")
 
         }
         commonTest.dependencies {

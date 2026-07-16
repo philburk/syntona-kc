@@ -24,6 +24,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.text.TextStyle
+import com.syntona.dataflow.modules.EquationModule
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
@@ -85,7 +91,6 @@ import com.softsynth.ksyn.compose.SegmentedEnvelopeEditor
 import com.syntona.dataflow.model.cleanKotlinIdentifier
 import com.syntona.dataflow.editor.FileState
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextAlign
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -232,6 +237,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
             state.modules.forEach { module ->
                 when (module) {
                     is NumberModule -> NumberModuleNode(module, state)
+                    is EquationModule -> EquationModuleNode(module, state)
                     is FaderModule -> FaderModuleNode(module, state)
                     is KnobModule -> KnobModuleNode(module, state)
                     is PatchModule -> PatchModuleNode(module, state)
@@ -1862,6 +1868,144 @@ fun MixerModuleNode(module: MixerModule, state: GraphState) {
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun EquationModuleNode(module: EquationModule, state: GraphState) {
+    val colors = LocalGraphColors.current
+    val position = state.modulePositions[module] ?: Offset.Zero
+    val isSelected = state.selectedModules.contains(module)
+    val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
+    val borderWidth = if (isSelected) 2.dp else 1.dp
+
+    Surface(
+        modifier = Modifier
+            .offset { IntOffset((position.x * density).roundToInt(), (position.y * density).roundToInt()) }
+            .width(180.dp)
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
+            .onSizeChanged { size ->
+                state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
+            },
+        shape = RoundedCornerShape(4.dp),
+        color = colors.moduleBackground
+    ) {
+        Column {
+            TooltipArea(text = getModuleTooltipText(module)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(24.dp)
+                        .background(colors.headerDefault)
+                        .headerGestures(state, module) {
+                            state.editingModule = module
+                        }
+                ) {
+                    Text(
+                        text = module.name,
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Inputs on the left
+                Column(
+                    modifier = Modifier.width(26.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    module.inputs.forEach { JackView(it, state, isLeft = true) }
+                }
+
+                Spacer(modifier = Modifier.width(2.dp))
+
+                // Text field and Output on the right
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    EquationField(
+                        value = module.equation,
+                        errorMessage = module.errorMessage,
+                        onCommit = { eq ->
+                            val success = module.compile(eq)
+                            if (success) {
+                                state.markChanged()
+                                FileState.markDirty()
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    Spacer(modifier = Modifier.width(4.dp))
+
+                    CompactJackConnector(module.output, state, isLeft = false)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun EquationField(
+    value: String,
+    errorMessage: String?,
+    onCommit: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var text by remember { mutableStateOf(value) }
+    var isDirty by remember { mutableStateOf(false) }
+
+    LaunchedEffect(value) {
+        if (!isDirty) text = value
+    }
+
+    fun commit() {
+        onCommit(text)
+        isDirty = false
+    }
+
+    Box(
+        modifier = modifier
+    ) {
+        TooltipArea(
+            text = errorMessage ?: ""
+        ) {
+            BasicTextField(
+                value = text,
+                onValueChange = { newText ->
+                    text = newText
+                    isDirty = true
+                },
+                singleLine = true,
+                textStyle = TextStyle(fontSize = 12.sp, color = Color.Black),
+                keyboardOptions = KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { commit() }),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        when {
+                            isDirty -> Color(0xFFFFB0B0)
+                            errorMessage != null -> Color(0xFFFFC266)
+                            else -> Color.White
+                        }
+                    )
+                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                    .onPreviewKeyEvent { event ->
+                        if (event.key == Key.Enter && event.type == KeyEventType.KeyDown) {
+                            commit()
+                            true
+                        } else false
+                    }
+                    .onKeyEvent { true }
+            )
         }
     }
 }

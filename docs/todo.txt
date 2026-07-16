@@ -27,7 +27,12 @@ Add a resource folder with a "library" of patches. Add a "Load Patch from Librar
 Add Granular synthesis.
 
 Add my old recursive generator algorithm.
-Scales for pentatonic noodling.
+Scales for pentatonic noodling. Scale degrees could be fractional pitches, eg. 7.02 for the fifth. Maybe allow 4/3. Turn red while editing.
+
+Add "equation" module for f(x), f(x,y), f(x,y,z) eg "3x+2" "3*x + (x*x)".
+Compiles to a stack based binary interpreter.
+
+In module editor, allow setting of kickable property.
 
 Add Gaussian distribution and histogram.
 
