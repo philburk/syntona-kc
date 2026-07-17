@@ -151,7 +151,7 @@ fun main() = application {
                     Item(
                         "Save",
                         shortcut = KeyShortcut(Key.S, meta = true),
-                        enabled = FileState.isDirty
+                        enabled = FileState.isDirty && FileState.currentFilePath != null && !FileState.isResource
                     ) {
                         if (gs != null) {
                             val rootPatch = state.windows.find { !it.closable }?.id as? PatchModule

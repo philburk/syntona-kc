@@ -460,7 +460,7 @@ fun App(
                                               DropdownMenuItem(
                                                   text = { Text("Save") },
                                                   trailingIcon = { ShortcutHint("⌘S") },
-                                                  enabled = FileState.isDirty,
+                                                  enabled = FileState.isDirty && FileState.currentFilePath != null && !FileState.isResource,
                                                   onClick = {
                                                       fileExpanded = false
                                                       val modifiedChildren = rootPatch.findModifiedReferencedPatches()
