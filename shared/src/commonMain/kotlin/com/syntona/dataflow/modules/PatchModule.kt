@@ -51,6 +51,7 @@ open class PatchModule(name: String = "patch") : Module(name), EngineAware {
 
     val graphState: GraphState = GraphState(onModuleAdded = ::onChildModuleAdded).also { gs ->
         gs.parentPatch = this
+        gs.onModuleRemovedCallback = ::onChildModuleRemoved
         gs.onChange = {
             if (!gs.isDeserializing) {
                 isModified = true
@@ -122,6 +123,63 @@ open class PatchModule(name: String = "patch") : Module(name), EngineAware {
                 module.patch = this
                 module.patchJack = jack
                 module.name = proposedName
+            }
+        }
+    }
+
+    protected open fun onChildModuleRemoved(module: Module) {
+        when (module) {
+            is InputModule -> {
+                val jack = module.patchJack
+                if (jack != null) {
+                    parentPatch?.graphState?.let { parentGs ->
+                        parentGs.jackOffsets.remove(jack)
+                        parentGs.jackBounds.remove(jack)
+                        val conns = parentGs.connections.filter { it.input === jack }
+                        conns.forEach { parentGs.disconnect(it.output, it.input) }
+                    }
+                    removeInput(jack)
+                    inputLinks.remove(jack)
+                }
+            }
+            is OutputModule -> {
+                val jack = module.patchJack
+                if (jack != null) {
+                    parentPatch?.graphState?.let { parentGs ->
+                        parentGs.jackOffsets.remove(jack)
+                        parentGs.jackBounds.remove(jack)
+                        val conns = parentGs.connections.filter { it.output === jack }
+                        conns.forEach { parentGs.disconnect(it.output, it.input) }
+                    }
+                    removeOutput(jack)
+                    outputLinks.remove(jack)
+                }
+            }
+            is AudioInputModule -> {
+                val jack = module.patchJack
+                if (jack != null) {
+                    parentPatch?.graphState?.let { parentGs ->
+                        parentGs.jackOffsets.remove(jack)
+                        parentGs.jackBounds.remove(jack)
+                        val conns = parentGs.connections.filter { it.input === jack }
+                        conns.forEach { parentGs.disconnect(it.output, it.input) }
+                    }
+                    removeInput(jack)
+                    audioInputLinks.remove(jack)
+                }
+            }
+            is AudioOutputModule -> {
+                val jack = module.patchJack
+                if (jack != null) {
+                    parentPatch?.graphState?.let { parentGs ->
+                        parentGs.jackOffsets.remove(jack)
+                        parentGs.jackBounds.remove(jack)
+                        val conns = parentGs.connections.filter { it.output === jack }
+                        conns.forEach { parentGs.disconnect(it.output, it.input) }
+                    }
+                    removeOutput(jack)
+                    audioOutputLinks.remove(jack)
+                }
             }
         }
     }

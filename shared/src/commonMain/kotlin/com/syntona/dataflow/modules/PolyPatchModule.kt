@@ -346,6 +346,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
     }
 
     private fun syncModuleRemoved(module: Module) {
+        super.onChildModuleRemoved(module)
         if (!isInitialized) return
         if (module is AudioOutputModule && module.name != "output") {
             syncAuxOutputRemoved(module)

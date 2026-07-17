@@ -1,9 +1,3 @@
-BUG: can move a module, then exit the app without being asked to Save the work
-
-BUG: aRanger values are 40-2000 but min/max are both 0-1.
-
-BUG: deleting an aInput does not remove the jack from the parent patch.
-
 BUG: Apple menu says "MainKT", should say "Syntona"
 
 Need global named values with automatic name collision avoidance. "wormhole" or "global". (aGlobal???)
