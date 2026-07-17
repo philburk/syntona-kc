@@ -1,25 +1,40 @@
-Create a new music bundle called "compose".
-Create two new scale modules in the compose bundle called "pentatonic" and "diatonic".
-A scale module converts an input value to a pitch value by looking up the pitch in an array
-then adding an offset.
-
-index = input % scale.size
-octave = (input - index) * scale.size
-output = scale[index] + (12 * octave) + offset
-
-Scale degrees could be fractional pitches, eg. 7.02 for the fifth. Turn red while editing.
-pentatonic = [0,2,4,7,8]
-diatonic = [0,2,4,5,7,8,11]
-
-Scales should also allow 4:3 or 3/2 for just intonation.
-
 Add my old recursive generator algorithm.
 
 Seq8 reset should not kick.
+Seq8 should allow multiple values for chords, "60,63,67.02"
+ScaleModule should allow "Eb and G#"
+NoteSeq should allow "Eb4" and output note VoiceMessages
+
+Need global named values with automatic name collision avoidance. "wormhole" or "global". (aGlobal???)
+
+Timeline module with trigger jacks that can be arranged in time.
+
+Patch inputs for start/stop/etc that are commands with buttons.
+
+BUG: load example, EXPECT "Save" menu to be disabled ACTUAL enabled
+
+BUG: hard to see the cursor when editing a patch name. black on black
+
+BUG: can move a module, then exit the app without being asked to Save the work
+
+Editing menu item to extract modules into a sub patch with named inputs.
+Support converting a patch into a user library for shared patches.
+Use KVault to store Patches for web users.
+Request Persistent Storage Permission.
+Export/Import feature for moving from local storage to/from a ZIP archive.
+
+EnvelopeEditor needs to show time and allow more time.
+
+Add "glow" module that lights up a bright yellow circle next to the inputs.
+with "on" and "off" inputs. Also lights in the header of the patch module in the parent for tracking progress.
+A "flash" modules flashes briefly when kicked.
 
 Change keyboard13 so we can drag between notes for legato sweeps. ON/ON/OFF/OFF.
 
 Maybe be able to click on wires to select and disconnect by BACKSPACE.
+
+Add ksyn/instruments with a combination of polyPatches and maybe the built-in KSyn instruments.
+Load them from the ComposeResources/files/instruments. Auto-populate.
 
 Combine segEnv and monoRdr?
 

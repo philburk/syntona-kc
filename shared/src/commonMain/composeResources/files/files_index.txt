@@ -1,4 +1,5 @@
 examples/drum_rhythm.json
+examples/etude_001.json
 examples/functions.json
 examples/keyNotes.json
 examples/key_control.json
