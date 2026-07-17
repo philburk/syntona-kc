@@ -340,6 +340,14 @@
                 "add": false
               }
             }
+          },
+          {
+            "id": 7,
+            "type": "core.view.glow",
+            "name": "glow",
+            "x": 132.05591,
+            "y": 20.888184,
+            "jacks": {}
           }
         ],
         "connections": [
@@ -390,6 +398,18 @@
             "fromJack": "output",
             "to": 6,
             "toJack": "input"
+          },
+          {
+            "from": 0,
+            "fromJack": "output",
+            "to": 7,
+            "toJack": "on"
+          },
+          {
+            "from": 1,
+            "fromJack": "output",
+            "to": 7,
+            "toJack": "off"
           }
         ]
       }
@@ -1011,6 +1031,14 @@
                 "add": false
               }
             }
+          },
+          {
+            "id": 12,
+            "type": "core.view.glow",
+            "name": "glow",
+            "x": 112.88818,
+            "y": 20.944092,
+            "jacks": {}
           }
         ],
         "connections": [
@@ -1121,6 +1149,18 @@
             "fromJack": "output",
             "to": 2,
             "toJack": "start"
+          },
+          {
+            "from": 0,
+            "fromJack": "output",
+            "to": 12,
+            "toJack": "on"
+          },
+          {
+            "from": 1,
+            "fromJack": "output",
+            "to": 12,
+            "toJack": "off"
           }
         ]
       }

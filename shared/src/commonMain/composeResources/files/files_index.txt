@@ -1,6 +1,7 @@
 examples/drum_rhythm.json
 examples/etude_001.json
 examples/functions.json
+examples/glow_flash.json
 examples/keyNotes.json
 examples/key_control.json
 examples/keyboard13.json

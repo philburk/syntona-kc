@@ -1,0 +1,145 @@
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "core.input.kick",
+      "name": "kick",
+      "x": 73.91162,
+      "y": 62.91162,
+      "jacks": {}
+    },
+    {
+      "id": 1,
+      "type": "core.input.kick",
+      "name": "kick",
+      "x": 89.875,
+      "y": 136,
+      "jacks": {}
+    },
+    {
+      "id": 2,
+      "type": "core.patch",
+      "name": "patch",
+      "x": 311.875,
+      "y": 102,
+      "jacks": {
+        "on": {
+          "v": 0,
+          "min": 0,
+          "max": 100
+        },
+        "off": {
+          "v": 0,
+          "min": 0,
+          "max": 100
+        },
+        "flash": {
+          "v": 0,
+          "min": 0,
+          "max": 100
+        }
+      },
+      "windowX": 619.7866,
+      "windowY": 418.91162,
+      "windowWidth": 600,
+      "windowHeight": 450,
+      "windowOpen": true,
+      "patch": {
+        "modules": [
+          {
+            "id": 0,
+            "type": "core.view.glow",
+            "name": "glow",
+            "x": 365.875,
+            "y": 78,
+            "jacks": {}
+          },
+          {
+            "id": 1,
+            "type": "core.input",
+            "name": "on",
+            "x": 50,
+            "y": 30.125,
+            "jacks": {}
+          },
+          {
+            "id": 2,
+            "type": "core.input",
+            "name": "off",
+            "x": 50.930664,
+            "y": 129.896,
+            "jacks": {}
+          },
+          {
+            "id": 3,
+            "type": "core.view.flash",
+            "name": "flash",
+            "x": 299.89282,
+            "y": 207.93567,
+            "jacks": {}
+          },
+          {
+            "id": 4,
+            "type": "core.input",
+            "name": "flash",
+            "x": 71.88141,
+            "y": 232.96045,
+            "jacks": {}
+          }
+        ],
+        "connections": [
+          {
+            "from": 1,
+            "fromJack": "output",
+            "to": 0,
+            "toJack": "on"
+          },
+          {
+            "from": 2,
+            "fromJack": "output",
+            "to": 0,
+            "toJack": "off"
+          },
+          {
+            "from": 4,
+            "fromJack": "output",
+            "to": 3,
+            "toJack": "flash"
+          }
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "type": "core.input.kick",
+      "name": "kick",
+      "x": 76.875,
+      "y": 231,
+      "jacks": {}
+    }
+  ],
+  "connections": [
+    {
+      "from": 0,
+      "fromJack": "kick",
+      "to": 2,
+      "toJack": "on"
+    },
+    {
+      "from": 1,
+      "fromJack": "kick",
+      "to": 2,
+      "toJack": "off"
+    },
+    {
+      "from": 3,
+      "fromJack": "kick",
+      "to": 2,
+      "toJack": "flash"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 800,
+  "windowHeight": 500
+}

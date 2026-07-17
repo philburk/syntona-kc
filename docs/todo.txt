@@ -1,8 +1,10 @@
-BUG: Apple menu says "MainKT", should say "Syntona"
 
-Add "glow" module that lights up a bright yellow circle next to the inputs.
-with "on" and "off" inputs. Also lights in the header of the patch module in the parent for tracking progress.
-A "flash" modules flashes briefly when kicked.
+Add a "glow" module that lights up with a bright yellow circle next to the inputs.
+It has "on" and "off" inputs. Also lights in the header of the patch module in the parent for tracking progress.
+
+Also add a "flash" module that is similar but has only one input called "flash". It flashes briefly when kicked.
+
+These should go in the core.view bundle.
 
 Need global named values with automatic name collision avoidance. "wormhole" or "global". (aGlobal???)
 

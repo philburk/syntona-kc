@@ -20,6 +20,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.drag
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -31,6 +32,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.text.TextStyle
 import com.syntona.dataflow.modules.EquationModule
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Surface
@@ -76,6 +78,8 @@ import com.syntona.dataflow.modules.PatchModule
 import com.syntona.dataflow.modules.PolyPatchModule
 import com.syntona.dataflow.modules.ScopeModule
 import com.syntona.dataflow.modules.ShowModule
+import com.syntona.dataflow.modules.GlowModule
+import com.syntona.dataflow.modules.FlashModule
 import com.syntona.dataflow.modules.CommentModule
 import com.syntona.dataflow.modules.KeyboardModule
 import com.softsynth.ksyn.compose.BlackWhiteKeyboard
@@ -252,6 +256,8 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                     is SegmentedEnvelopeModule -> SegmentedEnvelopeModuleNode(module, state)
                     is PianoRollModule -> PianoRollModuleNode(module, state)
                     is KeyMatchModule -> KeyMatchModuleNode(module, state)
+                    is GlowModule -> GlowModuleNode(module, state)
+                    is FlashModule -> FlashModuleNode(module, state)
                     else -> ModuleNode(module, state)
                 }
             }
@@ -720,7 +726,7 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
         if (isLeft) {
             Box(modifier = Modifier.size(8.dp).background(connectorColor))
             Spacer(modifier = Modifier.width(4.dp))
-            Text(displayText, color = textColor, fontSize = 10.sp)
+            Text(displayText, color = textColor, fontSize = 10.sp, maxLines = 1, softWrap = false)
             Spacer(modifier = Modifier.width(4.dp))
         } else {
             Spacer(modifier = Modifier.width(4.dp))
@@ -1058,12 +1064,43 @@ fun PatchModuleNode(module: PatchModule, state: GraphState) {
                 ) {
                     val suffix = if (module.isModified) "*" else ""
                     val displayName = if (module is PolyPatchModule) "${module.name}$suffix[${module.maxVoices}]" else "${module.name}$suffix"
-                    Text(
-                        text = displayName,
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(horizontal = 4.dp)
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = displayName,
+                            color = Color.White,
+                            fontSize = 12.sp
+                        )
+                        val activeGlowModules = module.graphState.modules.filter { it is GlowModule || it is FlashModule }
+                        if (activeGlowModules.isNotEmpty()) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                activeGlowModules.forEach { subModule ->
+                                    val isOn = when (subModule) {
+                                        is GlowModule -> subModule.isOn
+                                        is FlashModule -> subModule.isOn
+                                        else -> false
+                                    }
+                                    TooltipArea(text = subModule.name) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(12.dp)
+                                                .background(
+                                                    if (isOn) Color.Yellow else Color(0xFF444444),
+                                                    CircleShape
+                                                )
+                                                .border(0.5.dp, Color.Gray, CircleShape)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
@@ -2158,6 +2195,168 @@ fun ScaleField(
         }
     }
 }
+
+@Composable
+fun GlowModuleNode(module: GlowModule, state: GraphState) {
+    val colors = LocalGraphColors.current
+    val position = state.modulePositions[module] ?: Offset.Zero
+    val isSelected = state.selectedModules.contains(module)
+    val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
+    val borderWidth = if (isSelected) 2.dp else 1.dp
+
+    Surface(
+        modifier = Modifier
+            .offset { IntOffset((position.x * density).roundToInt(), (position.y * density).roundToInt()) }
+            .width(80.dp)
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
+            .onSizeChanged { size ->
+                state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
+            },
+        shape = RoundedCornerShape(4.dp),
+        color = colors.moduleBackground
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            TooltipArea(text = getModuleTooltipText(module)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(24.dp)
+                        .background(colors.headerDefault)
+                        .headerGestures(state, module) {
+                            state.editingModule = module
+                        }
+                ) {
+                    Text(
+                        text = module.name,
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 4.dp).align(Alignment.CenterStart)
+                    )
+                }
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 6.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    module.inputs.forEach { JackView(it, state, isLeft = true) }
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    if (module.isOn) {
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .background(Color.Yellow.copy(alpha = 0.3f), CircleShape)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(16.dp)
+                                .background(Color.Yellow, CircleShape)
+                                .border(1.dp, Color.White, CircleShape)
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(16.dp)
+                                .background(Color(0xFF333333), CircleShape)
+                                .border(1.dp, Color(0xFF555555), CircleShape)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun FlashModuleNode(module: FlashModule, state: GraphState) {
+    val colors = LocalGraphColors.current
+    val position = state.modulePositions[module] ?: Offset.Zero
+    val isSelected = state.selectedModules.contains(module)
+    val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
+    val borderWidth = if (isSelected) 2.dp else 1.dp
+
+    if (module.isOn) {
+        LaunchedEffect(module.triggerCount) {
+            delay(150)
+            module.isOn = false
+        }
+    }
+
+    Surface(
+        modifier = Modifier
+            .offset { IntOffset((position.x * density).roundToInt(), (position.y * density).roundToInt()) }
+            .width(80.dp)
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
+            .onSizeChanged { size ->
+                state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
+            },
+        shape = RoundedCornerShape(4.dp),
+        color = colors.moduleBackground
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            TooltipArea(text = getModuleTooltipText(module)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(24.dp)
+                        .background(colors.headerDefault)
+                        .headerGestures(state, module) {
+                            state.editingModule = module
+                        }
+                ) {
+                    Text(
+                        text = module.name,
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 4.dp).align(Alignment.CenterStart)
+                    )
+                }
+            }
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 6.dp)
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    module.inputs.forEach { JackView(it, state, isLeft = true) }
+                }
+                Spacer(modifier = Modifier.width(4.dp))
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    if (module.isOn) {
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .background(Color.Yellow.copy(alpha = 0.3f), CircleShape)
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(16.dp)
+                                .background(Color.Yellow, CircleShape)
+                                .border(1.dp, Color.White, CircleShape)
+                        )
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(16.dp)
+                                .background(Color(0xFF333333), CircleShape)
+                                .border(1.dp, Color(0xFF555555), CircleShape)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 
 
 

@@ -73,6 +73,8 @@ object ModuleRegistry {
         view.modules.add(ModuleEntry("show") { ShowModule() })
         view.modules.add(ModuleEntry("showMany") { ShowManyModule() })
         view.modules.add(ModuleEntry("print") { PrintModule() })
+        view.modules.add(ModuleEntry("glow") { GlowModule() })
+        view.modules.add(ModuleEntry("flash") { FlashModule() })
 
         val music = getOrCreateBundle(root, "music")
         val musicInput = getOrCreateBundle(music, "input")
