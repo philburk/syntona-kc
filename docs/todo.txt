@@ -1,9 +1,12 @@
-Add my old recursive generator algorithm.
+BUG: load example, EXPECT "Save" menu to be disabled ACTUAL enabled
 
-Seq8 reset should not kick.
-Seq8 should allow multiple values for chords, "60,63,67.02"
-ScaleModule should allow "Eb and G#"
-NoteSeq should allow "Eb4" and output note VoiceMessages
+BUG: hard to see the cursor when editing a patch name. black on black
+
+BUG: can move a module, then exit the app without being asked to Save the work
+
+BUG: aRanger values are 40-2000 but min/max are both 0-1.
+
+BUG: deleting an aInput does not remove the jack from the parent patch.
 
 Need global named values with automatic name collision avoidance. "wormhole" or "global". (aGlobal???)
 
@@ -11,11 +14,12 @@ Timeline module with trigger jacks that can be arranged in time.
 
 Patch inputs for start/stop/etc that are commands with buttons.
 
-BUG: load example, EXPECT "Save" menu to be disabled ACTUAL enabled
+Add my old recursive generator algorithm.
 
-BUG: hard to see the cursor when editing a patch name. black on black
-
-BUG: can move a module, then exit the app without being asked to Save the work
+Seq8 reset should not kick.
+Seq8 should allow multiple values for chords, "60,63,67.02"
+ScaleModule should allow "Eb and G#"
+NoteSeq should allow "Eb4" and output note VoiceMessages
 
 Editing menu item to extract modules into a sub patch with named inputs.
 Support converting a patch into a user library for shared patches.
@@ -69,3 +73,8 @@ Note processing elements. unpackNote, packNote, scaleAmp, transpose.
 Add MIDI in/out support using VoiceMessages.
 
 Add Audio input support.
+
+Why is Web CPU usages is so much higher for WASM.
+On WASM, can run 120 * (red + red + squareBL + biquad)
+Also optimize by gating off patches based on envelopes or Stop commands.
+Also look for scaling by loading the CPU with multiple patches containing Lineout, copy paste
