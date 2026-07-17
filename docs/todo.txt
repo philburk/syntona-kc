@@ -1,5 +1,3 @@
-BUG: hard to see the cursor when editing a patch name. black on black
-
 BUG: can move a module, then exit the app without being asked to Save the work
 
 BUG: aRanger values are 40-2000 but min/max are both 0-1.

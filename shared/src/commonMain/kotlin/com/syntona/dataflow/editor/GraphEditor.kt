@@ -42,6 +42,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -149,6 +150,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                             color = if (colors.background == Color(0xFF1E1E1E)) Color.White else Color.Black,
                             fontSize = 12.sp
                         ),
+                        cursorBrush = SolidColor(if (colors.background == Color(0xFF1E1E1E)) Color.White else Color.Black),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -1417,7 +1419,8 @@ fun CommentModuleNode(module: CommentModule, state: GraphState) {
             value = module.text,
             onValueChange = { module.text = it },
             modifier = Modifier.fillMaxSize().padding(8.dp).onKeyEvent { true },
-            textStyle = TextStyle(color = Color.White, fontSize = 14.sp)
+            textStyle = TextStyle(color = Color.White, fontSize = 14.sp),
+            cursorBrush = SolidColor(Color.White)
         )
     }
 }
