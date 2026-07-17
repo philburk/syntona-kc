@@ -25,8 +25,10 @@ import com.syntona.dataflow.modules.PolyPatchModule
 import androidx.compose.ui.geometry.Offset
 import kotlinx.coroutines.launch
 
-fun main() = application {
-    if (java.awt.Desktop.isDesktopSupported()) {
+fun main() {
+    System.setProperty("apple.awt.application.name", "Syntona")
+    application {
+        if (java.awt.Desktop.isDesktopSupported()) {
         val desktop = java.awt.Desktop.getDesktop()
         if (desktop.isSupported(java.awt.Desktop.Action.APP_QUIT_HANDLER)) {
             desktop.setQuitHandler { _, response ->
@@ -351,6 +353,7 @@ fun main() = application {
             showFileMenuInToolbar = false,
         )
     }
+}
 }
 
 @Composable

@@ -1,5 +1,9 @@
 BUG: Apple menu says "MainKT", should say "Syntona"
 
+Add "glow" module that lights up a bright yellow circle next to the inputs.
+with "on" and "off" inputs. Also lights in the header of the patch module in the parent for tracking progress.
+A "flash" modules flashes briefly when kicked.
+
 Need global named values with automatic name collision avoidance. "wormhole" or "global". (aGlobal???)
 
 Timeline module with trigger jacks that can be arranged in time.
@@ -21,9 +25,6 @@ Export/Import feature for moving from local storage to/from a ZIP archive.
 
 EnvelopeEditor needs to show time and allow more time.
 
-Add "glow" module that lights up a bright yellow circle next to the inputs.
-with "on" and "off" inputs. Also lights in the header of the patch module in the parent for tracking progress.
-A "flash" modules flashes briefly when kicked.
 
 Change keyboard13 so we can drag between notes for legato sweeps. ON/ON/OFF/OFF.
 
