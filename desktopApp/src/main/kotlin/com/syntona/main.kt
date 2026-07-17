@@ -26,8 +26,28 @@ import androidx.compose.ui.geometry.Offset
 import kotlinx.coroutines.launch
 
 fun main() = application {
+    if (java.awt.Desktop.isDesktopSupported()) {
+        val desktop = java.awt.Desktop.getDesktop()
+        if (desktop.isSupported(java.awt.Desktop.Action.APP_QUIT_HANDLER)) {
+            desktop.setQuitHandler { _, response ->
+                if (FileState.isDirty && !FileState.isResource) {
+                    response.cancelQuit()
+                    FileState.requestIfDirty {
+                        exitApplication()
+                    }
+                } else {
+                    response.performQuit()
+                }
+            }
+        }
+    }
+
     Window(
-        onCloseRequest = ::exitApplication,
+        onCloseRequest = {
+            FileState.requestIfDirty {
+                exitApplication()
+            }
+        },
         title = if (FileState.isDirty) "• SyntonaKC" else "SyntonaKC",
         state = rememberWindowState(width = 1600.dp, height = 1200.dp),
     ) {
