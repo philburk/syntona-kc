@@ -85,6 +85,14 @@ object ModuleRegistry {
         voices.modules.add(ModuleEntry("packBend") { PackBendModule() })
         voices.modules.add(ModuleEntry("packNote") { PackNoteModule() })
 
+        val compose = getOrCreateBundle(music, "compose")
+        compose.modules.add(ModuleEntry("pentatonic") {
+            ScaleModule("pentatonic", isEditable = false, doubleArrayOf(0.0, 2.0, 4.0, 7.0, 9.0)) })
+        compose.modules.add(ModuleEntry("diatonic") {
+            ScaleModule("diatonic", isEditable = false, doubleArrayOf(0.0, 2.0, 4.0, 5.0, 7.0, 9.0, 11.0)) })
+        compose.modules.add(ModuleEntry("scale") {
+            ScaleModule("scale", isEditable = true, doubleArrayOf(0.0, 2.0, 4.0, 7.0, 9.0)) })
+
         val ksyn = getOrCreateBundle(root, "ksyn")
         addKSynModule(ksyn, "lineOut", ::LineOut)
         ksyn.modules.add(ModuleEntry("aInput") { AudioInputModule() })

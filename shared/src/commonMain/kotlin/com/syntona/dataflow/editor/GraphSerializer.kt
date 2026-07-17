@@ -23,6 +23,7 @@ import com.syntona.dataflow.modules.KnobModule
 import com.syntona.dataflow.modules.FaderModule
 import com.syntona.dataflow.modules.SequenceModule
 import com.syntona.dataflow.modules.EquationModule
+import com.syntona.dataflow.modules.ScaleModule
 import com.softsynth.ksyn.data.SegmentedEnvelope
 import com.syntona.dataflow.registry.ModuleRegistry
 
@@ -118,6 +119,9 @@ object GraphSerializer {
             }
             if (module is EquationModule) {
                 append(",\"equation\":\"${module.equation.jsonEscape}\"")
+            }
+            if (module is ScaleModule) {
+                append(",\"scale\":\"${module.scaleString.jsonEscape}\"")
             }
             if (module is KeyboardModule) {
                 append(",\"w\":${module.width},\"h\":${module.height}")
@@ -270,6 +274,9 @@ object GraphSerializer {
             }
             if (module is EquationModule) {
                 (obj?.map?.get("equation") as? JsonValue.Str)?.value?.let { module.compile(it) }
+            }
+            if (module is ScaleModule) {
+                (obj?.map?.get("scale") as? JsonValue.Str)?.value?.let { module.updateScale(it) }
             }
             if (module is KeyboardModule) {
                 (obj?.map?.get("w") as? JsonValue.Num)?.value?.let { module.width = it.toFloat() }

@@ -9,6 +9,7 @@ examples/poly_patch.json
 examples/pulse_scope.json
 examples/sampler.json
 examples/saw_noise.json
+examples/scale.json
 examples/vibrato.json
 tutorials/01_tour/01_sawtooth_modulation.json
 tutorials/01_tour/02_envelope_editor.json

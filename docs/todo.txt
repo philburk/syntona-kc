@@ -1,7 +1,17 @@
+Create a new music bundle called "compose".
+Create two new scale modules in the compose bundle called "pentatonic" and "diatonic".
+A scale module converts an input value to a pitch value by looking up the pitch in an array
+then adding an offset.
 
-Try not using the CTRL+K key entry mode.
+index = input % scale.size
+octave = (input - index) * scale.size
+output = scale[index] + (12 * octave) + offset
 
-Scales for pentatonic noodling. Scale degrees could be fractional pitches, eg. 7.02 for the fifth. Maybe allow 4/3. Turn red while editing.
+Scale degrees could be fractional pitches, eg. 7.02 for the fifth. Turn red while editing.
+pentatonic = [0,2,4,7,8]
+diatonic = [0,2,4,5,7,8,11]
+
+Scales should also allow 4:3 or 3/2 for just intonation.
 
 Add my old recursive generator algorithm.
 

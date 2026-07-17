@@ -63,6 +63,7 @@ import com.syntona.dataflow.engine.SendOutputCommand
 import com.syntona.dataflow.model.*
 import com.softsynth.ksyn.compose.Oscilloscope
 import com.syntona.dataflow.modules.NumberModule
+import com.syntona.dataflow.modules.ScaleModule
 import com.syntona.dataflow.modules.FaderModule
 import com.syntona.dataflow.modules.MixerModule
 import com.syntona.dataflow.modules.AudioInputModule
@@ -232,6 +233,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                 when (module) {
                     is NumberModule -> NumberModuleNode(module, state)
                     is EquationModule -> EquationModuleNode(module, state)
+                    is ScaleModule -> ScaleModuleNode(module, state)
                     is FaderModule -> FaderModuleNode(module, state)
                     is KnobModule -> KnobModuleNode(module, state)
                     is PatchModule -> PatchModuleNode(module, state)
@@ -2003,5 +2005,156 @@ fun EquationField(
         }
     }
 }
+
+@Composable
+fun ScaleModuleNode(module: ScaleModule, state: GraphState) {
+    val colors = LocalGraphColors.current
+    val position = state.modulePositions[module] ?: Offset.Zero
+    val isSelected = state.selectedModules.contains(module)
+    val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
+    val borderWidth = if (isSelected) 2.dp else 1.dp
+
+    val moduleWidth = if (module.isEditable) 240.dp else 135.dp
+    val inputsWidth = if (module.isEditable) 54.dp else 40.dp
+
+    Surface(
+        modifier = Modifier
+            .offset { IntOffset((position.x * density).roundToInt(), (position.y * density).roundToInt()) }
+            .width(moduleWidth)
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
+            .onSizeChanged { size ->
+                state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
+            },
+        shape = RoundedCornerShape(4.dp),
+        color = colors.moduleBackground
+    ) {
+        Column {
+            TooltipArea(text = getModuleTooltipText(module)) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(24.dp)
+                        .background(colors.headerDefault)
+                        .headerGestures(state, module) {
+                            state.editingModule = module
+                        }
+                ) {
+                    Text(
+                        text = module.name,
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Inputs on the left
+                Column(
+                    modifier = Modifier.width(inputsWidth),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    module.inputs.forEach { JackView(it, state, isLeft = true) }
+                }
+
+                Spacer(modifier = Modifier.width(4.dp))
+
+                // Scale Display/Field and Output on the right
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    if (module.isEditable) {
+                        ScaleField(
+                            value = module.scaleString,
+                            errorMessage = module.errorMessage,
+                            onCommit = { scaleStr ->
+                                val success = module.updateScale(scaleStr)
+                                if (success) {
+                                    state.markChanged()
+                                    FileState.markDirty()
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        )
+                    } else {
+                        Text(
+                            text = "[${module.scaleDegrees.joinToString(",") { formatNumber(it) }}]",
+                            color = Color.DarkGray,
+                            fontSize = 11.sp,
+                            modifier = Modifier.weight(1f).padding(horizontal = 4.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(4.dp))
+
+                    CompactJackConnector(module.output, state, isLeft = false)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ScaleField(
+    value: String,
+    errorMessage: String?,
+    onCommit: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var text by remember { mutableStateOf(value) }
+    var isDirty by remember { mutableStateOf(false) }
+
+    LaunchedEffect(value) {
+        if (!isDirty) text = value
+    }
+
+    fun commit() {
+        onCommit(text)
+        isDirty = false
+    }
+
+    Box(
+        modifier = modifier
+    ) {
+        TooltipArea(
+            text = errorMessage ?: ""
+        ) {
+            BasicTextField(
+                value = text,
+                onValueChange = { newText ->
+                    text = newText
+                    isDirty = true
+                },
+                singleLine = true,
+                textStyle = TextStyle(fontSize = 12.sp, color = Color.Black),
+                keyboardOptions = KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { commit() }),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        when {
+                            isDirty -> Color(0xFFFF8080) // Turns red while editing
+                            errorMessage != null -> Color(0xFFFFC266) // Orange if error
+                            else -> Color.White
+                        }
+                    )
+                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                    .onPreviewKeyEvent { event ->
+                        if (event.key == Key.Enter && event.type == KeyEventType.KeyDown) {
+                            commit()
+                            true
+                        } else false
+                    }
+                    .onKeyEvent { true }
+            )
+        }
+    }
+}
+
 
 
