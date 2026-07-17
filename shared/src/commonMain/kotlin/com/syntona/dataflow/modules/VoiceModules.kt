@@ -6,7 +6,7 @@ import com.syntona.dataflow.engine.DataFlowEngine
 import com.syntona.dataflow.engine.EngineAware
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
-import kotlin.math.floor
+import kotlin.math.round
 
 /**
  * Composes a [Message.VoiceMessage] from four inputs: opcode, tag, value, extra.
@@ -85,7 +85,7 @@ class PackNoteModule : Module("packNote"), EngineAware {
         val pitch = pitchIn.getDoubleValue()
         val amplitude = amplitudeIn.getDoubleValue()
         val rawTag = tagIn.getDoubleValue().toInt()
-        val tag = if (rawTag == -1) floor(pitch).toInt() else rawTag
+        val tag = if (rawTag == -1) round(pitch).toInt() else rawTag
 
         output.send(Message.VoiceMessage(triggerMessage.time, Message.VoiceOpcode.NOTE_ON, tag, pitch, amplitude))
 
