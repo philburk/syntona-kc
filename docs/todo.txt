@@ -70,3 +70,5 @@ Why is Web CPU usages is so much higher for WASM.
 On WASM, can run 120 * (red + red + squareBL + biquad)
 Also optimize by gating off patches based on envelopes or Stop commands.
 Also look for scaling by loading the CPU with multiple patches containing Lineout, copy paste
+
+Shapes, shape editor, interpreters and players like HMSL.

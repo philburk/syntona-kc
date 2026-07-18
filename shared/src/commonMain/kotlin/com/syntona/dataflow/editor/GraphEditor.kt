@@ -2440,7 +2440,13 @@ fun FlashModuleNode(module: FlashModule, state: GraphState) {
 }
 
 @Composable
-fun TimelineTriggerJackView(jack: OutputJack, state: GraphState, modifier: Modifier = Modifier) {
+fun TimelineTriggerJackView(
+    jack: OutputJack,
+    state: GraphState,
+    viewportLeftGraphX: Float,
+    viewportRightGraphX: Float,
+    modifier: Modifier = Modifier
+) {
     val colors = LocalGraphColors.current
     var jackRootPosition by remember { mutableStateOf(Offset.Zero) }
     Box(
@@ -2452,7 +2458,10 @@ fun TimelineTriggerJackView(jack: OutputJack, state: GraphState, modifier: Modif
                 val size = coords.size
                 val pos = jackRootPosition - state.rootOffset
                 val bottomCenterOffset = Offset(size.width / 2f, size.height.toFloat())
-                state.updateJackOffset(jack, pos + bottomCenterOffset, Size(size.width.toFloat(), size.height.toFloat()))
+                val unclippedX = pos.x + bottomCenterOffset.x
+                val clippedX = unclippedX.coerceIn(viewportLeftGraphX, viewportRightGraphX)
+                val connectionOffset = Offset(clippedX, pos.y + bottomCenterOffset.y)
+                state.updateJackOffset(jack, connectionOffset, Size(size.width.toFloat(), size.height.toFloat()))
             }
             .pointerInput(jack) {
                 detectDragGestures(
@@ -2479,6 +2488,16 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
     val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
     val borderWidth = if (isSelected) 2.dp else 1.dp
     val density = LocalDensity.current
+    val inputsWidth = 70.dp
+    val spacing = 12.dp
+    val viewportWidth = (module.width.dp - inputsWidth - spacing).coerceAtLeast(100.dp)
+
+    val minZoom = (viewportWidth.value / (24f * (module.maxTime.toFloat() + 5.0f))).coerceIn(0.01f, 1f)
+    val maxZoom = (viewportWidth.value / (24f * 2.0f)).coerceIn(4f, 20f)
+    val coercedZoom = module.zoom.coerceIn(minZoom, maxZoom)
+
+    val viewportLeftGraphX = position.x + with(density) { (inputsWidth + spacing).toPx() }
+    val viewportRightGraphX = position.x + with(density) { module.width.dp.toPx() }
 
     Surface(
         modifier = Modifier
@@ -2506,15 +2525,15 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    modifier = Modifier.padding(start = 6.dp)
                 ) {
                     Text(
-                        text = module.name,
+                        text = "Timeline",
                         color = Color.White,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(horizontal = 8.dp)
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
                     )
-                    // Button to add trigger "+"
+                    Spacer(modifier = Modifier.width(6.dp))
                     Button(
                         onClick = {
                             module.addTrigger(module.seekTime)
@@ -2544,12 +2563,12 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                     )
                     Text("Zoom", fontSize = 10.sp, color = Color.White)
                     Slider(
-                        value = module.zoom,
+                        value = coercedZoom,
                         onValueChange = {
                             module.zoom = it
                             FileState.markDirty()
                         },
-                        valueRange = 1.0f..4f,
+                        valueRange = minZoom..maxZoom,
                         modifier = Modifier.width(60.dp),
                         thumb = {
                             Box(
@@ -2584,18 +2603,18 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                     val inputsWidth = 70.dp
                     val spacing = 12.dp // no right padding, only margin/borders
                     val viewportWidth = (module.width.dp - inputsWidth - spacing).coerceAtLeast(100.dp)
-                    
+
                     val scrollState = rememberScrollState()
                     val extraTime = 5.0
-                    val timelineWidth = 24.dp * ((module.maxTime + extraTime).toFloat() * module.zoom)
-                    val maxTimeX = 24.dp * (module.maxTime.toFloat() * module.zoom)
+                    val timelineWidth = 24.dp * ((module.maxTime + extraTime).toFloat() * coercedZoom)
+                    val maxTimeX = 24.dp * (module.maxTime.toFloat() * coercedZoom)
 
                     // Stationary container for the top Scrollbar and the scrollable viewport
                     Column(
                         modifier = Modifier.width(viewportWidth).fillMaxHeight()
                     ) {
                         val coroutineScope = rememberCoroutineScope()
-                        
+
                         // New Row 1 (Top): Horizontal Scrollbar (height = 12.dp)
                         Box(
                             modifier = Modifier
@@ -2609,17 +2628,17 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                             val trackWidthPx = size.width.toFloat()
                                             val viewportWidthPx = with(density) { viewportWidth.toPx() }
                                             val timelineWidthPx = with(density) { timelineWidth.toPx() }
-                                            
+
                                             if (timelineWidthPx > viewportWidthPx && scrollState.maxValue > 0) {
                                                 val ratio = viewportWidthPx / timelineWidthPx
                                                 val thumbWidthPx = trackWidthPx * ratio
-                                                
+
                                                 var clickX = down.position.x
                                                 val targetScrollPx = ((clickX - thumbWidthPx / 2f) / (trackWidthPx - thumbWidthPx)) * scrollState.maxValue
                                                 coroutineScope.launch {
                                                     scrollState.scrollTo(targetScrollPx.roundToInt().coerceIn(0, scrollState.maxValue))
                                                 }
-                                                
+
                                                 do {
                                                     val event = awaitPointerEvent(PointerEventPass.Initial)
                                                     val change = event.changes.firstOrNull()
@@ -2685,29 +2704,40 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                         .height(16.dp)
                                         .background(Color(0xFFE0E0E0), RoundedCornerShape(2.dp))
                                         .pointerInput(module) {
+                                            val getPxPerSecond = {
+                                                val d = density.density
+                                                val inputsWidthPx = 70f * d
+                                                val spacingPx = 12f * d
+                                                val viewportWidthPx = (module.width.toFloat() * d - inputsWidthPx - spacingPx).coerceAtLeast(100f * d)
+                                                val minZoomVal = (viewportWidthPx / (d * 24f * (module.maxTime.toFloat() + 5.0f))).coerceIn(0.01f, 1f)
+                                                val maxZoomVal = (viewportWidthPx / (d * 24f * 2.0f)).coerceIn(4f, 20f)
+                                                val currentZoom = module.zoom.coerceIn(minZoomVal, maxZoomVal)
+                                                d * 24f * currentZoom
+                                            }
+
                                             awaitPointerEventScope {
                                                 while (true) {
                                                     val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                                                    val pxPerSecond = density.density * 24f * module.zoom
+                                                    val pxPerSecond = getPxPerSecond()
                                                     val clickX = down.position.x
-                                                    
-                                                    val maxTimeXPx = (module.maxTime * pxPerSecond).toFloat()
-                                                    val loopStartXPx = (module.loopStart * pxPerSecond).toFloat()
-                                                    val loopEndXPx = (module.loopEnd * pxPerSecond).toFloat()
-                                                    
-                                                    val tolerancePx = with(density) { 12.dp.toPx() }
-                                                    
+
+                                                    val maxTimeXPx = (module.maxTime * pxPerSecond.toDouble()).toFloat()
+                                                    val loopStartXPx = (module.loopStart * pxPerSecond.toDouble()).toFloat()
+                                                    val loopEndXPx = (module.loopEnd * pxPerSecond.toDouble()).toFloat()
+
+                                                    val tolerancePx = 12f * density.density
+
                                                     val distMaxTime = kotlin.math.abs(clickX - maxTimeXPx)
                                                     val distStart = kotlin.math.abs(clickX - loopStartXPx)
                                                     val distEnd = kotlin.math.abs(clickX - loopEndXPx)
-                                                    
+
                                                     val target = listOf(
                                                         "maxTime" to distMaxTime,
                                                         "loopStart" to distStart,
                                                         "loopEnd" to distEnd
                                                     ).filter { it.second <= tolerancePx }
                                                      .minByOrNull { it.second }?.first
-                                                     
+
                                                     if (target == "maxTime") {
                                                         down.consume()
                                                         do {
@@ -2716,12 +2746,16 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                                             if (change != null && change.pressed) {
                                                                 change.consume()
                                                                 val currentX = change.position.x
+                                                                val pxPerSecondDrag = getPxPerSecond()
                                                                 val lastTriggerTime = module.triggers.map { it.time }.maxOrNull() ?: 0.0
-                                                                val draggedTime = (currentX / pxPerSecond).toDouble()
+                                                                val draggedTime = (currentX / pxPerSecondDrag).toDouble()
                                                                 module.maxTime = draggedTime.coerceAtLeast(lastTriggerTime).coerceAtLeast(1.0)
-                                                                
+
                                                                 // Scroll timeline when dragged past the end of the viewport
-                                                                val viewportWidthPx = with(density) { viewportWidth.toPx() }
+                                                                val d = density.density
+                                                                val inputsWidthPx = 70f * d
+                                                                val spacingPx = 12f * d
+                                                                val viewportWidthPx = (module.width.toFloat() * d - inputsWidthPx - spacingPx).coerceAtLeast(100f * d)
                                                                 if (currentX > scrollState.value + viewportWidthPx - 20f) {
                                                                     val targetScroll = (currentX - viewportWidthPx + 20f).roundToInt()
                                                                     coroutineScope.launch {
@@ -2744,7 +2778,8 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                                             if (change != null && change.pressed) {
                                                                 change.consume()
                                                                 val currentX = change.position.x
-                                                                val timeAtX = (currentX / pxPerSecond).toDouble()
+                                                                val pxPerSecondDrag = getPxPerSecond()
+                                                                val timeAtX = (currentX / pxPerSecondDrag).toDouble()
                                                                 module.loopStart = timeAtX.coerceIn(0.0, module.loopEnd - 0.1)
                                                                 FileState.markDirty()
                                                             }
@@ -2757,13 +2792,15 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                                             if (change != null && change.pressed) {
                                                                 change.consume()
                                                                 val currentX = change.position.x
-                                                                val timeAtX = (currentX / pxPerSecond).toDouble()
+                                                                val pxPerSecondDrag = getPxPerSecond()
+                                                                val timeAtX = (currentX / pxPerSecondDrag).toDouble()
                                                                 module.loopEnd = timeAtX.coerceIn(module.loopStart + 0.1, module.maxTime)
                                                                 FileState.markDirty()
                                                             }
                                                         } while (event.changes.any { it.pressed })
                                                     } else {
-                                                        var timeAtX = (clickX / pxPerSecond).toDouble().coerceIn(0.0, module.maxTime)
+                                                        val pxPerSecondDrag = getPxPerSecond()
+                                                        var timeAtX = (clickX / pxPerSecondDrag).toDouble().coerceIn(0.0, module.maxTime)
                                                         val isDraggingStart = distStart < distEnd
                                                         if (isDraggingStart) {
                                                             module.loopStart = timeAtX.coerceIn(0.0, module.loopEnd - 0.1)
@@ -2771,14 +2808,15 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                                             module.loopEnd = timeAtX.coerceIn(module.loopStart + 0.1, module.maxTime)
                                                         }
                                                         FileState.markDirty()
-                                                        
+
                                                         do {
                                                             val event = awaitPointerEvent()
                                                             val change = event.changes.firstOrNull()
                                                             if (change != null && change.pressed) {
                                                                 change.consume()
                                                                 val currentX = change.position.x
-                                                                timeAtX = (currentX / pxPerSecond).toDouble().coerceIn(0.0, module.maxTime)
+                                                                val pxPerSecondDragInner = getPxPerSecond()
+                                                                timeAtX = (currentX / pxPerSecondDragInner).toDouble().coerceIn(0.0, module.maxTime)
                                                                 if (isDraggingStart) {
                                                                     module.loopStart = timeAtX.coerceIn(0.0, module.loopEnd - 0.1)
                                                                 } else {
@@ -2837,22 +2875,34 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                         .height(20.dp)
                                         .background(Color(0xFFCCCCCC), RoundedCornerShape(2.dp))
                                         .pointerInput(module) {
+                                            val getPxPerSecond = {
+                                                val d = density.density
+                                                val inputsWidthPx = 70f * d
+                                                val spacingPx = 12f * d
+                                                val viewportWidthPx = (module.width.toFloat() * d - inputsWidthPx - spacingPx).coerceAtLeast(100f * d)
+                                                val minZoomVal = (viewportWidthPx / (d * 24f * (module.maxTime.toFloat() + 5.0f))).coerceIn(0.01f, 1f)
+                                                val maxZoomVal = (viewportWidthPx / (d * 24f * 2.0f)).coerceIn(4f, 20f)
+                                                val currentZoom = module.zoom.coerceIn(minZoomVal, maxZoomVal)
+                                                d * 24f * currentZoom
+                                            }
+
                                             awaitPointerEventScope {
                                                 while (true) {
                                                     val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                                                    val pxPerSecond = density.density * 24f * module.zoom
                                                     var currentX = down.position.x
+                                                    val pxPerSecond = getPxPerSecond()
                                                     val newSeek = (currentX / pxPerSecond).toDouble().coerceIn(0.0, module.maxTime)
                                                     module.seekTo(newSeek)
                                                     FileState.markDirty()
-                                                    
+
                                                     do {
                                                         val event = awaitPointerEvent()
                                                         val change = event.changes.firstOrNull()
                                                         if (change != null && change.pressed) {
                                                             change.consume()
                                                             currentX = change.position.x
-                                                            val dragSeek = (currentX / pxPerSecond).toDouble().coerceIn(0.0, module.maxTime)
+                                                            val pxPerSecondDrag = getPxPerSecond()
+                                                            val dragSeek = (currentX / pxPerSecondDrag).toDouble().coerceIn(0.0, module.maxTime)
                                                             module.seekTo(dragSeek)
                                                             FileState.markDirty()
                                                         }
@@ -2861,12 +2911,12 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                             }
                                         }
                                 ) {
-                                    // Dynamic Ruler Ticks depending only on zoom level
-                                    val tickInterval = when {
-                                        module.zoom < 1.5f -> 2.0
-                                        module.zoom < 3.0f -> 1.0
-                                        else -> 0.5
-                                    }
+                                    // Dynamic Ruler Ticks depending on zoom and density
+                                    val possibleIntervals = listOf(0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 60.0)
+                                    val pxPerSecond = density.density * 24f * coercedZoom
+                                    val tickInterval = possibleIntervals.firstOrNull { interval ->
+                                        interval * pxPerSecond >= 40f
+                                    } ?: 60.0
                                     val numTicks = (module.maxTime / tickInterval).toInt()
 
                                     Canvas(modifier = Modifier.fillMaxSize()) {
@@ -2874,10 +2924,10 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                         for (i in 0..numTicks) {
                                             val timeSeconds = i * tickInterval
                                             if (timeSeconds > module.maxTime) break
-                                            
+
                                             val pct = (timeSeconds / (module.maxTime + extraTime)).toFloat()
                                             val x = size.width * pct
-                                            
+
                                             // Draw main tick line
                                             drawLine(
                                                 color = tickColor,
@@ -2885,7 +2935,7 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                                 end = Offset(x, size.height),
                                                 strokeWidth = 1f
                                             )
-                                            
+
                                             // Draw minor ticks
                                             if (i < numTicks) {
                                                 val nextTime = (i + 1) * tickInterval
@@ -2909,14 +2959,14 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                         val timeSeconds = i * tickInterval
                                         if (timeSeconds > module.maxTime) break
                                         val pct = (timeSeconds / (module.maxTime + extraTime)).toFloat()
-                                        
+
                                         val label = if (timeSeconds % 1.0 == 0.0) {
                                             "${timeSeconds.toInt()}"
                                         } else {
                                             val rounded = (timeSeconds * 10.0).roundToInt() / 10.0
                                             "${rounded}"
                                         }
-                                        
+
                                         Text(
                                             text = label,
                                             fontSize = 11.sp,
@@ -2947,28 +2997,39 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                         .weight(1f)
                                         .background(Color(0xFFE5E7EB), RoundedCornerShape(bottomStart = 2.dp, bottomEnd = 2.dp))
                                         .pointerInput(module) {
+                                            val getPxPerSecond = {
+                                                val d = density.density
+                                                val inputsWidthPx = 70f * d
+                                                val spacingPx = 12f * d
+                                                val viewportWidthPx = (module.width.toFloat() * d - inputsWidthPx - spacingPx).coerceAtLeast(100f * d)
+                                                val minZoomVal = (viewportWidthPx / (d * 24f * (module.maxTime.toFloat() + 5.0f))).coerceIn(0.01f, 1f)
+                                                val maxZoomVal = (viewportWidthPx / (d * 24f * 2.0f)).coerceIn(4f, 20f)
+                                                val currentZoom = module.zoom.coerceIn(minZoomVal, maxZoomVal)
+                                                d * 24f * currentZoom
+                                            }
+
                                             awaitPointerEventScope {
                                                 while (true) {
                                                     val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                                                    val pxPerSecond = density.density * 24f * module.zoom
+                                                    val pxPerSecond = getPxPerSecond()
                                                     val clickX = down.position.x
                                                     val clickY = down.position.y
-                                                    
-                                                    val tolerancePx = with(density) { 16.dp.toPx() }
-                                                    val topYBound = with(density) { 16.dp.toPx() }
-                                                    
+
+                                                    val tolerancePx = 16f * density.density
+                                                    val topYBound = 16f * density.density
+
                                                     val activeTrigger = if (clickY <= topYBound) {
                                                         module.triggers.minByOrNull {
-                                                            val trigXPx = (it.time * pxPerSecond).toFloat()
+                                                            val trigXPx = (it.time * pxPerSecond.toDouble()).toFloat()
                                                             kotlin.math.abs(trigXPx - clickX)
                                                         }?.takeIf {
-                                                            val trigXPx = (it.time * pxPerSecond).toFloat()
+                                                            val trigXPx = (it.time * pxPerSecond.toDouble()).toFloat()
                                                             kotlin.math.abs(trigXPx - clickX) <= tolerancePx
                                                         }
                                                     } else {
                                                         null
                                                     }
-                                                    
+
                                                     if (activeTrigger != null) {
                                                         down.consume()
                                                         do {
@@ -2977,7 +3038,8 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                                             if (change != null && change.pressed) {
                                                                 change.consume()
                                                                 val currentX = change.position.x
-                                                                activeTrigger.time = (currentX / pxPerSecond).toDouble().coerceIn(0.0, module.maxTime)
+                                                                val pxPerSecondDrag = getPxPerSecond()
+                                                                activeTrigger.time = (currentX / pxPerSecondDrag).toDouble().coerceIn(0.0, module.maxTime)
                                                                 FileState.markDirty()
                                                             }
                                                         } while (event.changes.any { it.pressed })
@@ -3018,7 +3080,7 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                     for (trigger in module.triggers) {
                                         val trigPct = (trigger.time / (module.maxTime + extraTime)).toFloat()
                                         val triggerX = timelineWidth * trigPct
-                                        
+
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxHeight()
@@ -3053,7 +3115,7 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                                         .background(Color(0xFF4B5563))
                                                 )
                                                 // Jack at bottom (8.dp)
-                                                TimelineTriggerJackView(trigger.outputJack, state)
+                                                TimelineTriggerJackView(trigger.outputJack, state, viewportLeftGraphX, viewportRightGraphX)
                                             }
                                         }
                                     }
