@@ -80,6 +80,8 @@ import com.syntona.dataflow.modules.ScopeModule
 import com.syntona.dataflow.modules.ShowModule
 import com.syntona.dataflow.modules.GlowModule
 import com.syntona.dataflow.modules.FlashModule
+import com.syntona.dataflow.modules.SendModule
+import com.syntona.dataflow.modules.ReceiveModule
 import com.syntona.dataflow.modules.CommentModule
 import com.syntona.dataflow.modules.KeyboardModule
 import com.softsynth.ksyn.compose.BlackWhiteKeyboard
@@ -258,6 +260,8 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                     is KeyMatchModule -> KeyMatchModuleNode(module, state)
                     is GlowModule -> GlowModuleNode(module, state)
                     is FlashModule -> FlashModuleNode(module, state)
+                    is SendModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
+                    is ReceiveModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
                     else -> ModuleNode(module, state)
                 }
             }
@@ -727,9 +731,17 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
             Box(modifier = Modifier.size(8.dp).background(connectorColor))
             Spacer(modifier = Modifier.width(4.dp))
             Text(displayText, color = textColor, fontSize = 10.sp, maxLines = 1, softWrap = false)
+            if (jack.module is SendModule) {
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(">>", color = colors.jackDefault, fontSize = 10.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+            }
             Spacer(modifier = Modifier.width(4.dp))
         } else {
             Spacer(modifier = Modifier.width(4.dp))
+            if (jack.module is ReceiveModule) {
+                Text(">>", color = colors.jackDefault, fontSize = 10.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                Spacer(modifier = Modifier.width(4.dp))
+            }
             Box(
                 contentAlignment = Alignment.CenterEnd
             ) {

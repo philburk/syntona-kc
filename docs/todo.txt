@@ -1,12 +1,9 @@
 
-Add a "glow" module that lights up with a bright yellow circle next to the inputs.
-It has "on" and "off" inputs. Also lights in the header of the patch module in the parent for tracking progress.
-
-Also add a "flash" module that is similar but has only one input called "flash". It flashes briefly when kicked.
-
-These should go in the core.view bundle.
-
-Need global named values with automatic name collision avoidance. "wormhole" or "global". (aGlobal???)
+Need global "send" and "receive" modules through named mailboxes.
+The "send" module has one "in" jack. It sends to a global mailbox with the same name as the module.
+The "receive" module has one "out" jack. It receives messages from the sender with the same name as the receive module.
+All message types are transmitted.
+Messages should be immutable so we can send the same message to multiple receivers.
 
 Timeline module with trigger jacks that can be arranged in time.
 

@@ -1,0 +1,154 @@
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "core.basic.send",
+      "name": "global",
+      "x": 506,
+      "y": 21.875,
+      "jacks": {}
+    },
+    {
+      "id": 1,
+      "type": "core.basic.receive",
+      "name": "global",
+      "x": 216.875,
+      "y": 189,
+      "jacks": {}
+    },
+    {
+      "id": 2,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 377.875,
+      "y": 204,
+      "jacks": {}
+    },
+    {
+      "id": 3,
+      "type": "core.input.knob",
+      "name": "knob",
+      "x": 287.875,
+      "y": 37,
+      "jacks": {
+        "in": {
+          "v": 31.58002471923828,
+          "min": 0,
+          "max": 100
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "core.basic.receive",
+      "name": "global",
+      "x": 474.875,
+      "y": 222,
+      "jacks": {}
+    },
+    {
+      "id": 5,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 657,
+      "y": 189.875,
+      "jacks": {}
+    },
+    {
+      "id": 6,
+      "type": "core.basic.send",
+      "name": "gTempo",
+      "x": 496,
+      "y": 364.875,
+      "jacks": {}
+    },
+    {
+      "id": 7,
+      "type": "core.basic.receive",
+      "name": "gTempo",
+      "x": 206.875,
+      "y": 532,
+      "jacks": {}
+    },
+    {
+      "id": 8,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 367.875,
+      "y": 547,
+      "jacks": {}
+    },
+    {
+      "id": 9,
+      "type": "core.input.knob",
+      "name": "knob",
+      "x": 277.875,
+      "y": 380,
+      "jacks": {
+        "in": {
+          "v": 38.57666015625,
+          "min": 0,
+          "max": 100
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "core.basic.receive",
+      "name": "gTempo",
+      "x": 464.875,
+      "y": 565,
+      "jacks": {}
+    },
+    {
+      "id": 11,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 647,
+      "y": 532.875,
+      "jacks": {}
+    }
+  ],
+  "connections": [
+    {
+      "from": 1,
+      "fromJack": "out",
+      "to": 2,
+      "toJack": "in"
+    },
+    {
+      "from": 3,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "in"
+    },
+    {
+      "from": 4,
+      "fromJack": "out",
+      "to": 5,
+      "toJack": "in"
+    },
+    {
+      "from": 7,
+      "fromJack": "out",
+      "to": 8,
+      "toJack": "in"
+    },
+    {
+      "from": 9,
+      "fromJack": "out",
+      "to": 6,
+      "toJack": "in"
+    },
+    {
+      "from": 10,
+      "fromJack": "out",
+      "to": 11,
+      "toJack": "in"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 974.875,
+  "windowHeight": 811
+}
