@@ -107,33 +107,31 @@ The meaning of the parameter varies with the opcode.
 There are several opcodes defined.
 The interpretation of the message properties depends on the opcode.
 
-* opcode = NOTE_ON or NOTE_OFF
+opcode = NOTE_ON or NOTE_OFF
 * tag = noteNumber
 * value = pitch in fractional semitones
 * extra = amplitude, 0.0 to 1.0
 
-* opcode = CONTROL_CHANGE
+opcode = CONTROL_CHANGE
 * tag = noteNumber or -1 for all notes
 * value = the value of the controller
 * extra = which controller to change
 
-* opcode = PRESSURE
+opcode = PRESSURE
 * tag = noteNumber or -1 for all notes
 * value = the value of the controller
 * extra = ignored
 
-* opcode = PITCH_BEND
+opcode = PITCH_BEND
 * tag = noteNumber or -1 for all notes
 * value = amount in semitones to offset the pitches
 * extra = ignored
 
 We need new modules in a bundle called "voices". These include:
 
-* showVoice = a module that shows a list of the last N Voice messages received, one per line.
-* compound = a module with inputs for opcode, tag, value, extra.
+* showMany = a module that shows a list of the last N  messages received, one per line.
+* packNote = a module with inputs for opcode, tag, value, extra.
 The tag input is kickable. It outputs a Voice Message.
-
-The CompoundModule editor will allow selecting the opcode from a menu.
 
 Questions:
 * Turning notes on and off is tedious. Maybe a duration field could simplify this.
@@ -170,6 +168,30 @@ Useful but maybe mentally constraining
 Like Audacity with elements from ListenUp
 Edit captured audio from other parts of Syntona.
 Musique concrète techniques, rhythmic splicing, tempo integration
+
+### Time and Timeline
+The Goals are:
+* be able to organize the piece, or parts of the piece in arbitrary time
+* use seconds or beats(tempo) as the time base
+* trigger arbitrary events in time
+* not be constrained by the "track" paradigm
+
+#### Timeline module (beatline?)
+Inputs:
+* "start" command with button)
+* stop (button)
+Outputs
+* arbitrary number of triggers that can be placed along the timeline (+)
+Editing
+* loop control
+* position cursor that moves when running
+* 
+#### Chase
+We need to be able to advance the piece to a place where all the vbalues are set correctly as if we had started from the beginning.
+So we probably need a Rewind to set some(?) values to their default.
+Then advance rapidly through time without making sound or outputting MIDI.
+
+Do we maintain a global monotonic clock and then sync the music clock to a montonic starting time?
 
 ### Clocks and Coroutines
 

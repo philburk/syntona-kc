@@ -24,6 +24,7 @@ import com.syntona.dataflow.modules.FaderModule
 import com.syntona.dataflow.modules.SequenceModule
 import com.syntona.dataflow.modules.EquationModule
 import com.syntona.dataflow.modules.ScaleModule
+import com.syntona.dataflow.modules.BeatClockModule
 import com.softsynth.ksyn.data.SegmentedEnvelope
 import com.syntona.dataflow.registry.ModuleRegistry
 
@@ -135,6 +136,9 @@ object GraphSerializer {
             }
             if (module is KeyMatchModule) {
                 append(",\"keyChar\":\"${module.keyChar.toString().jsonEscape}\"")
+            }
+            if (module is BeatClockModule) {
+                append(",\"division\":\"${module.division.jsonEscape}\"")
             }
             if (module is KeyNotesModule) {
                 append(",\"bottomOctaveKeys\":\"${module.bottomOctaveKeys.jsonEscape}\"")
@@ -292,6 +296,9 @@ object GraphSerializer {
             }
             if (module is KeyMatchModule) {
                 (obj?.map?.get("keyChar") as? JsonValue.Str)?.value?.firstOrNull()?.let { module.keyChar = it }
+            }
+            if (module is BeatClockModule) {
+                (obj?.map?.get("division") as? JsonValue.Str)?.value?.let { module.division = it }
             }
             if (module is KeyNotesModule) {
                 (obj?.map?.get("bottomOctaveKeys") as? JsonValue.Str)?.value?.let { module.bottomOctaveKeys = it }

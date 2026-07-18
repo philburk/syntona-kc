@@ -10,7 +10,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
-class DataFlowEngine(private val scope: CoroutineScope) {
+open class DataFlowEngine(private val scope: CoroutineScope) {
 
     private val commandChannel = Channel<SyntonaCommand>(Channel.UNLIMITED)
     // Access only from within the engine coroutine
@@ -27,7 +27,7 @@ class DataFlowEngine(private val scope: CoroutineScope) {
     }
 
     // Must only be called from within the engine coroutine (e.g., from module execute() or event fire())
-    fun schedule(time: ScoreTime, action: () -> Unit): ScheduledEvent {
+    open fun schedule(time: ScoreTime, action: () -> Unit): ScheduledEvent {
         val event = ScheduledEvent(action)
         scheduledQueue.add(time, event)
         return event

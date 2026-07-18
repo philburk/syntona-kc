@@ -3,6 +3,7 @@ package com.syntona.dataflow.editor
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -90,6 +91,7 @@ import com.syntona.dataflow.modules.ModuloSelectModule
 import com.syntona.dataflow.modules.SegmentedEnvelopeModule
 import com.syntona.dataflow.modules.LinkModule
 import com.syntona.dataflow.modules.KeyMatchModule
+import com.syntona.dataflow.modules.BeatClockModule
 import com.syntona.dataflow.modules.KeyNotesModule
 import com.syntona.dataflow.modules.PianoRollModule
 import com.syntona.dataflow.modules.KickModule
@@ -439,6 +441,57 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color? = null, la
 
             // Jacks: inputs at top, outputs at bottom, single column
             module.inputs.forEach { JackView(it, state, isLeft = true) }
+            if (module is BeatClockModule) {
+                HorizontalDivider(color = Color.Black, thickness = 1.dp)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    var expanded by remember { mutableStateOf(false) }
+                    Box(
+                        modifier = Modifier
+                            .border(1.dp, Color.Gray, RoundedCornerShape(4.dp))
+                            .background(Color(0xFFE0E0E0))
+                            .clickable { expanded = true }
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Text(
+                                text = module.division,
+                                color = Color.Black,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                text = "▼",
+                                color = Color.Gray,
+                                fontSize = 10.sp
+                            )
+                        }
+                    }
+                    androidx.compose.material3.DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        val divisions = listOf("1/1", "1/2", "3/8", "1/4", "3/16", "1/8", "1/16", "1/32", "1/3", "1/6", "1/12", "1/5", "1/10")
+                        divisions.forEach { div ->
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text(div, fontSize = 12.sp) },
+                                onClick = {
+                                    module.division = div
+                                    FileState.markDirty()
+                                    expanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
             if (module.inputs.isNotEmpty() && module.outputs.isNotEmpty()) {
                 HorizontalDivider(color = Color.Black, thickness = 1.dp)
             }

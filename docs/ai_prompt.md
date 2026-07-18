@@ -40,3 +40,13 @@ The segmented envelope should be initialized as follows.
 
 When the user clicks on the segEnv module header it should open a
 window that contains a ksyn-compose SegmentedEnvelopeEditor for editing the envelope.
+
+## beatClock
+
+Add a new module called "beatClock". It is similar to the "clock" module except it has
+a "tempo" input which is in units of beats/minute. The beatClock also has the option
+of outputing message every beat or every half beat or at other divisions including
+3/8, 1/4, 3/16, 1/8, 1/16, 1/32, 1/3, 1/6, 1/12, 1/5, 1/10.
+These divisions can be selected using a menu in the center of the module. The current division is visible.
+When generating the outputs by dividing the master clock, carry over the
+remainders so that beatClock modules set to different divisions will not drift relative to each other.
