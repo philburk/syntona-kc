@@ -25,6 +25,7 @@ import com.syntona.dataflow.modules.SequenceModule
 import com.syntona.dataflow.modules.EquationModule
 import com.syntona.dataflow.modules.ScaleModule
 import com.syntona.dataflow.modules.BeatClockModule
+import com.syntona.dataflow.modules.TimelineModule
 import com.softsynth.ksyn.data.SegmentedEnvelope
 import com.syntona.dataflow.registry.ModuleRegistry
 
@@ -139,6 +140,21 @@ object GraphSerializer {
             }
             if (module is BeatClockModule) {
                 append(",\"division\":\"${module.division.jsonEscape}\"")
+            }
+            if (module is TimelineModule) {
+                append(",\"width\":${module.width}")
+                append(",\"maxTime\":${module.maxTime}")
+                append(",\"loopStart\":${module.loopStart}")
+                append(",\"loopEnd\":${module.loopEnd}")
+                append(",\"loopMode\":${module.loopMode}")
+                append(",\"zoom\":${module.zoom}")
+                append(",\"seekTime\":${module.seekTime}")
+                append(",\"triggers\":[")
+                module.triggers.forEachIndexed { i, trig ->
+                    if (i > 0) append(",")
+                    append("{\"id\":${trig.id},\"time\":${trig.time},\"jack\":\"${trig.outputJack.name.jsonEscape}\"}")
+                }
+                append("]")
             }
             if (module is KeyNotesModule) {
                 append(",\"bottomOctaveKeys\":\"${module.bottomOctaveKeys.jsonEscape}\"")
@@ -299,6 +315,25 @@ object GraphSerializer {
             }
             if (module is BeatClockModule) {
                 (obj?.map?.get("division") as? JsonValue.Str)?.value?.let { module.division = it }
+            }
+            if (module is TimelineModule) {
+                (obj?.map?.get("width") as? JsonValue.Num)?.value?.let { module.width = it }
+                (obj?.map?.get("maxTime") as? JsonValue.Num)?.value?.let { module.maxTime = it }
+                (obj?.map?.get("loopStart") as? JsonValue.Num)?.value?.let { module.loopStart = it }
+                (obj?.map?.get("loopEnd") as? JsonValue.Num)?.value?.let { module.loopEnd = it }
+                (obj?.map?.get("loopMode") as? JsonValue.Bool)?.value?.let { module.loopMode = it }
+                (obj?.map?.get("zoom") as? JsonValue.Num)?.value?.let { module.zoom = it.toFloat() }
+                (obj?.map?.get("seekTime") as? JsonValue.Num)?.value?.let { module.seekTime = it }
+
+                module.clearTriggers()
+
+                (obj?.map?.get("triggers") as? JsonValue.Arr)?.items?.forEach { trigVal ->
+                    val trigObj = trigVal as? JsonValue.Obj ?: return@forEach
+                    val id = (trigObj.map["id"] as? JsonValue.Num)?.value?.toInt() ?: return@forEach
+                    val time = (trigObj.map["time"] as? JsonValue.Num)?.value ?: return@forEach
+                    val jackName = (trigObj.map["jack"] as? JsonValue.Str)?.value ?: return@forEach
+                    module.addTriggerDirect(id, time, jackName)
+                }
             }
             if (module is KeyNotesModule) {
                 (obj?.map?.get("bottomOctaveKeys") as? JsonValue.Str)?.value?.let { module.bottomOctaveKeys = it }

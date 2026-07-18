@@ -19,7 +19,7 @@ class EquationModule(type: String) : Module(type) {
     val inputX = addInput("x", isKickable = true)
     val inputY = if (type == "f(x,y)" || type == "f(x,y,z)") addInput("y", isKickable = false) else null
     val inputZ = if (type == "f(x,y,z)") addInput("z", isKickable = false) else null
-    
+
     // Output:
     val output = addOutput("out")
 

@@ -9,6 +9,7 @@ examples/mod8_knobs.json
 examples/patch.json
 examples/pianoRoll.json
 examples/poly_patch.json
+examples/polyrhythm.json
 examples/pulse_scope.json
 examples/sampler.json
 examples/saw_noise.json

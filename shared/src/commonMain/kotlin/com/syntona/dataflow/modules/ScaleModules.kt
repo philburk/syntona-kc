@@ -77,7 +77,7 @@ class ScaleModule(
             index += size
         }
         val octave = (inputInt - index) / size
-        
+
         val scaleVal = scaleDegrees[index]
         val result = scaleVal + (12.0 * octave) + offsetVal
 

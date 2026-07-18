@@ -50,3 +50,34 @@ of outputing message every beat or every half beat or at other divisions includi
 These divisions can be selected using a menu in the center of the module. The current division is visible.
 When generating the outputs by dividing the master clock, carry over the
 remainders so that beatClock modules set to different divisions will not drift relative to each other.
+
+## timeline
+
+Add a new "timeline" module that allows the user to place triggers along a linear timeline.
+
+Display:
+The module has inputs on the left edge. In the middle is a Column.
+The first Row in the Column is a loop position indicator.
+
+The second Row is a horizontal time position indicator.
+It has a thumb that can be repositioned using the mouse.
+
+The third Row contains another time display in line with the other rows.
+It has a red cursor that moves to the right as time advances.
+The third Row contains triggers that can be placed at arbitrary locations.
+Each trigger has a jack at the bottom that can be connected to other modules.
+At the top of each trigger is a diamond that can be dragged left or right.
+
+Inputs:
+* "start" command with button
+* "stop" command with button
+Outputs:
+* arbitrary number of triggers that can be placed along the timeline (+)
+
+In the module header is a zoom slider similar to the zoom slider in the pianoRoll module.
+It expands or shrinks the time scale.
+
+The module header also contains a widget or icon to enable the Loop mode.
+
+When playing, if loop mode is enabled, and the cursor reaches the end of a loop then it will
+jump back to the beginning of the loop.

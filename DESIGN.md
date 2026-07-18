@@ -174,20 +174,22 @@ The Goals are:
 * be able to organize the piece, or parts of the piece in arbitrary time
 * use seconds or beats(tempo) as the time base
 * trigger arbitrary events in time
-* not be constrained by the "track" paradigm
+* not be constrained by the DAW "track" paradigm
 
-#### Timeline module (beatline?)
+#### Timeline module
 Inputs:
-* "start" command with button)
-* stop (button)
+* "start" command with button
+* "stop" command with button
 Outputs
 * arbitrary number of triggers that can be placed along the timeline (+)
 Editing
-* loop control
+* loop start and end markers
 * position cursor that moves when running
-* 
+* zoom slider similar to the zoom slider in the pianoRoll module
+
 #### Chase
-We need to be able to advance the piece to a place where all the vbalues are set correctly as if we had started from the beginning.
+We need to be able to advance the piece to a place where all the values are set
+correctly for that time as if we had started from the beginning.
 So we probably need a Rewind to set some(?) values to their default.
 Then advance rapidly through time without making sound or outputting MIDI.
 

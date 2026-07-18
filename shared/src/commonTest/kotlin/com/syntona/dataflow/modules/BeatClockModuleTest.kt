@@ -111,7 +111,7 @@ class BeatClockModuleTest {
         assertEquals(1, engine.scheduled.size)
         val firstEvent = engine.scheduled.first()
         val firstFireTime = firstEvent.first
-        
+
         // Duration of first delay = 166666667 ns (rounded from 166666666.666...)
         val firstDelay = firstFireTime.nanoseconds - startTime.nanoseconds
         assertEquals(166666667L, firstDelay)
@@ -128,7 +128,7 @@ class BeatClockModuleTest {
         assertEquals(1, engine.scheduled.size)
         val secondEvent = engine.scheduled.first()
         val secondFireTime = secondEvent.first
-        
+
         // Second step includes negative remainder -0.333...
         // step = 166666666.666... - 0.333... = 166666666.333...
         // delay = 166666666

@@ -22,6 +22,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.drag
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -32,12 +33,16 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.text.TextStyle
 import com.syntona.dataflow.modules.EquationModule
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.Slider
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,6 +54,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInRoot
@@ -92,6 +98,8 @@ import com.syntona.dataflow.modules.SegmentedEnvelopeModule
 import com.syntona.dataflow.modules.LinkModule
 import com.syntona.dataflow.modules.KeyMatchModule
 import com.syntona.dataflow.modules.BeatClockModule
+import com.syntona.dataflow.modules.TimelineModule
+import com.syntona.dataflow.modules.TimelineTrigger
 import com.syntona.dataflow.modules.KeyNotesModule
 import com.syntona.dataflow.modules.PianoRollModule
 import com.syntona.dataflow.modules.KickModule
@@ -264,6 +272,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                     is FlashModule -> FlashModuleNode(module, state)
                     is SendModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
                     is ReceiveModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
+                    is TimelineModule -> TimelineModuleNode(module, state)
                     else -> ModuleNode(module, state)
                 }
             }
@@ -327,8 +336,14 @@ fun WireRenderer(state: GraphState) {
                 }
                 val path = Path().apply {
                     moveTo(start.x, start.y)
-                    val controlX = (start.x + end.x) / 2
-                    cubicTo(controlX, start.y, controlX, end.y, end.x, end.y)
+                    if (conn.output.module is TimelineModule) {
+                        val dy = 40f
+                        val dx = ((end.x - start.x).coerceAtLeast(60f) / 2f).coerceAtMost(100f)
+                        cubicTo(start.x, start.y + dy, end.x - dx, end.y, end.x, end.y)
+                    } else {
+                        val controlX = (start.x + end.x) / 2
+                        cubicTo(controlX, start.y, controlX, end.y, end.x, end.y)
+                    }
                 }
                 drawPath(path, color = wireColor, style = Stroke(width = 3f))
             }
@@ -492,10 +507,12 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color? = null, la
                     }
                 }
             }
-            if (module.inputs.isNotEmpty() && module.outputs.isNotEmpty()) {
-                HorizontalDivider(color = Color.Black, thickness = 1.dp)
+            if (module !is TimelineModule) {
+                if (module.inputs.isNotEmpty() && module.outputs.isNotEmpty()) {
+                    HorizontalDivider(color = Color.Black, thickness = 1.dp)
+                }
+                module.outputs.forEach { JackView(it, state, isLeft = false) }
             }
-            module.outputs.forEach { JackView(it, state, isLeft = false) }
         }
     }
 }
@@ -2415,6 +2432,658 @@ fun FlashModuleNode(module: FlashModule, state: GraphState) {
                                 .background(Color(0xFF333333), CircleShape)
                                 .border(1.dp, Color(0xFF555555), CircleShape)
                         )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TimelineTriggerJackView(jack: OutputJack, state: GraphState, modifier: Modifier = Modifier) {
+    val colors = LocalGraphColors.current
+    var jackRootPosition by remember { mutableStateOf(Offset.Zero) }
+    Box(
+        modifier = modifier
+            .size(8.dp)
+            .background(colors.jackDefault)
+            .onGloballyPositioned { coords ->
+                jackRootPosition = coords.positionInRoot()
+                val size = coords.size
+                val pos = jackRootPosition - state.rootOffset
+                val bottomCenterOffset = Offset(size.width / 2f, size.height.toFloat())
+                state.updateJackOffset(jack, pos + bottomCenterOffset, Size(size.width.toFloat(), size.height.toFloat()))
+            }
+            .pointerInput(jack) {
+                detectDragGestures(
+                    onDragStart = { startOffset ->
+                        state.startDraggingFromOutput(jack)
+                        state.onPointerMove(jackRootPosition - state.rootOffset + startOffset)
+                    },
+                    onDrag = { change, dragAmount ->
+                        change.consume()
+                        state.onPointerMove(state.dragPointerPosition + dragAmount)
+                    },
+                    onDragEnd = { state.onPointerUp(null) },
+                    onDragCancel = { state.onPointerUp(null) }
+                )
+            }
+    )
+}
+
+@Composable
+fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
+    val colors = LocalGraphColors.current
+    val position = state.modulePositions[module] ?: Offset.Zero
+    val isSelected = state.selectedModules.contains(module)
+    val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
+    val borderWidth = if (isSelected) 2.dp else 1.dp
+    val density = LocalDensity.current
+
+    Surface(
+        modifier = Modifier
+            .offset { IntOffset((position.x * density.density).roundToInt(), (position.y * density.density).roundToInt()) }
+            .width(module.width.dp)
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
+            .onSizeChanged { size ->
+                state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
+            },
+        shape = RoundedCornerShape(4.dp),
+        color = colors.moduleBackground
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            // Drag handle (Header)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(28.dp)
+                    .background(colors.headerDefault)
+                    .headerGestures(state, module) {
+                        state.editingModule = module
+                    },
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = module.name,
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    )
+                    // Button to add trigger "+"
+                    Button(
+                        onClick = {
+                            module.addTrigger(module.seekTime)
+                            FileState.markDirty()
+                        },
+                        modifier = Modifier.height(18.dp).width(28.dp),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Text("+", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.padding(end = 8.dp)
+                ) {
+                    // Loop Mode Toggle widget/icon
+                    Text(
+                        text = if (module.loopMode) "🔁" else "➡️",
+                        color = if (module.loopMode) Color.Green else Color.LightGray,
+                        fontSize = 12.sp,
+                        modifier = Modifier.clickable {
+                            module.loopMode = !module.loopMode
+                            FileState.markDirty()
+                        }
+                    )
+                    Text("Zoom", fontSize = 10.sp, color = Color.White)
+                    Slider(
+                        value = module.zoom,
+                        onValueChange = {
+                            module.zoom = it
+                            FileState.markDirty()
+                        },
+                        valueRange = 1.0f..4f,
+                        modifier = Modifier.width(60.dp),
+                        thumb = {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .background(Color.White, shape = CircleShape)
+                            )
+                        }
+                    )
+                }
+            }
+
+            // Body with 0 padding at bottom/right
+            Box(
+                modifier = Modifier.fillMaxWidth().padding(start = 6.dp, top = 6.dp, end = 0.dp, bottom = 0.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    // Inputs Column (start, stop) on the left (fixed width = 70.dp, padded bottom to keep clear of edge)
+                    Column(
+                        modifier = Modifier.width(70.dp).padding(bottom = 6.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        module.inputs.forEach { JackView(it, state, isLeft = true) }
+                    }
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    // Scrollable timeline viewport area
+                    val inputsWidth = 70.dp
+                    val spacing = 12.dp // no right padding, only margin/borders
+                    val viewportWidth = (module.width.dp - inputsWidth - spacing).coerceAtLeast(100.dp)
+                    
+                    val scrollState = rememberScrollState()
+                    val extraTime = 5.0
+                    val timelineWidth = 24.dp * ((module.maxTime + extraTime).toFloat() * module.zoom)
+                    val maxTimeX = 24.dp * (module.maxTime.toFloat() * module.zoom)
+
+                    // Stationary container for the top Scrollbar and the scrollable viewport
+                    Column(
+                        modifier = Modifier.width(viewportWidth).fillMaxHeight()
+                    ) {
+                        val coroutineScope = rememberCoroutineScope()
+                        
+                        // New Row 1 (Top): Horizontal Scrollbar (height = 12.dp)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(12.dp)
+                                .background(Color(0xFFE5E7EB), RoundedCornerShape(2.dp))
+                                .pointerInput(scrollState.maxValue, timelineWidth) {
+                                    awaitPointerEventScope {
+                                        while (true) {
+                                            val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                                            val trackWidthPx = size.width.toFloat()
+                                            val viewportWidthPx = with(density) { viewportWidth.toPx() }
+                                            val timelineWidthPx = with(density) { timelineWidth.toPx() }
+                                            
+                                            if (timelineWidthPx > viewportWidthPx && scrollState.maxValue > 0) {
+                                                val ratio = viewportWidthPx / timelineWidthPx
+                                                val thumbWidthPx = trackWidthPx * ratio
+                                                
+                                                var clickX = down.position.x
+                                                val targetScrollPx = ((clickX - thumbWidthPx / 2f) / (trackWidthPx - thumbWidthPx)) * scrollState.maxValue
+                                                coroutineScope.launch {
+                                                    scrollState.scrollTo(targetScrollPx.roundToInt().coerceIn(0, scrollState.maxValue))
+                                                }
+                                                
+                                                do {
+                                                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                                                    val change = event.changes.firstOrNull()
+                                                    if (change != null && change.pressed) {
+                                                        change.consume()
+                                                        clickX = change.position.x
+                                                        val dragScrollPx = ((clickX - thumbWidthPx / 2f) / (trackWidthPx - thumbWidthPx)) * scrollState.maxValue
+                                                        coroutineScope.launch {
+                                                            scrollState.scrollTo(dragScrollPx.roundToInt().coerceIn(0, scrollState.maxValue))
+                                                        }
+                                                    }
+                                                } while (event.changes.any { it.pressed })
+                                            }
+                                        }
+                                    }
+                                }
+                        ) {
+                            val viewportWidthPx = with(density) { viewportWidth.toPx() }
+                            val timelineWidthPx = with(density) { timelineWidth.toPx() }
+                            if (timelineWidthPx > viewportWidthPx && scrollState.maxValue > 0) {
+                                val ratio = viewportWidthPx / timelineWidthPx
+                                val scrollPct = scrollState.value.toFloat() / scrollState.maxValue
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .fillMaxWidth(ratio)
+                                        .offset(x = (viewportWidth * (1f - ratio) * scrollPct))
+                                        .background(Color(0xFF888888), RoundedCornerShape(2.dp))
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(4.dp))
+
+                        // Scrollable viewport area (height weight 1f)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .horizontalScroll(scrollState)
+                        ) {
+                            Column(
+                                modifier = Modifier.width(timelineWidth).fillMaxHeight()
+                            ) {
+                                var currentPlayheadTime by remember { mutableStateOf(0.0) }
+                                if (module.isPlaying) {
+                                    LaunchedEffect(Unit) {
+                                        while (true) {
+                                            val nowNs = ScoreClock.now().nanoseconds
+                                            val elapsed = (nowNs - module.playbackStartTimeNs) / 1_000_000_000.0
+                                            currentPlayheadTime = module.playbackStartPos + elapsed
+                                            kotlinx.coroutines.delay(16)
+                                        }
+                                    }
+                                } else {
+                                    currentPlayheadTime = module.seekTime
+                                }
+
+                                // Row 2: Loop position indicator & maxTime marker (height = 16.dp)
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(16.dp)
+                                        .background(Color(0xFFE0E0E0), RoundedCornerShape(2.dp))
+                                        .pointerInput(module) {
+                                            awaitPointerEventScope {
+                                                while (true) {
+                                                    val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                                                    val pxPerSecond = density.density * 24f * module.zoom
+                                                    val clickX = down.position.x
+                                                    
+                                                    val maxTimeXPx = (module.maxTime * pxPerSecond).toFloat()
+                                                    val loopStartXPx = (module.loopStart * pxPerSecond).toFloat()
+                                                    val loopEndXPx = (module.loopEnd * pxPerSecond).toFloat()
+                                                    
+                                                    val tolerancePx = with(density) { 12.dp.toPx() }
+                                                    
+                                                    val distMaxTime = kotlin.math.abs(clickX - maxTimeXPx)
+                                                    val distStart = kotlin.math.abs(clickX - loopStartXPx)
+                                                    val distEnd = kotlin.math.abs(clickX - loopEndXPx)
+                                                    
+                                                    val target = listOf(
+                                                        "maxTime" to distMaxTime,
+                                                        "loopStart" to distStart,
+                                                        "loopEnd" to distEnd
+                                                    ).filter { it.second <= tolerancePx }
+                                                     .minByOrNull { it.second }?.first
+                                                     
+                                                    if (target == "maxTime") {
+                                                        down.consume()
+                                                        do {
+                                                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                                                            val change = event.changes.firstOrNull()
+                                                            if (change != null && change.pressed) {
+                                                                change.consume()
+                                                                val currentX = change.position.x
+                                                                val lastTriggerTime = module.triggers.map { it.time }.maxOrNull() ?: 0.0
+                                                                val draggedTime = (currentX / pxPerSecond).toDouble()
+                                                                module.maxTime = draggedTime.coerceAtLeast(lastTriggerTime).coerceAtLeast(1.0)
+                                                                
+                                                                // Scroll timeline when dragged past the end of the viewport
+                                                                val viewportWidthPx = with(density) { viewportWidth.toPx() }
+                                                                if (currentX > scrollState.value + viewportWidthPx - 20f) {
+                                                                    val targetScroll = (currentX - viewportWidthPx + 20f).roundToInt()
+                                                                    coroutineScope.launch {
+                                                                        scrollState.scrollTo(targetScroll.coerceIn(0, scrollState.maxValue))
+                                                                    }
+                                                                } else if (currentX < scrollState.value + 20f) {
+                                                                    val targetScroll = (currentX - 20f).roundToInt()
+                                                                    coroutineScope.launch {
+                                                                        scrollState.scrollTo(targetScroll.coerceIn(0, scrollState.maxValue))
+                                                                    }
+                                                                }
+                                                                FileState.markDirty()
+                                                            }
+                                                        } while (event.changes.any { it.pressed })
+                                                    } else if (target == "loopStart") {
+                                                        down.consume()
+                                                        do {
+                                                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                                                            val change = event.changes.firstOrNull()
+                                                            if (change != null && change.pressed) {
+                                                                change.consume()
+                                                                val currentX = change.position.x
+                                                                val timeAtX = (currentX / pxPerSecond).toDouble()
+                                                                module.loopStart = timeAtX.coerceIn(0.0, module.loopEnd - 0.1)
+                                                                FileState.markDirty()
+                                                            }
+                                                        } while (event.changes.any { it.pressed })
+                                                    } else if (target == "loopEnd") {
+                                                        down.consume()
+                                                        do {
+                                                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                                                            val change = event.changes.firstOrNull()
+                                                            if (change != null && change.pressed) {
+                                                                change.consume()
+                                                                val currentX = change.position.x
+                                                                val timeAtX = (currentX / pxPerSecond).toDouble()
+                                                                module.loopEnd = timeAtX.coerceIn(module.loopStart + 0.1, module.maxTime)
+                                                                FileState.markDirty()
+                                                            }
+                                                        } while (event.changes.any { it.pressed })
+                                                    } else {
+                                                        var timeAtX = (clickX / pxPerSecond).toDouble().coerceIn(0.0, module.maxTime)
+                                                        val isDraggingStart = distStart < distEnd
+                                                        if (isDraggingStart) {
+                                                            module.loopStart = timeAtX.coerceIn(0.0, module.loopEnd - 0.1)
+                                                        } else {
+                                                            module.loopEnd = timeAtX.coerceIn(module.loopStart + 0.1, module.maxTime)
+                                                        }
+                                                        FileState.markDirty()
+                                                        
+                                                        do {
+                                                            val event = awaitPointerEvent()
+                                                            val change = event.changes.firstOrNull()
+                                                            if (change != null && change.pressed) {
+                                                                change.consume()
+                                                                val currentX = change.position.x
+                                                                timeAtX = (currentX / pxPerSecond).toDouble().coerceIn(0.0, module.maxTime)
+                                                                if (isDraggingStart) {
+                                                                    module.loopStart = timeAtX.coerceIn(0.0, module.loopEnd - 0.1)
+                                                                } else {
+                                                                    module.loopEnd = timeAtX.coerceIn(module.loopStart + 0.1, module.maxTime)
+                                                                }
+                                                                FileState.markDirty()
+                                                            }
+                                                        } while (event.changes.any { it.pressed })
+                                                    }
+                                                }
+                                            }
+                                        }
+                                ) {
+                                    // Highlight loop range
+                                    val startPct = (module.loopStart / (module.maxTime + extraTime)).toFloat()
+                                    val endPct = (module.loopEnd / (module.maxTime + extraTime)).toFloat()
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxHeight()
+                                            .fillMaxWidth(endPct - startPct)
+                                            .offset(x = timelineWidth * startPct)
+                                            .background(Color(0xFF90CAF9).copy(alpha = 0.6f))
+                                    )
+                                    // Loop Start handle
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp, 16.dp)
+                                            .offset(x = timelineWidth * startPct)
+                                            .background(Color.Blue)
+                                    )
+                                    // Loop End handle
+                                    Box(
+                                        modifier = Modifier
+                                            .size(6.dp, 16.dp)
+                                            .offset(x = timelineWidth * endPct - 6.dp)
+                                            .background(Color.Blue)
+                                    )
+                                    // Special maxTime marker handle (Red Flag ⇥) - in Row 2!
+                                    Box(
+                                        modifier = Modifier
+                                            .size(14.dp, 16.dp)
+                                            .offset(x = maxTimeX - 7.dp)
+                                            .background(Color(0xFFD32F2F), RoundedCornerShape(2.dp)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text("⇥", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                // Row 3: Horizontal time position indicator (ruler / slider with thumb) - Height 20.dp
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(20.dp)
+                                        .background(Color(0xFFCCCCCC), RoundedCornerShape(2.dp))
+                                        .pointerInput(module) {
+                                            awaitPointerEventScope {
+                                                while (true) {
+                                                    val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                                                    val pxPerSecond = density.density * 24f * module.zoom
+                                                    var currentX = down.position.x
+                                                    val newSeek = (currentX / pxPerSecond).toDouble().coerceIn(0.0, module.maxTime)
+                                                    module.seekTo(newSeek)
+                                                    FileState.markDirty()
+                                                    
+                                                    do {
+                                                        val event = awaitPointerEvent()
+                                                        val change = event.changes.firstOrNull()
+                                                        if (change != null && change.pressed) {
+                                                            change.consume()
+                                                            currentX = change.position.x
+                                                            val dragSeek = (currentX / pxPerSecond).toDouble().coerceIn(0.0, module.maxTime)
+                                                            module.seekTo(dragSeek)
+                                                            FileState.markDirty()
+                                                        }
+                                                    } while (event.changes.any { it.pressed })
+                                                }
+                                            }
+                                        }
+                                ) {
+                                    // Dynamic Ruler Ticks depending only on zoom level
+                                    val tickInterval = when {
+                                        module.zoom < 1.5f -> 2.0
+                                        module.zoom < 3.0f -> 1.0
+                                        else -> 0.5
+                                    }
+                                    val numTicks = (module.maxTime / tickInterval).toInt()
+
+                                    Canvas(modifier = Modifier.fillMaxSize()) {
+                                        val tickColor = Color(0xFF666666)
+                                        for (i in 0..numTicks) {
+                                            val timeSeconds = i * tickInterval
+                                            if (timeSeconds > module.maxTime) break
+                                            
+                                            val pct = (timeSeconds / (module.maxTime + extraTime)).toFloat()
+                                            val x = size.width * pct
+                                            
+                                            // Draw main tick line
+                                            drawLine(
+                                                color = tickColor,
+                                                start = Offset(x, size.height - 6f),
+                                                end = Offset(x, size.height),
+                                                strokeWidth = 1f
+                                            )
+                                            
+                                            // Draw minor ticks
+                                            if (i < numTicks) {
+                                                val nextTime = (i + 1) * tickInterval
+                                                val midTime = (timeSeconds + nextTime) / 2.0
+                                                if (midTime <= module.maxTime) {
+                                                    val midPct = (midTime / (module.maxTime + extraTime)).toFloat()
+                                                    val midX = size.width * midPct
+                                                    drawLine(
+                                                        color = tickColor.copy(alpha = 0.4f),
+                                                        start = Offset(midX, size.height - 3f),
+                                                        end = Offset(midX, size.height),
+                                                        strokeWidth = 0.8f
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Draw text labels
+                                    for (i in 0..numTicks) {
+                                        val timeSeconds = i * tickInterval
+                                        if (timeSeconds > module.maxTime) break
+                                        val pct = (timeSeconds / (module.maxTime + extraTime)).toFloat()
+                                        
+                                        val label = if (timeSeconds % 1.0 == 0.0) {
+                                            "${timeSeconds.toInt()}"
+                                        } else {
+                                            val rounded = (timeSeconds * 10.0).roundToInt() / 10.0
+                                            "${rounded}"
+                                        }
+                                        
+                                        Text(
+                                            text = label,
+                                            fontSize = 11.sp,
+                                            color = Color(0xFF444444),
+                                            modifier = Modifier
+                                                .offset(x = timelineWidth * pct - 15.dp, y = (-2).dp)
+                                                .width(30.dp),
+                                            textAlign = TextAlign.Center
+                                        )
+                                    }
+
+                                    // Seek thumb
+                                    val thumbPct = (module.seekTime / (module.maxTime + extraTime)).toFloat()
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp, 20.dp)
+                                            .offset(x = timelineWidth * thumbPct - 4.dp)
+                                            .background(Color.DarkGray.copy(alpha = 0.7f), RoundedCornerShape(1.dp))
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(4.dp))
+
+                                // Row 4: cursor, triggers (diamond + jack) - stretches to the bottom of the module
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f)
+                                        .background(Color(0xFFE5E7EB), RoundedCornerShape(bottomStart = 2.dp, bottomEnd = 2.dp))
+                                        .pointerInput(module) {
+                                            awaitPointerEventScope {
+                                                while (true) {
+                                                    val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                                                    val pxPerSecond = density.density * 24f * module.zoom
+                                                    val clickX = down.position.x
+                                                    val clickY = down.position.y
+                                                    
+                                                    val tolerancePx = with(density) { 16.dp.toPx() }
+                                                    val topYBound = with(density) { 16.dp.toPx() }
+                                                    
+                                                    val activeTrigger = if (clickY <= topYBound) {
+                                                        module.triggers.minByOrNull {
+                                                            val trigXPx = (it.time * pxPerSecond).toFloat()
+                                                            kotlin.math.abs(trigXPx - clickX)
+                                                        }?.takeIf {
+                                                            val trigXPx = (it.time * pxPerSecond).toFloat()
+                                                            kotlin.math.abs(trigXPx - clickX) <= tolerancePx
+                                                        }
+                                                    } else {
+                                                        null
+                                                    }
+                                                    
+                                                    if (activeTrigger != null) {
+                                                        down.consume()
+                                                        do {
+                                                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                                                            val change = event.changes.firstOrNull()
+                                                            if (change != null && change.pressed) {
+                                                                change.consume()
+                                                                val currentX = change.position.x
+                                                                activeTrigger.time = (currentX / pxPerSecond).toDouble().coerceIn(0.0, module.maxTime)
+                                                                FileState.markDirty()
+                                                            }
+                                                        } while (event.changes.any { it.pressed })
+                                                    }
+                                                }
+                                            }
+                                        }
+                                ) {
+                                    // Red cursor
+                                    val cursorPct = (currentPlayheadTime / (module.maxTime + extraTime)).toFloat().coerceIn(0f, 1f)
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxHeight()
+                                            .width(2.dp)
+                                            .offset(x = timelineWidth * cursorPct)
+                                            .background(Color.Red)
+                                    )
+
+                                    // Shaded unusable area past maxTime
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxHeight()
+                                            .width(timelineWidth - maxTimeX)
+                                            .offset(x = maxTimeX)
+                                            .background(Color(0x1F000000))
+                                    )
+
+                                    // Vertical marker boundary line extending down through Row 4
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxHeight()
+                                            .width(1.dp)
+                                            .offset(x = maxTimeX)
+                                            .background(Color(0xFFD32F2F).copy(alpha = 0.5f))
+                                    )
+
+                                    // Draw triggers
+                                    for (trigger in module.triggers) {
+                                        val trigPct = (trigger.time / (module.maxTime + extraTime)).toFloat()
+                                        val triggerX = timelineWidth * trigPct
+                                        
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxHeight()
+                                                .width(24.dp)
+                                                .offset(x = triggerX - 12.dp),
+                                            contentAlignment = Alignment.TopCenter
+                                        ) {
+                                            Column(
+                                                horizontalAlignment = Alignment.CenterHorizontally,
+                                                modifier = Modifier.fillMaxHeight().padding(top = 2.dp, bottom = 0.dp)
+                                            ) {
+                                                // Diamond at top (8.dp)
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(8.dp)
+                                                        .graphicsLayer(rotationZ = 45f)
+                                                        .background(Color.Yellow)
+                                                        .pointerInput(trigger) {
+                                                            detectTapGestures(
+                                                                onLongPress = {
+                                                                    module.removeTrigger(trigger)
+                                                                    FileState.markDirty()
+                                                                }
+                                                            )
+                                                        }
+                                                )
+                                                // Vertical line (dark stem)
+                                                Box(
+                                                    modifier = Modifier
+                                                        .width(1.dp)
+                                                        .weight(1f)
+                                                        .background(Color(0xFF4B5563))
+                                                )
+                                                // Jack at bottom (8.dp)
+                                                TimelineTriggerJackView(trigger.outputJack, state)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Horizontal Resize grip on the bottom-right corner
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .size(16.dp)
+                        .pointerInput(module) {
+                            detectDragGestures(
+                                onDragEnd = { FileState.markDirty() }
+                            ) { change, dragAmount ->
+                                change.consume()
+                                val dw = dragAmount.x / density.density
+                                module.width = (module.width + dw).coerceAtLeast(200.0)
+                            }
+                        }
+                ) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val grip = colors.faderGrip
+                        val w = size.width
+                        val h = size.height
+                        drawLine(grip, Offset(w - 4f, h - 12f), Offset(w - 4f, h - 2f), strokeWidth = 1.5f)
+                        drawLine(grip, Offset(w - 8f, h - 12f), Offset(w - 8f, h - 2f), strokeWidth = 1.5f)
                     }
                 }
             }
