@@ -33,7 +33,6 @@ object ModuleRegistry {
 
         val basic = getOrCreateBundle(core, "basic")
         basic.modules.add(ModuleEntry("clock") { ClockModule() })
-        basic.modules.add(ModuleEntry("beatClock") { BeatClockModule() })
         basic.modules.add(ModuleEntry("timeline") { TimelineModule() })
         basic.modules.add(ModuleEntry("addTime") { AddTimeModule() })
         basic.modules.add(ModuleEntry("counter") { CounterModule() })
@@ -92,6 +91,7 @@ object ModuleRegistry {
         voices.modules.add(ModuleEntry("packNote") { PackNoteModule() })
 
         val compose = getOrCreateBundle(music, "compose")
+        compose.modules.add(ModuleEntry("beatClock") { BeatClockModule() })
         compose.modules.add(ModuleEntry("pentatonic") {
             ScaleModule("pentatonic", isEditable = false, doubleArrayOf(0.0, 2.0, 4.0, 7.0, 9.0)) })
         compose.modules.add(ModuleEntry("diatonic") {

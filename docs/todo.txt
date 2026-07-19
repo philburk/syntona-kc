@@ -1,13 +1,11 @@
 
-Need global "send" and "receive" modules through named mailboxes.
-The "send" module has one "in" jack. It sends to a global mailbox with the same name as the module.
-The "receive" module has one "out" jack. It receives messages from the sender with the same name as the receive module.
-All message types are transmitted.
-Messages should be immutable so we can send the same message to multiple receivers.
-
-Timeline module with trigger jacks that can be arranged in time.
-
 Patch inputs for start/stop/etc that are commands with buttons.
+
+BUG: flash in timeline example stays lit when the window is closed
+
+Help trace wires by highlighting the wires connected to a highlighted module.
+Widget to put wires in front.
+Label wire outputs with order (1) (2)
 
 Add my old recursive generator algorithm.
 
@@ -24,7 +22,6 @@ Export/Import feature for moving from local storage to/from a ZIP archive.
 
 EnvelopeEditor needs to show time and allow more time.
 
-
 Change keyboard13 so we can drag between notes for legato sweeps. ON/ON/OFF/OFF.
 
 Maybe be able to click on wires to select and disconnect by BACKSPACE.
@@ -33,8 +30,6 @@ Add ksyn/instruments with a combination of polyPatches and maybe the built-in KS
 Load them from the ComposeResources/files/instruments. Auto-populate.
 
 Combine segEnv and monoRdr?
-
-Widget to put wires in front and label wires with order (1) (2)
 
 Move mixers to their own bundle.
 Maybe add a MixerSend and then have a separate mixer panel separate from the dataflow.

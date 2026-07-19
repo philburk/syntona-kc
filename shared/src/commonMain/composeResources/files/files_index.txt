@@ -15,6 +15,7 @@ examples/sampler.json
 examples/saw_noise.json
 examples/scale.json
 examples/send_receive.json
+examples/timeline.json
 examples/vibrato.json
 examples/wavey_square.json
 tutorials/01_tour/01_sawtooth_modulation.json
