@@ -109,6 +109,7 @@ import com.softsynth.ksyn.compose.SegmentedEnvelopeEditor
 import com.syntona.dataflow.model.cleanKotlinIdentifier
 import com.syntona.dataflow.editor.FileState
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.ui.text.style.TextAlign
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -2569,14 +2570,24 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                             FileState.markDirty()
                         },
                         valueRange = minZoom..maxZoom,
-                        modifier = Modifier.width(60.dp),
-                        thumb = {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .background(Color.White, shape = CircleShape)
+                        modifier = Modifier.width(90.dp),
+                        colors = SliderDefaults.colors(
+                            thumbColor = Color.White, // Sets the thumb color
+                            activeTrackColor = Color.Yellow, // Matches the track to the left of the thumb
+                            inactiveTrackColor = Color.LightGray // Track to the right of the thumb
+                        ),
+                        // 1. Override the default track
+                        track = { sliderState ->
+                            SliderDefaults.Track(
+                                sliderState = sliderState,
+                                // 2. Set the gap to 0 to prevent the background from showing through
+                                thumbTrackGapSize = 0.dp,
+                                colors = SliderDefaults.colors(
+                                    activeTrackColor = Color.Yellow,
+                                    inactiveTrackColor = Color.LightGray
+                                )
                             )
-                        }
+                        },
                     )
                 }
             }

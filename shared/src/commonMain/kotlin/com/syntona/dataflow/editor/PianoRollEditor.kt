@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -1015,13 +1016,23 @@ private fun PianoRollToolbar(
             onValueChange = onZoomChange,
             valueRange = 0.1f..2f,
             modifier = Modifier.width(110.dp),
-            thumb = {
-                Box(
-                    modifier = Modifier
-                        .size(10.dp)
-                        .background(PR_NOTE_PLAYING, shape = androidx.compose.foundation.shape.CircleShape)
+            colors = SliderDefaults.colors(
+                thumbColor = Color.White, // Sets the thumb color
+                activeTrackColor = Color.Yellow, // Matches the track to the left of the thumb
+                inactiveTrackColor = Color.LightGray // Track to the right of the thumb
+            ),
+            // 1. Override the default track
+            track = { sliderState ->
+                SliderDefaults.Track(
+                    sliderState = sliderState,
+                    // 2. Set the gap to 0 to prevent the background from showing through
+                    thumbTrackGapSize = 0.dp,
+                    colors = SliderDefaults.colors(
+                        activeTrackColor = Color.Yellow,
+                        inactiveTrackColor = Color.LightGray
+                    )
                 )
-            }
+            },
         )
     }
 }
