@@ -2364,13 +2364,6 @@ fun FlashModuleNode(module: FlashModule, state: GraphState) {
     val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
     val borderWidth = if (isSelected) 2.dp else 1.dp
 
-    if (module.isOn) {
-        LaunchedEffect(module.triggerCount) {
-            delay(150)
-            module.isOn = false
-        }
-    }
-
     Surface(
         modifier = Modifier
             .offset { IntOffset((position.x * density).roundToInt(), (position.y * density).roundToInt()) }

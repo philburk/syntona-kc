@@ -1,5 +1,4 @@
-
-Patch inputs for start/stop/etc that are commands with buttons.
+Add patch inputs for start/stop/etc that are commands with buttons.
 
 BUG: flash in timeline example stays lit when the window is closed
 

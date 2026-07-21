@@ -1,8 +1,12 @@
 package com.syntona.dataflow.modules
 
 import com.syntona.core.model.ScoreTime
+import com.syntona.dataflow.engine.DataFlowEngine
+import com.syntona.dataflow.engine.ScheduledEvent
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.registry.ModuleRegistry
+import kotlinx.coroutines.CoroutineScope
+import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -10,6 +14,16 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class GlowFlashModulesTest {
+
+    private class TestEngine : DataFlowEngine(CoroutineScope(EmptyCoroutineContext)) {
+        val scheduled = mutableListOf<Pair<ScoreTime, ScheduledEvent>>()
+
+        override fun schedule(time: ScoreTime, action: () -> Unit): ScheduledEvent {
+            val event = ScheduledEvent(action)
+            scheduled.add(time to event)
+            return event
+        }
+    }
 
     @Test
     fun testGlowModuleCreationAndPorts() {
@@ -80,5 +94,47 @@ class GlowFlashModulesTest {
         assertNotNull(flashCreator, "FlashModule creator should be registered in ModuleRegistry under 'flash'")
         val flashModule = flashCreator()
         assertTrue(flashModule is FlashModule, "Created module should be an instance of FlashModule")
+    }
+
+    @Test
+    fun testFlashModuleAutomaticTurnOff() {
+        val engine = TestEngine()
+        val module = FlashModule()
+        module.setEngine(engine)
+        val flashInput = module.inputs.find { it.name == "flash" }!!
+
+        // Kick flashInput
+        val triggerTime = ScoreTime(1000)
+        flashInput.receive(Message.FloatValue(triggerTime, 1.0))
+        assertTrue(module.isOn, "FlashModule should turn ON when 'flash' is kicked")
+        assertEquals(1, engine.scheduled.size, "Should have scheduled one turn-off event")
+
+        val (scheduledTime, event) = engine.scheduled[0]
+        assertEquals(triggerTime + ScoreTime(150_000_000L), scheduledTime, "Scheduled time should be 150ms after trigger")
+
+        // Fire the scheduled event
+        event.fire()
+        assertFalse(module.isOn, "FlashModule should turn OFF after the scheduled event fires")
+    }
+
+    @Test
+    fun testFlashModuleRescheduleCancellation() {
+        val engine = TestEngine()
+        val module = FlashModule()
+        module.setEngine(engine)
+        val flashInput = module.inputs.find { it.name == "flash" }!!
+
+        // Kick flashInput once
+        flashInput.receive(Message.FloatValue(ScoreTime(1000), 1.0))
+        assertEquals(1, engine.scheduled.size)
+        val event1 = engine.scheduled[0].second
+        assertFalse(event1.isCancelled)
+
+        // Kick flashInput again before the first one fires
+        flashInput.receive(Message.FloatValue(ScoreTime(1100), 1.0))
+        assertEquals(2, engine.scheduled.size)
+        val event2 = engine.scheduled[1].second
+        assertTrue(event1.isCancelled, "First event should be cancelled")
+        assertFalse(event2.isCancelled, "Second event should not be cancelled")
     }
 }

@@ -45,6 +45,16 @@ import androidx.compose.ui.input.key.isShiftPressed
  */
 class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
     var engine: DataFlowEngine? = null
+        set(value) {
+            field = value
+            if (value != null) {
+                for (module in modules) {
+                    if (module is EngineAware) {
+                        module.setEngine(value)
+                    }
+                }
+            }
+        }
     var onChange: (() -> Unit)? = null
     var isDeserializing = false
     var parentPatch: PatchModule? = null
