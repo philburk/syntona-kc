@@ -41,9 +41,8 @@ kotlin {
         wasmJsMain.get().dependsOn(audioMain)
 
         audioMain.dependencies {
-            implementation("com.softsynth:audio-bridge:0.3.0")
+            implementation("com.softsynth:audio-bridge:0.4.0")
         }
-
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
         }
