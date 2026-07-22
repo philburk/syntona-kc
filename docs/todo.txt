@@ -1,12 +1,10 @@
 Add patch inputs for start/stop/etc that are commands with buttons.
 
-BUG: flash in timeline example stays lit when the window is closed
-
 Help trace wires by highlighting the wires connected to a highlighted module.
 Widget to put wires in front.
 Label wire outputs with order (1) (2)
 
-Add my old recursive generator algorithm.
+Add my old recursive generator algorithm. From old JSyn example in AWT.
 
 Seq8 reset should not kick.
 Seq8 should allow multiple values for chords, "60,63,67.02"
@@ -44,7 +42,8 @@ Possible bug the CMR knob on the drum rhythm for it does not seem to affect the 
 
 Convert Syntona timestamps to KSyn timestamps and apply small "advance-time" for jitter reduction.
 
-Add a resource folder with a "library" of patches. Add a "Load Patch from Library" file item, similar to the Help menu items.
+Add a resource folder with a "library" of patches. Add a "Load Patch from Library" file item,
+similar to the Help menu items. Or add them to the moduleTree.
 
 Add Granular synthesis.
 
