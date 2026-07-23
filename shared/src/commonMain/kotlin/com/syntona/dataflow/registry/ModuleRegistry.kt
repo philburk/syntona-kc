@@ -172,7 +172,12 @@ object ModuleRegistry {
 
         val effects = getOrCreateBundle(ksyn, "effects")
         addKSynModule(effects, "phaseShifter", ::PhaseShifter)
-        addKSynModule(effects, "delay", ::InterpolatingDelay)
+        ksynFactories["delay"] = ::InterpolatingDelay
+        effects.modules.add(ModuleEntry("delay") {
+            val delay = InterpolatingDelay()
+            delay.allocate(48000 * 2)
+            UnitGeneratorModule("delay", delay)
+        })
         addKSynModule(effects, "pan", ::Pan)
         addKSynModule(effects, "plateReverb", ::PlateReverb)
         addKSynModule(effects, "roomReverb", ::RoomReverb)
