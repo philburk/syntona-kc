@@ -6,6 +6,8 @@ Label wire outputs with order (1) (2)
 
 Add my old recursive generator algorithm. From old JSyn example in AWT.
 
+BUG: delay outputs zeros
+
 Seq8 reset should not kick.
 Seq8 should allow multiple values for chords, "60,63,67.02"
 ScaleModule should allow "Eb and G#"

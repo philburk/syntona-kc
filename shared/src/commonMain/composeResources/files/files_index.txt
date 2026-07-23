@@ -5,6 +5,7 @@ examples/glow_flash.json
 examples/keyNotes.json
 examples/key_control.json
 examples/keyboard13.json
+examples/lineIn.json
 examples/mod8_knobs.json
 examples/patch.json
 examples/pianoRoll.json

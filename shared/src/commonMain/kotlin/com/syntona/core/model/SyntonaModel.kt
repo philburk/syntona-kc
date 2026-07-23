@@ -10,7 +10,7 @@ class SyntonaModel {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     val engine = DataFlowEngine(scope)
 
-    fun start() {
-        SynthKSyn.start()
+    suspend fun start(context: Any? = null) {
+        SynthKSyn.start(context)
     }
 }

@@ -249,13 +249,13 @@ fun App(
                 Text("Choose top level editor:")
                 Button(onClick = {
                     showContent = !showContent
-                    syntonaModel.start()
+                    scope.launch { syntonaModel.start() }
                 }) {
                     Text("DataFlow")
                 }
                 Button(onClick = {
                     showContent = !showContent
-                    syntonaModel.start()
+                    scope.launch { syntonaModel.start() }
                 }) {
                     Text("Hierarchy")
                 }
@@ -275,7 +275,7 @@ fun App(
                                     while (!hasStarted) {
                                         val event = awaitPointerEvent()
                                         if (event.type == PointerEventType.Press) {
-                                            syntonaModel.start()
+                                            scope.launch { syntonaModel.start() }
                                             hasStarted = true
                                         }
                                     }

@@ -6,6 +6,10 @@ plugins {
     alias(libs.plugins.composeCompiler)
 }
 
+kotlin {
+    jvmToolchain(17)
+}
+
 dependencies {
     implementation(projects.shared)
 
@@ -18,11 +22,21 @@ dependencies {
 compose.desktop {
     application {
         mainClass = "com.syntona.MainKt"
+        jvmArgs += listOf("--enable-native-access=ALL-UNNAMED")
 
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "com.syntona"
             packageVersion = "1.0.0"
+
+            macOS {
+                infoPlist {
+                    extraKeysRawXml = """
+                        <key>NSMicrophoneUsageDescription</key>
+                        <string>This app requires access to the microphone for audio recording.</string>
+                    """
+                }
+            }
         }
     }
 }

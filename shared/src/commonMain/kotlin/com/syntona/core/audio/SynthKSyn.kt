@@ -32,8 +32,8 @@ object SynthKSyn {
     val ksynAudioBridge: KSynAudioBridge = KSynAudioBridge(synth)
 
 
-    fun start() {
-        ksynAudioBridge.start()
+    suspend fun start(context: Any? = null) {
+        ksynAudioBridge.start(context)
     }
 
     fun stop() {

@@ -16,7 +16,10 @@
 
 package com.syntona.core.audio
 
+import com.softsynth.audiobridge.AudioDeviceManager
+import com.softsynth.audiobridge.AudioInputBridge
 import com.softsynth.audiobridge.AudioOutputBridge
+import com.softsynth.audiobridge.AudioPermissionState
 import com.softsynth.audiobridge.AudioResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -37,55 +40,100 @@ abstract class AudioStreamManager {
     private var audioStreamJob: Job? = null
     private var isBridgeOpen = false
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    var context: Any? = null
 
-    private fun startAudioStreamJob(): Job { // Return the Job
-        // Cancel any existing job before starting a new one
-        audioStreamJob?.cancel() // This ensures only one stream runs if called multiple times
+    private fun startAudioStreamJob(): Job {
+        audioStreamJob?.cancel()
 
         val job = scope.launch {
             onAudioTask(this)
         }
-        audioStreamJob = job // Store the new job
+        audioStreamJob = job
         return job
     }
 
-    // Optional: Add a function to explicitly stop the stream
     private fun stopAudioStreamJob() {
         audioStreamJob?.cancel()
         audioStreamJob = null
         println("Requested to stop audio stream job.")
     }
 
-    fun start(): AudioResult {
+    suspend fun start(context: Any? = null): AudioResult {
+        this.context = context
         if (isBridgeOpen) {
             stop()
         }
-        // Open and start the audio bridge
-        // It's important that open() is called before start() and write()
-        val openResult = audioBridge.open()
+
+        val optimalSampleRate = AudioDeviceManager.getOptimalSampleRate()
+        val bufferSizeFrames = 64
+
+        var activeInputBridge: AudioInputBridge? = null
+        if (AudioInputBridge.isSupported()) {
+            var permState = AudioInputBridge.getPermissionState(context)
+            if (permState != AudioPermissionState.GRANTED) {
+                permState = AudioInputBridge.requestPermission(context)
+            }
+            if (permState == AudioPermissionState.GRANTED) {
+                val inputCandidate = AudioInputBridge.create {
+                    sampleRate = optimalSampleRate
+                    framesPerBuffer = bufferSizeFrames
+                    channels = 1
+                }
+                val openRes = inputCandidate.open()
+                if (openRes == AudioResult.OK) {
+                    val startRes = inputCandidate.start()
+                    if (startRes == AudioResult.OK) {
+                        activeInputBridge = inputCandidate
+                        println("AudioInputBridge opened and started successfully.")
+                    } else {
+                        inputCandidate.close()
+                    }
+                } else {
+                    println("AudioInputBridge failed to open: $openRes")
+                }
+            } else {
+                println("Audio permission not granted: $permState")
+            }
+        }
+        this.inputBridge = activeInputBridge
+
+        val outputCandidate = AudioOutputBridge.create {
+            sampleRate = optimalSampleRate
+            framesPerBuffer = bufferSizeFrames
+        }
+        val openResult = outputCandidate.open()
         if (openResult != AudioResult.OK) {
-            println("Failed to open audio bridge: $openResult")
-            // Handle error, maybe show a message to the user
+            println("Failed to open audio output bridge: $openResult")
+            inputBridge?.stop()
+            inputBridge?.close()
+            inputBridge = null
             return openResult
         }
-        println("AudioBridge opened. sampleRate = ${audioBridge.getSampleRate()}")
-        val startResult = audioBridge.start()
+        println("AudioBridge opened. sampleRate = ${outputCandidate.getSampleRate()}")
+        val startResult = outputCandidate.start()
         if (startResult != AudioResult.OK) {
-            println("Failed to start audio bridge: $startResult")
-            audioBridge.close() // Clean up if start fails
+            println("Failed to start audio output bridge: $startResult")
+            outputCandidate.close()
+            inputBridge?.stop()
+            inputBridge?.close()
+            inputBridge = null
             return startResult
         }
+        this.audioBridge = outputCandidate
         isBridgeOpen = true
         println("AudioBridge opened and started.")
-        // Start the audio stream job
+
         startAudioStreamJob()
-        println("Continuous tone started.")
         return AudioResult.OK
     }
 
     fun stop() {
         stopAudioStreamJob()
         if (isBridgeOpen) {
+            inputBridge?.stop()
+            inputBridge?.close()
+            inputBridge = null
+
             println("Audio stream coroutine finishing. Call audioBridge.stop()")
             audioBridge.stop()
             println("Audio stream coroutine finishing. Call audioBridge.close()")
@@ -96,4 +144,5 @@ abstract class AudioStreamManager {
     }
 
     var audioBridge = AudioOutputBridge.create()
+    var inputBridge: AudioInputBridge? = null
 }

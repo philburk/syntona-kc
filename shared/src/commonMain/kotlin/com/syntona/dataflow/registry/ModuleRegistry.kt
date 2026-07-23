@@ -100,6 +100,7 @@ object ModuleRegistry {
             ScaleModule("scale", isEditable = true, doubleArrayOf(0.0, 2.0, 4.0, 7.0, 9.0)) })
 
         val ksyn = getOrCreateBundle(root, "ksyn")
+        addKSynModule(ksyn, "lineIn", ::LineIn)
         addKSynModule(ksyn, "lineOut", ::LineOut)
         ksyn.modules.add(ModuleEntry("aInput") { AudioInputModule() })
         ksyn.modules.add(ModuleEntry("aOutput") { AudioOutputModule() })
