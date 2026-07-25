@@ -1,7 +1,7 @@
 package com.syntona.dataflow.model
 
 import com.softsynth.ksyn.ports.UnitDataQueuePort
-import com.softsynth.ksyn.data.SegmentedEnvelope
+import com.softsynth.ksyn.data.SequentialData
 
 class DataQueueInputJack(
     name: String,
@@ -12,11 +12,13 @@ class DataQueueInputJack(
     override fun receive(msg: Message) {
         super.receive(msg)
         if (msg is Message.DataQueueMessage) {
-            val envelope = msg.data as? SegmentedEnvelope ?: return
+            // Accept any SequentialData (SegmentedEnvelope, FloatSample, …) since that is
+            // what UnitDataQueuePort itself takes.
+            val data = msg.data as? SequentialData ?: return
             when (msg.opcode) {
-                Message.DataQueueOpcode.QUEUE -> dataQueuePort.queue(envelope)
-                Message.DataQueueOpcode.QUEUE_ON -> dataQueuePort.queueOn(envelope)
-                Message.DataQueueOpcode.QUEUE_OFF -> dataQueuePort.queueOff(envelope)
+                Message.DataQueueOpcode.QUEUE -> dataQueuePort.queue(data)
+                Message.DataQueueOpcode.QUEUE_ON -> dataQueuePort.queueOn(data)
+                Message.DataQueueOpcode.QUEUE_OFF -> dataQueuePort.queueOff(data)
             }
         }
     }

@@ -189,6 +189,7 @@ object ModuleRegistry {
         addKSynModule(data, "monoRdr", ::VariableRateMonoReader)
         addKSynModule(data, "monoWtr", ::FixedRateMonoWriter)
         data.modules.add(ModuleEntry("segEnv") { SegmentedEnvelopeModule() })
+        data.modules.add(ModuleEntry("sample") { FloatSampleModule() })
     }
 
     private data class Candidate(val path: String, val creator: () -> Module)

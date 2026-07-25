@@ -1,0 +1,107 @@
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "ksyn.lineIn",
+      "name": "lineIn",
+      "x": 85,
+      "y": 342.125,
+      "jacks": {}
+    },
+    {
+      "id": 1,
+      "type": "ksyn.data.monoWtr",
+      "name": "monoWtr",
+      "x": 387,
+      "y": 232.875,
+      "jacks": {
+        "input": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "ksyn.data.sample",
+      "name": "sample",
+      "x": 152.94409,
+      "y": 132.11182,
+      "jacks": {}
+    },
+    {
+      "id": 3,
+      "type": "ksyn.data.monoRdr",
+      "name": "monoRdr",
+      "x": 388,
+      "y": 80.125,
+      "jacks": {
+        "amplitude": {
+          "v": 1,
+          "min": 0,
+          "max": 1,
+          "add": false
+        },
+        "rate": {
+          "v": 1,
+          "min": 0,
+          "max": 1,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "ksyn.lineOut",
+      "name": "lineOut",
+      "x": 652,
+      "y": 294.125,
+      "jacks": {
+        "input0": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "add": false
+        },
+        "input1": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "add": false
+        }
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": 0,
+      "fromJack": "output0",
+      "to": 1,
+      "toJack": "input"
+    },
+    {
+      "from": 2,
+      "fromJack": "output",
+      "to": 1,
+      "toJack": "data"
+    },
+    {
+      "from": 0,
+      "fromJack": "output1",
+      "to": 4,
+      "toJack": "input1"
+    },
+    {
+      "from": 3,
+      "fromJack": "output",
+      "to": 4,
+      "toJack": "input0"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 1063.88330078125,
+  "windowHeight": 600.955322265625
+}
