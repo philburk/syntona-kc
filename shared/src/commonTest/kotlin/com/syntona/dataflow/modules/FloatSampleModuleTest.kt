@@ -19,10 +19,11 @@ class FloatSampleModuleTest {
         val module = FloatSampleModule()
         assertEquals("sample", module.name)
 
-        assertEquals(3, module.inputs.size)
+        assertEquals(4, module.inputs.size)
         assertEquals("queueOn", module.inputs[0].name)
         assertEquals("queueOff", module.inputs[1].name)
         assertEquals("queue", module.inputs[2].name)
+        assertEquals("queueLoop", module.inputs[3].name)
 
         assertEquals(1, module.outputs.size)
         assertEquals("output", module.outputs[0].name)
@@ -59,7 +60,8 @@ class FloatSampleModuleTest {
             listOf(
                 Message.DataQueueOpcode.QUEUE_ON,
                 Message.DataQueueOpcode.QUEUE_OFF,
-                Message.DataQueueOpcode.QUEUE
+                Message.DataQueueOpcode.QUEUE,
+                Message.DataQueueOpcode.QUEUE_LOOP
             ),
             received.map { it.opcode }
         )

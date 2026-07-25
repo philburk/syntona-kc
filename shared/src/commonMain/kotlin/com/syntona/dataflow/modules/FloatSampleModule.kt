@@ -25,6 +25,7 @@ class FloatSampleModule : Module("sample") {
     private val queueOnIn = addCommandInput("queueOn")
     private val queueOffIn = addCommandInput("queueOff")
     private val queueIn = addCommandInput("queue")
+    private val queueLoopIn = addCommandInput("queueLoop")
     private val output = addDataQueueOutput("output")
 
     override fun onMessageReceived(jack: InputJack, msg: Message) {
@@ -33,6 +34,7 @@ class FloatSampleModule : Module("sample") {
             queueOnIn -> output.send(Message.DataQueueMessage(ScoreClock.now(), sample, Message.DataQueueOpcode.QUEUE_ON))
             queueOffIn -> output.send(Message.DataQueueMessage(ScoreClock.now(), sample, Message.DataQueueOpcode.QUEUE_OFF))
             queueIn -> output.send(Message.DataQueueMessage(ScoreClock.now(), sample, Message.DataQueueOpcode.QUEUE))
+            queueLoopIn -> output.send(Message.DataQueueMessage(ScoreClock.now(), sample, Message.DataQueueOpcode.QUEUE_LOOP))
         }
     }
 

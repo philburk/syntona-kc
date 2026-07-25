@@ -45,9 +45,9 @@
           "add": false
         },
         "rate": {
-          "v": 1,
+          "v": 44100,
           "min": 0,
-          "max": 1,
+          "max": 44100,
           "add": false
         }
       }
@@ -82,12 +82,6 @@
       "toJack": "input"
     },
     {
-      "from": 2,
-      "fromJack": "output",
-      "to": 1,
-      "toJack": "data"
-    },
-    {
       "from": 0,
       "fromJack": "output1",
       "to": 4,
@@ -98,6 +92,12 @@
       "fromJack": "output",
       "to": 4,
       "toJack": "input0"
+    },
+    {
+      "from": 2,
+      "fromJack": "output",
+      "to": 3,
+      "toJack": "data"
     }
   ],
   "windowX": 10,

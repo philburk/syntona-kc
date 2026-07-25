@@ -19,6 +19,7 @@ class DataQueueInputJack(
                 Message.DataQueueOpcode.QUEUE -> dataQueuePort.queue(data)
                 Message.DataQueueOpcode.QUEUE_ON -> dataQueuePort.queueOn(data)
                 Message.DataQueueOpcode.QUEUE_OFF -> dataQueuePort.queueOff(data)
+                Message.DataQueueOpcode.QUEUE_LOOP -> dataQueuePort.queueLoop(data)
             }
         }
     }

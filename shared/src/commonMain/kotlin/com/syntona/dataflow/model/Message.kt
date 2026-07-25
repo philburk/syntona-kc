@@ -25,7 +25,7 @@ sealed class Message {
     }
 
     enum class DataQueueOpcode {
-        QUEUE, QUEUE_ON, QUEUE_OFF
+        QUEUE, QUEUE_ON, QUEUE_OFF, QUEUE_LOOP
     }
 
     /** A message carrying a data object and an opcode for a DataQueue. */
