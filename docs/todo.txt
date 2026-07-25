@@ -13,6 +13,7 @@ Require
 * indefinite recording time using box car memory model (KSyn now or move later) FloatRecording ?
 * controls for record, play, pause
 * easily make a one track looper, is the loop time external
+* how do we support multiple tracks that are synchronized in loop size?
 * input jack for recording
 * output jack for playback
 * need visual indicator, sample overview in middle?
