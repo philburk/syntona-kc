@@ -45,7 +45,7 @@
           "add": false
         },
         "rate": {
-          "v": 44100,
+          "v": 48000,
           "min": 0,
           "max": 44100,
           "add": false
@@ -92,6 +92,12 @@
       "fromJack": "output",
       "to": 4,
       "toJack": "input0"
+    },
+    {
+      "from": 2,
+      "fromJack": "rate",
+      "to": 3,
+      "toJack": "rate"
     },
     {
       "from": 2,

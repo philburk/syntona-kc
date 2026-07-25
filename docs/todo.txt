@@ -6,6 +6,17 @@ Label wire outputs with order (1) (2)
 
 Add my old recursive generator algorithm. From old JSyn example in AWT.
 
+Samples -----------------------------
+Loaded sample module is best for playing sampled instruments, eg. clarinet.
+Need easier to use sample for recording and playback. Call it "recording"?
+Require
+* indefinite recording time using box car memory model (KSyn now or move later) FloatRecording ?
+* controls for record, play, pause
+* easily make a one track looper, is the loop time external
+* input jack for recording
+* output jack for playback
+* need visual indicator, sample overview in middle?
+* editing capability based on edit list from ListenUp
 
 
 Seq8 reset should not kick.
