@@ -35,8 +35,8 @@
       "id": 2,
       "type": "ksyn.lineOut",
       "name": "lineOut",
-      "x": 671.9536,
-      "y": 276.1161,
+      "x": 941.9536,
+      "y": 159.11609,
       "jacks": {
         "input0": {
           "v": 0,
@@ -54,105 +54,968 @@
     },
     {
       "id": 3,
-      "type": "ksyn.effects.delay",
-      "name": "delay",
-      "x": 477.875,
-      "y": 175,
+      "type": "core.patch",
+      "name": "redDelay",
+      "x": 384.875,
+      "y": 99,
       "jacks": {
-        "input": {
+        "aIn1": {
           "v": 0,
           "min": 0,
           "max": 1,
           "add": false
-        },
-        "delay": {
-          "v": 0.13212589919567108,
-          "min": 0,
-          "max": 2.176870822906494,
-          "add": false
         }
+      },
+      "windowX": 301.25,
+      "windowY": 217.125,
+      "windowWidth": 1021.75,
+      "windowHeight": 717,
+      "windowOpen": false,
+      "patch": {
+        "modules": [
+          {
+            "id": 0,
+            "type": "ksyn.effects.delay",
+            "name": "delay",
+            "x": 610.875,
+            "y": 117,
+            "jacks": {
+              "input": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "add": false
+              },
+              "delay": {
+                "v": 0.13212589919567108,
+                "min": 0,
+                "max": 2.176870822906494,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 1,
+            "type": "ksyn.effects.delay",
+            "name": "delay",
+            "x": 639.875,
+            "y": 307,
+            "jacks": {
+              "input": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "add": false
+              },
+              "delay": {
+                "v": 0.7153411507606506,
+                "min": 0,
+                "max": 2.176870822906494,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 2,
+            "type": "ksyn.sources.redNoise",
+            "name": "redNoise",
+            "x": 382,
+            "y": 310.125,
+            "jacks": {
+              "frequency": {
+                "v": 2.5683605670928955,
+                "min": 0.009999999776482582,
+                "max": 5,
+                "add": false
+              },
+              "amplitude": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 3,
+            "type": "ksyn.math.aRanger",
+            "name": "aRanger",
+            "x": 488,
+            "y": 343.125,
+            "jacks": {
+              "input": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "add": false
+              },
+              "min": {
+                "v": 0.11427765339612961,
+                "min": 0,
+                "max": 1,
+                "add": false
+              },
+              "max": {
+                "v": 1.1574492454528809,
+                "min": 0,
+                "max": 2,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 4,
+            "type": "ksyn.sources.redNoise",
+            "name": "redNoise",
+            "x": 342,
+            "y": 118.125,
+            "jacks": {
+              "frequency": {
+                "v": 9.699999809265137,
+                "min": 0.009999999776482582,
+                "max": 5,
+                "add": false
+              },
+              "amplitude": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 5,
+            "type": "ksyn.math.aRanger",
+            "name": "aRanger",
+            "x": 485,
+            "y": 84.125,
+            "jacks": {
+              "input": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "add": false
+              },
+              "min": {
+                "v": 0.06893559545278549,
+                "min": 0,
+                "max": 1,
+                "add": false
+              },
+              "max": {
+                "v": 1.5536983013153076,
+                "min": 0,
+                "max": 2,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 6,
+            "type": "ksyn.aInput",
+            "name": "aIn1",
+            "x": 19,
+            "y": 81.875,
+            "jacks": {}
+          },
+          {
+            "id": 7,
+            "type": "ksyn.aOutput",
+            "name": "aOut1",
+            "x": 906.875,
+            "y": 148,
+            "jacks": {
+              "input": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 8,
+            "type": "ksyn.aOutput",
+            "name": "aOut2",
+            "x": 920,
+            "y": 214.125,
+            "jacks": {
+              "input": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 9,
+            "type": "ksyn.math.mixer4x2",
+            "name": "mixer4x2",
+            "x": 739,
+            "y": 89.875,
+            "jacks": {
+              "input0": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "add": false
+              },
+              "input1": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "add": false
+              },
+              "input2": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "add": false
+              },
+              "input3": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "add": false
+              },
+              "gain0": {
+                "v": 0.05840618535876274,
+                "min": 0,
+                "max": 1,
+                "add": false
+              },
+              "gain1": {
+                "v": 0.7022825479507446,
+                "min": 0,
+                "max": 1,
+                "add": false
+              },
+              "gain2": {
+                "v": 0.8017475008964539,
+                "min": 0,
+                "max": 1,
+                "add": false
+              },
+              "gain3": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "add": false
+              },
+              "amplitude": {
+                "v": 0.9556848406791687,
+                "min": 0,
+                "max": 1,
+                "add": false
+              },
+              "pan0": {
+                "v": 0,
+                "min": -1,
+                "max": 1,
+                "add": false
+              },
+              "pan1": {
+                "v": -0.5713596343994141,
+                "min": -1,
+                "max": 1,
+                "add": false
+              },
+              "pan2": {
+                "v": 0.8725368976593018,
+                "min": -1,
+                "max": 1,
+                "add": false
+              },
+              "pan3": {
+                "v": 0,
+                "min": -1,
+                "max": 1,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 10,
+            "type": "core.basic.clock",
+            "name": "clock",
+            "x": 54.875,
+            "y": 229,
+            "jacks": {}
+          },
+          {
+            "id": 11,
+            "type": "core.input.loadKick",
+            "name": "loadKick",
+            "x": 18,
+            "y": 143.875,
+            "jacks": {}
+          },
+          {
+            "id": 12,
+            "type": "core.basic.seq8",
+            "name": "seq8",
+            "x": 149,
+            "y": 206.875,
+            "jacks": {
+              "in0": {
+                "v": 0.2,
+                "min": 0,
+                "max": 100
+              },
+              "in1": {
+                "v": 9.7,
+                "min": 0,
+                "max": 100
+              },
+              "in2": {
+                "v": 0.8,
+                "min": 0,
+                "max": 100
+              },
+              "in3": {
+                "v": 23.5,
+                "min": 0,
+                "max": 100
+              },
+              "in4": {
+                "v": 0.1,
+                "min": 0,
+                "max": 100
+              },
+              "in5": {
+                "v": 0.3,
+                "min": 0,
+                "max": 100
+              },
+              "in6": {
+                "v": 75,
+                "min": 0,
+                "max": 100
+              },
+              "in7": {
+                "v": 0.6,
+                "min": 0,
+                "max": 100
+              }
+            }
+          },
+          {
+            "id": 13,
+            "type": "core.input.knob",
+            "name": "knob",
+            "x": 624,
+            "y": 456.875,
+            "jacks": {
+              "in": {
+                "v": 0.9556848406791687,
+                "min": 0,
+                "max": 1
+              }
+            }
+          }
+        ],
+        "connections": [
+          {
+            "from": 2,
+            "fromJack": "output",
+            "to": 3,
+            "toJack": "input"
+          },
+          {
+            "from": 3,
+            "fromJack": "output",
+            "to": 1,
+            "toJack": "delay"
+          },
+          {
+            "from": 4,
+            "fromJack": "output",
+            "to": 5,
+            "toJack": "input"
+          },
+          {
+            "from": 5,
+            "fromJack": "output",
+            "to": 0,
+            "toJack": "delay"
+          },
+          {
+            "from": 9,
+            "fromJack": "output0",
+            "to": 7,
+            "toJack": "input"
+          },
+          {
+            "from": 9,
+            "fromJack": "output1",
+            "to": 8,
+            "toJack": "input"
+          },
+          {
+            "from": 0,
+            "fromJack": "output",
+            "to": 9,
+            "toJack": "input1"
+          },
+          {
+            "from": 1,
+            "fromJack": "output",
+            "to": 9,
+            "toJack": "input2"
+          },
+          {
+            "from": 6,
+            "fromJack": "output",
+            "to": 0,
+            "toJack": "input"
+          },
+          {
+            "from": 6,
+            "fromJack": "output",
+            "to": 1,
+            "toJack": "input"
+          },
+          {
+            "from": 11,
+            "fromJack": "kick",
+            "to": 10,
+            "toJack": "start"
+          },
+          {
+            "from": 10,
+            "fromJack": "output",
+            "to": 12,
+            "toJack": "in"
+          },
+          {
+            "from": 12,
+            "fromJack": "out0",
+            "to": 4,
+            "toJack": "frequency"
+          },
+          {
+            "from": 12,
+            "fromJack": "out1",
+            "to": 4,
+            "toJack": "frequency"
+          },
+          {
+            "from": 12,
+            "fromJack": "out2",
+            "to": 4,
+            "toJack": "frequency"
+          },
+          {
+            "from": 12,
+            "fromJack": "out3",
+            "to": 4,
+            "toJack": "frequency"
+          },
+          {
+            "from": 12,
+            "fromJack": "out4",
+            "to": 4,
+            "toJack": "frequency"
+          },
+          {
+            "from": 12,
+            "fromJack": "out5",
+            "to": 4,
+            "toJack": "frequency"
+          },
+          {
+            "from": 12,
+            "fromJack": "out6",
+            "to": 4,
+            "toJack": "frequency"
+          },
+          {
+            "from": 12,
+            "fromJack": "out7",
+            "to": 4,
+            "toJack": "frequency"
+          },
+          {
+            "from": 6,
+            "fromJack": "output",
+            "to": 9,
+            "toJack": "input0"
+          },
+          {
+            "from": 13,
+            "fromJack": "out",
+            "to": 9,
+            "toJack": "amplitude"
+          }
+        ]
       }
     },
     {
       "id": 4,
-      "type": "ksyn.effects.delay",
-      "name": "delay",
-      "x": 506.875,
-      "y": 365,
+      "type": "core.patch",
+      "name": "phaser",
+      "x": 531.875,
+      "y": 244,
       "jacks": {
-        "input": {
+        "aIn1": {
           "v": 0,
           "min": 0,
           "max": 1,
           "add": false
-        },
-        "delay": {
-          "v": 0.7153411507606506,
-          "min": 0,
-          "max": 2.176870822906494,
-          "add": false
         }
+      },
+      "windowX": 684.9634,
+      "windowY": 449.96338,
+      "windowWidth": 600,
+      "windowHeight": 450,
+      "windowOpen": false,
+      "patch": {
+        "modules": [
+          {
+            "id": 0,
+            "type": "ksyn.aInput",
+            "name": "aIn1",
+            "x": 16.90326,
+            "y": 15.079163,
+            "jacks": {}
+          },
+          {
+            "id": 1,
+            "type": "ksyn.aOutput",
+            "name": "aOut1",
+            "x": 517,
+            "y": 17.125,
+            "jacks": {
+              "input": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 2,
+            "type": "ksyn.effects.phaseShifter",
+            "name": "phaseShifter",
+            "x": 397.875,
+            "y": 15,
+            "jacks": {
+              "input": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "add": false
+              },
+              "offset": {
+                "v": 0.2339755892753601,
+                "min": 0,
+                "max": 1,
+                "add": false
+              },
+              "feedback": {
+                "v": 0.699999988079071,
+                "min": 0,
+                "max": 1,
+                "add": false
+              },
+              "depth": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 3,
+            "type": "ksyn.sources.triOsc",
+            "name": "triOsc",
+            "x": 204.875,
+            "y": 85,
+            "jacks": {
+              "frequency": {
+                "v": 0.5139399766921997,
+                "min": 0,
+                "max": 50,
+                "add": false
+              },
+              "amplitude": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 4,
+            "type": "ksyn.math.aRanger",
+            "name": "aRanger",
+            "x": 309,
+            "y": 71.875,
+            "jacks": {
+              "input": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "add": false
+              },
+              "min": {
+                "v": 0.08718961477279663,
+                "min": 0,
+                "max": 1,
+                "add": false
+              },
+              "max": {
+                "v": 0.402652382850647,
+                "min": 0,
+                "max": 1,
+                "add": false
+              }
+            }
+          }
+        ],
+        "connections": [
+          {
+            "from": 0,
+            "fromJack": "output",
+            "to": 2,
+            "toJack": "input"
+          },
+          {
+            "from": 2,
+            "fromJack": "output",
+            "to": 1,
+            "toJack": "input"
+          },
+          {
+            "from": 3,
+            "fromJack": "output",
+            "to": 4,
+            "toJack": "input"
+          },
+          {
+            "from": 4,
+            "fromJack": "output",
+            "to": 2,
+            "toJack": "offset"
+          }
+        ]
       }
     },
     {
       "id": 5,
-      "type": "ksyn.sources.redNoise",
-      "name": "redNoise",
-      "x": 249,
-      "y": 368.125,
+      "type": "core.patch",
+      "name": "tracker",
+      "x": 518.875,
+      "y": 351,
       "jacks": {
-        "frequency": {
-          "v": 2.5683605670928955,
-          "min": 0.009999999776482582,
-          "max": 5,
-          "add": false
-        },
-        "amplitude": {
-          "v": 1,
+        "aIn1": {
+          "v": 0,
           "min": 0,
           "max": 1,
           "add": false
         }
+      },
+      "windowX": 265.95557,
+      "windowY": 569.83813,
+      "windowWidth": 849.9116,
+      "windowHeight": 410.08838,
+      "windowOpen": true,
+      "patch": {
+        "modules": [
+          {
+            "id": 0,
+            "type": "ksyn.aInput",
+            "name": "aIn1",
+            "x": 16.90326,
+            "y": 15.079163,
+            "jacks": {}
+          },
+          {
+            "id": 1,
+            "type": "ksyn.aOutput",
+            "name": "aOut1",
+            "x": 748,
+            "y": 28.125,
+            "jacks": {
+              "input": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 2,
+            "type": "ksyn.analysis.pitchDetector",
+            "name": "pitchDetector",
+            "x": 98.88141,
+            "y": 93.96045,
+            "jacks": {
+              "input": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 3,
+            "type": "ksyn.control.sampler",
+            "name": "sampler",
+            "x": 414,
+            "y": 194.875,
+            "jacks": {
+              "input": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 4,
+            "type": "core.view.show",
+            "name": "show",
+            "x": 570.875,
+            "y": 214,
+            "jacks": {}
+          },
+          {
+            "id": 5,
+            "type": "core.basic.clock",
+            "name": "clock",
+            "x": 289.875,
+            "y": 168,
+            "jacks": {
+              "period(ms)": {
+                "v": 26.26123828127901,
+                "min": 1,
+                "max": 10000
+              }
+            }
+          },
+          {
+            "id": 6,
+            "type": "ksyn.sources.sawOscDPW",
+            "name": "sawOscDPW",
+            "x": 467.88818,
+            "y": 29.055908,
+            "jacks": {
+              "frequency": {
+                "v": 440,
+                "min": 40,
+                "max": 8000,
+                "add": false
+              },
+              "amplitude": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 7,
+            "type": "ksyn.math.a*",
+            "name": "a*",
+            "x": 385.875,
+            "y": 26,
+            "jacks": {
+              "inputa": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "add": false
+              },
+              "inputb": {
+                "v": 1.5,
+                "min": 0,
+                "max": 5,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 8,
+            "type": "ksyn.sources.sawOscDPW",
+            "name": "sawOscDPW",
+            "x": 581.875,
+            "y": 20,
+            "jacks": {
+              "frequency": {
+                "v": 440,
+                "min": 40,
+                "max": 8000,
+                "add": false
+              },
+              "amplitude": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 9,
+            "type": "ksyn.control.rampCon",
+            "name": "rampCon",
+            "x": 211,
+            "y": 41.125,
+            "jacks": {
+              "input": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "add": false
+              },
+              "time": {
+                "v": 0.1307322233915329,
+                "min": 0,
+                "max": 1,
+                "add": false
+              }
+            }
+          }
+        ],
+        "connections": [
+          {
+            "from": 2,
+            "fromJack": "frequency",
+            "to": 3,
+            "toJack": "input"
+          },
+          {
+            "from": 3,
+            "fromJack": "output",
+            "to": 4,
+            "toJack": "in"
+          },
+          {
+            "from": 0,
+            "fromJack": "output",
+            "to": 2,
+            "toJack": "input"
+          },
+          {
+            "from": 5,
+            "fromJack": "output",
+            "to": 3,
+            "toJack": "kick"
+          },
+          {
+            "from": 6,
+            "fromJack": "output",
+            "to": 1,
+            "toJack": "input"
+          },
+          {
+            "from": 2,
+            "fromJack": "confidence",
+            "to": 6,
+            "toJack": "amplitude"
+          },
+          {
+            "from": 7,
+            "fromJack": "output",
+            "to": 6,
+            "toJack": "frequency"
+          },
+          {
+            "from": 2,
+            "fromJack": "frequency",
+            "to": 8,
+            "toJack": "frequency"
+          },
+          {
+            "from": 2,
+            "fromJack": "confidence",
+            "to": 8,
+            "toJack": "amplitude"
+          },
+          {
+            "from": 8,
+            "fromJack": "output",
+            "to": 1,
+            "toJack": "input"
+          },
+          {
+            "from": 2,
+            "fromJack": "frequency",
+            "to": 9,
+            "toJack": "input"
+          },
+          {
+            "from": 9,
+            "fromJack": "output",
+            "to": 7,
+            "toJack": "inputa"
+          }
+        ]
       }
     },
     {
       "id": 6,
-      "type": "ksyn.math.aRanger",
-      "name": "aRanger",
-      "x": 355,
-      "y": 401.125,
+      "type": "ksyn.math.mixer4x2",
+      "name": "mixer4x2",
+      "x": 715.875,
+      "y": 73,
       "jacks": {
-        "input": {
+        "input0": {
           "v": 0,
           "min": 0,
           "max": 1,
           "add": false
         },
-        "min": {
-          "v": 0.11427765339612961,
+        "input1": {
+          "v": 0,
           "min": 0,
           "max": 1,
           "add": false
         },
-        "max": {
-          "v": 1.1574492454528809,
+        "input2": {
+          "v": 0,
           "min": 0,
-          "max": 2,
+          "max": 1,
           "add": false
-        }
-      }
-    },
-    {
-      "id": 7,
-      "type": "ksyn.sources.redNoise",
-      "name": "redNoise",
-      "x": 233,
-      "y": 65.125,
-      "jacks": {
-        "frequency": {
-          "v": 1.4994385242462158,
-          "min": 0.009999999776482582,
-          "max": 5,
+        },
+        "input3": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "add": false
+        },
+        "gain0": {
+          "v": 1,
+          "min": 0,
+          "max": 1,
+          "add": false
+        },
+        "gain1": {
+          "v": 1,
+          "min": 0,
+          "max": 1,
+          "add": false
+        },
+        "gain2": {
+          "v": 0.11956235766410828,
+          "min": 0,
+          "max": 1,
+          "add": false
+        },
+        "gain3": {
+          "v": 0.08499042689800262,
+          "min": 0,
+          "max": 1,
           "add": false
         },
         "amplitude": {
@@ -160,32 +1023,29 @@
           "min": 0,
           "max": 1,
           "add": false
-        }
-      }
-    },
-    {
-      "id": 8,
-      "type": "ksyn.math.aRanger",
-      "name": "aRanger",
-      "x": 333,
-      "y": 69.125,
-      "jacks": {
-        "input": {
+        },
+        "pan0": {
+          "v": -0.6177164912223816,
+          "min": -1,
+          "max": 1,
+          "add": false
+        },
+        "pan1": {
+          "v": 0.5925577878952026,
+          "min": -1,
+          "max": 1,
+          "add": false
+        },
+        "pan2": {
           "v": 0,
-          "min": 0,
+          "min": -1,
           "max": 1,
           "add": false
         },
-        "min": {
-          "v": 0.08501646667718887,
-          "min": 0,
+        "pan3": {
+          "v": 0,
+          "min": -1,
           "max": 1,
-          "add": false
-        },
-        "max": {
-          "v": 1.5536983013153076,
-          "min": 0,
-          "max": 2,
           "add": false
         }
       }
@@ -200,69 +1060,57 @@
     },
     {
       "from": 0,
-      "fromJack": "output0",
-      "to": 2,
-      "toJack": "input0"
-    },
-    {
-      "from": 0,
-      "fromJack": "output1",
-      "to": 2,
-      "toJack": "input1"
-    },
-    {
-      "from": 0,
-      "fromJack": "output0",
-      "to": 3,
-      "toJack": "input"
-    },
-    {
-      "from": 3,
-      "fromJack": "output",
-      "to": 2,
-      "toJack": "input0"
-    },
-    {
-      "from": 0,
-      "fromJack": "output1",
-      "to": 4,
-      "toJack": "input"
-    },
-    {
-      "from": 4,
-      "fromJack": "output",
-      "to": 2,
-      "toJack": "input1"
-    },
-    {
-      "from": 5,
-      "fromJack": "output",
-      "to": 6,
-      "toJack": "input"
-    },
-    {
-      "from": 6,
-      "fromJack": "output",
-      "to": 4,
-      "toJack": "delay"
-    },
-    {
-      "from": 0,
       "fromJack": "output1",
       "to": 1,
       "toJack": "in1"
     },
     {
-      "from": 7,
-      "fromJack": "output",
-      "to": 8,
-      "toJack": "input"
+      "from": 0,
+      "fromJack": "output0",
+      "to": 3,
+      "toJack": "aIn1"
     },
     {
-      "from": 8,
-      "fromJack": "output",
-      "to": 3,
-      "toJack": "delay"
+      "from": 3,
+      "fromJack": "aOut2",
+      "to": 4,
+      "toJack": "aIn1"
+    },
+    {
+      "from": 0,
+      "fromJack": "output1",
+      "to": 5,
+      "toJack": "aIn1"
+    },
+    {
+      "from": 3,
+      "fromJack": "aOut1",
+      "to": 6,
+      "toJack": "input0"
+    },
+    {
+      "from": 5,
+      "fromJack": "aOut1",
+      "to": 6,
+      "toJack": "input2"
+    },
+    {
+      "from": 4,
+      "fromJack": "aOut1",
+      "to": 6,
+      "toJack": "input1"
+    },
+    {
+      "from": 6,
+      "fromJack": "output0",
+      "to": 2,
+      "toJack": "input0"
+    },
+    {
+      "from": 6,
+      "fromJack": "output1",
+      "to": 2,
+      "toJack": "input1"
     }
   ],
   "windowX": 10,
