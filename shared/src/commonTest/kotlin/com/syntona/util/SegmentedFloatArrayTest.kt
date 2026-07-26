@@ -323,6 +323,66 @@ class SegmentedFloatArrayTest {
     }
 
     @Test
+    fun testTruncateShrinksTheValidRangeButKeepsCapacity() {
+        val array = SegmentedFloatArray(segmentSize = 4)
+        repeat(4) { array.extend(4) } // 16 values over 4 segments
+        for (i in 0 until 16) array[i] = i.toFloat()
+
+        array.truncate(6)
+        assertEquals(6, array.length)
+        assertEquals(16, array.capacity, "capacity should be retained for reuse")
+        // Surviving values are untouched.
+        for (i in 0 until 6) assertEquals(i.toFloat(), array[i], "index $i")
+        // Discarded values are no longer addressable.
+        assertFailsWith<IndexOutOfBoundsException> { array[6] }
+    }
+
+    @Test
+    fun testExtendingAfterTruncateReadsAsZeroNotStaleData() {
+        val array = SegmentedFloatArray(segmentSize = 4)
+        repeat(3) { array.extend(4) }
+        for (i in 0 until 12) array[i] = 5f
+
+        array.truncate(2)
+        array.extend(4)
+        array.extend(4)
+        assertEquals(10, array.length)
+        // Everything re-exposed must read as zero rather than showing the old 5f values.
+        for (i in 2 until 10) {
+            assertEquals(0f, array[i], "index $i should have been cleared")
+        }
+    }
+
+    @Test
+    fun testTruncateToZeroThenRefillNeedsNoNewSegments() {
+        val array = SegmentedFloatArray(segmentSize = 4, poolCapacity = 4)
+        array.replenish()
+        repeat(4) { array.extend(4) }
+        val allocationsAfterFirstFill = array.unpooledAllocations
+
+        array.truncate(0)
+        assertEquals(0, array.length)
+        assertEquals(16, array.capacity)
+
+        repeat(4) { array.extend(4) }
+        assertEquals(16, array.length)
+        assertEquals(
+            allocationsAfterFirstFill,
+            array.unpooledAllocations,
+            "refilling retained capacity should not allocate"
+        )
+    }
+
+    @Test
+    fun testTruncateRejectsGrowing() {
+        val array = SegmentedFloatArray(segmentSize = 8)
+        array.extend(4)
+        assertFailsWith<IllegalArgumentException> { array.truncate(5) }
+        assertFailsWith<IllegalArgumentException> { array.truncate(-1) }
+        assertEquals(4, array.length, "a rejected truncate should change nothing")
+    }
+
+    @Test
     fun testRejectsInvalidConstructorArguments() {
         assertFailsWith<IllegalArgumentException> { SegmentedFloatArray(segmentSize = 0) }
         assertFailsWith<IllegalArgumentException> { SegmentedFloatArray(segmentSize = -1) }

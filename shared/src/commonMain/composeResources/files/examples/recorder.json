@@ -1,0 +1,72 @@
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "ksyn.data.recorder",
+      "name": "recorder",
+      "x": 204,
+      "y": 44.875,
+      "jacks": {
+        "in": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "add": false
+        },
+        "amplitude": {
+          "v": 1,
+          "min": 0,
+          "max": 2,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 1,
+      "type": "ksyn.lineIn",
+      "name": "lineIn",
+      "x": 27.895996,
+      "y": 91.069336,
+      "jacks": {}
+    },
+    {
+      "id": 2,
+      "type": "ksyn.lineOut",
+      "name": "lineOut",
+      "x": 432.875,
+      "y": 132,
+      "jacks": {
+        "input0": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "add": false
+        },
+        "input1": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "add": false
+        }
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": 1,
+      "fromJack": "output0",
+      "to": 0,
+      "toJack": "in"
+    },
+    {
+      "from": 0,
+      "fromJack": "out",
+      "to": 2,
+      "toJack": "input0"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 1235,
+  "windowHeight": 641.875
+}

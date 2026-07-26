@@ -6,12 +6,14 @@ examples/keyNotes.json
 examples/key_control.json
 examples/keyboard13.json
 examples/lineIn.json
+examples/looper.json
 examples/mod8_knobs.json
 examples/patch.json
 examples/pianoRoll.json
 examples/poly_patch.json
 examples/polyrhythm.json
 examples/pulse_scope.json
+examples/recorder.json
 examples/sample.json
 examples/sampler.json
 examples/saw_noise.json

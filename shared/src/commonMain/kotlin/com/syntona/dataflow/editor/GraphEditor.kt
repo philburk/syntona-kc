@@ -23,6 +23,8 @@ import androidx.compose.foundation.gestures.drag
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.syntona.dataflow.modules.RecorderModule
+import com.syntona.util.formatMinutesSecondsMillis
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -61,6 +63,7 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -422,6 +425,34 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color? = null, la
                         color = Color.Green,
                         fontSize = 14.sp,
                         modifier = Modifier.align(Alignment.Center)
+                    )
+                }
+            }
+
+            // Show the transport position for RecorderModule. The cursor is advanced on the audio
+            // thread and is not Compose state, so poll it rather than expecting a recomposition.
+            if (module is RecorderModule) {
+                var cursorText by remember { mutableStateOf(formatMinutesSecondsMillis(0.0)) }
+                LaunchedEffect(module) {
+                    while (true) {
+                        cursorText = formatMinutesSecondsMillis(module.unit.cursorSeconds)
+                        delay(50)
+                    }
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .background(Color.Black),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = cursorText,
+                        color = if (module.unit.isRecording) Color.Red else Color.Green,
+                        fontSize = 12.sp,
+                        // Monospace keeps every digit the same width, so the module does not
+                        // change size as the time advances.
+                        fontFamily = FontFamily.Monospace
                     )
                 }
             }

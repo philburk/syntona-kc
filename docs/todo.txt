@@ -8,17 +8,18 @@ Add my old recursive generator algorithm. From old JSyn example in AWT.
 
 Samples -----------------------------
 Loaded sample module is best for playing sampled instruments, eg. clarinet.
-Need easier to use sample for recording and playback. Call it "recording"?
+Add Load and SaveAs in module editor.
 Require
-* indefinite recording time using box car memory model (KSyn now or move later) FloatRecording ?
-* controls for record, play, pause
 * easily make a one track looper, is the loop time external
 * how do we support multiple tracks that are synchronized in loop size?
-* input jack for recording
-* output jack for playback
 * need visual indicator, sample overview in middle?
 * editing capability based on edit list from ListenUp
+* account for latency when adjusting recordings
 
+Add latency round trip measurement based on noise pulses
+and normalized correlation from OboeTester.
+
+beatClock should have 2/1 3/1 and 4/1
 
 Seq8 reset should not kick.
 seq8 could have an "all" jack that sends all 8 values

@@ -132,7 +132,36 @@ class SegmentedFloatArray(
         if (newLength > capacity) {
             addSegment()
         }
+        // Clear the new range so it reads as zero even when it is reusing capacity that held
+        // data before a truncate(). At most segmentSize values, so the cost stays bounded.
+        fillRange(length, newLength, 0f)
         length = newLength
+    }
+
+    /**
+     * Shrinks the valid range to [newLength], discarding everything after it. Capacity is kept,
+     * so growing back into the discarded range needs no new segments, and [extend] clears it so
+     * the old values are not visible again.
+     *
+     * Cheap regardless of how much is discarded: no memory is touched or released here.
+     */
+    fun truncate(newLength: Int) {
+        require(newLength >= 0) { "newLength must not be negative, was $newLength" }
+        require(newLength <= length) {
+            "newLength ($newLength) must not exceed length ($length); use extend() to grow"
+        }
+        length = newLength
+    }
+
+    /** Fills `[from, to)` with [value], walking segment by segment. */
+    private fun fillRange(from: Int, to: Int, value: Float) {
+        var index = from
+        while (index < to) {
+            val offset = offsetOf(index)
+            val n = minOf(to - index, segmentSize - offset)
+            segments[segmentOf(index)]!!.fill(value, offset, offset + n)
+            index += n
+        }
     }
 
     private fun addSegment() {
