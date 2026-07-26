@@ -298,6 +298,10 @@ fun main() {
                             target.filePath = null
                         }
                     }
+                    Separator()
+                    Item("Settings...", shortcut = KeyShortcut(Key.Comma, meta = true)) {
+                        com.syntona.ui.SettingsDialogState.open()
+                    }
                 }
                 Menu("Edit") {
                     val gs = state.activeGraphState

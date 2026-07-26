@@ -42,6 +42,19 @@ abstract class AudioStreamManager {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     var context: Any? = null
 
+    /**
+     * Device ids to open, or -1 to let the platform choose. Set these before calling [start];
+     * they are resolved from stored device names by the caller, since ids are not stable.
+     */
+    var requestedOutputDeviceId: Int = -1
+    var requestedInputDeviceId: Int = -1
+
+    /** Name of the device each stream actually opened, valid once [start] has succeeded. */
+    var activeOutputDeviceName: String = ""
+        private set
+    var activeInputDeviceName: String = ""
+        private set
+
     private fun startAudioStreamJob(): Job {
         audioStreamJob?.cancel()
 
@@ -78,13 +91,15 @@ abstract class AudioStreamManager {
                     sampleRate = optimalSampleRate
                     framesPerBuffer = bufferSizeFrames
                     channels = 1
+                    deviceId = requestedInputDeviceId
                 }
                 val openRes = inputCandidate.open()
                 if (openRes == AudioResult.OK) {
                     val startRes = inputCandidate.start()
                     if (startRes == AudioResult.OK) {
                         activeInputBridge = inputCandidate
-                        println("AudioInputBridge opened and started successfully.")
+                        activeInputDeviceName = inputCandidate.getCurrentDeviceName()
+                        println("AudioInputBridge opened and started on '$activeInputDeviceName'.")
                     } else {
                         inputCandidate.close()
                     }
@@ -100,6 +115,7 @@ abstract class AudioStreamManager {
         val outputCandidate = AudioOutputBridge.create {
             sampleRate = optimalSampleRate
             framesPerBuffer = bufferSizeFrames
+            deviceId = requestedOutputDeviceId
         }
         val openResult = outputCandidate.open()
         if (openResult != AudioResult.OK) {
@@ -120,8 +136,9 @@ abstract class AudioStreamManager {
             return startResult
         }
         this.audioBridge = outputCandidate
+        activeOutputDeviceName = outputCandidate.getCurrentDeviceName()
         isBridgeOpen = true
-        println("AudioBridge opened and started.")
+        println("AudioBridge opened and started on '$activeOutputDeviceName'.")
 
         startAudioStreamJob()
         return AudioResult.OK
@@ -139,6 +156,8 @@ abstract class AudioStreamManager {
             println("Audio stream coroutine finishing. Call audioBridge.close()")
             audioBridge.close()
             isBridgeOpen = false
+            activeOutputDeviceName = ""
+            activeInputDeviceName = ""
             println("Audio stream stopped and closed.")
         }
     }

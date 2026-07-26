@@ -587,6 +587,14 @@ fun App(
                                                       }
                                                   }
                                               )
+                                              HorizontalDivider()
+                                              DropdownMenuItem(
+                                                  text = { Text("Settings...") },
+                                                  onClick = {
+                                                      fileExpanded = false
+                                                      com.syntona.ui.SettingsDialogState.open()
+                                                  }
+                                              )
                                          }
                                      }
                                  }
@@ -993,6 +1001,11 @@ fun App(
                             confirmButton = {
                                 Button(onClick = { FileState.loadingProblemsReport = null }) { Text("OK") }
                             }
+                        )
+                    }
+                    if (com.syntona.ui.SettingsDialogState.isVisible) {
+                        com.syntona.ui.SettingsDialog(
+                            onDismiss = { com.syntona.ui.SettingsDialogState.close() }
                         )
                     }
                     com.syntona.dataflow.modules.PolyPatchPrompter.activePromptModule?.let { module ->
