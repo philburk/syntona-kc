@@ -1,5 +1,6 @@
 package com.syntona.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -33,7 +34,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -42,11 +46,15 @@ import com.softsynth.audiobridge.AudioDeviceInfo
 import com.softsynth.audiobridge.AudioDeviceManager
 import com.softsynth.audiobridge.AudioInputBridge
 import com.syntona.core.audio.AudioSettings
+import com.syntona.core.audio.LatencyMeasurement
 import com.syntona.core.audio.SynthKSyn
+import kotlin.math.abs
+import kotlin.math.log10
 import kotlinx.coroutines.launch
 
 private enum class SettingsTab(val title: String) {
-    AUDIO("Audio")
+    AUDIO("Audio"),
+    LATENCY("Latency")
 }
 
 /**
@@ -91,6 +99,7 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                 Box(modifier = Modifier.heightIn(min = 220.dp)) {
                     when (selectedTab) {
                         SettingsTab.AUDIO -> AudioSettingsTab()
+                        SettingsTab.LATENCY -> LatencySettingsTab()
                     }
                 }
             }
@@ -184,6 +193,274 @@ private fun AudioSettingsTab() {
             color = Color.Gray
         )
     }
+}
+
+@Composable
+private fun LatencySettingsTab() {
+    val scope = rememberCoroutineScope()
+    val supported = remember { LatencyMeasurement.isSupported() }
+    val running = LatencyMeasurement.isRunning
+    val result = LatencyMeasurement.result
+    var logScale by remember { mutableStateOf(false) }
+    var showFineCurve by remember { mutableStateOf(false) }
+
+    // Whatever was measured previously for the devices currently open.
+    val storedFrames = remember(
+        AudioSettings.activeInputName,
+        AudioSettings.activeOutputName,
+        LatencyMeasurement.status
+    ) { AudioSettings.measuredLatencyForActiveDevices() }
+
+    Column(
+        modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Text(
+            "Round-trip latency is the delay from Syntona sending a sample to hearing it come " +
+                "back. Measuring it needs a loopback: either a cable from output to input, or " +
+                "the speaker playing loudly enough for the microphone to hear.",
+            fontSize = 11.sp,
+            color = Color.Gray
+        )
+
+        if (!supported) {
+            Text(
+                "This platform has no audio input, so latency cannot be measured here.",
+                fontSize = 12.sp,
+                color = Color(0xFFFFC107)
+            )
+            return@Column
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF1E1E1E), RoundedCornerShape(4.dp))
+                .border(1.dp, Color(0xFF444444), RoundedCornerShape(4.dp))
+                .padding(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text("Measured latency", fontSize = 11.sp, color = Color.Gray)
+            when {
+                running -> {
+                    Text(
+                        "Measuring… ${(LatencyMeasurement.progress * 100).toInt()}%",
+                        fontSize = 14.sp,
+                        color = Color(0xFFFFC107)
+                    )
+                    Text(
+                        "Keep the room quiet and do not change the volume.",
+                        fontSize = 11.sp,
+                        color = Color.Gray
+                    )
+                }
+
+                result != null && result.isConfident -> {
+                    Text(
+                        text = "${result.latencyFrames} frames  •  " +
+                            "${formatMillis(result.latencyMillis)} ms",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        color = Color(0xFF4CAF50)
+                    )
+                    Text(
+                        "confidence ${formatMillis(result.confidence * 100)}%  at " +
+                            "${result.sampleRate} Hz",
+                        fontSize = 11.sp,
+                        color = Color.Gray
+                    )
+                    Text(
+                        "analysis took ${formatMillis(result.analysisMillis)} ms",
+                        fontSize = 11.sp,
+                        color = Color.Gray
+                    )
+                }
+
+                storedFrames >= 0 -> {
+                    val millis = storedFrames * 1000.0 /
+                        (SynthKSyn.synth.frameRate.takeIf { it > 0 } ?: 48000)
+                    Text(
+                        text = "$storedFrames frames  •  ${formatMillis(millis)} ms",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = FontFamily.Monospace,
+                        color = Color(0xFF4CAF50)
+                    )
+                    Text("saved from an earlier measurement", fontSize = 11.sp, color = Color.Gray)
+                }
+
+                else -> Text("not measured yet", fontSize = 14.sp, color = Color.Gray)
+            }
+
+            if (LatencyMeasurement.status == LatencyMeasurement.Status.FAILED) {
+                Text(
+                    LatencyMeasurement.failureMessage,
+                    fontSize = 11.sp,
+                    color = Color(0xFFFF7043)
+                )
+            }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = { scope.launch { LatencyMeasurement.measure() } },
+                enabled = !running
+            ) {
+                Text(if (result == null && storedFrames < 0) "Measure" else "Measure Again")
+            }
+            Button(onClick = { LatencyMeasurement.clear() }, enabled = !running) {
+                Text("Clear")
+            }
+        }
+
+        // The correlation curve makes it obvious whether the peak is sharp and isolated, or
+        // whether the measurement merely picked the least bad of several similar offsets.
+        val curve = result?.let { if (showFineCurve) it.fine else it.coarse }
+        if (result != null && curve != null && curve.values.isNotEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Correlation vs. offset", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = { showFineCurve = !showFineCurve }) {
+                        Text(if (showFineCurve) "Fine" else "Coarse", fontSize = 11.sp)
+                    }
+                    TextButton(onClick = { logScale = !logScale }) {
+                        Text(if (logScale) "Log" else "Linear", fontSize = 11.sp)
+                    }
+                }
+            }
+            CorrelationChart(
+                correlations = curve.values,
+                firstFrame = curve.firstFrame,
+                stride = curve.stride,
+                peakFrame = result.latencyFrames,
+                logScale = logScale,
+                modifier = Modifier.fillMaxWidth().height(110.dp)
+            )
+            Text(
+                text = if (showFineCurve) {
+                    "Fine pass: every frame from ${curve.firstFrame} to ${curve.lastFrame}, which " +
+                        "is how precisely the exact frame could be pinned down."
+                } else {
+                    "Coarse pass: every ${curve.stride} frames from ${curve.firstFrame} to " +
+                        "${curve.lastFrame}, which is where the pulse was found. One clear peak " +
+                        "means a reliable result."
+                },
+                fontSize = 10.sp,
+                color = Color.Gray
+            )
+        }
+
+        if (LatencyMeasurement.measuredInputName.isNotEmpty()) {
+            Text(
+                "Saved for: ${LatencyMeasurement.measuredInputName} → " +
+                    LatencyMeasurement.measuredOutputName,
+                fontSize = 10.sp,
+                color = Color.Gray
+            )
+        }
+    }
+}
+
+/**
+ * Plots correlation magnitude against offset, with the chosen peak marked.
+ *
+ * There are far more correlation values than there are pixels, so each column shows the largest
+ * magnitude falling within it. Taking the maximum rather than sampling matters: a single-pixel
+ * peak would otherwise be skipped over entirely.
+ */
+@Composable
+private fun CorrelationChart(
+    correlations: FloatArray,
+    firstFrame: Int,
+    stride: Int,
+    peakFrame: Int,
+    logScale: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Canvas(
+        modifier = modifier
+            .background(Color(0xFF141414), RoundedCornerShape(4.dp))
+            .border(1.dp, Color(0xFF444444), RoundedCornerShape(4.dp))
+    ) {
+        if (correlations.isEmpty()) return@Canvas
+
+        val columns = size.width.toInt().coerceIn(1, correlations.size)
+        val perColumn = correlations.size.toFloat() / columns
+
+        // Reduce to one magnitude per pixel column.
+        val peaks = FloatArray(columns)
+        for (column in 0 until columns) {
+            val start = (column * perColumn).toInt()
+            val end = (((column + 1) * perColumn).toInt()).coerceAtMost(correlations.size)
+            var highest = 0f
+            for (i in start until end.coerceAtLeast(start + 1)) {
+                if (i < correlations.size) {
+                    val magnitude = abs(correlations[i])
+                    if (magnitude > highest) highest = magnitude
+                }
+            }
+            peaks[column] = highest
+        }
+
+        val maxMagnitude = peaks.max().coerceAtLeast(1.0e-6f)
+
+        // Correlation magnitude is always positive, so the baseline is the bottom of the plot
+        // rather than the middle. On a log axis everything below the floor is clamped to zero.
+        fun heightFraction(magnitude: Float): Float = if (logScale) {
+            val floorDb = LOG_FLOOR_DB
+            val db = 20f * log10((magnitude / maxMagnitude).coerceAtLeast(1.0e-9f))
+            ((db - floorDb) / -floorDb).coerceIn(0f, 1f)
+        } else {
+            (magnitude / maxMagnitude).coerceIn(0f, 1f)
+        }
+
+        // Horizontal guides at quarters of full scale.
+        for (fraction in listOf(0.25f, 0.5f, 0.75f)) {
+            val y = size.height * (1f - fraction)
+            drawLine(
+                color = Color(0xFF2E2E2E),
+                start = Offset(0f, y),
+                end = Offset(size.width, y),
+                strokeWidth = 1f
+            )
+        }
+
+        val stepX = size.width / (columns - 1).coerceAtLeast(1)
+        val path = Path()
+        for (column in 0 until columns) {
+            val x = column * stepX
+            val y = size.height * (1f - heightFraction(peaks[column]))
+            if (column == 0) path.moveTo(x, y) else path.lineTo(x, y)
+        }
+        drawPath(path, color = Color(0xFF4CAF50), style = Stroke(width = 1.5f))
+
+        // Mark the offset that was reported as the latency.
+        val peakIndex = (peakFrame - firstFrame) / stride.coerceAtLeast(1)
+        if (peakIndex in correlations.indices) {
+            val x = (peakIndex / perColumn) * stepX
+            drawLine(
+                color = Color(0xFFFFC107),
+                start = Offset(x, 0f),
+                end = Offset(x, size.height),
+                strokeWidth = 1f
+            )
+        }
+    }
+}
+
+/** Lowest level shown on the log axis, relative to the peak. */
+private const val LOG_FLOOR_DB = -60f
+
+private fun formatMillis(value: Double): String {
+    val scaled = (value * 100).toLong()
+    val whole = scaled / 100
+    val fraction = (if (scaled < 0) -scaled else scaled) % 100
+    return "$whole.${fraction.toString().padStart(2, '0')}"
 }
 
 /** Shows which devices are actually open right now, which is what the user cares about. */

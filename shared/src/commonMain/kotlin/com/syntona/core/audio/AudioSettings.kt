@@ -88,4 +88,53 @@ object AudioSettings {
         if (name.isNullOrEmpty()) return false
         return resolveDeviceId(name, devices) == DEFAULT_DEVICE_ID
     }
+
+    // --- Measured round-trip latency, remembered per pair of devices -------------------------
+
+    /**
+     * Settings key for the latency of one input/output pairing.
+     *
+     * Latency depends on both devices, so each combination gets its own entry. Device names can
+     * be long and contain characters that would need escaping, so the pair is reduced to a short
+     * stable hash rather than being used verbatim.
+     */
+    fun latencyKey(inputName: String, outputName: String): String =
+        "$KEY_LATENCY_PREFIX${shortStableHash("$inputName|$outputName")}"
+
+    /** Latency measured for these devices, in frames, or -1 if it has never been measured. */
+    fun getMeasuredLatencyFrames(inputName: String, outputName: String): Int =
+        settings.getInt(latencyKey(inputName, outputName), -1)
+
+    fun setMeasuredLatencyFrames(inputName: String, outputName: String, frames: Int) {
+        val key = latencyKey(inputName, outputName)
+        settings.edit {
+            putInt(key, frames)
+            // Keep the readable names alongside the hash so the stored file can be understood
+            // and so a stale entry can be recognised by a human.
+            putString("$key.devices", "$inputName -> $outputName")
+        }
+    }
+
+    /** Latency for the devices currently open, or -1 if unknown. */
+    fun measuredLatencyForActiveDevices(): Int =
+        if (activeInputName.isEmpty() && activeOutputName.isEmpty()) -1
+        else getMeasuredLatencyFrames(activeInputName, activeOutputName)
+
+    const val KEY_LATENCY_PREFIX = "audio.latency."
+}
+
+/**
+ * A short, stable hash of [text], rendered as 8 hex digits.
+ *
+ * FNV-1a is used rather than [String.hashCode] because the latter is only specified on the JVM;
+ * this has to produce the same key on desktop, Android and in the browser, or a saved measurement
+ * would not be found again on another platform.
+ */
+internal fun shortStableHash(text: String): String {
+    var hash = 2166136261u // FNV-1a 32-bit offset basis
+    for (character in text) {
+        hash = hash xor character.code.toUInt()
+        hash *= 16777619u // FNV prime
+    }
+    return hash.toString(16).padStart(8, '0')
 }

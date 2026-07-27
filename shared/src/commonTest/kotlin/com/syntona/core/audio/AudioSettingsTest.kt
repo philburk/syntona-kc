@@ -76,6 +76,50 @@ class AudioSettingsTest {
     }
 
     @Test
+    fun testLatencyKeyIsStableAndDistinguishesDevicePairs() {
+        val a = AudioSettings.latencyKey("Scarlett In", "Scarlett Out")
+        val b = AudioSettings.latencyKey("Scarlett In", "Scarlett Out")
+        assertEquals(a, b, "the same pair must always produce the same key")
+
+        // Different pairings must not collide, including the two names swapped.
+        val different = AudioSettings.latencyKey("Scarlett In", "Built-in Output")
+        val swapped = AudioSettings.latencyKey("Scarlett Out", "Scarlett In")
+        assertTrue(a != different, "different output should give a different key")
+        assertTrue(a != swapped, "input and output are not interchangeable")
+
+        assertTrue(a.startsWith(AudioSettings.KEY_LATENCY_PREFIX))
+    }
+
+    @Test
+    fun testLatencyKeyIsShort() {
+        // Device names can be long; the key should stay compact and free of awkward characters.
+        val key = AudioSettings.latencyKey(
+            "Some Very Long Audio Interface Name With Spaces (USB Audio Device)",
+            "Another Extremely Long Output Device Name = With Punctuation"
+        )
+        val hash = key.removePrefix(AudioSettings.KEY_LATENCY_PREFIX)
+        assertEquals(8, hash.length, "hash should be 8 hex digits, was '$hash'")
+        assertTrue(hash.all { it in "0123456789abcdef" }, "hash should be hex, was '$hash'")
+    }
+
+    @Test
+    fun testShortStableHashIsDeterministicAndSpreadsValues() {
+        assertEquals(shortStableHash("hello"), shortStableHash("hello"))
+        assertTrue(shortStableHash("hello") != shortStableHash("hellp"))
+        assertTrue(shortStableHash("") .isNotEmpty(), "empty input should still hash")
+
+        // A handful of realistic names should not collide.
+        val names = listOf(
+            "Built-in Microphone|Built-in Output",
+            "Clarett 2Pre USB|Clarett 2Pre USB",
+            "Scarlett 2i2 USB|External Headphones",
+            "USB Audio CODEC|USB Audio CODEC",
+            "MacBook Pro Microphone|MacBook Pro Speakers"
+        )
+        assertEquals(names.size, names.map { shortStableHash(it) }.toSet().size, "hash collision")
+    }
+
+    @Test
     fun testDefaultDeviceIdMatchesTheBridgeConvention() {
         // AudioConfig.Builder uses -1 to mean "let the platform choose".
         assertEquals(-1, AudioSettings.DEFAULT_DEVICE_ID)

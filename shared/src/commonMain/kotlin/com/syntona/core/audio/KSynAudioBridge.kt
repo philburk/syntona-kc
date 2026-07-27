@@ -45,6 +45,40 @@ class KSynAudioBridge(val synth: Synthesizer): AudioStreamManager() {
     var duplexMode: DuplexMode = DuplexMode.IDLE
         private set
 
+    /**
+     * When set, the latency analyzer takes over the signal path: it receives the microphone input
+     * and its output replaces the synth's, so it can emit its test pulse and hear it come back.
+     * Cleared again when the measurement finishes.
+     */
+    @Volatile
+    var latencyAnalyzer: com.syntona.util.LatencyAnalyzer? = null
+
+    /**
+     * Replaces the rendered audio with the analyzer's output, one input frame per output frame.
+     *
+     * Frame alignment matters here: the measurement is the offset between a sample going out and
+     * coming back, so the analyzer must see exactly one input sample for every sample it emits.
+     */
+    private fun applyLatencyAnalyzer(
+        analyzer: com.syntona.util.LatencyAnalyzer,
+        monoInput: FloatArray,
+        stereoOutput: FloatArray
+    ) {
+        val outputFrames = stereoOutput.size / STEREO_CHANNELS
+        val frames = min(outputFrames, monoInput.size)
+        for (i in 0 until frames) {
+            val sample = analyzer.processFrame(monoInput[i])
+            stereoOutput[i * STEREO_CHANNELS] = sample
+            stereoOutput[i * STEREO_CHANNELS + 1] = sample
+        }
+        // Should not happen while the render block and the input block are the same size, but
+        // silence anything left rather than letting stale synth audio through.
+        for (i in frames until outputFrames) {
+            stereoOutput[i * STEREO_CHANNELS] = 0f
+            stereoOutput[i * STEREO_CHANNELS + 1] = 0f
+        }
+    }
+
     override suspend fun onAudioTask(scope: CoroutineScope) {
         println("KSynAudioBridge onAudioTask started.")
 
@@ -99,6 +133,13 @@ class KSynAudioBridge(val synth: Synthesizer): AudioStreamManager() {
                     }
                 } else {
                     synth.renderBuffer()
+                }
+
+                // A latency measurement, if one is running, replaces the synth output entirely.
+                latencyAnalyzer?.let { analyzer ->
+                    if (isInputActive && duplexMode == DuplexMode.STABLE) {
+                        applyLatencyAnalyzer(analyzer, monoInputBuffer, stereoBuffer)
+                    }
                 }
 
                 recordingFifo?.let { fifo ->
