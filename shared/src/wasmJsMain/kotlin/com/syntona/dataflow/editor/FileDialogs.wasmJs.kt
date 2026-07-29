@@ -39,6 +39,10 @@ actual fun showSaveFileDialog(content: String, defaultName: String, onSaved: (pa
     onSaved(defaultName)
 }
 
+actual fun isSaveAsResourceAvailable(): Boolean = false
+
+actual fun showSaveAsResourceFileDialog(content: String, defaultName: String, onSaved: (path: String) -> Unit) {}
+
 actual fun saveFileDirect(path: String, content: String) {
     // On WASM, "path" is just the filename; re-trigger the download.
     jsSaveFile(content, path)

@@ -156,5 +156,6 @@ class SettingsStore(
 
         /** Key for the directory the user last opened or saved a patch in. */
         const val KEY_LAST_DIRECTORY = "lastDirectoryUsed"
+        const val KEY_LAST_DOCUMENT_DIRECTORY = "lastDocumentDirectoryUsed"
     }
 }

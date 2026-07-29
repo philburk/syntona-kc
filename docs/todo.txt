@@ -4,8 +4,6 @@ Help trace wires by highlighting the wires connected to a highlighted module.
 Widget to put wires in front.
 Label wire outputs with order (1) (2)
 
-Add my old recursive generator algorithm. From old JSyn example in AWT. <===!!!
-
 Samples -----------------------------
 Loaded sample module is best for playing sampled instruments, eg. clarinet.
 Add Load and SaveAs in module editor.

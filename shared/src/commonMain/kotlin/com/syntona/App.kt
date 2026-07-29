@@ -514,48 +514,92 @@ fun App(
                                                   }
                                               )
                                               DropdownMenuItem(
-                                                  text = { Text("Save As...") },
-                                                  trailingIcon = { ShortcutHint("⌘⇧S") },
-                                                  onClick = {
-                                                      fileExpanded = false
-                                                      val modifiedChildren = rootPatch.findModifiedReferencedPatches()
-                                                      if (modifiedChildren.isNotEmpty()) {
-                                                          FileState.patchesToConfirmSave.clear()
-                                                          FileState.patchesToConfirmSave.addAll(modifiedChildren)
-                                                          FileState.postConfirmationSaveAction = {
-                                                              showSaveFileDialog(
-                                                                  GraphSerializer.serialize(
-                                                                      gs, gs.modules.toList(), appDensity,
-                                                                      rootWindowX = rootPatch.windowX,
-                                                                      rootWindowY = rootPatch.windowY,
-                                                                      rootWindowWidth = rootPatch.windowWidth,
-                                                                      rootWindowHeight = rootPatch.windowHeight
-                                                                  ),
-                                                                  FileState.currentFileName ?: "patch.json"
-                                                              ) { savedPath ->
-                                                                  rootPatch.filePath = savedPath
-                                                                  rootPatch.clearModifiedRecursively()
-                                                                  FileState.markSaved(savedPath)
-                                                              }
-                                                          }
-                                                      } else {
-                                                          showSaveFileDialog(
-                                                              GraphSerializer.serialize(
-                                                                  gs, gs.modules.toList(), appDensity,
-                                                                  rootWindowX = rootPatch.windowX,
-                                                                  rootWindowY = rootPatch.windowY,
-                                                                  rootWindowWidth = rootPatch.windowWidth,
-                                                                  rootWindowHeight = rootPatch.windowHeight
-                                                              ),
-                                                              FileState.currentFileName ?: "patch.json"
-                                                          ) { savedPath ->
-                                                              rootPatch.filePath = savedPath
-                                                              rootPatch.clearModifiedRecursively()
-                                                              FileState.markSaved(savedPath)
-                                                          }
-                                                      }
-                                                  }
-                                              )
+                                                   text = { Text("Save As...") },
+                                                   trailingIcon = { ShortcutHint("⌘⇧S") },
+                                                   onClick = {
+                                                       fileExpanded = false
+                                                       val modifiedChildren = rootPatch.findModifiedReferencedPatches()
+                                                       if (modifiedChildren.isNotEmpty()) {
+                                                           FileState.patchesToConfirmSave.clear()
+                                                           FileState.patchesToConfirmSave.addAll(modifiedChildren)
+                                                           FileState.postConfirmationSaveAction = {
+                                                               showSaveFileDialog(
+                                                                   GraphSerializer.serialize(
+                                                                       gs, gs.modules.toList(), appDensity,
+                                                                       rootWindowX = rootPatch.windowX,
+                                                                       rootWindowY = rootPatch.windowY,
+                                                                       rootWindowWidth = rootPatch.windowWidth,
+                                                                       rootWindowHeight = rootPatch.windowHeight
+                                                                   ),
+                                                                   FileState.currentFileName ?: "patch.json"
+                                                               ) { savedPath ->
+                                                                   rootPatch.filePath = savedPath
+                                                                   rootPatch.clearModifiedRecursively()
+                                                                   FileState.markSaved(savedPath)
+                                                               }
+                                                           }
+                                                       } else {
+                                                           showSaveFileDialog(
+                                                               GraphSerializer.serialize(
+                                                                   gs, gs.modules.toList(), appDensity,
+                                                                   rootWindowX = rootPatch.windowX,
+                                                                   rootWindowY = rootPatch.windowY,
+                                                                   rootWindowWidth = rootPatch.windowWidth,
+                                                                   rootWindowHeight = rootPatch.windowHeight
+                                                               ),
+                                                               FileState.currentFileName ?: "patch.json"
+                                                           ) { savedPath ->
+                                                               rootPatch.filePath = savedPath
+                                                               rootPatch.clearModifiedRecursively()
+                                                               FileState.markSaved(savedPath)
+                                                           }
+                                                       }
+                                                   }
+                                               )
+                                               if (isSaveAsResourceAvailable()) {
+                                                   DropdownMenuItem(
+                                                       text = { Text("SaveAsResource...") },
+                                                       onClick = {
+                                                           fileExpanded = false
+                                                           val modifiedChildren = rootPatch.findModifiedReferencedPatches()
+                                                           if (modifiedChildren.isNotEmpty()) {
+                                                               FileState.patchesToConfirmSave.clear()
+                                                               FileState.patchesToConfirmSave.addAll(modifiedChildren)
+                                                               FileState.postConfirmationSaveAction = {
+                                                                   showSaveAsResourceFileDialog(
+                                                                       GraphSerializer.serialize(
+                                                                           gs, gs.modules.toList(), appDensity,
+                                                                           rootWindowX = rootPatch.windowX,
+                                                                           rootWindowY = rootPatch.windowY,
+                                                                           rootWindowWidth = rootPatch.windowWidth,
+                                                                           rootWindowHeight = rootPatch.windowHeight
+                                                                       ),
+                                                                       FileState.currentFileName ?: "patch.json"
+                                                                   ) { savedPath ->
+                                                                       rootPatch.filePath = savedPath
+                                                                       rootPatch.clearModifiedRecursively()
+                                                                       FileState.markSaved(savedPath)
+                                                                   }
+                                                               }
+                                                           } else {
+                                                               showSaveAsResourceFileDialog(
+                                                                   GraphSerializer.serialize(
+                                                                       gs, gs.modules.toList(), appDensity,
+                                                                       rootWindowX = rootPatch.windowX,
+                                                                       rootWindowY = rootPatch.windowY,
+                                                                       rootWindowWidth = rootPatch.windowWidth,
+                                                                       rootWindowHeight = rootPatch.windowHeight
+                                                                   ),
+                                                                   FileState.currentFileName ?: "patch.json"
+                                                               ) { savedPath ->
+                                                                   rootPatch.filePath = savedPath
+                                                                   rootPatch.clearModifiedRecursively()
+                                                                   FileState.markSaved(savedPath)
+                                                               }
+                                                           }
+                                                       }
+                                                   )
+                                               }
                                               DropdownMenuItem(
                                                   text = { Text("Save Patch As...") },
                                                   onClick = {

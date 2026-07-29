@@ -16,8 +16,10 @@ import com.syntona.dataflow.editor.MdiWindowInfo
 import com.syntona.dataflow.editor.GraphEditor
 import com.syntona.dataflow.editor.JsonParser
 import com.syntona.dataflow.editor.JsonValue
+import com.syntona.dataflow.editor.isSaveAsResourceAvailable
 import com.syntona.dataflow.editor.saveFileDirect
 import com.syntona.dataflow.editor.showOpenFileDialog
+import com.syntona.dataflow.editor.showSaveAsResourceFileDialog
 import com.syntona.dataflow.editor.showSaveFileDialog
 import com.syntona.dataflow.modules.LinkModule
 import com.syntona.dataflow.modules.PatchModule
@@ -267,6 +269,51 @@ fun main() {
                                         rootPatch.filePath = savedPath
                                         rootPatch.clearModifiedRecursively()
                                         FileState.markSaved(savedPath)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (isSaveAsResourceAvailable()) {
+                        Item("SaveAsResource...") {
+                            if (gs != null) {
+                                val rootPatch = state.windows.find { !it.closable }?.id as? PatchModule
+                                if (rootPatch != null) {
+                                    val modifiedChildren = rootPatch.findModifiedReferencedPatches()
+                                    if (modifiedChildren.isNotEmpty()) {
+                                        FileState.patchesToConfirmSave.clear()
+                                        FileState.patchesToConfirmSave.addAll(modifiedChildren)
+                                        FileState.postConfirmationSaveAction = {
+                                            showSaveAsResourceFileDialog(
+                                                GraphSerializer.serialize(
+                                                    gs, gs.modules.toList(), density,
+                                                    rootWindowX = rootPatch.windowX,
+                                                    rootWindowY = rootPatch.windowY,
+                                                    rootWindowWidth = rootPatch.windowWidth,
+                                                    rootWindowHeight = rootPatch.windowHeight
+                                                ),
+                                                FileState.currentFileName ?: "patch.json"
+                                            ) { savedPath ->
+                                                rootPatch.filePath = savedPath
+                                                rootPatch.clearModifiedRecursively()
+                                                FileState.markSaved(savedPath)
+                                            }
+                                        }
+                                    } else {
+                                        showSaveAsResourceFileDialog(
+                                            GraphSerializer.serialize(
+                                                gs, gs.modules.toList(), density,
+                                                rootWindowX = rootPatch.windowX,
+                                                rootWindowY = rootPatch.windowY,
+                                                rootWindowWidth = rootPatch.windowWidth,
+                                                rootWindowHeight = rootPatch.windowHeight
+                                            ),
+                                            FileState.currentFileName ?: "patch.json"
+                                        ) { savedPath ->
+                                            rootPatch.filePath = savedPath
+                                            rootPatch.clearModifiedRecursively()
+                                            FileState.markSaved(savedPath)
+                                        }
                                     }
                                 }
                             }
