@@ -98,6 +98,7 @@ object ModuleRegistry {
             ScaleModule("diatonic", isEditable = false, doubleArrayOf(0.0, 2.0, 4.0, 5.0, 7.0, 9.0, 11.0)) })
         compose.modules.add(ModuleEntry("scale") {
             ScaleModule("scale", isEditable = true, doubleArrayOf(0.0, 2.0, 4.0, 7.0, 9.0)) })
+        compose.modules.add(ModuleEntry("recSeq") { RecSeqModule() })
 
         val ksyn = getOrCreateBundle(root, "ksyn")
         addKSynModule(ksyn, "lineIn", ::LineIn)

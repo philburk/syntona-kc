@@ -10,11 +10,11 @@ import kotlin.random.Random
  *
  *   value[n] = value[n-delay] + offset
  *
- * The parameters length and transpose are randomly generated.
+ * The parameters delay and offset are randomly generated.
  */
 class RecursiveSequence @JvmOverloads constructor(
-    var maxValue: Int = 25,
-    var maxInterval: Int = 7,
+    var maxValue: Int = 11,
+    var maxInterval: Int = 4,
     arraySize: Int = 64
 ) {
     val maxDelay: Int = arraySize / 2
@@ -29,7 +29,13 @@ class RecursiveSequence @JvmOverloads constructor(
     /** Note density, from 0.0 to 1.0. */
     var density: Double = 0.5
 
-    var beatsPerMeasure: Int = 8
+    /**
+     * Number of steps in one repeat of the accent pattern used by [next].
+     *
+     * Not necessarily beats in a measure: the counter passed to [next] can be any steadily
+     * increasing count, and the cycle can be any grouping of it.
+     */
+    var stepsPerCycle: Int = 8
 
     init {
         for (i in enables.indices) {
@@ -81,10 +87,16 @@ class RecursiveSequence @JvmOverloads constructor(
         return nextValue()
     }
 
-    /** Change parameters using a probability based on beatIndex. */
-    fun next(beatIndex: Int): Int {
-        val beatMod = beatIndex % beatsPerMeasure
-        when (beatMod) {
+    /**
+     * Change parameters using a probability based on where [stepIndex] falls in the cycle, so
+     * that changes are emphasized on cycle boundaries.
+     *
+     * Note that the positions below are tuned for a [stepsPerCycle] of 8; other cycle lengths
+     * will only reach some of them.
+     */
+    fun next(stepIndex: Int): Int {
+        val positionInCycle = stepIndex % stepsPerCycle
+        when (positionInCycle) {
             0 -> if (Random.nextDouble() < 0.90) randomize()
             2, 6 -> if (Random.nextDouble() < 0.15) randomize()
             4 -> if (Random.nextDouble() < 0.30) randomize()

@@ -1,0 +1,573 @@
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "core.basic.clock",
+      "name": "clock",
+      "x": 183.875,
+      "y": 170,
+      "jacks": {
+        "period(ms)": {
+          "v": 141.30149128858378,
+          "min": 1,
+          "max": 10000
+        }
+      }
+    },
+    {
+      "id": 1,
+      "type": "core.input.loadKick",
+      "name": "loadKick",
+      "x": 51.125,
+      "y": 181,
+      "jacks": {}
+    },
+    {
+      "id": 2,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 46.899994,
+      "y": 13.075012,
+      "jacks": {},
+      "text": "Generate a complex sequence using a simple recursive equation.\n\n    value[n] = value[n-delay] + offset\n\nThe delay and offset are randomly changed.",
+      "w": 498.82324,
+      "h": 99.25
+    },
+    {
+      "id": 3,
+      "type": "ksyn.lineOut",
+      "name": "lineOut",
+      "x": 1206.875,
+      "y": 276,
+      "jacks": {
+        "input0": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "add": false
+        },
+        "input1": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "core.polyPatch",
+      "name": "polyPatch",
+      "x": 1053.875,
+      "y": 248,
+      "jacks": {},
+      "maxVoices": 4,
+      "windowX": 829.9439,
+      "windowY": 60.957336,
+      "windowWidth": 583.00946,
+      "windowHeight": 589.9957,
+      "windowOpen": true,
+      "patch": {
+        "modules": [
+          {
+            "id": 0,
+            "type": "ksyn.aOutput",
+            "name": "output",
+            "x": 453,
+            "y": 202,
+            "jacks": {
+              "input": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 1,
+            "type": "ksyn.control.p2f",
+            "name": "p2f",
+            "x": 258.91162,
+            "y": 123.08838,
+            "jacks": {
+              "input": {
+                "v": 60,
+                "min": 0,
+                "max": 127,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 2,
+            "type": "ksyn.sources.triOsc",
+            "name": "triOsc",
+            "x": 135.875,
+            "y": 22,
+            "jacks": {
+              "frequency": {
+                "v": 9.147310256958008,
+                "min": 0.10000000149011612,
+                "max": 10,
+                "add": false
+              },
+              "amplitude": {
+                "v": 0.07174260169267654,
+                "min": 0,
+                "max": 1,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 3,
+            "type": "ksyn.aInput",
+            "name": "pitch",
+            "x": 35,
+            "y": 138,
+            "jacks": {}
+          },
+          {
+            "id": 4,
+            "type": "ksyn.aInput",
+            "name": "amplitude",
+            "x": 31,
+            "y": 214,
+            "jacks": {}
+          },
+          {
+            "id": 5,
+            "type": "ksyn.aInput",
+            "name": "pressure",
+            "x": 28,
+            "y": 349,
+            "jacks": {}
+          },
+          {
+            "id": 6,
+            "type": "ksyn.aInput",
+            "name": "pitchBend",
+            "x": 26,
+            "y": 287,
+            "jacks": {}
+          },
+          {
+            "id": 7,
+            "type": "ksyn.sources.sawOscDPW",
+            "name": "sawOscDPW",
+            "x": 336,
+            "y": 175.875,
+            "jacks": {
+              "frequency": {
+                "v": 440,
+                "min": 40,
+                "max": 8000,
+                "add": false
+              },
+              "amplitude": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 8,
+            "type": "ksyn.control.DAHDSR",
+            "name": "DAHDSR",
+            "x": 154.875,
+            "y": 189,
+            "jacks": {
+              "input": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "add": false
+              },
+              "delay": {
+                "v": 0,
+                "min": 0,
+                "max": 2,
+                "add": false
+              },
+              "attack": {
+                "v": 0.010893763042986393,
+                "min": 0,
+                "max": 1,
+                "add": false
+              },
+              "hold": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "add": false
+              },
+              "decay": {
+                "v": 0.34479954838752747,
+                "min": 0,
+                "max": 1,
+                "add": false
+              },
+              "sustain": {
+                "v": 0.45036154985427856,
+                "min": 0,
+                "max": 1,
+                "add": false
+              },
+              "release": {
+                "v": 2.7154958248138428,
+                "min": 0,
+                "max": 15,
+                "add": false
+              },
+              "amplitude": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "add": false
+              }
+            }
+          }
+        ],
+        "connections": [
+          {
+            "from": 2,
+            "fromJack": "output",
+            "to": 1,
+            "toJack": "input"
+          },
+          {
+            "from": 3,
+            "fromJack": "output",
+            "to": 1,
+            "toJack": "input"
+          },
+          {
+            "from": 1,
+            "fromJack": "output",
+            "to": 7,
+            "toJack": "frequency"
+          },
+          {
+            "from": 7,
+            "fromJack": "output",
+            "to": 0,
+            "toJack": "input"
+          },
+          {
+            "from": 4,
+            "fromJack": "output",
+            "to": 8,
+            "toJack": "amplitude"
+          },
+          {
+            "from": 8,
+            "fromJack": "output",
+            "to": 7,
+            "toJack": "amplitude"
+          }
+        ]
+      }
+    },
+    {
+      "id": 5,
+      "type": "music.compose.recSeq",
+      "name": "recSeq",
+      "x": 460.125,
+      "y": 163,
+      "jacks": {
+        "stepsPerCycle": {
+          "v": 8,
+          "min": 2,
+          "max": 32
+        },
+        "density": {
+          "v": 0.7469166442104496,
+          "min": 0,
+          "max": 1
+        },
+        "limit": {
+          "v": 11,
+          "min": 2,
+          "max": 35
+        },
+        "maxJump": {
+          "v": 5,
+          "min": 2,
+          "max": 35
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "music.compose.scale",
+      "name": "scale",
+      "x": 673.9116,
+      "y": 161.08838,
+      "jacks": {
+        "offset": {
+          "v": 41,
+          "min": 0,
+          "max": 100
+        }
+      },
+      "scale": "0,2,4,7,9"
+    },
+    {
+      "id": 7,
+      "type": "core.view.showMany",
+      "name": "showMany",
+      "x": 702,
+      "y": 351.875,
+      "jacks": {}
+    },
+    {
+      "id": 8,
+      "type": "music.voices.packNote",
+      "name": "packNote",
+      "x": 951,
+      "y": 168.875,
+      "jacks": {
+        "tag": {
+          "v": -1,
+          "min": -1,
+          "max": 127
+        },
+        "amplitude": {
+          "v": 0.2,
+          "min": 0,
+          "max": 2
+        },
+        "duration": {
+          "v": 20,
+          "min": 0,
+          "max": 1000
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "music.compose.recSeq",
+      "name": "recSeq",
+      "x": 460.125,
+      "y": 376,
+      "jacks": {
+        "stepsPerCycle": {
+          "v": 4,
+          "min": 2,
+          "max": 32
+        },
+        "density": {
+          "v": 0.3648419976234436,
+          "min": 0,
+          "max": 1
+        },
+        "limit": {
+          "v": 11,
+          "min": 2,
+          "max": 35
+        },
+        "maxJump": {
+          "v": 5,
+          "min": 2,
+          "max": 35
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "core.math.+",
+      "name": "+",
+      "x": 588.875,
+      "y": 150,
+      "jacks": {
+        "B": {
+          "v": 10,
+          "min": 0,
+          "max": 100
+        }
+      }
+    },
+    {
+      "id": 11,
+      "type": "core.basic.mod8",
+      "name": "mod8",
+      "x": 156,
+      "y": 347.875,
+      "jacks": {}
+    },
+    {
+      "id": 12,
+      "type": "core.basic.seq8",
+      "name": "seq8",
+      "x": 297.93066,
+      "y": 419.896,
+      "jacks": {
+        "in0": {
+          "v": 36,
+          "min": 0,
+          "max": 100
+        },
+        "in1": {
+          "v": 0,
+          "min": 0,
+          "max": 100
+        },
+        "in2": {
+          "v": 0,
+          "min": 0,
+          "max": 100
+        },
+        "in3": {
+          "v": 0,
+          "min": 0,
+          "max": 100
+        },
+        "in4": {
+          "v": 41,
+          "min": 0,
+          "max": 100
+        },
+        "in5": {
+          "v": 0,
+          "min": 0,
+          "max": 100
+        },
+        "in6": {
+          "v": 0,
+          "min": 0,
+          "max": 100
+        },
+        "in7": {
+          "v": 0,
+          "min": 0,
+          "max": 100
+        }
+      }
+    },
+    {
+      "id": 13,
+      "type": "core.basic.counter",
+      "name": "counter",
+      "x": 219,
+      "y": 418.875,
+      "jacks": {}
+    }
+  ],
+  "connections": [
+    {
+      "from": 0,
+      "fromJack": "output",
+      "to": 5,
+      "toJack": "step"
+    },
+    {
+      "from": 5,
+      "fromJack": "output",
+      "to": 7,
+      "toJack": "in"
+    },
+    {
+      "from": 6,
+      "fromJack": "out",
+      "to": 8,
+      "toJack": "pitch"
+    },
+    {
+      "from": 8,
+      "fromJack": "out",
+      "to": 4,
+      "toJack": "input"
+    },
+    {
+      "from": 6,
+      "fromJack": "out",
+      "to": 7,
+      "toJack": "in"
+    },
+    {
+      "from": 4,
+      "fromJack": "output",
+      "to": 3,
+      "toJack": "input0"
+    },
+    {
+      "from": 4,
+      "fromJack": "output",
+      "to": 3,
+      "toJack": "input1"
+    },
+    {
+      "from": 0,
+      "fromJack": "output",
+      "to": 9,
+      "toJack": "step"
+    },
+    {
+      "from": 5,
+      "fromJack": "output",
+      "to": 10,
+      "toJack": "A"
+    },
+    {
+      "from": 10,
+      "fromJack": "out",
+      "to": 6,
+      "toJack": "in"
+    },
+    {
+      "from": 9,
+      "fromJack": "output",
+      "to": 6,
+      "toJack": "in"
+    },
+    {
+      "from": 0,
+      "fromJack": "output",
+      "to": 11,
+      "toJack": "in"
+    },
+    {
+      "from": 11,
+      "fromJack": "out0",
+      "to": 13,
+      "toJack": "inc"
+    },
+    {
+      "from": 13,
+      "fromJack": "out",
+      "to": 12,
+      "toJack": "in"
+    },
+    {
+      "from": 12,
+      "fromJack": "out0",
+      "to": 6,
+      "toJack": "offset"
+    },
+    {
+      "from": 12,
+      "fromJack": "out4",
+      "to": 6,
+      "toJack": "offset"
+    },
+    {
+      "from": 1,
+      "fromJack": "kick",
+      "to": 0,
+      "toJack": "reset"
+    },
+    {
+      "from": 1,
+      "fromJack": "kick",
+      "to": 0,
+      "toJack": "start"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 1390,
+  "windowHeight": 906.6651611328125
+}

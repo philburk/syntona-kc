@@ -59,6 +59,13 @@ open class InputJack(
     open fun setValue(value: Double) {
         receive(Message.FloatValue(ScoreTime.Zero, value))
     }
+
+    fun getClippedIntValue(): Int {
+        return getDoubleValue().toInt().coerceIn(min.toInt(), max.toInt())
+    }
+    fun getClippedDoubleValue(): Double {
+        return getDoubleValue().coerceIn(min, max)
+    }
 }
 
 /**

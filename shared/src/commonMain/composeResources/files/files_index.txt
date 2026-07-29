@@ -13,6 +13,7 @@ examples/pianoRoll.json
 examples/poly_patch.json
 examples/polyrhythm.json
 examples/pulse_scope.json
+examples/recSeq.json
 examples/recorder.json
 examples/sample.json
 examples/sampler.json
