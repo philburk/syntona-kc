@@ -43,6 +43,7 @@ object ModuleRegistry {
         basic.modules.add(ModuleEntry("mod8") { Mod8Module() })
         basic.modules.add(ModuleEntry("mod16") { Mod16Module() })
         basic.modules.add(ModuleEntry("link") { LinkModule() })
+        basic.modules.add(ModuleEntry("arm") { ArmModule() })
         basic.modules.add(ModuleEntry("send") { SendModule() })
         basic.modules.add(ModuleEntry("receive") { ReceiveModule() })
 

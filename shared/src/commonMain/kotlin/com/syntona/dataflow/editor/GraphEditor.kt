@@ -23,6 +23,7 @@ import androidx.compose.foundation.gestures.drag
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.syntona.dataflow.modules.ArmModule
 import com.syntona.dataflow.modules.RecorderModule
 import com.syntona.util.formatMinutesSecondsMillis
 import androidx.compose.foundation.layout.*
@@ -485,6 +486,22 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color? = null, la
 
 
 
+
+            if (module is ArmModule) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 2.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = if (module.isArmed) "● ARMED" else "○ DISARMED",
+                        color = if (module.isArmed) Color(0xFFFF5252) else Color.Gray,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
 
             // Jacks: inputs at top, outputs at bottom, single column
             module.inputs.forEach { JackView(it, state, isLeft = true) }
