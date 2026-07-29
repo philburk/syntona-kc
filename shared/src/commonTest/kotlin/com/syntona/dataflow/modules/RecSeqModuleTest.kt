@@ -24,13 +24,13 @@ class RecSeqModuleTest {
         assertNotNull(stepsPerCycleInput)
         assertEquals(2.0, stepsPerCycleInput.min)
         assertEquals(32.0, stepsPerCycleInput.max)
-        assertEquals(8.0, stepsPerCycleInput.getValue())
+        assertTrue(stepsPerCycleInput.getDoubleValue() == 8.0, "stepsPerCycle expected 8.0 but got ${stepsPerCycleInput.getDoubleValue()}")
 
         val densityInput = module.inputs.find { it.name == "density" }
         assertNotNull(densityInput)
         assertEquals(0.0, densityInput.min)
         assertEquals(1.0, densityInput.max)
-        assertEquals(0.5, densityInput.getValue())
+        assertTrue(densityInput.getDoubleValue() == 0.5, "density expected 0.5 but got ${densityInput.getDoubleValue()}")
 
         val outputJack = module.outputs.find { it.name == "output" }
         assertNotNull(outputJack)

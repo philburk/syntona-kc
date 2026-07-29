@@ -13,8 +13,8 @@ import kotlin.random.Random
  * The parameters delay and offset are randomly generated.
  */
 class RecursiveSequence @JvmOverloads constructor(
-    var maxValue: Int = 11,
-    var maxInterval: Int = 4,
+    var maxValue: Int = 25,
+    var maxInterval: Int = 7,
     arraySize: Int = 64
 ) {
     val maxDelay: Int = arraySize / 2

@@ -14,7 +14,7 @@ class RecSeqModule : Module("recSeq") {
     val density = addInput("density").also {
         it.min = 0.0
         it.max = 1.0
-        it.setValue(0.7)
+        it.setValue(0.5)
     }
     val limit = addInput("limit").also {
         it.min = 2.0
