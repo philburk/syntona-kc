@@ -78,7 +78,7 @@ val DarkGraphColors = GraphColors(
     buttonBgPressed = Color.Gray,
 
     jackDefault = Color.Cyan,
-    jackKickable = Color.Red,
+    jackKickable = Color(0xFFE55353),
     jackAudio = Color(0xFF44DD44),
     jackVoice = Color(0xFFFFA500),
     jackDataQueue = Color.Yellow,

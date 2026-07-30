@@ -496,7 +496,7 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color? = null, la
                 ) {
                     Text(
                         text = if (module.isArmed) "● ARMED" else "○ DISARMED",
-                        color = if (module.isArmed) Color(0xFFFF5252) else Color.Gray,
+                        color = if (module.isArmed) colors.jackKickable else Color.Gray,
                         fontSize = 10.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -542,7 +542,10 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color? = null, la
                         expanded = expanded,
                         onDismissRequest = { expanded = false }
                     ) {
-                        val divisions = listOf("1/1", "1/2", "3/8", "1/4", "3/16", "1/8", "1/16", "1/32", "1/3", "1/6", "1/12", "1/5", "1/10")
+                        val divisions = listOf(
+                            "4/1", "3/1", "2/1", "1/1", "1/2", "3/8", "1/4", "3/16",
+                            "1/8", "1/16", "1/32", "1/3", "1/6", "1/12", "1/5", "1/10"
+                        )
                         divisions.forEach { div ->
                             androidx.compose.material3.DropdownMenuItem(
                                 text = { Text(div, fontSize = 12.sp) },
@@ -550,7 +553,9 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color? = null, la
                                     module.division = div
                                     FileState.markDirty()
                                     expanded = false
-                                }
+                                },
+                                modifier = Modifier.height(28.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                             )
                         }
                     }

@@ -56,6 +56,19 @@ class BeatClockModuleTest {
     }
 
     @Test
+    fun testWholeNoteMultipliers() {
+        val module = BeatClockModule()
+        module.division = "4/1"
+        assertEquals("4/1", module.division)
+
+        module.division = "3/1"
+        assertEquals("3/1", module.division)
+
+        module.division = "2/1"
+        assertEquals("2/1", module.division)
+    }
+
+    @Test
     fun testModuleRegistryCreator() {
         val creator = ModuleRegistry.findCreator("beatClock")
         assertNotNull(creator)
