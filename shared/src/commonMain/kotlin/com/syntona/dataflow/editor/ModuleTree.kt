@@ -1,20 +1,25 @@
 package com.syntona.dataflow.editor
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.syntona.SyntonaVersion
@@ -22,37 +27,88 @@ import com.syntona.dataflow.registry.ModuleRegistry
 
 @Composable
 fun ModuleTree(state: GraphState) {
+    var filterText by remember { mutableStateOf("") }
+
     Column(modifier = Modifier.fillMaxHeight().width(180.dp).padding(8.dp)) {
-        Spacer(modifier = Modifier.height(8.dp))
+        Text("Syntona v" + SyntonaVersion, fontSize = 16.sp, color = Color.LightGray)
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "🔍 Filter:",
+                fontSize = 12.sp,
+                color = Color.LightGray,
+                modifier = Modifier.padding(end = 4.dp)
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF2A2A2A), RoundedCornerShape(4.dp))
+                    .border(1.dp, Color.Gray, RoundedCornerShape(4.dp))
+                    .padding(horizontal = 6.dp, vertical = 4.dp)
+            ) {
+                BasicTextField(
+                    value = filterText,
+                    onValueChange = { filterText = it },
+                    singleLine = true,
+                    textStyle = TextStyle(color = Color.White, fontSize = 12.sp),
+                    cursorBrush = SolidColor(Color.Cyan),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+
         LazyColumn {
             item {
-                Text("Syntona v" + SyntonaVersion, fontSize = 16.sp, color = Color.LightGray)
-                BundleView(ModuleRegistry.root, 0, state)
+                BundleView(
+                    bundle = ModuleRegistry.root,
+                    level = 0,
+                    state = state,
+                    filterText = filterText.trim(),
+                    onClearFilter = { filterText = "" }
+                )
             }
         }
     }
+}
+
+private fun ModuleRegistry.Bundle.hasMatchingModules(filter: String): Boolean {
+    if (filter.isBlank()) return true
+    if (modules.any { it.name.contains(filter, ignoreCase = true) }) return true
+    return subBundles.any { it.hasMatchingModules(filter) }
 }
 
 @Composable
 fun BundleView(
     bundle: ModuleRegistry.Bundle,
     level: Int,
-    state: GraphState
+    state: GraphState,
+    filterText: String = "",
+    onClearFilter: () -> Unit = {}
 ) {
+    if (!bundle.hasMatchingModules(filterText)) return
+
     val mdiState = LocalMdiState.current
     val density = LocalDensity.current.density
-    var expanded by remember { mutableStateOf(level < 2) }
+    var expandedState by remember { mutableStateOf(level < 2) }
+    val isFiltering = filterText.isNotBlank()
+    val isExpanded = expandedState || isFiltering
 
     Column(modifier = Modifier.padding(start = (level * 8).dp)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clickable { expanded = !expanded }
+                .clickable { expandedState = !isExpanded }
                 .padding(vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = if (expanded) "▼" else "▶",
+                text = if (isExpanded) "▼" else "▶",
                 fontSize = 10.sp,
                 color = Color.Gray,
                 modifier = Modifier.width(12.dp)
@@ -60,11 +116,22 @@ fun BundleView(
             Text(bundle.name, fontSize = 14.sp, color = Color.LightGray)
         }
 
-        if (expanded) {
+        if (isExpanded) {
             bundle.subBundles.forEach { subBundle ->
-                BundleView(subBundle, level + 1, state)
+                BundleView(
+                    bundle = subBundle,
+                    level = level + 1,
+                    state = state,
+                    filterText = filterText,
+                    onClearFilter = onClearFilter
+                )
             }
-            bundle.modules.forEach { module ->
+            val matchingModules = if (isFiltering) {
+                bundle.modules.filter { it.name.contains(filterText, ignoreCase = true) }
+            } else {
+                bundle.modules
+            }
+            matchingModules.forEach { module ->
                 var localOffset by remember { mutableStateOf(Offset.Zero) }
 
                 Row(
@@ -86,7 +153,10 @@ fun BundleView(
                                     mdiState.cancelTreeDrag()
                                     if (creator != null) {
                                         val target = mdiState.graphStateAtPosition(pos, density)
-                                        target?.addModule(creator(), (pos - target.rootOffset) / density)
+                                        if (target != null) {
+                                            target.addModule(creator(), (pos - target.rootOffset) / density)
+                                            onClearFilter()
+                                        }
                                     }
                                 },
                                 onDragCancel = {
