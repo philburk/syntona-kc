@@ -1357,16 +1357,36 @@ fun SequenceModuleNode(module: SequenceModule, state: GraphState) {
             val controlOutputs = module.outputs.filter { !module.stepOutputs.contains(it) }
 
             Row(
-                modifier = Modifier.fillMaxWidth().padding(4.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
-                    CompactJackConnector(module.reset, state, isLeft = true)
-                    CompactJackConnector(module.increment, state, isLeft = true)
-                    controlInputs.forEach { CompactJackConnector(it, state, isLeft = true) }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CompactJackConnector(module.reset, state, isLeft = true)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(module.reset.name, fontSize = 10.sp, color = Color.Gray)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CompactJackConnector(module.increment, state, isLeft = true)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(module.increment.name, fontSize = 10.sp, color = Color.Gray)
+                    }
+                    controlInputs.forEach { jack ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CompactJackConnector(jack, state, isLeft = true)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(jack.name, fontSize = 10.sp, color = Color.Gray)
+                        }
+                    }
                 }
                 Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
-                    controlOutputs.forEach { CompactJackConnector(it, state, isLeft = false) }
+                    controlOutputs.forEach { jack ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(jack.name, fontSize = 10.sp, color = Color.Gray)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            CompactJackConnector(jack, state, isLeft = false)
+                        }
+                    }
                 }
             }
 

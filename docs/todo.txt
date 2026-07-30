@@ -1,5 +1,7 @@
 Add patch inputs for start/stop/etc that are commands with buttons.
 
+BUG: the recSeq module is outputting -1 values. It should only send if >=0.
+
 Help trace wires by highlighting the wires connected to a highlighted module.
 Widget to put wires in front.
 Label wire outputs with order (1) (2)
@@ -13,11 +15,8 @@ Require
 * need visual indicator, sample overview in middle?
 * editing capability based on edit list from ListenUp
 
-
-Seq8 reset should not kick.
-seq8 could have an "all" jack that sends all 8 values
-
 Seq8 should allow multiple values for chords, "60,63,67.02"
+
 ScaleModule should allow "Eb and G#"
 NoteSeq should allow "Eb4" and output note VoiceMessages
 
