@@ -4,6 +4,8 @@ import com.syntona.core.model.ScoreTime
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.AudioOutputJack
 import com.syntona.dataflow.model.Message
+import com.syntona.dataflow.editor.GraphSerializer
+import com.syntona.dataflow.editor.GraphState
 import com.syntona.dataflow.registry.ModuleRegistry
 import com.syntona.unitgen.Recorder
 import kotlin.test.Test
@@ -131,6 +133,66 @@ class RecorderModuleTest {
 
         jack.receive(Message.FloatValue(ScoreTime.Zero, 0.5))
         assertEquals(0.5f, module.unit.amplitude.get(0))
+    }
+
+    @Test
+    fun testAutoSetMeasuredLatencyOnModuleCreation() {
+        val inputDevice = "TestMic"
+        val outputDevice = "TestSpeaker"
+        com.syntona.core.audio.AudioSettings.setMeasuredLatencyFrames(inputDevice, outputDevice, 480)
+
+        val origInput = com.syntona.core.audio.AudioSettings.activeInputName
+        val origOutput = com.syntona.core.audio.AudioSettings.activeOutputName
+        try {
+            com.syntona.core.audio.AudioSettings.activeInputName = inputDevice
+            com.syntona.core.audio.AudioSettings.activeOutputName = outputDevice
+
+            val module = RecorderModule()
+            val expectedMs = 480 * 1000.0 / module.unit.frameRate
+            assertEquals(expectedMs, module.latencyMillis.getDoubleValue(), 1e-5, "latencyMs should automatically load stored round-trip latency")
+        } finally {
+            com.syntona.core.audio.AudioSettings.activeInputName = origInput
+            com.syntona.core.audio.AudioSettings.activeOutputName = origOutput
+        }
+    }
+
+    @Test
+    fun testDeserializationPrefersMeasuredLatencyOverJsonFile() {
+        val testModule = RecorderModule()
+        testModule.latencyMillis.setValue(15.0)
+        val tempState = GraphState()
+        tempState.addModule(testModule, androidx.compose.ui.geometry.Offset.Zero)
+        val json = GraphSerializer.serialize(tempState, tempState.modules)
+
+        val inputDevice = "TestMic2"
+        val outputDevice = "TestSpeaker2"
+        com.syntona.core.audio.AudioSettings.setMeasuredLatencyFrames(inputDevice, outputDevice, 480)
+
+        val origInput = com.syntona.core.audio.AudioSettings.activeInputName
+        val origOutput = com.syntona.core.audio.AudioSettings.activeOutputName
+        try {
+            // Case A: Measurement IS available -> prefer measured latency over file value (15.0)
+            com.syntona.core.audio.AudioSettings.activeInputName = inputDevice
+            com.syntona.core.audio.AudioSettings.activeOutputName = outputDevice
+
+            val graphStateA = GraphState()
+            GraphSerializer.deserialize(graphStateA, json)
+            val recA = graphStateA.modules.first { it is RecorderModule } as RecorderModule
+            val expectedMs = 480 * 1000.0 / recA.unit.frameRate
+            assertEquals(expectedMs, recA.latencyMillis.getDoubleValue(), 1e-5, "Should keep measured latency when available")
+
+            // Case B: NO measurement is available -> fall back to file value (15.0)
+            com.syntona.core.audio.AudioSettings.activeInputName = "UnmeasuredMic"
+            com.syntona.core.audio.AudioSettings.activeOutputName = "UnmeasuredSpeaker"
+
+            val graphStateB = GraphState()
+            GraphSerializer.deserialize(graphStateB, json)
+            val recB = graphStateB.modules.first { it is RecorderModule } as RecorderModule
+            assertEquals(15.0, recB.latencyMillis.getDoubleValue(), 1e-5, "Should fall back to JSON file value when no measurement is available")
+        } finally {
+            com.syntona.core.audio.AudioSettings.activeInputName = origInput
+            com.syntona.core.audio.AudioSettings.activeOutputName = origOutput
+        }
     }
 
     @Test

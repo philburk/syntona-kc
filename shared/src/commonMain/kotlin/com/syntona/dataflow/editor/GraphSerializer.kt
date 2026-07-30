@@ -26,6 +26,8 @@ import com.syntona.dataflow.modules.EquationModule
 import com.syntona.dataflow.modules.ScaleModule
 import com.syntona.dataflow.modules.BeatClockModule
 import com.syntona.dataflow.modules.TimelineModule
+import com.syntona.core.audio.AudioSettings
+import com.syntona.dataflow.modules.RecorderModule
 import com.softsynth.ksyn.data.SegmentedEnvelope
 import com.syntona.dataflow.registry.ModuleRegistry
 
@@ -362,6 +364,13 @@ object GraphSerializer {
             graphState.addModule(module, Offset(x + offset.x, y + offset.y))
             jacks?.map?.forEach { (jackName, jackValue) ->
                 val inputJack = module.inputs.find { it.name == jackName } as? InputJack ?: return@forEach
+                if (module is RecorderModule && (jackName == "latencyMs" || jackName == "latency")) {
+                    val measuredFrames = AudioSettings.measuredLatencyForActiveDevices()
+                    if (measuredFrames >= 0) {
+                        // Measured latency is available for current devices; keep measured latency instead of file value
+                        return@forEach
+                    }
+                }
                 when (jackValue) {
                     is JsonValue.Num -> inputJack.setValue(jackValue.value)
                     is JsonValue.Obj -> {

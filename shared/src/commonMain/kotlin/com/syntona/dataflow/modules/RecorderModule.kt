@@ -1,5 +1,6 @@
 package com.syntona.dataflow.modules
 
+import com.syntona.core.audio.AudioSettings
 import com.syntona.core.audio.SynthKSyn
 import com.syntona.core.model.ScoreClock
 import com.syntona.core.model.ScoreTime
@@ -53,7 +54,13 @@ class RecorderModule : Module("recorder"), EngineAware {
         latencyMillis = addInput("latencyMs").also {
             it.min = 0.0
             it.max = 1000.0
-            it.setValue(0.0)
+            val measuredFrames = AudioSettings.measuredLatencyForActiveDevices()
+            val initialMs = if (measuredFrames >= 0 && unit.frameRate > 0.0) {
+                measuredFrames * 1000.0 / unit.frameRate
+            } else {
+                0.0
+            }
+            it.setValue(initialMs)
         }
         recordIn = addCommandInput("record")
         playIn = addCommandInput("play")
