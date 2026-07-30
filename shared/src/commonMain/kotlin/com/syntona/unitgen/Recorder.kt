@@ -34,7 +34,7 @@ class Recorder(
     /** The recorded audio. Grows while [Mode.RECORDING] is active. */
     val recording = SegmentedFloatArray(segmentSize, poolCapacity)
 
-    /** Read and write position, always within `0..recording.length`. */
+    /** Read and write position in frames, always within `0..recording.length`. */
     @Volatile
     var cursor: Int = 0
         private set

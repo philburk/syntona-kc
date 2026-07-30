@@ -436,7 +436,7 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color? = null, la
                 var cursorText by remember { mutableStateOf(formatMinutesSecondsMillis(0.0)) }
                 LaunchedEffect(module) {
                     while (true) {
-                        cursorText = formatMinutesSecondsMillis(module.unit.cursorSeconds)
+                        cursorText = formatMinutesSecondsMillis(module.displayCursorSeconds)
                         delay(50)
                     }
                 }

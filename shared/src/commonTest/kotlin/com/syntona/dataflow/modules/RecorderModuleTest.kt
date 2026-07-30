@@ -23,15 +23,20 @@ class RecorderModuleTest {
         val module = RecorderModule()
         assertEquals("recorder", module.name)
 
-        assertEquals(6, module.inputs.size)
+        assertEquals(7, module.inputs.size)
         assertEquals("in", module.inputs[0].name)
         assertEquals("amplitude", module.inputs[1].name)
-        assertEquals("record", module.inputs[2].name)
-        assertEquals("play", module.inputs[3].name)
-        assertEquals("pause", module.inputs[4].name)
-        assertEquals("rewind", module.inputs[5].name)
+        assertEquals("latencyMs", module.inputs[2].name)
+        assertEquals("record", module.inputs[3].name)
+        assertEquals("play", module.inputs[4].name)
+        assertEquals("pause", module.inputs[5].name)
+        assertEquals("rewind", module.inputs[6].name)
         assertTrue(module.inputs[0] is AudioInputJack, "in should carry audio")
         assertTrue(module.inputs[1] is AudioInputJack, "amplitude should carry audio")
+
+        val latencyJack = module.latencyMillis
+        assertEquals(0.0, latencyJack.min)
+        assertEquals(1000.0, latencyJack.max)
 
         assertEquals(1, module.outputs.size)
         assertEquals("out", module.outputs[0].name)
@@ -54,6 +59,35 @@ class RecorderModuleTest {
 
         kick(module, "pause")
         assertEquals(Recorder.Mode.PAUSED, module.unit.mode)
+    }
+
+    @Test
+    fun testPlaybackAndRewindWithLatencyMs() {
+        val module = RecorderModule()
+        // Set latencyMs to 100 ms
+        module.latencyMillis.receive(Message.FloatValue(ScoreTime.Zero, 100.0))
+
+        // Simulate recording audio frames
+        kick(module, "record")
+        repeat(600) {
+            module.unit.replenish()
+            module.unit.generate()
+        }
+        kick(module, "pause")
+
+        // Cursor is now at the end of recording (>= length)
+        assertTrue(module.unit.cursor >= module.unit.recording.length)
+
+        // 1. Kicking play when cursor is at the end of recording should seek to latencyFrames
+        kick(module, "play")
+        val expectedOffset = (0.1 * module.unit.frameRate).toInt()
+        assertEquals(expectedOffset, module.unit.cursor, "Play should seek to latency offset when cursor is at end of recording")
+
+        // 2. Kicking rewind should seek to latencyFrames and display 0.00 seconds
+        kick(module, "pause")
+        kick(module, "rewind")
+        assertEquals(expectedOffset, module.unit.cursor, "Rewind should seek to latency offset")
+        assertEquals(0.0, module.displayCursorSeconds, 1e-6, "Display cursor seconds should show 0.00 on rewind")
     }
 
     @Test

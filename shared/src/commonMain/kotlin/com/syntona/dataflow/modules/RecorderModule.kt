@@ -9,6 +9,7 @@ import com.syntona.dataflow.engine.ScheduledEvent
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.AudioOutputJack
 import com.syntona.dataflow.model.CommandJack
+import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
 import com.syntona.unitgen.Recorder
@@ -26,6 +27,7 @@ class RecorderModule : Module("recorder"), EngineAware {
 
     val input: AudioInputJack
     val amplitude: AudioInputJack
+    val latencyMillis: InputJack
     val recordIn: CommandJack
     val playIn: CommandJack
     val pauseIn: CommandJack
@@ -34,6 +36,13 @@ class RecorderModule : Module("recorder"), EngineAware {
 
     private var engine: DataFlowEngine? = null
     private var replenishEvent: ScheduledEvent? = null
+    private var pendingStopEvent: ScheduledEvent? = null
+
+    val latencySeconds: Double
+        get() = latencyMillis.getClippedDoubleValue() * 0.001
+
+    val displayCursorSeconds: Double
+        get() = (unit.cursorSeconds - latencySeconds).coerceAtLeast(0.0)
 
     init {
         SynthKSyn.synth.add(unit)
@@ -41,6 +50,11 @@ class RecorderModule : Module("recorder"), EngineAware {
 
         input = addAudioInput("in", unit.input, 0)
         amplitude = addAudioInput("amplitude", unit.amplitude, 0)
+        latencyMillis = addInput("latencyMs").also {
+            it.min = 0.0
+            it.max = 1000.0
+            it.setValue(0.0)
+        }
         recordIn = addCommandInput("record")
         playIn = addCommandInput("play")
         pauseIn = addCommandInput("pause")
@@ -55,15 +69,46 @@ class RecorderModule : Module("recorder"), EngineAware {
         this.engine = engine
     }
 
+
     override fun execute(triggerMessage: Message) {
         when {
             recordIn.isKicked -> {
+                pendingStopEvent?.cancel()
+                pendingStopEvent = null
+                unit.seek(0)
                 unit.record()
                 startReplenishing()
             }
-            playIn.isKicked -> unit.play()
-            pauseIn.isKicked -> unit.pause()
-            rewindIn.isKicked -> unit.rewind()
+            playIn.isKicked -> {
+                pendingStopEvent?.cancel()
+                pendingStopEvent = null
+                val latencyFrames = (latencySeconds * unit.frameRate).toInt()
+                if (unit.cursor >= unit.length || unit.cursor <= latencyFrames) {
+                    unit.seek(latencyFrames)
+                }
+                unit.play()
+            }
+            pauseIn.isKicked -> {
+                pendingStopEvent?.cancel()
+                pendingStopEvent = null
+                val latencyNs = (latencySeconds * 1_000_000_000.0).toLong()
+                val e = engine
+                if (unit.isRecording && latencyNs > 0L && e != null) {
+                    val fireTime = triggerMessage.time + ScoreTime(latencyNs)
+                    pendingStopEvent = e.schedule(fireTime) {
+                        pendingStopEvent = null
+                        unit.pause()
+                    }
+                } else {
+                    unit.pause()
+                }
+            }
+            rewindIn.isKicked -> {
+                pendingStopEvent?.cancel()
+                pendingStopEvent = null
+                val latencyFrames = (latencySeconds * unit.frameRate).toInt()
+                unit.seek(latencyFrames)
+            }
         }
     }
 
@@ -89,6 +134,8 @@ class RecorderModule : Module("recorder"), EngineAware {
     override fun teardown() {
         replenishEvent?.cancel()
         replenishEvent = null
+        pendingStopEvent?.cancel()
+        pendingStopEvent = null
         unit.pause()
         if (unit.isStartRequired) unit.stop()
         SynthKSyn.synth.remove(unit)
