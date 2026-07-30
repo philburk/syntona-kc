@@ -14,8 +14,6 @@ Require
 * editing capability based on edit list from ListenUp
 
 
-beatClock should have 2/1 3/1 and 4/1
-
 Seq8 reset should not kick.
 seq8 could have an "all" jack that sends all 8 values
 

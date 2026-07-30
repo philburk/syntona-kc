@@ -33,6 +33,8 @@ open class SequenceModule(val numOutputs: Int) : Module("seq" + numOutputs) {
         addOutput("out$index")
     }
 
+    val allOutput = addOutput("all")
+
     val values = mutableStateListOf<Double>().apply {
         repeat(numOutputs) { add(1.0) }
     }
@@ -54,7 +56,11 @@ open class SequenceModule(val numOutputs: Int) : Module("seq" + numOutputs) {
     override fun execute(triggerMessage: Message) {
         if (reset.isKicked) {
             count = 0
-        } else if (increment.isKicked){
+            for (index in 0 until numOutputs) {
+                stepOutputs[index].isHighlighted = (index == 0)
+            }
+            return
+        } else if (increment.isKicked) {
             count++
         }
         for (index in 0 until numOutputs) {
@@ -63,7 +69,9 @@ open class SequenceModule(val numOutputs: Int) : Module("seq" + numOutputs) {
         val activeIndex = count % numOutputs
         val output = stepOutputs[activeIndex]
         val activeValue = values[activeIndex]
-        output.send(Message.FloatValue(triggerMessage.time, activeValue))
+        val msg = Message.FloatValue(triggerMessage.time, activeValue)
+        output.send(msg)
+        allOutput.send(msg)
         output.isHighlighted = true
     }
 }

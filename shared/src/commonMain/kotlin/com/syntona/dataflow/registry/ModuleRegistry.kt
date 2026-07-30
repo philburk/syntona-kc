@@ -38,6 +38,7 @@ object ModuleRegistry {
         basic.modules.add(ModuleEntry("counter") { CounterModule() })
         basic.modules.add(ModuleEntry("seq2") { SequenceModule(2) })
         basic.modules.add(ModuleEntry("seq8") { SequenceModule(8) })
+        basic.modules.add(ModuleEntry("seq16") { SequenceModule(16) })
         basic.modules.add(ModuleEntry("mod2") { Mod2Module() })
         basic.modules.add(ModuleEntry("mod4") { Mod4Module() })
         basic.modules.add(ModuleEntry("mod8") { Mod8Module() })
