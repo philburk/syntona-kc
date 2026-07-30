@@ -1,6 +1,7 @@
 Add patch inputs for start/stop/etc that are commands with buttons.
 
 BUG: the recSeq module is outputting -1 values. It should only send if >=0.
+BUG: copy and paste using key commands is not working
 
 Help trace wires by highlighting the wires connected to a highlighted module.
 Widget to put wires in front.

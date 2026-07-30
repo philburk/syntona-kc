@@ -273,11 +273,11 @@ class PolyPatchModuleTest {
         rootGraph.addModule(seq, androidx.compose.ui.geometry.Offset.Zero)
 
         // Verify initial state
-        assertEquals(1.0, seq.values[3])
+        assertEquals("1.0", seq.values[3])
 
         // Programmatically send 42.0 to step 3 input
         seq.stepInputs[3].receive(Message.FloatValue(com.syntona.core.model.ScoreTime.Zero, 42.0))
-        assertEquals(42.0, seq.values[3])
+        assertEquals("42.0", seq.values[3])
 
         // Step the sequence by kicking 'in' 3 times to get from 0 to 3
         // Initial state is step 0. So 3 increments should land on step 3.
@@ -292,14 +292,14 @@ class PolyPatchModuleTest {
 
         // Serialize
         val json = GraphSerializer.serialize(rootGraph, rootGraph.modules)
-        assertTrue(json.contains("\"in3\":"))
+        assertTrue(json.contains("\"in3\":") || json.contains("stepValues"))
         assertTrue(json.contains("42"))
 
         // Deserialize and check restored value
         val newRootGraph = GraphState()
         val deserialized = GraphSerializer.deserialize(newRootGraph, json)
         val restoredSeq = deserialized.find { it is SequenceModule } as SequenceModule
-        assertEquals(42.0, restoredSeq.values[3])
+        assertEquals("42.0", restoredSeq.values[3])
     }
 
     @Test

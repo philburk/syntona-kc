@@ -1401,12 +1401,17 @@ fun SequenceModuleNode(module: SequenceModule, state: GraphState) {
                         Box(modifier = Modifier.width(16.dp), contentAlignment = Alignment.CenterStart) {
                             CompactJackConnector(module.stepInputs[i], state, isLeft = true)
                         }
-                        NumberField(
+                        SequenceStepTextField(
                             value = module.values[i],
-                            onCommit = { v ->
-                                val e = state.engine
-                                if (e != null) e.post(SetValueCommand(module.stepInputs[i], v, ScoreClock.now()))
-                                else module.stepInputs[i].setValue(v)
+                            onCommit = { text ->
+                                module.values[i] = text
+                                val numVal = text.toDoubleOrNull()
+                                if (numVal != null) {
+                                    val e = state.engine
+                                    if (e != null) e.post(SetValueCommand(module.stepInputs[i], numVal, ScoreClock.now()))
+                                    else module.stepInputs[i].setValue(numVal)
+                                }
+                                FileState.markDirty()
                             },
                             modifier = Modifier.weight(1f)
                         )
@@ -1418,6 +1423,48 @@ fun SequenceModuleNode(module: SequenceModule, state: GraphState) {
             }
         }
     }
+}
+
+@Composable
+fun SequenceStepTextField(
+    value: String,
+    onCommit: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var text by remember { mutableStateOf(value) }
+    var isDirty by remember { mutableStateOf(false) }
+
+    LaunchedEffect(value) {
+        if (!isDirty) text = value
+    }
+
+    fun commit() {
+        onCommit(text)
+        isDirty = false
+    }
+
+    BasicTextField(
+        value = text,
+        onValueChange = { newText ->
+            text = newText
+            isDirty = true
+        },
+        singleLine = true,
+        textStyle = TextStyle(fontSize = 12.sp, color = Color.Black),
+        keyboardOptions = KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
+        keyboardActions = KeyboardActions(onDone = { commit() }),
+        modifier = modifier
+            .background(if (isDirty) Color(0xFFFFB0B0) else Color.White)
+            .padding(horizontal = 4.dp, vertical = 2.dp)
+            .onKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown &&
+                    (event.key == Key.Enter || event.key == Key.NumPadEnter)
+                ) {
+                    commit()
+                    true
+                } else false
+            }
+    )
 }
 
 @Composable

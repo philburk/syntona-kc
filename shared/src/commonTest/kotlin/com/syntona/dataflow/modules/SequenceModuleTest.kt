@@ -70,9 +70,9 @@ class SequenceModuleTest {
         }
         seq.allOutput.connect(receiver.inJack)
 
-        seq.values[0] = 10.0
-        seq.values[1] = 20.0
-        seq.values[2] = 30.0
+        seq.values[0] = "10.0"
+        seq.values[1] = "20.0"
+        seq.values[2] = "30.0"
 
         // Increment 3 times
         seq.increment.receive(Message.FloatValue(ScoreTime.Zero, 1.0))
@@ -80,6 +80,65 @@ class SequenceModuleTest {
         seq.increment.receive(Message.FloatValue(ScoreTime.Zero, 1.0))
 
         assertEquals(listOf(20.0, 30.0, 1.0), receivedAllValues)
+    }
+
+    @Test
+    fun testMultiValueListStepFiring() {
+        val seq = SequenceModule(8)
+        val stepOutputsEmitted = mutableListOf<Double>()
+        val allOutputsEmitted = mutableListOf<Double>()
+
+        val stepReceiver = object : Module("stepRec") {
+            val inJack = addInput("in", isKickable = true)
+            override fun execute(triggerMessage: Message) {
+                if (triggerMessage is Message.FloatValue) {
+                    stepOutputsEmitted.add(triggerMessage.value)
+                }
+            }
+        }
+
+        val allReceiver = object : Module("allRec") {
+            val inJack = addInput("in", isKickable = true)
+            override fun execute(triggerMessage: Message) {
+                if (triggerMessage is Message.FloatValue) {
+                    allOutputsEmitted.add(triggerMessage.value)
+                }
+            }
+        }
+
+        seq.stepOutputs[1].connect(stepReceiver.inJack)
+        seq.allOutput.connect(allReceiver.inJack)
+
+        // Set step 1 to a comma-separated list of values "60,62.5,67"
+        seq.values[1] = "60,62.5,67"
+
+        // Advance to step 1 (1 increment from initial step 0)
+        seq.increment.receive(Message.FloatValue(ScoreTime.Zero, 1.0))
+
+        val expected = listOf(60.0, 62.5, 67.0)
+        assertEquals(expected, stepOutputsEmitted, "Step output 1 should emit all 3 values in order")
+        assertEquals(expected, allOutputsEmitted, "All output jack should emit all 3 values in order")
+    }
+
+    @Test
+    fun testCopyPasteAndSerializationPreservesMultiValueLists() {
+        val rootGraph = com.syntona.dataflow.editor.GraphState()
+        val seq = SequenceModule(8)
+        seq.values[0] = "52, 55"
+        seq.values[1] = "60, 62.5, 67"
+        rootGraph.addModule(seq, androidx.compose.ui.geometry.Offset.Zero)
+
+        // Serialize graph (simulating copy or save)
+        val json = com.syntona.dataflow.editor.GraphSerializer.serialize(rootGraph, rootGraph.modules)
+        assertTrue(json.contains("52, 55"), "Serialized JSON should contain the exact string list '52, 55'")
+
+        // Deserialize graph (simulating paste or open)
+        val newGraph = com.syntona.dataflow.editor.GraphState()
+        val deserialized = com.syntona.dataflow.editor.GraphSerializer.deserialize(newGraph, json)
+        val restoredSeq = deserialized.first { it is SequenceModule } as SequenceModule
+
+        assertEquals("52, 55", restoredSeq.values[0], "Pasted/restored seq8 step 0 should preserve multi-value string '52, 55'")
+        assertEquals("60, 62.5, 67", restoredSeq.values[1], "Pasted/restored seq8 step 1 should preserve multi-value string '60, 62.5, 67'")
     }
 
     @Test

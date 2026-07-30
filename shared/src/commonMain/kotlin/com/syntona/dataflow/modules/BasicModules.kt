@@ -35,8 +35,8 @@ open class SequenceModule(val numOutputs: Int) : Module("seq" + numOutputs) {
 
     val allOutput = addOutput("all")
 
-    val values = mutableStateListOf<Double>().apply {
-        repeat(numOutputs) { add(1.0) }
+    val values = mutableStateListOf<String>().apply {
+        repeat(numOutputs) { add("1.0") }
     }
 
     var count = 0
@@ -47,8 +47,12 @@ open class SequenceModule(val numOutputs: Int) : Module("seq" + numOutputs) {
 
     override fun onMessageReceived(jack: InputJack, msg: Message) {
         val index = stepInputs.indexOf(jack)
-        if (index != -1 && msg is Message.FloatValue) {
-            values[index] = msg.value
+        if (index != -1) {
+            when (msg) {
+                is Message.FloatValue -> values[index] = msg.value.toString()
+                is Message.TextValue -> values[index] = msg.value
+                else -> {}
+            }
         }
         super.onMessageReceived(jack, msg)
     }
@@ -68,12 +72,21 @@ open class SequenceModule(val numOutputs: Int) : Module("seq" + numOutputs) {
         }
         val activeIndex = count % numOutputs
         val output = stepOutputs[activeIndex]
-        val activeValue = values[activeIndex]
-        val msg = Message.FloatValue(triggerMessage.time, activeValue)
-        output.send(msg)
-        allOutput.send(msg)
+        val activeText = values[activeIndex]
+        val valList = parseSequenceValueList(activeText)
+        for (valItem in valList) {
+            val msg = Message.FloatValue(triggerMessage.time, valItem)
+            output.send(msg)
+            allOutput.send(msg)
+        }
         output.isHighlighted = true
     }
+}
+
+internal fun parseSequenceValueList(text: String): List<Double> {
+    val items = text.split(',')
+        .mapNotNull { it.trim().toDoubleOrNull() }
+    return if (items.isNotEmpty()) items else listOf(1.0)
 }
 
 open class ModuloSelectModule(val numOutputs: Int) : Module("mod" + numOutputs) {

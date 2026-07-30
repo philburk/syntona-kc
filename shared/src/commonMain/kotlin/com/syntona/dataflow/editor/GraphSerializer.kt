@@ -191,6 +191,14 @@ object GraphSerializer {
             if (module is PolyPatchModule) {
                 append(",\"maxVoices\":${module.maxVoices}")
             }
+            if (module is SequenceModule) {
+                append(",\"stepValues\":[")
+                module.values.forEachIndexed { idx, strVal ->
+                    if (idx > 0) append(",")
+                    append("\"${strVal.jsonEscape}\"")
+                }
+                append("]")
+            }
             // Recursively embed patch contents so jacks are restored on paste/load
             if (module is PatchModule) {
                 module.windowX?.let { append(",\"windowX\":$it") }
@@ -360,6 +368,15 @@ object GraphSerializer {
                 }
             }
 
+            if (module is SequenceModule) {
+                (obj?.map?.get("stepValues") as? JsonValue.Arr)?.items?.forEachIndexed { idx, item ->
+                    val strVal = (item as? JsonValue.Str)?.value ?: (item as? JsonValue.Num)?.value?.toString()
+                    if (strVal != null && idx < module.numOutputs) {
+                        module.values[idx] = strVal
+                    }
+                }
+            }
+
             // x/y are stored as dp; store directly in GraphState
             graphState.addModule(module, Offset(x + offset.x, y + offset.y))
             jacks?.map?.forEach { (jackName, jackValue) ->
@@ -369,6 +386,23 @@ object GraphSerializer {
                     if (measuredFrames >= 0) {
                         // Measured latency is available for current devices; keep measured latency instead of file value
                         return@forEach
+                    }
+                }
+                if (module is SequenceModule && jackName.startsWith("in") && jackName.substring(2).toIntOrNull() != null) {
+                    val hasStepValues = obj?.map?.containsKey("stepValues") == true
+                    if (hasStepValues) {
+                        // stepValues is authoritative; do not run inputJack.setValue on step inputs
+                        return@forEach
+                    }
+                    val idx = jackName.substring(2).toIntOrNull()
+                    if (idx != null && idx in 0 until module.numOutputs) {
+                        when (jackValue) {
+                            is JsonValue.Num -> module.values[idx] = jackValue.value.toString()
+                            is JsonValue.Obj -> {
+                                (jackValue.map["v"] as? JsonValue.Num)?.value?.let { module.values[idx] = it.toString() }
+                            }
+                            else -> {}
+                        }
                     }
                 }
                 when (jackValue) {
