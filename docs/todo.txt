@@ -1,9 +1,4 @@
 
-Support more than one top level patch. Needed for Help so we don't have to lose works in progress.
-Must be closable.
-
-Need a Windows menu named after the file name or patch(2)
-
 Right click on a module for a menu with "Help...". Or add a (?) button to the header.
 It will be enabled if a file called "help/{bundle}/{moduleName}.json" exists.
 Add a Help>>Modules menu like Help>>Examples

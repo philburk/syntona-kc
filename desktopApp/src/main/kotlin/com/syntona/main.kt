@@ -388,6 +388,13 @@ fun main() {
                         EditActions.paste(state, density)
                     }
                 }
+                Menu("Window") {
+                    com.syntona.dataflow.editor.WindowMenu.build(state).forEach { entry ->
+                        Item(entry.menuText) {
+                            com.syntona.dataflow.editor.WindowMenu.show(state, entry.window)
+                        }
+                    }
+                }
                 Menu("Help ") {
                     val gs = state.rootGraphState ?: state.activeGraphState
                     val examplesTree = remember(examplesList) {

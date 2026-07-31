@@ -41,6 +41,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -787,6 +789,37 @@ fun App(
                                                     editExpanded = false
                                                 }
                                             )
+                                        }
+                                    }
+                                }
+
+                                if (showFileMenuInToolbar) {
+                                    var windowsExpanded by remember { mutableStateOf(false) }
+                                    Box {
+                                        Button(onClick = { windowsExpanded = true }) { Text("Window") }
+                                        DropdownMenu(
+                                            expanded = windowsExpanded,
+                                            onDismissRequest = { windowsExpanded = false }
+                                        ) {
+                                            WindowMenu.build(mdiState).forEach { entry ->
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Text(
+                                                            text = entry.menuText,
+                                                            fontFamily = FontFamily.Monospace,
+                                                            fontWeight = if (entry.isActive) {
+                                                                FontWeight.Bold
+                                                            } else {
+                                                                FontWeight.Normal
+                                                            }
+                                                        )
+                                                    },
+                                                    onClick = {
+                                                        windowsExpanded = false
+                                                        WindowMenu.show(mdiState, entry.window)
+                                                    }
+                                                )
+                                            }
                                         }
                                     }
                                 }
