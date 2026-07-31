@@ -18,19 +18,23 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import com.syntona.dataflow.editor.LocalGraphColors
 import com.syntona.dataflow.editor.DarkGraphColors
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.isAltPressed
 import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.utf16CodePoint
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.input.pointer.pointerInput
@@ -114,6 +118,21 @@ fun restoreWindowStates(
         }
     }
     traverse(graphState)
+}
+
+/**
+ * True when this is a key-down of [letter], for matching shortcuts such as Cmd+C.
+ *
+ * Matching on [Key] alone is not enough. When a modifier is held, Compose on the web reports the
+ * key as unidentified - `Key(keyCode: -1)` - so `key == Key.C` is never true there and every
+ * Cmd shortcut silently did nothing. The character does survive as [utf16CodePoint], so that is
+ * used as a fallback. [key] is still checked first because it is the reliable path on desktop.
+ */
+private fun KeyEvent.isShortcutFor(letter: Char, key: Key): Boolean {
+    if (type != KeyEventType.KeyDown) return false
+    if (this.key == key) return true
+    val code = utf16CodePoint
+    return code != 0 && code.toChar().lowercaseChar() == letter.lowercaseChar()
 }
 
 @Composable
@@ -267,6 +286,15 @@ fun App(
                         modifier = Modifier
                             .fillMaxSize()
                             .focusRequester(appFocusRequester)
+                            // Take focus back whenever it leaves the app entirely. Key events are
+                            // only delivered to the focused node and its ancestors, so once
+                            // Compose has nothing focused - which happens after clicking around
+                            // the canvas and menus - no shortcut or Delete would ever fire again.
+                            // hasFocus covers the whole subtree, so a focused text field inside
+                            // keeps its focus and is not fought over.
+                            .onFocusChanged { focusState ->
+                                if (!focusState.hasFocus) appFocusRequester.requestFocus()
+                            }
                             .focusable()
                             // WebAudio cannot start until after the user has clicked.
                             .pointerInput(Unit) {
@@ -283,7 +311,13 @@ fun App(
                             }
                             .onKeyEvent { keyEvent ->
                                 val engine = mdiState.activeGraphState?.engine
+                                // Command keystrokes are matched before the graph gets a look at
+                                // them, so that an application shortcut can never be swallowed by
+                                // a patch that is listening for computer keyboard notes.
+                                val isCommand =
+                                    keyEvent.isMetaPressed || keyEvent.isCtrlPressed
                                 when {
+                                    !isCommand &&
                                     mdiState.activeGraphState?.onKeyEvent(keyEvent) == true -> true
                                     keyEvent.type == KeyEventType.KeyDown &&
                                     (keyEvent.key == Key.Backspace || keyEvent.key == Key.Delete) -> {
@@ -295,51 +329,21 @@ fun App(
                                         }
                                         true
                                     }
-                                    keyEvent.type == KeyEventType.KeyDown &&
-                                    keyEvent.key == Key.Z &&
-                                    (keyEvent.isMetaPressed || keyEvent.isCtrlPressed) -> {
+                                    isCommand && keyEvent.isShortcutFor('z', Key.Z) -> {
                                         if (keyEvent.isShiftPressed) engine?.redo()
                                         else engine?.undo()
                                         true
                                     }
-                                    keyEvent.type == KeyEventType.KeyDown &&
-                                    keyEvent.key == Key.C &&
-                                    (keyEvent.isMetaPressed || keyEvent.isCtrlPressed) -> {
-                                        val handler = mdiState.activeEditHandler
-                                        if (handler != null) {
-                                            if (handler.canCopy()) handler.copy()
-                                        } else {
-                                            val gs = mdiState.activeGraphState
-                                            if (gs != null && gs.selectedModules.isNotEmpty()) {
-                                                CopyPasteService.copy(gs, gs.selectedModules.toList(), appDensity)
-                                            }
-                                        }
+                                    isCommand && keyEvent.isShortcutFor('c', Key.C) -> {
+                                        EditActions.copy(mdiState, appDensity)
                                         true
                                     }
-                                    keyEvent.type == KeyEventType.KeyDown &&
-                                    keyEvent.key == Key.X &&
-                                    (keyEvent.isMetaPressed || keyEvent.isCtrlPressed) -> {
-                                        val handler = mdiState.activeEditHandler
-                                        if (handler != null) {
-                                            if (handler.canCut()) handler.cut()
-                                        } else {
-                                            val gs = mdiState.activeGraphState
-                                            if (gs != null && gs.selectedModules.isNotEmpty()) {
-                                                CopyPasteService.copy(gs, gs.selectedModules.toList(), appDensity)
-                                                gs.deleteSelectedModules()
-                                            }
-                                        }
+                                    isCommand && keyEvent.isShortcutFor('x', Key.X) -> {
+                                        EditActions.cut(mdiState, appDensity)
                                         true
                                     }
-                                    keyEvent.type == KeyEventType.KeyDown &&
-                                    keyEvent.key == Key.V &&
-                                    (keyEvent.isMetaPressed || keyEvent.isCtrlPressed) -> {
-                                        val handler = mdiState.activeEditHandler
-                                        if (handler != null) {
-                                            if (handler.canPaste()) handler.paste()
-                                        } else {
-                                            mdiState.activeGraphState?.let { CopyPasteService.paste(it, appDensity) }
-                                        }
+                                    isCommand && keyEvent.isShortcutFor('v', Key.V) -> {
+                                        EditActions.paste(mdiState, appDensity)
                                         true
                                     }
                                     else -> false
@@ -673,46 +677,27 @@ fun App(
                                             DropdownMenuItem(
                                                 text = { Text("Cut") },
                                                 trailingIcon = { ShortcutHint("⌘X") },
-                                                enabled = editHandler?.canCut() ?: hasSelection,
+                                                enabled = EditActions.canCut(mdiState),
                                                 onClick = {
-                                                    if (editHandler != null) {
-                                                        editHandler.cut()
-                                                    } else {
-                                                        val gs = activeGs
-                                                        if (gs != null) {
-                                                            CopyPasteService.copy(gs, gs.selectedModules.toList(), appDensity)
-                                                            gs.deleteSelectedModules()
-                                                        }
-                                                    }
+                                                    EditActions.cut(mdiState, appDensity)
                                                     editExpanded = false
                                                 }
                                             )
                                             DropdownMenuItem(
                                                 text = { Text("Copy") },
                                                 trailingIcon = { ShortcutHint("⌘C") },
-                                                enabled = editHandler?.canCopy() ?: hasSelection,
+                                                enabled = EditActions.canCopy(mdiState),
                                                 onClick = {
-                                                    if (editHandler != null) {
-                                                        editHandler.copy()
-                                                    } else {
-                                                        val gs = activeGs
-                                                        if (gs != null) {
-                                                            CopyPasteService.copy(gs, gs.selectedModules.toList(), appDensity)
-                                                        }
-                                                    }
+                                                    EditActions.copy(mdiState, appDensity)
                                                     editExpanded = false
                                                 }
                                             )
                                             DropdownMenuItem(
                                                 text = { Text("Paste") },
                                                 trailingIcon = { ShortcutHint("⌘V") },
-                                                enabled = editHandler?.canPaste() ?: (CopyPasteService.pasteBuffer != null),
+                                                enabled = EditActions.canPaste(mdiState),
                                                 onClick = {
-                                                    if (editHandler != null) {
-                                                        editHandler.paste()
-                                                    } else {
-                                                        activeGs?.let { CopyPasteService.paste(it, appDensity) }
-                                                    }
+                                                    EditActions.paste(mdiState, appDensity)
                                                     editExpanded = false
                                                 }
                                             )

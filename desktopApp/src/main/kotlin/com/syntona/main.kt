@@ -9,6 +9,7 @@ import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import androidx.compose.ui.unit.dp
 import com.syntona.dataflow.editor.CopyPasteService
+import com.syntona.dataflow.editor.EditActions
 import com.syntona.dataflow.editor.FileState
 import com.syntona.dataflow.editor.GraphSerializer
 import com.syntona.dataflow.editor.MdiState
@@ -172,12 +173,15 @@ fun main() {
                         }
                     }
                     Separator()
+                    // Always enabled for the same reason as Cut/Copy/Paste below: a stale disabled
+                    // flag makes macOS swallow Cmd+S. Saving an unchanged patch is harmless, and
+                    // with no path yet this falls through to the Save As dialog, which is what
+                    // Cmd+S should do anyway. Only a bundled resource must be left alone.
                     Item(
                         "Save",
-                        shortcut = KeyShortcut(Key.S, meta = true),
-                        enabled = FileState.isDirty && FileState.currentFilePath != null && !FileState.isResource
+                        shortcut = KeyShortcut(Key.S, meta = true)
                     ) {
-                        if (gs != null) {
+                        if (!FileState.isResource && gs != null) {
                             val rootPatch = state.windows.find { !it.closable }?.id as? PatchModule
                             if (rootPatch != null) {
                                 val modifiedChildren = rootPatch.findModifiedReferencedPatches()
@@ -351,32 +355,33 @@ fun main() {
                     }
                 }
                 Menu("Edit") {
-                    val gs = state.activeGraphState
-                    val hasSelection = gs?.selectedModules?.isNotEmpty() == true
+                    // These actions deliberately look the active window up when they run. The
+                    // menu bar builds each item once and reuses its action for the keyboard
+                    // shortcut, so a GraphState captured out here would be whatever was frontmost
+                    // when the menu was last composed, not what the user is actually editing.
                     Item("Undo", shortcut = KeyShortcut(Key.Z, meta = true)) {
-                        gs?.engine?.undo()
+                        state.activeGraphState?.engine?.undo()
                     }
                     Item("Redo", shortcut = KeyShortcut(Key.Z, meta = true, shift = true)) {
-                        gs?.engine?.redo()
+                        state.activeGraphState?.engine?.redo()
                     }
                     Separator()
-                    Item("Cut", shortcut = KeyShortcut(Key.X, meta = true), enabled = hasSelection) {
-                        if (gs != null) {
-                            CopyPasteService.copy(gs, gs.selectedModules.toList())
-                            gs.deleteSelectedModules()
-                        }
+                    // Deliberately left always enabled rather than greyed out when there is
+                    // nothing to act on. The menu bar is an AWT component and its enabled flag
+                    // does not reliably follow Compose state, and macOS silently swallows the
+                    // accelerator of a disabled item: that is what made Cmd+C work only
+                    // sometimes, and Cmd+V never, since Paste starts disabled and the menu rarely
+                    // recomposed to notice the clipboard filling up. EditActions already does
+                    // nothing when there is no selection or an empty clipboard, so the guard
+                    // lives there instead of in the enabled flag.
+                    Item("Cut", shortcut = KeyShortcut(Key.X, meta = true)) {
+                        EditActions.cut(state, density)
                     }
-                    Item("Copy", shortcut = KeyShortcut(Key.C, meta = true), enabled = hasSelection) {
-                        if (gs != null) {
-                            CopyPasteService.copy(gs, gs.selectedModules.toList())
-                        }
+                    Item("Copy", shortcut = KeyShortcut(Key.C, meta = true)) {
+                        EditActions.copy(state, density)
                     }
-                    Item(
-                        "Paste",
-                        shortcut = KeyShortcut(Key.V, meta = true),
-                        enabled = CopyPasteService.pasteBuffer != null
-                    ) {
-                        gs?.let { CopyPasteService.paste(it) }
+                    Item("Paste", shortcut = KeyShortcut(Key.V, meta = true)) {
+                        EditActions.paste(state, density)
                     }
                 }
                 Menu("Help ") {

@@ -290,7 +290,6 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
     }
 
     fun onKeyEvent(event: KeyEvent): Boolean {
-
         val rawCharCode = getEventCharCode(event)
         if (rawCharCode == 0 || rawCharCode == 65535) return false
 
@@ -303,10 +302,31 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
             else -> return false
         }
 
-        return handleKeyStroke(charCode, isDown, event.isShiftPressed)
+        return handleKeyStroke(
+            charCode,
+            isDown,
+            event.isShiftPressed,
+            isCommandPressed = event.isMetaPressed || event.isCtrlPressed
+        )
     }
 
-    fun handleKeyStroke(charCode: Int, isDown: Boolean, isShiftPressed: Boolean = false): Boolean {
+    /**
+     * @param isCommandPressed true when Cmd or Ctrl is held, in which case the keystroke is an
+     *   application shortcut rather than a note and is left for the caller to handle.
+     */
+    fun handleKeyStroke(
+        charCode: Int,
+        isDown: Boolean,
+        isShiftPressed: Boolean = false,
+        isCommandPressed: Boolean = false
+    ): Boolean {
+        // Never treat a command keystroke as a musical key. Without this, Cmd+C is identical to
+        // playing the note "C": the graph consumes it and the Copy shortcut never runs. It also
+        // used to leave the letter stuck in pressedKeyCodes, because macOS delivers no KeyUp for
+        // a letter while Cmd is held, so every later Cmd+C was dropped below as an auto-repeat.
+        // That is why copying worked once or twice and then stopped for the rest of the session.
+        if (isCommandPressed) return false
+
         if (isDown) {
             if (pressedKeyCodes.contains(charCode)) {
                 return true // Ignore auto-repeat

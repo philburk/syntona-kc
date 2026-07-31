@@ -1,16 +1,31 @@
-Add patch inputs for start/stop/etc that are commands with buttons.
+
 
 BUG: copy and paste using key commands is not working
 
 When saving resources go to the folder last loaded from using the Help menu.
 Also enable a SaveResource item.
 
+Support more than one top level patch. Needed for Help so we don't have to lose works in progress.
+Must be closable.
+
+Need a Windows menu named after the file name or patch(2)
+
 Right click on a module for a menu with "Help...". Or add a (?) button to the header.
 It will be enabled if a file called "help/{bundle}/{moduleName}.json" exists.
 Add a Help>>Modules menu like Help>>Examples
-More tutorials
 
-Add a resource folder with a "library" of patches. Add a "Load Patch from Library" file item,
+More tutorials. Audio, timeline, pianoroll.
+
+WASM target should be able to jump to a
+
+Create a Discord channel.
+Add a Discord menu option to the Help menu.
+
+# ---------------------------- Alpha Release on Web
+
+Add patch inputs for start/stop/etc that are commands with buttons.
+
+Maybe??? Add a resource folder with a "library" of patches. Add a "Load Patch from Library" file item,
 similar to the Help menu items. Or add them to the moduleTree. Example???
 
 Consolidate stock polyPatch inputs into a block.

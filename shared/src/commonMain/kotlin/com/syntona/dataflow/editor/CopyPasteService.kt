@@ -25,4 +25,10 @@ object CopyPasteService {
         val created = GraphSerializer.deserialize(graphState, json, offset, density)
         created.forEach { graphState.selectModule(it) }
     }
+
+    /** Empties the clipboard. Mainly so one test cannot leak into the next. */
+    fun clear() {
+        pasteBuffer = null
+        pasteCount = 0
+    }
 }
