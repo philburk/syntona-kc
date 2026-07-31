@@ -11,7 +11,7 @@
       "windowY": 275.96188,
       "windowWidth": 988,
       "windowHeight": 532.875,
-      "windowOpen": true,
+      "windowOpen": false,
       "patch": {
         "modules": [
           {
@@ -49,7 +49,7 @@
                 "add": false
               },
               "amplitude": {
-                "v": 0.06054667755961418,
+                "v": 0.06402197480201721,
                 "min": 0,
                 "max": 1,
                 "add": false
@@ -250,19 +250,19 @@
       "id": 1,
       "type": "core.basic.send",
       "name": "gAmp",
-      "x": 233.88818,
-      "y": 90.05591,
+      "x": 193.88818,
+      "y": 219.05591,
       "jacks": {}
     },
     {
       "id": 2,
       "type": "core.input.knob",
       "name": "knob",
-      "x": 36.925003,
-      "y": 76.099976,
+      "x": 48.925003,
+      "y": 185.09998,
       "jacks": {
         "in": {
-          "v": 0.06054667755961418,
+          "v": 0.06402197480201721,
           "min": 0,
           "max": 0.1
         }
@@ -279,7 +279,7 @@
       "windowY": 275.96188,
       "windowWidth": 988,
       "windowHeight": 532.875,
-      "windowOpen": true,
+      "windowOpen": false,
       "patch": {
         "modules": [
           {
@@ -317,7 +317,7 @@
                 "add": false
               },
               "amplitude": {
-                "v": 0.06054667755961418,
+                "v": 0.06402197480201721,
                 "min": 0,
                 "max": 1,
                 "add": false
@@ -525,7 +525,7 @@
       "windowY": 275.96188,
       "windowWidth": 988,
       "windowHeight": 532.875,
-      "windowOpen": true,
+      "windowOpen": false,
       "patch": {
         "modules": [
           {
@@ -563,7 +563,7 @@
                 "add": false
               },
               "amplitude": {
-                "v": 0.06054667755961418,
+                "v": 0.06402197480201721,
                 "min": 0,
                 "max": 1,
                 "add": false
@@ -771,7 +771,7 @@
       "windowY": 275.96188,
       "windowWidth": 988,
       "windowHeight": 532.875,
-      "windowOpen": true,
+      "windowOpen": false,
       "patch": {
         "modules": [
           {
@@ -809,7 +809,7 @@
                 "add": false
               },
               "amplitude": {
-                "v": 0.06054667755961418,
+                "v": 0.06402197480201721,
                 "min": 0,
                 "max": 1,
                 "add": false
@@ -1017,7 +1017,7 @@
       "windowY": 275.96188,
       "windowWidth": 988,
       "windowHeight": 532.875,
-      "windowOpen": true,
+      "windowOpen": false,
       "patch": {
         "modules": [
           {
@@ -1055,7 +1055,7 @@
                 "add": false
               },
               "amplitude": {
-                "v": 0.06054667755961418,
+                "v": 0.06402197480201721,
                 "min": 0,
                 "max": 1,
                 "add": false
@@ -1263,7 +1263,7 @@
       "windowY": 275.96188,
       "windowWidth": 988,
       "windowHeight": 532.875,
-      "windowOpen": true,
+      "windowOpen": false,
       "patch": {
         "modules": [
           {
@@ -1301,7 +1301,7 @@
                 "add": false
               },
               "amplitude": {
-                "v": 0.06054667755961418,
+                "v": 0.06402197480201721,
                 "min": 0,
                 "max": 1,
                 "add": false
@@ -1509,7 +1509,7 @@
       "windowY": 275.96188,
       "windowWidth": 988,
       "windowHeight": 532.875,
-      "windowOpen": true,
+      "windowOpen": false,
       "patch": {
         "modules": [
           {
@@ -1547,7 +1547,7 @@
                 "add": false
               },
               "amplitude": {
-                "v": 0.06054667755961418,
+                "v": 0.06402197480201721,
                 "min": 0,
                 "max": 1,
                 "add": false
@@ -1755,7 +1755,7 @@
       "windowY": 275.96188,
       "windowWidth": 988,
       "windowHeight": 532.875,
-      "windowOpen": true,
+      "windowOpen": false,
       "patch": {
         "modules": [
           {
@@ -1793,7 +1793,7 @@
                 "add": false
               },
               "amplitude": {
-                "v": 0.06054667755961418,
+                "v": 0.06402197480201721,
                 "min": 0,
                 "max": 1,
                 "add": false
@@ -2001,7 +2001,7 @@
       "windowY": 275.96188,
       "windowWidth": 988,
       "windowHeight": 532.875,
-      "windowOpen": true,
+      "windowOpen": false,
       "patch": {
         "modules": [
           {
@@ -2039,7 +2039,7 @@
                 "add": false
               },
               "amplitude": {
-                "v": 0.06054667755961418,
+                "v": 0.06402197480201721,
                 "min": 0,
                 "max": 1,
                 "add": false
@@ -2247,7 +2247,7 @@
       "windowY": 275.96188,
       "windowWidth": 988,
       "windowHeight": 532.875,
-      "windowOpen": true,
+      "windowOpen": false,
       "patch": {
         "modules": [
           {
@@ -2285,7 +2285,7 @@
                 "add": false
               },
               "amplitude": {
-                "v": 0.06054667755961418,
+                "v": 0.06402197480201721,
                 "min": 0,
                 "max": 1,
                 "add": false
@@ -2481,6 +2481,17 @@
           }
         ]
       }
+    },
+    {
+      "id": 12,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 19.875,
+      "y": 36,
+      "jacks": {},
+      "text": "This patch is used to measure the CPU load for N simple voices.",
+      "w": 259.875,
+      "h": 95
     }
   ],
   "connections": [
