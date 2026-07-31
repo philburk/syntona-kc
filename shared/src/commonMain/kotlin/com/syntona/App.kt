@@ -121,6 +121,84 @@ fun restoreWindowStates(
 }
 
 /**
+ * Creates a top level document and opens its window.
+ *
+ * Used both for the document the app starts with and for any opened alongside it, so that loading
+ * an example never has to discard work in progress. Each document owns its own root patch, file
+ * path and dirty flag; [FileState] tracks which one is in front.
+ */
+fun openNewDocument(
+    mdiState: MdiState,
+    engine: com.syntona.dataflow.engine.DataFlowEngine,
+    density: Float,
+    name: String = "root",
+    closable: Boolean = FileState.documents.isNotEmpty()
+): DocumentState {
+    val rootPatch = PatchModule(name).also { it.graphState.engine = engine }
+    val document = DocumentState(rootPatch)
+
+    // Cascade each new window so it does not land exactly on top of the previous one.
+    val step = 24f * FileState.documents.size
+    rootPatch.windowX = 10f + step
+    rootPatch.windowY = 10f + step
+    rootPatch.windowWidth = 800f
+    rootPatch.windowHeight = 500f
+
+    val window = MdiWindowInfo(
+        id = rootPatch,
+        title = document.displayName,
+        position = Offset(rootPatch.windowX!! * density, rootPatch.windowY!! * density),
+        closable = closable,
+        graphState = rootPatch.graphState,
+        width = rootPatch.windowWidth!!.dp,
+        height = rootPatch.windowHeight!!.dp,
+        content = { GraphEditor(rootPatch.graphState) }
+    )
+    window.onGeometryChanged = {
+        rootPatch.windowX = window.position.x / density
+        rootPatch.windowY = window.position.y / density
+        rootPatch.windowWidth = window.width.value
+        rootPatch.windowHeight = window.height.value
+    }
+    // Marks this document dirty rather than whichever happens to be in front.
+    rootPatch.graphState.onChange = {
+        if (!rootPatch.graphState.isDeserializing) {
+            rootPatch.isModified = true
+        }
+        document.markDirty()
+    }
+
+    FileState.addDocument(document)
+    mdiState.open(window)
+    return document
+}
+
+/**
+ * Loads [content] into [document], replacing whatever it held.
+ *
+ * Shared by every load path so that opening into a new window behaves exactly like opening into
+ * the current one, apart from which document it targets.
+ */
+fun loadIntoDocument(
+    mdiState: MdiState,
+    document: DocumentState,
+    path: String,
+    content: String,
+    density: Float
+) {
+    val graphState = document.rootPatch.graphState
+    graphState.clearAllModules()
+    graphState.engine?.clearHistory()
+    mdiState.closeSubWindows(document)
+    GraphSerializer.deserialize(graphState, content, density = density)
+    restoreWindowStates(mdiState, graphState, density)
+    restoreRootWindowGeometry(mdiState, document.rootPatch, content, density)
+    document.markSaved(path)
+    document.rootPatch.clearModifiedRecursively()
+    graphState.kickLoadKickModules()
+}
+
+/**
  * True when this is a key-down of [letter], for matching shortcuts such as Cmd+C.
  *
  * Matching on [Key] alone is not enough. When a modifier is held, Compose on the web reports the
@@ -185,73 +263,67 @@ fun App(
 
         val mdiState = remember {
             MdiState().also { mdi ->
-                mdi.rootGraphState = rootPatch.graphState
-                mdi.activeGraphState = rootPatch.graphState
-                val savedX = rootPatch.windowX
-                val savedY = rootPatch.windowY
+                val document = DocumentState(rootPatch)
                 val rootWindow = MdiWindowInfo(
                     id = rootPatch,
                     title = rootPatch.name,
-                    position = if (savedX != null && savedY != null) {
-                        Offset(savedX * appDensity, savedY * appDensity)
-                    } else {
-                        Offset(10f, 10f)
-                    },
+                    position = Offset(
+                        (rootPatch.windowX ?: 10f) * appDensity,
+                        (rootPatch.windowY ?: 10f) * appDensity
+                    ),
+                    // The first document cannot be closed, so there is always somewhere to work.
                     closable = false,
                     graphState = rootPatch.graphState,
                     width = rootPatch.windowWidth?.dp ?: 800.dp,
                     height = rootPatch.windowHeight?.dp ?: 500.dp,
                     content = { GraphEditor(rootPatch.graphState) }
                 )
+                rootWindow.onGeometryChanged = {
+                    rootPatch.windowX = rootWindow.position.x / appDensity
+                    rootPatch.windowY = rootWindow.position.y / appDensity
+                    rootPatch.windowWidth = rootWindow.width.value
+                    rootPatch.windowHeight = rootWindow.height.value
+                }
+                rootPatch.graphState.onChange = {
+                    if (!rootPatch.graphState.isDeserializing) {
+                        rootPatch.isModified = true
+                    }
+                    document.markDirty()
+                }
+                FileState.addDocument(document)
                 mdi.open(rootWindow)
             }
         }
 
-        val rootWindow = mdiState.windows.find { it.id == rootPatch }
-        if (rootWindow != null) {
-            rootWindow.onGeometryChanged = {
-                rootPatch.windowX = rootWindow.position.x / appDensity
-                rootPatch.windowY = rootWindow.position.y / appDensity
-                rootPatch.windowWidth = rootWindow.width.value
-                rootPatch.windowHeight = rootWindow.height.value
-            }
-        }
         SideEffect {
             onMdiStateReady?.invoke(mdiState)
-            rootPatch.graphState.onChange = {
-                if (!rootPatch.graphState.isDeserializing) {
-                    rootPatch.isModified = true
-                }
-                FileState.markDirty()
-            }
         }
         LaunchedEffect(Unit) {
             syntonaModel.start()
         }
-        LaunchedEffect(FileState.currentFilePath) {
-            rootPatch.filePath = FileState.currentFilePath
-        }
         LaunchedEffect(mdiState, scope) {
             LinkModule.onTriggerLoad = { path ->
-                val activeGs = mdiState.activeGraphState
-                val activeEngine = activeGs?.engine
-                if (activeGs != null) {
-                    FileState.requestIfDirty {
+                val current = FileState.activeDocument
+                val currentEngine = current?.rootPatch?.graphState?.engine
+                if (current != null && currentEngine != null) {
+                    fun load(into: DocumentState) {
                         scope.launch {
                             try {
                                 val bytes = com.syntona.SharedResources.readBytes("files/$path")
-                                val content = bytes.decodeToString()
-                                activeGs.clearAllModules()
-                                activeEngine?.clearHistory()
-                                mdiState.closeAllClosable()
-                                GraphSerializer.deserialize(activeGs, content, density = appDensity)
-                                restoreWindowStates(mdiState, activeGs, appDensity)
-                                FileState.markSaved(path)
-                                activeGs.kickLoadKickModules()
+                                loadIntoDocument(
+                                    mdiState, into, path, bytes.decodeToString(), appDensity
+                                )
                             } catch (e: Exception) {
                                 println("Failed to load link file: ${e.message}")
                             }
                         }
+                    }
+                    FileState.requestIfDirty(
+                        openInNewWindow = {
+                            load(openNewDocument(mdiState, currentEngine, appDensity))
+                        }
+                    ) {
+                        load(current)
                     }
                 }
             }
@@ -377,7 +449,11 @@ fun App(
 
 
                                  if (showFileMenuInToolbar) {
-                                     val gs = rootPatch.graphState
+                                     // Resolve the frontmost document here so every item below acts on
+                                     // the window the user is looking at, not the first one ever opened.
+                                     val activeDoc = FileState.activeDocument
+                                     val docRoot = activeDoc?.rootPatch ?: rootPatch
+                                     val gs = docRoot.graphState
                                      val engine = syntonaModel.engine
                                      var fileExpanded by remember { mutableStateOf(false) }
                                      Box {
@@ -391,12 +467,20 @@ fun App(
                                                   trailingIcon = { ShortcutHint("⌘N") },
                                                   onClick = {
                                                       fileExpanded = false
-                                                      FileState.requestIfDirty {
-                                                          gs.clearAllModules()
-                                                          engine.clearHistory()
-                                                          rootPatch.clearModifiedRecursively()
-                                                          FileState.markNew()
-                                                          mdiState.closeAllClosable()
+                                                      val current = FileState.activeDocument
+                                                      FileState.requestIfDirty(
+                                                          openInNewWindow = {
+                                                              openNewDocument(mdiState, engine, appDensity)
+                                                          }
+                                                      ) {
+                                                          if (current != null) {
+                                                              val currentGs = current.rootPatch.graphState
+                                                              currentGs.clearAllModules()
+                                                              currentGs.engine?.clearHistory()
+                                                              current.rootPatch.clearModifiedRecursively()
+                                                              current.markNew()
+                                                              mdiState.closeSubWindows(current)
+                                                          }
                                                       }
                                                   }
                                               )
@@ -405,18 +489,20 @@ fun App(
                                                   trailingIcon = { ShortcutHint("⌘O") },
                                                   onClick = {
                                                       fileExpanded = false
-                                                      FileState.requestIfDirty {
+                                                      val current = FileState.activeDocument
+                                                      fun openInto(into: DocumentState) {
                                                           showOpenFileDialog { name, content ->
-                                                              gs.clearAllModules()
-                                                              engine.clearHistory()
-                                                              mdiState.closeAllClosable()
-                                                              GraphSerializer.deserialize(gs, content, density = appDensity)
-                                                              restoreWindowStates(mdiState, gs, appDensity)
-                                                              restoreRootWindowGeometry(mdiState, rootPatch, content, appDensity)
-                                                              rootPatch.clearModifiedRecursively()
-                                                              FileState.markSaved(name)
-                                                              gs.kickLoadKickModules()
+                                                              loadIntoDocument(
+                                                                  mdiState, into, name, content, appDensity
+                                                              )
                                                           }
+                                                      }
+                                                      FileState.requestIfDirty(
+                                                          openInNewWindow = {
+                                                              openInto(openNewDocument(mdiState, engine, appDensity))
+                                                          }
+                                                      ) {
+                                                          if (current != null) openInto(current)
                                                       }
                                                   }
                                               )
@@ -467,28 +553,28 @@ fun App(
                                                   enabled = FileState.isDirty && FileState.currentFilePath != null && !FileState.isResource,
                                                   onClick = {
                                                       fileExpanded = false
-                                                      val modifiedChildren = rootPatch.findModifiedReferencedPatches()
+                                                      val modifiedChildren = docRoot.findModifiedReferencedPatches()
                                                       if (modifiedChildren.isNotEmpty()) {
                                                           FileState.patchesToConfirmSave.clear()
                                                           FileState.patchesToConfirmSave.addAll(modifiedChildren)
                                                           FileState.postConfirmationSaveAction = {
                                                               val json = GraphSerializer.serialize(
                                                                   gs, gs.modules.toList(), appDensity,
-                                                                  rootWindowX = rootPatch.windowX,
-                                                                  rootWindowY = rootPatch.windowY,
-                                                                  rootWindowWidth = rootPatch.windowWidth,
-                                                                  rootWindowHeight = rootPatch.windowHeight
+                                                                  rootWindowX = docRoot.windowX,
+                                                                  rootWindowY = docRoot.windowY,
+                                                                  rootWindowWidth = docRoot.windowWidth,
+                                                                  rootWindowHeight = docRoot.windowHeight
                                                               )
                                                               val path = FileState.currentFilePath
                                                               if (path != null) {
                                                                   saveFileDirect(path, json)
-                                                                  rootPatch.filePath = path
-                                                                  rootPatch.clearModifiedRecursively()
+                                                                  docRoot.filePath = path
+                                                                  docRoot.clearModifiedRecursively()
                                                                   FileState.markSaved(path)
                                                               } else {
                                                                   showSaveFileDialog(json, "patch.json") { savedPath ->
-                                                                      rootPatch.filePath = savedPath
-                                                                      rootPatch.clearModifiedRecursively()
+                                                                      docRoot.filePath = savedPath
+                                                                      docRoot.clearModifiedRecursively()
                                                                       FileState.markSaved(savedPath)
                                                                   }
                                                               }
@@ -496,21 +582,21 @@ fun App(
                                                       } else {
                                                           val json = GraphSerializer.serialize(
                                                               gs, gs.modules.toList(), appDensity,
-                                                              rootWindowX = rootPatch.windowX,
-                                                              rootWindowY = rootPatch.windowY,
-                                                              rootWindowWidth = rootPatch.windowWidth,
-                                                              rootWindowHeight = rootPatch.windowHeight
+                                                              rootWindowX = docRoot.windowX,
+                                                              rootWindowY = docRoot.windowY,
+                                                              rootWindowWidth = docRoot.windowWidth,
+                                                              rootWindowHeight = docRoot.windowHeight
                                                           )
                                                           val path = FileState.currentFilePath
                                                           if (path != null) {
                                                               saveFileDirect(path, json)
-                                                              rootPatch.filePath = path
-                                                              rootPatch.clearModifiedRecursively()
+                                                              docRoot.filePath = path
+                                                              docRoot.clearModifiedRecursively()
                                                               FileState.markSaved(path)
                                                           } else {
                                                               showSaveFileDialog(json, "patch.json") { savedPath ->
-                                                                  rootPatch.filePath = savedPath
-                                                                  rootPatch.clearModifiedRecursively()
+                                                                  docRoot.filePath = savedPath
+                                                                  docRoot.clearModifiedRecursively()
                                                                   FileState.markSaved(savedPath)
                                                               }
                                                           }
@@ -522,7 +608,7 @@ fun App(
                                                    trailingIcon = { ShortcutHint("⌘⇧S") },
                                                    onClick = {
                                                        fileExpanded = false
-                                                       val modifiedChildren = rootPatch.findModifiedReferencedPatches()
+                                                       val modifiedChildren = docRoot.findModifiedReferencedPatches()
                                                        if (modifiedChildren.isNotEmpty()) {
                                                            FileState.patchesToConfirmSave.clear()
                                                            FileState.patchesToConfirmSave.addAll(modifiedChildren)
@@ -530,15 +616,15 @@ fun App(
                                                                showSaveFileDialog(
                                                                    GraphSerializer.serialize(
                                                                        gs, gs.modules.toList(), appDensity,
-                                                                       rootWindowX = rootPatch.windowX,
-                                                                       rootWindowY = rootPatch.windowY,
-                                                                       rootWindowWidth = rootPatch.windowWidth,
-                                                                       rootWindowHeight = rootPatch.windowHeight
+                                                                       rootWindowX = docRoot.windowX,
+                                                                       rootWindowY = docRoot.windowY,
+                                                                       rootWindowWidth = docRoot.windowWidth,
+                                                                       rootWindowHeight = docRoot.windowHeight
                                                                    ),
                                                                    FileState.currentFileName ?: "patch.json"
                                                                ) { savedPath ->
-                                                                   rootPatch.filePath = savedPath
-                                                                   rootPatch.clearModifiedRecursively()
+                                                                   docRoot.filePath = savedPath
+                                                                   docRoot.clearModifiedRecursively()
                                                                    FileState.markSaved(savedPath)
                                                                }
                                                            }
@@ -546,15 +632,15 @@ fun App(
                                                            showSaveFileDialog(
                                                                GraphSerializer.serialize(
                                                                    gs, gs.modules.toList(), appDensity,
-                                                                   rootWindowX = rootPatch.windowX,
-                                                                   rootWindowY = rootPatch.windowY,
-                                                                   rootWindowWidth = rootPatch.windowWidth,
-                                                                   rootWindowHeight = rootPatch.windowHeight
+                                                                   rootWindowX = docRoot.windowX,
+                                                                   rootWindowY = docRoot.windowY,
+                                                                   rootWindowWidth = docRoot.windowWidth,
+                                                                   rootWindowHeight = docRoot.windowHeight
                                                                ),
                                                                FileState.currentFileName ?: "patch.json"
                                                            ) { savedPath ->
-                                                               rootPatch.filePath = savedPath
-                                                               rootPatch.clearModifiedRecursively()
+                                                               docRoot.filePath = savedPath
+                                                               docRoot.clearModifiedRecursively()
                                                                FileState.markSaved(savedPath)
                                                            }
                                                        }
@@ -565,7 +651,7 @@ fun App(
                                                        text = { Text("SaveAsResource...") },
                                                        onClick = {
                                                            fileExpanded = false
-                                                           val modifiedChildren = rootPatch.findModifiedReferencedPatches()
+                                                           val modifiedChildren = docRoot.findModifiedReferencedPatches()
                                                            if (modifiedChildren.isNotEmpty()) {
                                                                FileState.patchesToConfirmSave.clear()
                                                                FileState.patchesToConfirmSave.addAll(modifiedChildren)
@@ -573,15 +659,15 @@ fun App(
                                                                    showSaveAsResourceFileDialog(
                                                                        GraphSerializer.serialize(
                                                                            gs, gs.modules.toList(), appDensity,
-                                                                           rootWindowX = rootPatch.windowX,
-                                                                           rootWindowY = rootPatch.windowY,
-                                                                           rootWindowWidth = rootPatch.windowWidth,
-                                                                           rootWindowHeight = rootPatch.windowHeight
+                                                                           rootWindowX = docRoot.windowX,
+                                                                           rootWindowY = docRoot.windowY,
+                                                                           rootWindowWidth = docRoot.windowWidth,
+                                                                           rootWindowHeight = docRoot.windowHeight
                                                                        ),
                                                                        FileState.currentFileName ?: "patch.json"
                                                                    ) { savedPath ->
-                                                                       rootPatch.filePath = savedPath
-                                                                       rootPatch.clearModifiedRecursively()
+                                                                       docRoot.filePath = savedPath
+                                                                       docRoot.clearModifiedRecursively()
                                                                        FileState.markSaved(savedPath)
                                                                    }
                                                                }
@@ -589,15 +675,15 @@ fun App(
                                                                showSaveAsResourceFileDialog(
                                                                    GraphSerializer.serialize(
                                                                        gs, gs.modules.toList(), appDensity,
-                                                                       rootWindowX = rootPatch.windowX,
-                                                                       rootWindowY = rootPatch.windowY,
-                                                                       rootWindowWidth = rootPatch.windowWidth,
-                                                                       rootWindowHeight = rootPatch.windowHeight
+                                                                       rootWindowX = docRoot.windowX,
+                                                                       rootWindowY = docRoot.windowY,
+                                                                       rootWindowWidth = docRoot.windowWidth,
+                                                                       rootWindowHeight = docRoot.windowHeight
                                                                    ),
                                                                    FileState.currentFileName ?: "patch.json"
                                                                ) { savedPath ->
-                                                                   rootPatch.filePath = savedPath
-                                                                   rootPatch.clearModifiedRecursively()
+                                                                   docRoot.filePath = savedPath
+                                                                   docRoot.clearModifiedRecursively()
                                                                    FileState.markSaved(savedPath)
                                                                }
                                                            }
@@ -617,7 +703,7 @@ fun App(
                                                           showSaveFileDialog(json, defaultName) { path ->
                                                               target.filePath = path
                                                               target.clearModifiedRecursively()
-                                                              if (target === rootPatch) {
+                                                              if (target === docRoot) {
                                                                   FileState.markSaved(path)
                                                               }
                                                           }
@@ -1004,19 +1090,35 @@ fun App(
                         )
                     }
 
-                    FileState.pendingAction?.let { pendingAction ->
+                    if (FileState.pendingAction != null) {
+                        val canOpenInNewWindow = FileState.pendingOpenInNewWindow != null
                         AlertDialog(
-                            onDismissRequest = { FileState.pendingAction = null },
+                            onDismissRequest = { FileState.clearPendingAction() },
                             title = { Text("Unsaved Changes") },
-                            text = { Text("Discard unsaved changes?") },
+                            text = {
+                                Text(
+                                    if (canOpenInNewWindow) {
+                                        "This patch has unsaved changes. Discard them, or leave " +
+                                            "them alone and open the other patch in a new window?"
+                                    } else {
+                                        "Discard unsaved changes?"
+                                    }
+                                )
+                            },
                             confirmButton = {
-                                Button(onClick = {
-                                    FileState.pendingAction = null
-                                    pendingAction()
-                                }) { Text("Discard") }
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    if (canOpenInNewWindow) {
+                                        Button(onClick = { FileState.confirmPendingInNewWindow() }) {
+                                            Text("Open in New Window")
+                                        }
+                                    }
+                                    Button(onClick = { FileState.confirmPendingAction() }) {
+                                        Text("Discard")
+                                    }
+                                }
                             },
                             dismissButton = {
-                                TextButton(onClick = { FileState.pendingAction = null }) {
+                                TextButton(onClick = { FileState.clearPendingAction() }) {
                                     Text("Cancel")
                                 }
                             }
@@ -1153,28 +1255,27 @@ fun RenderDropdownMenuNode(
                 text = { Text(child.name) },
                 onClick = {
                     onClose()
-                    // Examples/Tutorials always replace the whole document, so they load into
-                    // the root graph regardless of which sub-patch window happens to be active.
-                    val rootGs = state.rootGraphState
-                    val rootEngine = rootGs?.engine
-                    if (rootGs != null) {
-                        FileState.requestIfDirty {
+                    // Examples/Tutorials replace the whole document, so they target the root of
+                    // the frontmost one rather than whichever sub-patch window is active.
+                    val current = FileState.activeDocument
+                    val engine = current?.rootPatch?.graphState?.engine
+                    if (current != null && engine != null) {
+                        fun load(into: DocumentState) {
                             scope.launch {
                                 try {
                                     val bytes = com.syntona.SharedResources.readBytes("files/$path")
-                                    val content = bytes.decodeToString()
-                                    rootGs.clearAllModules()
-                                    rootEngine?.clearHistory()
-                                    state.closeAllClosable()
-                                    GraphSerializer.deserialize(rootGs, content, density = density)
-                                    restoreWindowStates(state, rootGs, density)
-                                    restoreRootWindowGeometry(state, rootPatch, content, density)
-                                    FileState.markSaved(path)
-                                    rootGs.kickLoadKickModules()
+                                    loadIntoDocument(
+                                        state, into, path, bytes.decodeToString(), density
+                                    )
                                 } catch (e: Exception) {
                                     println("Failed to load: ${e.message}")
                                 }
                             }
+                        }
+                        FileState.requestIfDirty(
+                            openInNewWindow = { load(openNewDocument(state, engine, density)) }
+                        ) {
+                            load(current)
                         }
                     }
                 }

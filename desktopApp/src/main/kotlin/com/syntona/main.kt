@@ -35,9 +35,10 @@ fun main() {
         val desktop = java.awt.Desktop.getDesktop()
         if (desktop.isSupported(java.awt.Desktop.Action.APP_QUIT_HANDLER)) {
             desktop.setQuitHandler { _, response ->
-                if (FileState.isDirty && !FileState.isResource) {
+                // Every open document is at stake when quitting, not just the frontmost one.
+                if (FileState.hasAnyUnsavedWork) {
                     response.cancelQuit()
-                    FileState.requestIfDirty {
+                    FileState.requestIfAnyDirty {
                         exitApplication()
                     }
                 } else {
@@ -49,11 +50,11 @@ fun main() {
 
     Window(
         onCloseRequest = {
-            FileState.requestIfDirty {
+            FileState.requestIfAnyDirty {
                 exitApplication()
             }
         },
-        title = if (FileState.isDirty) "• SyntonaKC" else "SyntonaKC",
+        title = if (FileState.hasAnyUnsavedWork) "• SyntonaKC" else "SyntonaKC",
         state = rememberWindowState(width = 1600.dp, height = 1200.dp),
     ) {
         var mdiState by remember { mutableStateOf<MdiState?>(null) }
@@ -72,29 +73,27 @@ fun main() {
             LinkModule.onTriggerLoad = { path ->
                 val state = mdiState
                 if (state != null) {
-                    val gs = state.rootGraphState ?: state.activeGraphState
-                    val engine = gs?.engine
-                    if (gs != null) {
-                        FileState.requestIfDirty {
+                    val current = FileState.activeDocument
+                    val engine = current?.rootPatch?.graphState?.engine
+                    if (current != null && engine != null) {
+                        fun load(into: com.syntona.dataflow.editor.DocumentState) {
                             scope.launch {
                                 try {
                                     val bytes = com.syntona.SharedResources.readBytes("files/$path")
-                                    val content = bytes.decodeToString()
-                                    gs.clearAllModules()
-                                    engine?.clearHistory()
-                                    state.closeAllClosable()
-                                    val rootPatch = state.windows.find { !it.closable }?.id as? com.syntona.dataflow.modules.PatchModule
-                                    GraphSerializer.deserialize(gs, content, density = density)
-                                    com.syntona.restoreWindowStates(state, gs, density)
-                                    if (rootPatch != null) {
-                                        restoreRootWindowGeometry(state, rootPatch, content, density)
-                                    }
-                                    FileState.markSaved(path)
-                                    gs.kickLoadKickModules()
+                                    com.syntona.loadIntoDocument(
+                                        state, into, path, bytes.decodeToString(), density
+                                    )
                                 } catch (e: Exception) {
                                     println("Failed to load link file: ${e.message}")
                                 }
                             }
+                        }
+                        FileState.requestIfDirty(
+                            openInNewWindow = {
+                                load(com.syntona.openNewDocument(state, engine, density))
+                            }
+                        ) {
+                            load(current)
                         }
                     }
                 }
@@ -107,33 +106,38 @@ fun main() {
                     val gs = state.rootGraphState ?: state.activeGraphState
                     val engine = gs?.engine
                     Item("New", shortcut = KeyShortcut(Key.N, meta = true)) {
-                        FileState.requestIfDirty {
-                            gs?.clearAllModules()
-                            engine?.clearHistory()
-                            val rootPatch = state.windows.find { !it.closable }?.id as? PatchModule
-                            rootPatch?.clearModifiedRecursively()
-                            FileState.markNew()
-                            state.closeAllClosable()
+                        val current = FileState.activeDocument
+                        FileState.requestIfDirty(
+                            openInNewWindow = {
+                                if (engine != null) {
+                                    com.syntona.openNewDocument(state, engine, density)
+                                }
+                            }
+                        ) {
+                            if (current != null) {
+                                current.rootPatch.graphState.clearAllModules()
+                                current.rootPatch.graphState.engine?.clearHistory()
+                                current.rootPatch.clearModifiedRecursively()
+                                current.markNew()
+                                state.closeSubWindows(current)
+                            }
                         }
                     }
                     Item("Open...", shortcut = KeyShortcut(Key.O, meta = true)) {
-                        FileState.requestIfDirty {
+                        val current = FileState.activeDocument
+                        fun openInto(into: com.syntona.dataflow.editor.DocumentState) {
                             showOpenFileDialog { name, content ->
-                                if (gs != null) {
-                                    gs.clearAllModules()
-                                    engine?.clearHistory()
-                                    state.closeAllClosable()
-                                    val rootPatch = state.windows.find { !it.closable }?.id as? PatchModule
-                                    GraphSerializer.deserialize(gs, content, density = density)
-                                    com.syntona.restoreWindowStates(state, gs, density)
-                                    if (rootPatch != null) {
-                                        restoreRootWindowGeometry(state, rootPatch, content, density)
-                                        rootPatch.clearModifiedRecursively()
-                                    }
-                                    FileState.markSaved(name)
-                                    gs.kickLoadKickModules()
+                                com.syntona.loadIntoDocument(state, into, name, content, density)
+                            }
+                        }
+                        FileState.requestIfDirty(
+                            openInNewWindow = {
+                                if (engine != null) {
+                                    openInto(com.syntona.openNewDocument(state, engine, density))
                                 }
                             }
+                        ) {
+                            if (current != null) openInto(current)
                         }
                     }
                     Item("Add Patch from File...") {
@@ -182,7 +186,7 @@ fun main() {
                         shortcut = KeyShortcut(Key.S, meta = true)
                     ) {
                         if (!FileState.isResource && gs != null) {
-                            val rootPatch = state.windows.find { !it.closable }?.id as? PatchModule
+                            val rootPatch = FileState.activeDocument?.rootPatch
                             if (rootPatch != null) {
                                 val modifiedChildren = rootPatch.findModifiedReferencedPatches()
                                 if (modifiedChildren.isNotEmpty()) {
@@ -237,7 +241,7 @@ fun main() {
                     }
                     Item("Save As...", shortcut = KeyShortcut(Key.S, meta = true, shift = true)) {
                         if (gs != null) {
-                            val rootPatch = state.windows.find { !it.closable }?.id as? PatchModule
+                            val rootPatch = FileState.activeDocument?.rootPatch
                             if (rootPatch != null) {
                                 val modifiedChildren = rootPatch.findModifiedReferencedPatches()
                                 if (modifiedChildren.isNotEmpty()) {
@@ -281,7 +285,7 @@ fun main() {
                     if (isSaveAsResourceAvailable()) {
                         Item("SaveAsResource...") {
                             if (gs != null) {
-                                val rootPatch = state.windows.find { !it.closable }?.id as? PatchModule
+                                val rootPatch = FileState.activeDocument?.rootPatch
                                 if (rootPatch != null) {
                                     val modifiedChildren = rootPatch.findModifiedReferencedPatches()
                                     if (modifiedChildren.isNotEmpty()) {
@@ -333,7 +337,7 @@ fun main() {
                             showSaveFileDialog(json, defaultName) { path ->
                                 target.filePath = path
                                 target.clearModifiedRecursively()
-                                val rootPatch = state.windows.find { !it.closable }?.id as? PatchModule
+                                val rootPatch = FileState.activeDocument?.rootPatch
                                 if (target === rootPatch) {
                                     FileState.markSaved(path)
                                 }
@@ -429,28 +433,27 @@ fun androidx.compose.ui.window.MenuScope.RenderMenuNode(
         val path = child.path
         if (path != null) {
             Item(child.name) {
-                if (gs != null) {
-                    val engine = gs.engine
-                    FileState.requestIfDirty {
+                val current = FileState.activeDocument
+                val engine = current?.rootPatch?.graphState?.engine
+                if (current != null && engine != null) {
+                    fun load(into: com.syntona.dataflow.editor.DocumentState) {
                         scope.launch {
                             try {
                                 val bytes = com.syntona.SharedResources.readBytes("files/$path")
-                                val content = bytes.decodeToString()
-                                gs.clearAllModules()
-                                engine?.clearHistory()
-                                state.closeAllClosable()
-                                val rootPatch = state.windows.find { !it.closable }?.id as? com.syntona.dataflow.modules.PatchModule
-                                GraphSerializer.deserialize(gs, content, density = density)
-                                com.syntona.restoreWindowStates(state, gs, density)
-                                if (rootPatch != null) {
-                                    restoreRootWindowGeometry(state, rootPatch, content, density)
-                                }
-                                FileState.markSaved(path)
-                                gs.kickLoadKickModules()
+                                com.syntona.loadIntoDocument(
+                                    state, into, path, bytes.decodeToString(), density
+                                )
                             } catch (e: Exception) {
                                 println("Failed to load: ${e.message}")
                             }
                         }
+                    }
+                    FileState.requestIfDirty(
+                        openInNewWindow = {
+                            load(com.syntona.openNewDocument(state, engine, density))
+                        }
+                    ) {
+                        load(current)
                     }
                 }
             }

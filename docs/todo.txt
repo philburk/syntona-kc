@@ -1,6 +1,4 @@
 
-When saving resources go to the folder last loaded from using the Help menu.
-
 Support more than one top level patch. Needed for Help so we don't have to lose works in progress.
 Must be closable.
 

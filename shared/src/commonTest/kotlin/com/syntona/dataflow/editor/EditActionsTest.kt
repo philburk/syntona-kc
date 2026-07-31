@@ -19,7 +19,6 @@ class EditActionsTest {
     private fun mdiWithGraph(): Pair<MdiState, GraphState> {
         val graphState = GraphState()
         val mdi = MdiState()
-        mdi.rootGraphState = graphState
         mdi.activeGraphState = graphState
         return mdi to graphState
     }
@@ -74,7 +73,6 @@ class EditActionsTest {
     fun testActionsFollowTheActiveGraphRatherThanACapturedOne() {
         val mdi = MdiState()
         val firstGraph = GraphState()
-        mdi.rootGraphState = firstGraph
         mdi.activeGraphState = firstGraph
 
         // Stand in for the menu being composed while nothing is selected anywhere.

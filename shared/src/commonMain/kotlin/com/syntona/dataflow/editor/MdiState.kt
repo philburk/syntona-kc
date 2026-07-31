@@ -97,7 +97,12 @@ class MdiState {
      */
     val activeEditHandler: EditActionHandler?
         get() = windows.lastOrNull { !it.minimized }?.editHandler
-    var rootGraphState by mutableStateOf<GraphState?>(null)
+    /**
+     * Root graph of the frontmost document. Derived rather than stored, so it can never disagree
+     * with which document is actually in front now that several can be open.
+     */
+    val rootGraphState: GraphState?
+        get() = FileState.activeDocument?.rootPatch?.graphState
 
     // Container size and position in pixels, updated by MdiDesktop
     var containerWidth by mutableStateOf(0f)
@@ -149,7 +154,7 @@ class MdiState {
             bringToFront(existing)
         } else {
             windows.add(window)
-            window.graphState?.let { activeGraphState = it }
+            window.graphState?.let { focusGraph(it) }
         }
     }
 
@@ -160,6 +165,19 @@ class MdiState {
             (id as? com.syntona.dataflow.modules.PatchModule)?.isWindowOpen = false
         }
         windows.removeAll { it.id == id && it.closable }
+
+        // Closing a document's top level window closes the document itself, along with any of its
+        // sub patch windows that are still open.
+        val closedDocument = FileState.documents.firstOrNull { it.rootPatch === id }
+        if (closedDocument != null && removed.isNotEmpty()) {
+            val orphans = windows.filter { FileState.documentFor(it.graphState) === closedDocument }
+            orphans.forEach { (it.id as? com.syntona.dataflow.modules.PatchModule)?.isWindowOpen = false }
+            windows.removeAll { w -> orphans.any { it === w } }
+            FileState.removeDocument(closedDocument)
+        }
+        if (activeGraphState == null) {
+            windows.lastOrNull { !it.minimized }?.graphState?.let { focusGraph(it) }
+        }
     }
 
     fun bringToFront(window: MdiWindowInfo) {
@@ -167,7 +185,16 @@ class MdiState {
             windows.remove(window)
             windows.add(window)
         }
-        window.graphState?.let { activeGraphState = it }
+        window.graphState?.let { focusGraph(it) }
+    }
+
+    /**
+     * Makes [graphState] the active one and follows it up to the document that owns it, so the
+     * File menu, window title and save actions all apply to the document you are looking at.
+     */
+    private fun focusGraph(graphState: GraphState) {
+        activeGraphState = graphState
+        FileState.documentFor(graphState)?.let { FileState.focusDocument(it) }
     }
 
     fun updatePosition(id: Any, delta: Offset) {
@@ -207,14 +234,32 @@ class MdiState {
         windows.find { it.id == id }?.toggleExpand()
     }
 
-    fun closeAllClosable() {
-        windows.forEach { w ->
-            if (w.closable) {
-                (w.id as? com.syntona.dataflow.modules.PatchModule)?.isWindowOpen = false
-            }
+    /**
+     * Closes the sub patch windows belonging to [document], leaving its own top level window and
+     * every other document alone. Used when a document's contents are being replaced by a load.
+     */
+    fun closeSubWindows(document: DocumentState?) {
+        if (document == null) return
+        val doomed = windows.filter { w ->
+            w.closable &&
+                w.id !== document.rootPatch &&
+                FileState.documentFor(w.graphState) === document
         }
-        windows.removeAll { it.closable }
-        activeGraphState = rootGraphState
+        doomed.forEach { w ->
+            (w.id as? com.syntona.dataflow.modules.PatchModule)?.isWindowOpen = false
+        }
+        windows.removeAll { w -> doomed.any { it === w } }
+        activeGraphState = document.rootPatch.graphState
+    }
+
+    /**
+     * Closes the sub patch windows of the frontmost document.
+     *
+     * Note that this deliberately does not touch other documents. Several top level documents can
+     * be open at once, and clearing one before a load must not take the others' windows with it.
+     */
+    fun closeAllClosable() {
+        closeSubWindows(FileState.activeDocument)
     }
 }
 

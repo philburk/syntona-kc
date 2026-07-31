@@ -75,20 +75,21 @@ class FileDialogsJvmTest {
      */
     @Test
     fun testOnlyBundledResourcePathsCountAsResources() {
-        val original = FileState.currentFilePath
+        val document = DocumentState(com.syntona.dataflow.modules.PatchModule("test"))
+        FileState.addDocument(document)
         try {
-            FileState.markSaved("examples/wavey_square.json")
+            document.markSaved("examples/wavey_square.json")
             assertTrue(FileState.isResource, "an example should count as a resource")
             assertNotNull(FileState.currentFilePath.takeIf { FileState.isResource })
 
-            FileState.markSaved("tutorials/basics/first.json")
+            document.markSaved("tutorials/basics/first.json")
             assertTrue(FileState.isResource, "a tutorial should count as a resource")
 
-            FileState.markSaved("/Users/phil/Documents/Syntona/mine.json")
+            document.markSaved("/Users/phil/Documents/Syntona/mine.json")
             assertTrue(!FileState.isResource, "a saved file is not a resource")
             assertEquals(null, FileState.currentFilePath.takeIf { FileState.isResource })
         } finally {
-            if (original != null) FileState.markSaved(original) else FileState.markNew()
+            FileState.removeDocument(document)
         }
     }
 }
