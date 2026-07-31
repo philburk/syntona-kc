@@ -2,20 +2,6 @@
   "modules": [
     {
       "id": 0,
-      "type": "core.basic.clock",
-      "name": "clock",
-      "x": 183.875,
-      "y": 170,
-      "jacks": {
-        "period(ms)": {
-          "v": 141.30149128858378,
-          "min": 1,
-          "max": 10000
-        }
-      }
-    },
-    {
-      "id": 1,
       "type": "core.input.loadKick",
       "name": "loadKick",
       "x": 51.125,
@@ -23,7 +9,7 @@
       "jacks": {}
     },
     {
-      "id": 2,
+      "id": 1,
       "type": "core.input.comment",
       "name": "comment",
       "x": 46.899994,
@@ -34,7 +20,7 @@
       "h": 99.25
     },
     {
-      "id": 3,
+      "id": 2,
       "type": "ksyn.lineOut",
       "name": "lineOut",
       "x": 1206.875,
@@ -55,7 +41,7 @@
       }
     },
     {
-      "id": 4,
+      "id": 3,
       "type": "core.polyPatch",
       "name": "polyPatch",
       "x": 1053.875,
@@ -272,7 +258,7 @@
       }
     },
     {
-      "id": 5,
+      "id": 4,
       "type": "music.compose.recSeq",
       "name": "recSeq",
       "x": 460.125,
@@ -284,7 +270,7 @@
           "max": 32
         },
         "density": {
-          "v": 0.7469166442104496,
+          "v": 0.781637858971406,
           "min": 0,
           "max": 1
         },
@@ -301,7 +287,7 @@
       }
     },
     {
-      "id": 6,
+      "id": 5,
       "type": "music.compose.scale",
       "name": "scale",
       "x": 673.9116,
@@ -316,7 +302,7 @@
       "scale": "0,2,4,7,9"
     },
     {
-      "id": 7,
+      "id": 6,
       "type": "core.view.showMany",
       "name": "showMany",
       "x": 702,
@@ -324,7 +310,7 @@
       "jacks": {}
     },
     {
-      "id": 8,
+      "id": 7,
       "type": "music.voices.packNote",
       "name": "packNote",
       "x": 951,
@@ -348,7 +334,7 @@
       }
     },
     {
-      "id": 9,
+      "id": 8,
       "type": "music.compose.recSeq",
       "name": "recSeq",
       "x": 460.125,
@@ -360,7 +346,7 @@
           "max": 32
         },
         "density": {
-          "v": 0.3648419976234436,
+          "v": 0.35145642003033056,
           "min": 0,
           "max": 1
         },
@@ -377,7 +363,7 @@
       }
     },
     {
-      "id": 10,
+      "id": 9,
       "type": "core.math.+",
       "name": "+",
       "x": 588.875,
@@ -391,7 +377,7 @@
       }
     },
     {
-      "id": 11,
+      "id": 10,
       "type": "core.basic.mod8",
       "name": "mod8",
       "x": 156,
@@ -399,7 +385,7 @@
       "jacks": {}
     },
     {
-      "id": 12,
+      "id": 11,
       "type": "core.basic.seq8",
       "name": "seq8",
       "x": 297.93066,
@@ -445,125 +431,135 @@
           "min": 0,
           "max": 100
         }
-      }
+      },
+      "stepValues": ["36.0", "0.0", "0.0", "0.0", "41.0", "0.0", "0.0", "0.0"]
     },
     {
-      "id": 13,
+      "id": 12,
       "type": "core.basic.counter",
       "name": "counter",
       "x": 219,
       "y": 418.875,
       "jacks": {}
+    },
+    {
+      "id": 13,
+      "type": "music.compose.beatClock",
+      "name": "beatClock",
+      "x": 238,
+      "y": 166.875,
+      "jacks": {
+        "tempo": {
+          "v": 90.08590212755715,
+          "min": 20,
+          "max": 300
+        }
+      },
+      "division": "1/4"
     }
   ],
   "connections": [
     {
-      "from": 0,
+      "from": 4,
       "fromJack": "output",
-      "to": 5,
-      "toJack": "step"
-    },
-    {
-      "from": 5,
-      "fromJack": "output",
-      "to": 7,
+      "to": 6,
       "toJack": "in"
     },
     {
-      "from": 6,
+      "from": 5,
       "fromJack": "out",
-      "to": 8,
+      "to": 7,
       "toJack": "pitch"
     },
     {
-      "from": 8,
+      "from": 7,
       "fromJack": "out",
-      "to": 4,
+      "to": 3,
       "toJack": "input"
     },
     {
-      "from": 6,
+      "from": 5,
       "fromJack": "out",
-      "to": 7,
+      "to": 6,
       "toJack": "in"
     },
     {
-      "from": 4,
+      "from": 3,
       "fromJack": "output",
-      "to": 3,
+      "to": 2,
       "toJack": "input0"
     },
     {
-      "from": 4,
+      "from": 3,
       "fromJack": "output",
-      "to": 3,
+      "to": 2,
       "toJack": "input1"
     },
     {
-      "from": 0,
+      "from": 4,
       "fromJack": "output",
       "to": 9,
-      "toJack": "step"
-    },
-    {
-      "from": 5,
-      "fromJack": "output",
-      "to": 10,
       "toJack": "A"
     },
     {
-      "from": 10,
-      "fromJack": "out",
-      "to": 6,
-      "toJack": "in"
-    },
-    {
       "from": 9,
-      "fromJack": "output",
-      "to": 6,
+      "fromJack": "out",
+      "to": 5,
       "toJack": "in"
     },
     {
-      "from": 0,
+      "from": 8,
       "fromJack": "output",
+      "to": 5,
+      "toJack": "in"
+    },
+    {
+      "from": 10,
+      "fromJack": "out0",
+      "to": 12,
+      "toJack": "inc"
+    },
+    {
+      "from": 12,
+      "fromJack": "out",
       "to": 11,
       "toJack": "in"
     },
     {
       "from": 11,
       "fromJack": "out0",
-      "to": 13,
-      "toJack": "inc"
-    },
-    {
-      "from": 13,
-      "fromJack": "out",
-      "to": 12,
-      "toJack": "in"
-    },
-    {
-      "from": 12,
-      "fromJack": "out0",
-      "to": 6,
+      "to": 5,
       "toJack": "offset"
     },
     {
-      "from": 12,
+      "from": 11,
       "fromJack": "out4",
-      "to": 6,
+      "to": 5,
       "toJack": "offset"
     },
     {
-      "from": 1,
+      "from": 0,
       "fromJack": "kick",
-      "to": 0,
+      "to": 13,
       "toJack": "reset"
     },
     {
-      "from": 1,
+      "from": 0,
       "fromJack": "kick",
-      "to": 0,
+      "to": 13,
       "toJack": "start"
+    },
+    {
+      "from": 13,
+      "fromJack": "output",
+      "to": 8,
+      "toJack": "step"
+    },
+    {
+      "from": 13,
+      "fromJack": "output",
+      "to": 4,
+      "toJack": "step"
     }
   ],
   "windowX": 10,

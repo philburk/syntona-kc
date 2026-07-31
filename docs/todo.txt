@@ -1,7 +1,19 @@
 Add patch inputs for start/stop/etc that are commands with buttons.
 
-BUG: the recSeq module is outputting -1 values. It should only send if >=0.
 BUG: copy and paste using key commands is not working
+
+When saving resources go to the folder last loaded from using the Help menu.
+Also enable a SaveResource item.
+
+Right click on a module for a menu with "Help...". Or add a (?) button to the header.
+It will be enabled if a file called "help/{bundle}/{moduleName}.json" exists.
+Add a Help>>Modules menu like Help>>Examples
+More tutorials
+
+Add a resource folder with a "library" of patches. Add a "Load Patch from Library" file item,
+similar to the Help menu items. Or add them to the moduleTree. Example???
+
+Consolidate stock polyPatch inputs into a block.
 
 Help trace wires by highlighting the wires connected to a highlighted module.
 Widget to put wires in front.
@@ -15,8 +27,6 @@ Require
 * how do we support multiple tracks that are synchronized in loop size?
 * need visual indicator, sample overview in middle?
 * editing capability based on edit list from ListenUp
-
-Seq8 should allow multiple values for chords, "60,63,67.02"
 
 ScaleModule should allow "Eb and G#"
 NoteSeq should allow "Eb4" and output note VoiceMessages
@@ -45,15 +55,9 @@ That will be useful if we support a more DAW-like interface.,
 Seq8 should support feedback cycle.
 seq16
 
-Right click on a module for a menu with "Help...".
-It will be enabled if a file called "help/{bundle}/{moduleName}.json" exists.
-
 Possible bug the CMR knob on the drum rhythm for it does not seem to affect the sound!
 
 Convert Syntona timestamps to KSyn timestamps and apply small "advance-time" for jitter reduction.
-
-Add a resource folder with a "library" of patches. Add a "Load Patch from Library" file item,
-similar to the Help menu items. Or add them to the moduleTree.
 
 Add Granular synthesis.
 
@@ -66,8 +70,6 @@ Add amplitude/velocity editing in pianoRoll editor.
 Note processing elements. unpackNote, packNote, scaleAmp, transpose.
 
 Add MIDI in/out support using VoiceMessages.
-
-Add Audio input support.
 
 Why is Web CPU usages is so much higher for WASM.
 On WASM, can run 120 * (red + red + squareBL + biquad)

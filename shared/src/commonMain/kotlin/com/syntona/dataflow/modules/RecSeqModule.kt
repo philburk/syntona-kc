@@ -38,6 +38,8 @@ class RecSeqModule : Module("recSeq") {
 
         val stepValue = step.getDoubleValue(0.0).toInt()
         val nextVal = sequence.next(stepValue)
-        output.send(Message.FloatValue(triggerMessage.time, nextVal.toDouble()))
+        if (nextVal >= 0) {
+            output.send(Message.FloatValue(triggerMessage.time, nextVal.toDouble()))
+        }
     }
 }

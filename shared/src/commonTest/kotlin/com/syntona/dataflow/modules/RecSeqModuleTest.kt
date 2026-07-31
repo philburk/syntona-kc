@@ -72,4 +72,36 @@ class RecSeqModuleTest {
         // RecursiveSequence next() returns an Int (e.g. note value or -1)
         assertTrue(floatVal == floatVal.toInt().toDouble())
     }
+
+    @Test
+    fun testZeroDensitySendsNoMessagesOrRests() {
+        val module = RecSeqModule()
+        val stepInput = module.inputs.first { it.name == "step" }
+        val densityInput = module.inputs.first { it.name == "density" }
+        val outputJack = module.outputs.first { it.name == "output" }
+
+        densityInput.setValue(0.0)
+
+        val receivedMessages = mutableListOf<Message>()
+        val receiver = object : InputJack("testRecv", module) {
+            override fun receive(msg: Message) {
+                receivedMessages.add(msg)
+                super.receive(msg)
+            }
+        }
+        outputJack.connect(receiver)
+
+        // Trigger steps 0 through 32 with density set to 0.0
+        for (s in 0..32) {
+            stepInput.receive(Message.FloatValue(ScoreTime(s.toLong() * 100), s.toDouble()))
+        }
+
+        // Verify no -1 values (or any rest messages) were sent
+        for (msg in receivedMessages) {
+            assertTrue(msg is Message.FloatValue)
+            val valDouble = (msg as Message.FloatValue).value
+            assertTrue(valDouble >= 0.0, "No negative/rest values (such as -1) should be emitted. Got: $valDouble")
+        }
+        assertEquals(0, receivedMessages.size, "Density 0.0 should produce rests for all steps, so no messages should be sent")
+    }
 }
