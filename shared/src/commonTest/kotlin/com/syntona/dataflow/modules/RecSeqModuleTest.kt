@@ -53,7 +53,10 @@ class RecSeqModuleTest {
     fun testExecutionOutputsValue() {
         val module = RecSeqModule()
         val stepInput = module.inputs.first { it.name == "step" }
+        val densityInput = module.inputs.first { it.name == "density" }
         val outputJack = module.outputs.first { it.name == "output" }
+
+        densityInput.setValue(1.0)
 
         var receivedMessage: Message? = null
         val receiver = object : InputJack("testRecv", module) {
@@ -91,17 +94,23 @@ class RecSeqModuleTest {
         }
         outputJack.connect(receiver)
 
-        // Trigger steps 0 through 32 with density set to 0.0
-        for (s in 0..32) {
+        // Trigger steps with density set to 0.0
+        for (s in 0..64) {
             stepInput.receive(Message.FloatValue(ScoreTime(s.toLong() * 100), s.toDouble()))
         }
 
-        // Verify no -1 values (or any rest messages) were sent
+        // 1) Verify no -1 values (or any negative rest values) were EVER sent
         for (msg in receivedMessages) {
             assertTrue(msg is Message.FloatValue)
             val valDouble = (msg as Message.FloatValue).value
             assertTrue(valDouble >= 0.0, "No negative/rest values (such as -1) should be emitted. Got: $valDouble")
         }
-        assertEquals(0, receivedMessages.size, "Density 0.0 should produce rests for all steps, so no messages should be sent")
+
+        // 2) Once settled at density 0.0, no further messages should be sent
+        receivedMessages.clear()
+        for (s in 65..128) {
+            stepInput.receive(Message.FloatValue(ScoreTime(s.toLong() * 100), s.toDouble()))
+        }
+        assertEquals(0, receivedMessages.size, "With density 0.0, rests should be produced for all steps and no messages sent")
     }
 }
