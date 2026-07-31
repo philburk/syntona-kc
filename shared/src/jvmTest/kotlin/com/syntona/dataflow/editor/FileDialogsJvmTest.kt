@@ -20,4 +20,75 @@ class FileDialogsJvmTest {
         // Check that function executes cleanly
         assertTrue(available || !available)
     }
+
+    /**
+     * Save as Resource should open in the folder a loaded example or tutorial came from, rather
+     * than the resource root, which is where it started before.
+     */
+    @Test
+    fun testResolvesTheFolderAResourceWasLoadedFrom() {
+        val root = File.createTempFile("syntona-resources", "").let { temp ->
+            temp.delete()
+            temp.also { it.mkdirs() }
+        }
+        try {
+            File(root, "examples").mkdirs()
+            File(root, "tutorials/basics").mkdirs()
+
+            assertEquals(
+                File(root, "examples"),
+                resolveResourceDirectory(root, "examples/wavey_square.json")
+            )
+            // Nested folders should resolve to the innermost one.
+            assertEquals(
+                File(root, "tutorials/basics"),
+                resolveResourceDirectory(root, "tutorials/basics/first.json")
+            )
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    @Test
+    fun testResolvesNullSoTheCallerCanFallBack() {
+        val root = File.createTempFile("syntona-resources", "").let { temp ->
+            temp.delete()
+            temp.also { it.mkdirs() }
+        }
+        try {
+            // No resource loaded, so there is nothing to prefer.
+            assertEquals(null, resolveResourceDirectory(root, null))
+            assertEquals(null, resolveResourceDirectory(root, ""))
+            // A folder that is not present, e.g. running outside a source checkout.
+            assertEquals(null, resolveResourceDirectory(root, "missing/thing.json"))
+            // No resource root at all.
+            assertEquals(null, resolveResourceDirectory(null, "examples/a.json"))
+        } finally {
+            root.deleteRecursively()
+        }
+    }
+
+    /**
+     * The dialog only prefers the loaded folder while the open document is still a bundled
+     * resource. Once it has been saved to a real path, the last used resource folder takes over,
+     * so the user is not sent back to examples/ every time.
+     */
+    @Test
+    fun testOnlyBundledResourcePathsCountAsResources() {
+        val original = FileState.currentFilePath
+        try {
+            FileState.markSaved("examples/wavey_square.json")
+            assertTrue(FileState.isResource, "an example should count as a resource")
+            assertNotNull(FileState.currentFilePath.takeIf { FileState.isResource })
+
+            FileState.markSaved("tutorials/basics/first.json")
+            assertTrue(FileState.isResource, "a tutorial should count as a resource")
+
+            FileState.markSaved("/Users/phil/Documents/Syntona/mine.json")
+            assertTrue(!FileState.isResource, "a saved file is not a resource")
+            assertEquals(null, FileState.currentFilePath.takeIf { FileState.isResource })
+        } finally {
+            if (original != null) FileState.markSaved(original) else FileState.markNew()
+        }
+    }
 }

@@ -1,9 +1,5 @@
 
-
-BUG: copy and paste using key commands is not working
-
 When saving resources go to the folder last loaded from using the Help menu.
-Also enable a SaveResource item.
 
 Support more than one top level patch. Needed for Help so we don't have to lose works in progress.
 Must be closable.
@@ -16,7 +12,8 @@ Add a Help>>Modules menu like Help>>Examples
 
 More tutorials. Audio, timeline, pianoroll.
 
-WASM target should be able to jump to a
+WASM target should be able to jump to a resource by passing additional data in the URL after a "?".
+When I load a resource, the URL should be updated with the resource path.
 
 Create a Discord channel.
 Add a Discord menu option to the Help menu.

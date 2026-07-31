@@ -5,10 +5,23 @@ import java.io.File
 import javax.swing.JFileChooser
 import javax.swing.filechooser.FileNameExtensionFilter
 
-private var lastResourceDirectory: File? = File(
+/** Root of the bundled resource files in the source tree, when running from a dev checkout. */
+private val resourceRootDirectory: File? = File(
     System.getProperty("user.home"),
     "work/syntona-kc/shared/src/commonMain/composeResources/files/"
 ).takeIf { it.exists() }
+
+private var lastResourceDirectory: File? = resourceRootDirectory
+
+/**
+ * Turns a resource path such as `examples/wavey_square.json` into the directory it lives in,
+ * so that saving a loaded example starts in the folder it came from rather than the resource
+ * root. Returns null when the path is not a resource or the folder is not there.
+ */
+internal fun resolveResourceDirectory(root: File?, relativePath: String?): File? {
+    if (root == null || relativePath.isNullOrEmpty()) return null
+    return File(root, relativePath).parentFile?.takeIf { it.isDirectory }
+}
 
 private fun getInitialDocumentDirectory(): File {
     val savedPath = try {
@@ -82,7 +95,15 @@ actual fun showSaveFileDialog(content: String, defaultName: String, onSaved: (pa
 }
 
 actual fun showSaveAsResourceFileDialog(content: String, defaultName: String, onSaved: (path: String) -> Unit) {
-    val dir = lastResourceDirectory ?: return
+    // Prefer the folder the currently loaded resource came from, so that saving an example
+    // opened from the Help menu starts in examples/ rather than the resource root. Once the
+    // patch has been saved somewhere concrete it is no longer a resource, and the directory
+    // last used for saving takes over again.
+    val loadedFrom = resolveResourceDirectory(
+        resourceRootDirectory,
+        FileState.currentFilePath.takeIf { FileState.isResource }
+    )
+    val dir = loadedFrom ?: lastResourceDirectory ?: return
     val chooser = JFileChooser().apply {
         dialogTitle = "Save Patch as Resource"
         fileFilter = FileNameExtensionFilter("JSON files (*.json)", "json")
