@@ -198,6 +198,9 @@ fun loadIntoDocument(
     document.markSaved(path)
     document.rootPatch.clearModifiedRecursively()
     graphState.kickLoadKickModules()
+    if (document.isResource) {
+        setUrlPatchPath(path)
+    }
 }
 
 /**
@@ -225,10 +228,7 @@ fun App(
     MaterialTheme {
         CompositionLocalProvider(LocalGraphColors provides DarkGraphColors) {
             var showContent by remember { mutableStateOf(true) }
-        val scope = rememberCoroutineScope()
-        LaunchedEffect(Unit) {
-            com.syntona.dataflow.registry.HelpRegistry.loadHelpFilesIndex()
-        }
+            val scope = rememberCoroutineScope()
         val examplesList by produceState<List<String>>(emptyList()) {
             value = com.syntona.SharedResources.getFilesIndex()
                 .filter { it.startsWith("examples/") && it.endsWith(SYNTONA_FILE_SUFFIX) }
@@ -305,6 +305,23 @@ fun App(
         }
         LaunchedEffect(Unit) {
             syntonaModel.start()
+            com.syntona.dataflow.registry.HelpRegistry.loadHelpFilesIndex()
+            val rawUrlPath = getUrlPatchPath()
+            if (!rawUrlPath.isNullOrEmpty()) {
+                val filesIndex = com.syntona.SharedResources.getFilesIndex().toSet()
+                val validatedPath = sanitizeAndValidateResourcePath(rawUrlPath, filesIndex)
+                if (validatedPath != null) {
+                    try {
+                        val bytes = com.syntona.SharedResources.readBytes("files/$validatedPath")
+                        val activeDoc = FileState.activeDocument ?: FileState.documents.firstOrNull()
+                        if (activeDoc != null) {
+                            loadIntoDocument(mdiState, activeDoc, validatedPath, bytes.decodeToString(), appDensity)
+                        }
+                    } catch (e: Exception) {
+                        println("Failed to load initial URL patch: ${e.message}")
+                    }
+                }
+            }
         }
         LaunchedEffect(mdiState, scope) {
             LinkModule.onTriggerLoad = { path ->

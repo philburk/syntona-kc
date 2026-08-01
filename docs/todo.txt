@@ -1,15 +1,4 @@
 
-I want to provide help to the user for many of the modules.
-If a file called "help/{bundle}/{moduleName}.sntn" exists, it will be used
-as a help file for the corresponding module.
-For example ".../composeResources/files/help/music/input/keyboard13.sntn" has help
-for the keyboard13 module.
-If a module has a help file then add a visual indicator in the ModuleTree so that users will know which
-modules have help files.
-Also add a popup menu in the module header with a "Help..." item.
-If selected it will open a new window with the help file.
-
-
 More tutorials. Audio, timeline, pianoroll.
 
 WASM target should be able to jump to a resource by passing additional data in the URL after a "?".
