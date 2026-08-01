@@ -4,35 +4,35 @@
       "id": 0,
       "type": "core.basic.send",
       "name": "global",
-      "x": 506,
-      "y": 21.875,
+      "x": 671,
+      "y": 150.875,
       "jacks": {}
     },
     {
       "id": 1,
       "type": "core.basic.receive",
       "name": "global",
-      "x": 216.875,
-      "y": 189,
+      "x": 381.875,
+      "y": 318,
       "jacks": {}
     },
     {
       "id": 2,
       "type": "core.view.show",
       "name": "show",
-      "x": 377.875,
-      "y": 204,
+      "x": 542.875,
+      "y": 333,
       "jacks": {}
     },
     {
       "id": 3,
       "type": "core.input.knob",
       "name": "knob",
-      "x": 287.875,
-      "y": 37,
+      "x": 452.875,
+      "y": 166,
       "jacks": {
         "in": {
-          "v": 31.58002471923828,
+          "v": 48.39005661010742,
           "min": 0,
           "max": 100
         }
@@ -42,51 +42,51 @@
       "id": 4,
       "type": "core.basic.receive",
       "name": "global",
-      "x": 474.875,
-      "y": 222,
+      "x": 639.875,
+      "y": 351,
       "jacks": {}
     },
     {
       "id": 5,
       "type": "core.view.show",
       "name": "show",
-      "x": 657,
-      "y": 189.875,
+      "x": 822,
+      "y": 318.875,
       "jacks": {}
     },
     {
       "id": 6,
       "type": "core.basic.send",
       "name": "gTempo",
-      "x": 496,
-      "y": 364.875,
+      "x": 341,
+      "y": 413.875,
       "jacks": {}
     },
     {
       "id": 7,
       "type": "core.basic.receive",
       "name": "gTempo",
-      "x": 206.875,
-      "y": 532,
+      "x": 51.875,
+      "y": 581,
       "jacks": {}
     },
     {
       "id": 8,
       "type": "core.view.show",
       "name": "show",
-      "x": 367.875,
-      "y": 547,
+      "x": 212.875,
+      "y": 596,
       "jacks": {}
     },
     {
       "id": 9,
       "type": "core.input.knob",
       "name": "knob",
-      "x": 277.875,
-      "y": 380,
+      "x": 122.875,
+      "y": 429,
       "jacks": {
         "in": {
-          "v": 38.57666015625,
+          "v": 64.82508850097656,
           "min": 0,
           "max": 100
         }
@@ -96,17 +96,28 @@
       "id": 10,
       "type": "core.basic.receive",
       "name": "gTempo",
-      "x": 464.875,
-      "y": 565,
+      "x": 309.875,
+      "y": 614,
       "jacks": {}
     },
     {
       "id": 11,
       "type": "core.view.show",
       "name": "show",
-      "x": 647,
-      "y": 532.875,
+      "x": 492,
+      "y": 581.875,
       "jacks": {}
+    },
+    {
+      "id": 12,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 50.875,
+      "y": 19,
+      "jacks": {},
+      "text": "Use the \"send\" module to send values to a named global variable.\n\nUse the \"receive\" module to receive updates of that named variable.\n\nMove the knobs to see it in action.",
+      "w": 377.91162,
+      "h": 196.91162
     }
   ],
   "connections": [

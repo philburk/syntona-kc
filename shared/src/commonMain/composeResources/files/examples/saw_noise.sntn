@@ -22,7 +22,7 @@
       "windowY": 363.875,
       "windowWidth": 960,
       "windowHeight": 610.875,
-      "windowOpen": true,
+      "windowOpen": false,
       "patch": {
         "modules": [
           {
@@ -431,7 +431,7 @@
       "windowY": 426.7969,
       "windowWidth": 600,
       "windowHeight": 450,
-      "windowOpen": true,
+      "windowOpen": false,
       "patch": {
         "modules": [
           {

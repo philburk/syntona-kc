@@ -2,34 +2,37 @@
   "modules": [
     {
       "id": 0,
-      "type": "lineOut",
+      "type": "ksyn.lineOut",
       "name": "lineOut",
-      "x": 747.875,
-      "y": 81,
+      "x": 767.875,
+      "y": 123,
       "jacks": {
         "input0": {
           "v": 0,
           "min": 0,
-          "max": 1
+          "max": 1,
+          "add": false
         },
         "input1": {
           "v": 0,
           "min": 0,
-          "max": 1
+          "max": 1,
+          "add": false
         }
       }
     },
     {
       "id": 1,
-      "type": "polyPatch",
+      "type": "core.polyPatch",
       "name": "polyPatch",
-      "x": 614.875,
-      "y": 168,
+      "x": 632.875,
+      "y": 181,
       "jacks": {
         "vibrato": {
           "v": 0,
           "min": 0,
-          "max": 1
+          "max": 1,
+          "add": false
         }
       },
       "maxVoices": 4,
@@ -42,7 +45,7 @@
         "modules": [
           {
             "id": 0,
-            "type": "aOutput",
+            "type": "ksyn.aOutput",
             "name": "output",
             "x": 453,
             "y": 202,
@@ -50,13 +53,14 @@
               "input": {
                 "v": 0,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               }
             }
           },
           {
             "id": 1,
-            "type": "p2f",
+            "type": "ksyn.control.p2f",
             "name": "p2f",
             "x": 258.91162,
             "y": 123.08838,
@@ -64,13 +68,14 @@
               "input": {
                 "v": 60,
                 "min": 0,
-                "max": 127
+                "max": 127,
+                "add": false
               }
             }
           },
           {
             "id": 2,
-            "type": "aInput",
+            "type": "ksyn.aInput",
             "name": "pitch",
             "x": 35,
             "y": 138,
@@ -78,7 +83,7 @@
           },
           {
             "id": 3,
-            "type": "aInput",
+            "type": "ksyn.aInput",
             "name": "amplitude",
             "x": 31,
             "y": 214,
@@ -86,7 +91,7 @@
           },
           {
             "id": 4,
-            "type": "aInput",
+            "type": "ksyn.aInput",
             "name": "pressure",
             "x": 28,
             "y": 349,
@@ -94,7 +99,7 @@
           },
           {
             "id": 5,
-            "type": "aInput",
+            "type": "ksyn.aInput",
             "name": "pitchBend",
             "x": 26,
             "y": 287,
@@ -102,7 +107,7 @@
           },
           {
             "id": 6,
-            "type": "sawOscDPW",
+            "type": "ksyn.sources.sawOscDPW",
             "name": "sawOscDPW",
             "x": 336,
             "y": 175.875,
@@ -110,18 +115,20 @@
               "frequency": {
                 "v": 440,
                 "min": 40,
-                "max": 8000
+                "max": 8000,
+                "add": false
               },
               "amplitude": {
                 "v": 1,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               }
             }
           },
           {
             "id": 7,
-            "type": "DAHDSR",
+            "type": "ksyn.control.DAHDSR",
             "name": "DAHDSR",
             "x": 154.875,
             "y": 189,
@@ -129,48 +136,56 @@
               "input": {
                 "v": 0,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               },
               "delay": {
                 "v": 0,
                 "min": 0,
-                "max": 2
+                "max": 2,
+                "add": false
               },
               "attack": {
                 "v": 0.010893763042986393,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               },
               "hold": {
                 "v": 0,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               },
               "decay": {
                 "v": 0.34479954838752747,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               },
               "sustain": {
                 "v": 0.45036154985427856,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               },
               "release": {
-                "v": 2.7154958248138428,
+                "v": 12.634142875671387,
                 "min": 0,
-                "max": 15
+                "max": 15,
+                "add": false
               },
               "amplitude": {
                 "v": 1,
                 "min": 0,
-                "max": 1
+                "max": 1,
+                "add": false
               }
             }
           },
           {
             "id": 8,
-            "type": "aInput",
+            "type": "ksyn.aInput",
             "name": "vibrato",
             "x": 23.875,
             "y": 435,
@@ -219,13 +234,13 @@
     },
     {
       "id": 2,
-      "type": "knob",
+      "type": "core.input.knob",
       "name": "pitchBend",
       "x": 130,
       "y": 456.875,
       "jacks": {
         "in": {
-          "v": -0.16839677095413208,
+          "v": 0,
           "min": -2,
           "max": 2
         }
@@ -233,7 +248,7 @@
     },
     {
       "id": 3,
-      "type": "packBend",
+      "type": "music.voices.packBend",
       "name": "packBend",
       "x": 416.875,
       "y": 470,
@@ -247,18 +262,18 @@
     },
     {
       "id": 4,
-      "type": "comment",
+      "type": "core.input.comment",
       "name": "comment",
       "x": 46.899994,
       "y": 13.075012,
       "jacks": {},
-      "text": "A polyPatch is a patch with multiple voices so it can play chords. It accepts VoiceMessages, for example, NOTE_ON, NOTE_OFF and PITCH_BEND.",
+      "text": "A polyPatch is a patch with multiple voices so it can play chords. It accepts VoiceMessages, for example, NOTE_ON, NOTE_OFF and PITCH_BEND.\n\nThe vibrato is fed into the patch using an aInput and effects all voices.",
       "w": 498.82324,
       "h": 99.25
     },
     {
       "id": 5,
-      "type": "showMany",
+      "type": "core.view.showMany",
       "name": "showMany",
       "x": 565.9441,
       "y": 287.88818,
@@ -266,7 +281,7 @@
     },
     {
       "id": 6,
-      "type": "keyboard13",
+      "type": "music.input.keyboard13",
       "name": "keyboard13",
       "x": 56.875,
       "y": 152,
@@ -276,20 +291,22 @@
     },
     {
       "id": 7,
-      "type": "triOsc",
+      "type": "ksyn.sources.triOsc",
       "name": "triOsc",
-      "x": 574.9441,
-      "y": 22.111816,
+      "x": 551.9441,
+      "y": 86.11182,
       "jacks": {
         "frequency": {
-          "v": 4.220344066619873,
+          "v": 4.690652847290039,
           "min": 0.10000000149011612,
-          "max": 10
+          "max": 10,
+          "add": false
         },
         "amplitude": {
-          "v": 1.8752821683883667,
+          "v": 0.3428487479686737,
           "min": 0,
-          "max": 2
+          "max": 2,
+          "add": false
         }
       }
     }

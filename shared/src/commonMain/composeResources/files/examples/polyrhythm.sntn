@@ -190,7 +190,7 @@
       "windowY": 326.75,
       "windowWidth": 600,
       "windowHeight": 450,
-      "windowOpen": true,
+      "windowOpen": false,
       "patch": {
         "modules": [
           {
@@ -381,7 +381,7 @@
       "y": 354,
       "jacks": {
         "in1": {
-          "v": 4,
+          "v": 0,
           "min": 0,
           "max": 100
         }
@@ -659,7 +659,7 @@
       "y": 433,
       "jacks": {
         "in1": {
-          "v": 5,
+          "v": 2,
           "min": 0,
           "max": 100
         }
@@ -1053,7 +1053,7 @@
     },
     {
       "id": 9,
-      "type": "core.basic.beatClock",
+      "type": "music.compose.beatClock",
       "name": "beatClock",
       "x": 103.88141,
       "y": 157.96045,
@@ -1068,7 +1068,7 @@
     },
     {
       "id": 10,
-      "type": "core.basic.beatClock",
+      "type": "music.compose.beatClock",
       "name": "beatClock",
       "x": 103.94989,
       "y": 398.8855,
@@ -1203,20 +1203,8 @@
     },
     {
       "from": 12,
-      "fromJack": "out1",
-      "to": 5,
-      "toJack": "in1"
-    },
-    {
-      "from": 12,
       "fromJack": "out4",
       "to": 4,
-      "toJack": "in1"
-    },
-    {
-      "from": 12,
-      "fromJack": "out5",
-      "to": 5,
       "toJack": "in1"
     },
     {
@@ -1224,6 +1212,30 @@
       "fromJack": "output",
       "to": 12,
       "toJack": "in"
+    },
+    {
+      "from": 12,
+      "fromJack": "out2",
+      "to": 5,
+      "toJack": "in1"
+    },
+    {
+      "from": 12,
+      "fromJack": "out4",
+      "to": 5,
+      "toJack": "in1"
+    },
+    {
+      "from": 12,
+      "fromJack": "out6",
+      "to": 5,
+      "toJack": "in1"
+    },
+    {
+      "from": 11,
+      "fromJack": "out4",
+      "to": 3,
+      "toJack": "in1"
     }
   ],
   "windowX": 10,

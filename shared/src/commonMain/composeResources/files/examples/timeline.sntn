@@ -12,12 +12,12 @@
       "id": 1,
       "type": "core.input.comment",
       "name": "comment",
-      "x": 21.899994,
-      "y": 699.075,
+      "x": 34.899994,
+      "y": 636.075,
       "jacks": {},
-      "text": "Trigger various sounds and events based on a timeline.",
-      "w": 498.82324,
-      "h": 99.25
+      "text": "Trigger various sounds and events based on a timeline.\n\nDrag triggers using the yellow circles.\n\nAdd triggers by placing the time cursor and clicking the \"+\" button.\n\nConnect the triggers using the blue jack.",
+      "w": 516.73486,
+      "h": 158.16162
     },
     {
       "id": 2,
@@ -701,7 +701,7 @@
       "y": 445,
       "jacks": {
         "in1": {
-          "v": 96.98881231107033,
+          "v": 98.00491342007754,
           "min": 0,
           "max": 100
         }
@@ -888,7 +888,7 @@
             "y": 24.875,
             "jacks": {
               "input": {
-                "v": 96.98881530761719,
+                "v": 98.00491333007812,
                 "min": 0,
                 "max": 127,
                 "add": false
@@ -990,8 +990,8 @@
       "id": 6,
       "type": "ksyn.lineOut",
       "name": "lineOut",
-      "x": 1274.875,
-      "y": 442,
+      "x": 1250.875,
+      "y": 295,
       "jacks": {
         "input0": {
           "v": 0,
@@ -1011,8 +1011,8 @@
       "id": 7,
       "type": "core.input.knob",
       "name": "knob",
-      "x": 932.875,
-      "y": 760,
+      "x": 899.875,
+      "y": 695,
       "jacks": {
         "in": {
           "v": 0.5039581060409546,
@@ -1034,7 +1034,7 @@
       "loopEnd": 9.491168022155762,
       "loopMode": true,
       "zoom": 3.7798295,
-      "seekTime": 9.491168022,
+      "seekTime": 6.250281810760498,
       "triggers": [
         {
           "id": 0,
@@ -1125,6 +1125,16 @@
           "id": 17,
           "time": 5.25817346572876,
           "jack": "t17"
+        },
+        {
+          "id": 18,
+          "time": 9.491168022,
+          "jack": "t18"
+        },
+        {
+          "id": 19,
+          "time": 4.387322902679443,
+          "jack": "t19"
         }
       ]
     },
@@ -1132,8 +1142,8 @@
       "id": 9,
       "type": "core.input.number",
       "name": "number",
-      "x": 377.87744,
-      "y": 570.97546,
+      "x": 391.87744,
+      "y": 555.97546,
       "jacks": {
         "in": {
           "v": 0,
@@ -1146,8 +1156,8 @@
       "id": 10,
       "type": "core.input.number",
       "name": "number",
-      "x": 380.875,
-      "y": 502,
+      "x": 392.875,
+      "y": 483,
       "jacks": {
         "in": {
           "v": 72,
@@ -1192,7 +1202,7 @@
             "y": 10,
             "jacks": {
               "input": {
-                "v": 96.98881231107033,
+                "v": 98.00491342007754,
                 "min": 0,
                 "max": 100
               }
@@ -1256,7 +1266,7 @@
             "y": 16,
             "jacks": {
               "B": {
-                "v": 6.98881231107033,
+                "v": 8.004913420077548,
                 "min": 0,
                 "max": 100
               }
@@ -1651,7 +1661,7 @@
             "y": 131,
             "jacks": {
               "frequency": {
-                "v": 783.6517333984375,
+                "v": 1180.657958984375,
                 "min": 40,
                 "max": 8000,
                 "add": false
@@ -1850,7 +1860,7 @@
       "windowY": 310.6809,
       "windowWidth": 815.75,
       "windowHeight": 674,
-      "windowOpen": true,
+      "windowOpen": false,
       "patch": {
         "modules": [
           {

@@ -137,6 +137,39 @@ class MultiDocumentTest {
     }
 
     @Test
+    fun testPianoRollEditorWindowClosesOnNewDocument() {
+        val mdi = MdiState()
+        val doc = newDocument("doc")
+        val rootGraph = doc.rootPatch.graphState
+
+        val pianoRoll = com.syntona.dataflow.modules.PianoRollModule()
+        rootGraph.addModule(pianoRoll, Offset.Zero)
+
+        val rootWindow = MdiWindowInfo(
+            id = doc.rootPatch,
+            title = "doc",
+            graphState = rootGraph,
+            closable = false,
+            content = {}
+        )
+        val pianoRollWindow = MdiWindowInfo(
+            id = pianoRoll,
+            title = pianoRoll.name,
+            graphState = rootGraph,
+            content = {}
+        )
+        mdi.open(rootWindow)
+        mdi.open(pianoRollWindow)
+        assertEquals(2, mdi.windows.size)
+
+        mdi.closeSubWindows(doc)
+
+        assertEquals(1, mdi.windows.size)
+        assertTrue(mdi.windows.any { it.id === doc.rootPatch })
+        assertFalse(mdi.windows.any { it.id === pianoRoll })
+    }
+
+    @Test
     fun testClosingATopWindowClosesThatDocument() {
         val mdi = MdiState()
         val first = newDocument("first")

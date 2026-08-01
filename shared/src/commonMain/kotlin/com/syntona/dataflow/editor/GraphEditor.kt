@@ -1669,6 +1669,7 @@ fun SegmentedEnvelopeModuleNode(module: SegmentedEnvelopeModule, state: GraphSta
                                 ((state.modulePositions[module]?.x ?: 100f) + 20f) * density.density,
                                 ((state.modulePositions[module]?.y ?: 100f) + 30f) * density.density
                             ),
+                            graphState = state,
                             content = {
                                 val localMdi = LocalMdiState.current
                                 val windowInfo = remember { localMdi.windows.find { it.id == module } }
@@ -1759,6 +1760,7 @@ fun PianoRollModuleNode(module: PianoRollModule, state: GraphState) {
                         position = restoredPosition,
                         width = module.windowWidth?.dp ?: 800.dp,
                         height = module.windowHeight?.dp ?: 500.dp,
+                        graphState = state,
                         content = { PianoRollEditor(module, state) }
                     )
                     window.onGeometryChanged = {
