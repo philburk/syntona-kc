@@ -168,11 +168,21 @@ fun BundleView(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     TooltipArea(text = getModuleEntryTooltipText(module)) {
-                        Text(
-                            text = module.name,
-                            fontSize = 13.sp,
-                            color = Color.Cyan
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = module.name,
+                                fontSize = 13.sp,
+                                color = Color.Cyan
+                            )
+                            if (com.syntona.dataflow.registry.HelpRegistry.hasHelpFile(module.name)) {
+                                Text(
+                                    text = " (?)",
+                                    fontSize = 11.sp,
+                                    color = Color(0xFFFFCC00),
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                )
+                            }
+                        }
                     }
                 }
             }

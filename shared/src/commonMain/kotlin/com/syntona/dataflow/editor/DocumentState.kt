@@ -27,10 +27,10 @@ class DocumentState(val rootPatch: PatchModule) {
             p.substringAfterLast('/').substringAfterLast('\\').ifEmpty { p }
         }
 
-    /** True for the examples and tutorials that ship with the app, which must not be overwritten. */
+    /** True for the examples, tutorials, and help files that ship with the app, which must not be overwritten. */
     val isResource: Boolean
         get() = currentFilePath?.let { path ->
-            path.startsWith("examples/") || path.startsWith("tutorials/")
+            path.startsWith("examples/") || path.startsWith("tutorials/") || path.startsWith("help/")
         } ?: false
 
     /** Title for this document's window: its file name, or the patch name before it is saved. */

@@ -34,6 +34,7 @@ class FileDialogsJvmTest {
         try {
             File(root, "examples").mkdirs()
             File(root, "tutorials/basics").mkdirs()
+            File(root, "help/music/input").mkdirs()
 
             assertEquals(
                 File(root, "examples"),
@@ -43,6 +44,10 @@ class FileDialogsJvmTest {
             assertEquals(
                 File(root, "tutorials/basics"),
                 resolveResourceDirectory(root, "tutorials/basics/first.sntn")
+            )
+            assertEquals(
+                File(root, "help/music/input"),
+                resolveResourceDirectory(root, "help/music/input/keyboard13.sntn")
             )
         } finally {
             root.deleteRecursively()

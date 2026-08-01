@@ -58,6 +58,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.isCtrlPressed
+import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInRoot
@@ -398,25 +400,8 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color? = null, la
         color = colors.moduleBackground
     ) {
         Column(modifier = Modifier.width(IntrinsicSize.Max)) {
-            // Drag handle
-            TooltipArea(text = getModuleTooltipText(module)) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(24.dp)
-                        .background(resolvedHeaderColor)
-                        .headerGestures(state, module) {
-                            state.editingModule = module
-                        }
-                ) {
-                    Text(
-                        text = label,
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(horizontal = 4.dp)
-                    )
-                }
-            }
+            // Header
+            ModuleHeader(module = module, state = state, headerColor = resolvedHeaderColor, label = label)
 
             // Show custom content for ShowModule
             if (module is ShowModule) {
@@ -591,25 +576,7 @@ fun KeyMatchModuleNode(module: KeyMatchModule, state: GraphState) {
         color = colors.moduleBackground
     ) {
         Column {
-            // Drag handle (header bar matching standard modules)
-            TooltipArea(text = getModuleTooltipText(module)) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(24.dp)
-                        .background(colors.headerDefault)
-                        .headerGestures(state, module) {
-                            state.editingModule = module
-                        }
-                ) {
-                    Text(
-                        text = module.name,
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(horizontal = 4.dp).align(Alignment.CenterStart)
-                    )
-                }
-            }
+            ModuleHeader(module = module, state = state, headerColor = colors.headerDefault)
 
             // Body containing the button and unlabelled jacks
             Row(
@@ -1076,24 +1043,7 @@ fun FaderModuleNode(module: FaderModule, state: GraphState) {
         color = colors.moduleBackground
     ) {
         Column {
-            TooltipArea(text = getModuleTooltipText(module)) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(24.dp)
-                        .background(colors.headerDefault)
-                        .headerGestures(state, module) {
-                            state.editingModule = module
-                        }
-                ) {
-                    Text(
-                        text = module.name,
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(horizontal = 4.dp)
-                    )
-                }
-            }
+            ModuleHeader(module = module, state = state, headerColor = colors.headerDefault)
 
             Row(
                 modifier = Modifier.fillMaxWidth().height(160.dp).padding(4.dp)
@@ -1160,85 +1110,72 @@ fun PatchModuleNode(module: PatchModule, state: GraphState) {
         color = colors.modulePatchBackground
     ) {
         Column {
-            TooltipArea(text = getModuleTooltipText(module)) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(24.dp)
-                        .background(colors.headerPatch)
-                        .headerGestures(state, module) {
-                            val savedX = module.windowX
-                            val savedY = module.windowY
-                            val restoredPosition = if (savedX != null && savedY != null) {
-                                Offset(savedX * density.density, savedY * density.density)
-                            } else {
-                                val pos = state.modulePositions[module] ?: Offset(100f, 100f)
-                                Offset(
-                                    (pos.x + 20f) * density.density,
-                                    (pos.y + 30f) * density.density
-                                )
-                            }
-                            val window = MdiWindowInfo(
-                                id = module,
-                                title = module.name,
-                                position = restoredPosition,
-                                width = module.windowWidth?.dp ?: 600.dp,
-                                height = module.windowHeight?.dp ?: 450.dp,
-                                graphState = module.graphState,
-                                content = { GraphEditor(state = module.graphState) }
-                            )
-                            // Explicit callback (fired directly from MdiState's mutation sites)
-                            // rather than reactive recomposition, so Save always sees current geometry.
-                            window.onGeometryChanged = {
-                                module.windowX = window.position.x / density.density
-                                module.windowY = window.position.y / density.density
-                                module.windowWidth = window.width.value
-                                module.windowHeight = window.height.value
-                            }
-                            mdiState.open(window)
-                        }
-                ) {
-                    val suffix = if (module.isModified) "*" else ""
-                    val displayName = if (module is PolyPatchModule) "${module.name}$suffix[${module.maxVoices}]" else "${module.name}$suffix"
-                    Row(
-                        modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            text = displayName,
-                            color = Color.White,
-                            fontSize = 12.sp
+            val suffix = if (module.isModified) "*" else ""
+            val displayName = if (module is PolyPatchModule) "${module.name}$suffix[${module.maxVoices}]" else "${module.name}$suffix"
+            ModuleHeader(
+                module = module,
+                state = state,
+                headerColor = colors.headerPatch,
+                label = displayName,
+                onDoubleTap = {
+                    val savedX = module.windowX
+                    val savedY = module.windowY
+                    val restoredPosition = if (savedX != null && savedY != null) {
+                        Offset(savedX * density.density, savedY * density.density)
+                    } else {
+                        val pos = state.modulePositions[module] ?: Offset(100f, 100f)
+                        Offset(
+                            (pos.x + 20f) * density.density,
+                            (pos.y + 30f) * density.density
                         )
-                        val activeGlowModules = module.graphState.modules.filter { it is GlowModule || it is FlashModule }
-                        if (activeGlowModules.isNotEmpty()) {
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                activeGlowModules.forEach { subModule ->
-                                    val isOn = when (subModule) {
-                                        is GlowModule -> subModule.isOn
-                                        is FlashModule -> subModule.isOn
-                                        else -> false
-                                    }
-                                    TooltipArea(text = subModule.name) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(12.dp)
-                                                .background(
-                                                    if (isOn) Color.Yellow else Color(0xFF444444),
-                                                    CircleShape
-                                                )
-                                                .border(0.5.dp, Color.Gray, CircleShape)
-                                        )
-                                    }
+                    }
+                    val window = MdiWindowInfo(
+                        id = module,
+                        title = module.name,
+                        position = restoredPosition,
+                        width = module.windowWidth?.dp ?: 600.dp,
+                        height = module.windowHeight?.dp ?: 450.dp,
+                        graphState = module.graphState,
+                        content = { GraphEditor(state = module.graphState) }
+                    )
+                    window.onGeometryChanged = {
+                        module.windowX = window.position.x / density.density
+                        module.windowY = window.position.y / density.density
+                        module.windowWidth = window.width.value
+                        module.windowHeight = window.height.value
+                    }
+                    mdiState.open(window)
+                },
+                trailingContent = {
+                    val activeGlowModules = module.graphState.modules.filter { it is GlowModule || it is FlashModule }
+                    if (activeGlowModules.isNotEmpty()) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(end = 4.dp)
+                        ) {
+                            activeGlowModules.forEach { subModule ->
+                                val isOn = when (subModule) {
+                                    is GlowModule -> subModule.isOn
+                                    is FlashModule -> subModule.isOn
+                                    else -> false
+                                }
+                                TooltipArea(text = subModule.name) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(12.dp)
+                                            .background(
+                                                if (isOn) Color.Yellow else Color(0xFF444444),
+                                                CircleShape
+                                            )
+                                            .border(0.5.dp, Color.Gray, CircleShape)
+                                    )
                                 }
                             }
                         }
                     }
                 }
-            }
+            )
             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                 Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
                     module.inputs.forEach { JackView(it, state, isLeft = true) }
@@ -1271,24 +1208,7 @@ fun NumberModuleNode(module: NumberModule, state: GraphState) {
         color = colors.moduleBackground
     ) {
         Column {
-            TooltipArea(text = getModuleTooltipText(module)) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(24.dp)
-                        .background(colors.headerDefault)
-                        .headerGestures(state, module) {
-                            state.editingModule = module
-                        }
-                ) {
-                    Text(
-                        text = module.name,
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(horizontal = 4.dp)
-                    )
-                }
-            }
+            ModuleHeader(module = module, state = state, headerColor = colors.headerDefault)
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -1334,24 +1254,7 @@ fun SequenceModuleNode(module: SequenceModule, state: GraphState) {
         color = colors.moduleBackground
     ) {
         Column {
-            TooltipArea(text = getModuleTooltipText(module)) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(28.dp)
-                        .background(colors.headerSequence)
-                        .headerGestures(state, module) {
-                            state.editingModule = module
-                        }
-                ) {
-                    Text(
-                        text = module.name,
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
-                    )
-                }
-            }
+            ModuleHeader(module = module, state = state, headerColor = colors.headerSequence, height = 28.dp)
 
             val controlInputs = module.inputs.filter { it !== module.reset && it !== module.increment && !module.stepInputs.contains(it) }
             val controlOutputs = module.outputs.filter { !module.stepOutputs.contains(it) }
@@ -1487,25 +1390,7 @@ fun KnobModuleNode(module: KnobModule, state: GraphState) {
         color = colors.moduleBackground
     ) {
         Column {
-            // Title bar — drag to move, double-tap to open editor
-            TooltipArea(text = getModuleTooltipText(module)) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(24.dp)
-                        .background(colors.headerKnob)
-                        .headerGestures(state, module) {
-                            state.editingModule = module
-                        }
-                ) {
-                    Text(
-                        text = module.name,
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(horizontal = 4.dp)
-                    )
-                }
-            }
+            ModuleHeader(module = module, state = state, headerColor = colors.headerKnob)
 
             // Knob area with jacks on either side
             Row(
@@ -1579,6 +1464,7 @@ fun ResizableModuleBox(
     Surface(
         modifier = Modifier
             .offset { IntOffset((position.x * density.density).roundToInt(), (position.y * density.density).roundToInt()) }
+            .width(currentWidth)
             .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
             .onSizeChanged { size ->
                 state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
@@ -1587,24 +1473,7 @@ fun ResizableModuleBox(
         color = colors.moduleBackground
     ) {
         Column {
-            TooltipArea(text = getModuleTooltipText(module)) {
-                Box(
-                    modifier = Modifier
-                        .width(currentWidth)
-                        .height(24.dp)
-                        .background(headerColor)
-                        .headerGestures(state, module) {
-                            state.editingModule = module
-                        }
-                ) {
-                    Text(
-                        text = module.name,
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(horizontal = 4.dp)
-                    )
-                }
-            }
+            ModuleHeader(module = module, state = state, headerColor = headerColor)
 
             Box(modifier = Modifier.width(currentWidth).height(currentHeight)) {
                 content(currentWidth, currentHeight)
@@ -1787,64 +1656,54 @@ fun SegmentedEnvelopeModuleNode(module: SegmentedEnvelopeModule, state: GraphSta
         color = colors.moduleBackground
     ) {
         Column {
-            TooltipArea(text = getModuleTooltipText(module)) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(24.dp)
-                        .background(colors.headerInputOutput)
-                        .headerGestures(state, module) {
-                            mdiState.open(
-                                MdiWindowInfo(
-                                    id = module,
-                                    title = module.name,
-                                    position = Offset(
-                                        ((state.modulePositions[module]?.x ?: 100f) + 20f) * density.density,
-                                        ((state.modulePositions[module]?.y ?: 100f) + 30f) * density.density
-                                    ),
-                                    content = {
-                                        val localMdi = LocalMdiState.current
-                                        val windowInfo = remember { localMdi.windows.find { it.id == module } }
-                                        Column(
-                                            modifier = Modifier
-                                                .fillMaxSize()
-                                                .background(colors.background)
-                                                .padding(12.dp),
-                                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            ModuleNameEditor(
-                                                module = module,
-                                                modifier = Modifier.padding(bottom = 4.dp),
-                                                textColor = Color.LightGray,
-                                                borderColor = Color.Gray,
-                                                onNameChanged = { windowInfo?.title = it }
-                                            )
+            ModuleHeader(
+                module = module,
+                state = state,
+                headerColor = colors.headerInputOutput,
+                onDoubleTap = {
+                    mdiState.open(
+                        MdiWindowInfo(
+                            id = module,
+                            title = module.name,
+                            position = Offset(
+                                ((state.modulePositions[module]?.x ?: 100f) + 20f) * density.density,
+                                ((state.modulePositions[module]?.y ?: 100f) + 30f) * density.density
+                            ),
+                            content = {
+                                val localMdi = LocalMdiState.current
+                                val windowInfo = remember { localMdi.windows.find { it.id == module } }
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(colors.background)
+                                        .padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    ModuleNameEditor(
+                                        module = module,
+                                        modifier = Modifier.padding(bottom = 4.dp),
+                                        textColor = Color.LightGray,
+                                        borderColor = Color.Gray,
+                                        onNameChanged = { windowInfo?.title = it }
+                                    )
 
-                                            androidx.compose.material3.HorizontalDivider(color = Color.Gray, thickness = 1.dp)
+                                    androidx.compose.material3.HorizontalDivider(color = Color.Gray, thickness = 1.dp)
 
-                                            Box(modifier = Modifier.weight(1f)) {
-                                                SegmentedEnvelopeEditor(
-                                                    envelope = module.envelope,
-                                                    onChanged = {
-                                                        state.markChanged()
-                                                        FileState.markDirty()
-                                                    }
-                                                )
+                                    Box(modifier = Modifier.weight(1f)) {
+                                        SegmentedEnvelopeEditor(
+                                            envelope = module.envelope,
+                                            onChanged = {
+                                                state.markChanged()
+                                                FileState.markDirty()
                                             }
-                                        }
+                                        )
                                     }
-                                )
-                            )
-                        }
-                ) {
-                    Text(
-                        text = module.name,
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(horizontal = 4.dp)
+                                }
+                            }
+                        )
                     )
                 }
-            }
+            )
             // Draw jacks.
             module.inputs.forEach { JackView(it, state, isLeft = true) }
             if (module.inputs.isNotEmpty() && module.outputs.isNotEmpty()) {
@@ -1878,49 +1737,39 @@ fun PianoRollModuleNode(module: PianoRollModule, state: GraphState) {
         color = colors.moduleBackground
     ) {
         Column {
-            TooltipArea(text = getModuleTooltipText(module)) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(24.dp)
-                        .background(colors.headerSequence)
-                        .headerGestures(state, module) {
-                            val savedX = module.windowX
-                            val savedY = module.windowY
-                            val restoredPosition = if (savedX != null && savedY != null) {
-                                Offset(savedX * density.density, savedY * density.density)
-                            } else {
-                                val pos = state.modulePositions[module] ?: Offset(100f, 100f)
-                                Offset(
-                                    (pos.x + 20f) * density.density,
-                                    (pos.y + 30f) * density.density
-                                )
-                            }
-                            val window = MdiWindowInfo(
-                                id = module,
-                                title = module.name,
-                                position = restoredPosition,
-                                width = module.windowWidth?.dp ?: 800.dp,
-                                height = module.windowHeight?.dp ?: 500.dp,
-                                content = { PianoRollEditor(module, state) }
-                            )
-                            window.onGeometryChanged = {
-                                module.windowX = window.position.x / density.density
-                                module.windowY = window.position.y / density.density
-                                module.windowWidth = window.width.value
-                                module.windowHeight = window.height.value
-                            }
-                            mdiState.open(window)
-                        }
-                ) {
-                    Text(
-                        text = module.name,
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(horizontal = 4.dp)
+            ModuleHeader(
+                module = module,
+                state = state,
+                headerColor = colors.headerSequence,
+                onDoubleTap = {
+                    val savedX = module.windowX
+                    val savedY = module.windowY
+                    val restoredPosition = if (savedX != null && savedY != null) {
+                        Offset(savedX * density.density, savedY * density.density)
+                    } else {
+                        val pos = state.modulePositions[module] ?: Offset(100f, 100f)
+                        Offset(
+                            (pos.x + 20f) * density.density,
+                            (pos.y + 30f) * density.density
+                        )
+                    }
+                    val window = MdiWindowInfo(
+                        id = module,
+                        title = module.name,
+                        position = restoredPosition,
+                        width = module.windowWidth?.dp ?: 800.dp,
+                        height = module.windowHeight?.dp ?: 500.dp,
+                        content = { PianoRollEditor(module, state) }
                     )
+                    window.onGeometryChanged = {
+                        module.windowX = window.position.x / density.density
+                        module.windowY = window.position.y / density.density
+                        module.windowWidth = window.width.value
+                        module.windowHeight = window.height.value
+                    }
+                    mdiState.open(window)
                 }
-            }
+            )
             // Draw jacks.
             module.inputs.forEach { JackView(it, state, isLeft = true) }
             if (module.inputs.isNotEmpty() && module.outputs.isNotEmpty()) {
@@ -1932,14 +1781,127 @@ fun PianoRollModuleNode(module: PianoRollModule, state: GraphState) {
 }
 
 
+fun openHelpForModule(
+    module: Module,
+    mdiState: MdiState,
+    engine: com.syntona.dataflow.engine.DataFlowEngine?,
+    density: Float,
+    scope: kotlinx.coroutines.CoroutineScope
+) {
+    val type = when (module) {
+        is com.syntona.dataflow.modules.PolyPatchModule -> "polyPatch"
+        is com.syntona.dataflow.modules.PatchModule -> "patch"
+        else -> module.type
+    }
+    val helpPath = com.syntona.dataflow.registry.HelpRegistry.getHelpFilePath(type) ?: return
+    val currentEngine = engine ?: return
+    scope.launch {
+        try {
+            val bytes = com.syntona.SharedResources.readBytes("files/$helpPath")
+            val content = bytes.decodeToString()
+            val newDoc = com.syntona.openNewDocument(mdiState, currentEngine, density)
+            com.syntona.loadIntoDocument(mdiState, newDoc, helpPath, content, density)
+        } catch (e: Exception) {
+            println("Failed to load help file $helpPath: ${e.message}")
+        }
+    }
+}
+
+@Composable
+fun ModuleHeader(
+    module: Module,
+    state: GraphState,
+    headerColor: Color = LocalGraphColors.current.headerDefault,
+    label: String = module.name,
+    height: Dp = 24.dp,
+    onDoubleTap: () -> Unit = { state.editingModule = module },
+    trailingContent: @Composable (RowScope.() -> Unit)? = null
+) {
+    var showMenu by remember { mutableStateOf(false) }
+    val mdiState = LocalMdiState.current
+    val density = LocalDensity.current.density
+    val scope = rememberCoroutineScope()
+    val type = when (module) {
+        is com.syntona.dataflow.modules.PolyPatchModule -> "polyPatch"
+        is com.syntona.dataflow.modules.PatchModule -> "patch"
+        else -> module.type
+    }
+    val hasHelp = com.syntona.dataflow.registry.HelpRegistry.hasHelpFile(type)
+
+    TooltipArea(text = getModuleTooltipText(module)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(height)
+                .background(headerColor)
+                .headerGestures(
+                    state = state,
+                    module = module,
+                    onRightClick = { showMenu = true },
+                    onDoubleTap = onDoubleTap
+                )
+        ) {
+            Row(
+                modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = label,
+                        color = Color.White,
+                        fontSize = 12.sp
+                    )
+                    if (trailingContent != null) {
+                        trailingContent()
+                    }
+                }
+
+                Box {
+                    Text(
+                        text = "⋮",
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        modifier = Modifier
+                            .clickable { showMenu = true }
+                            .padding(horizontal = 2.dp)
+                    )
+
+                    androidx.compose.material3.DropdownMenu(
+                        expanded = showMenu,
+                        onDismissRequest = { showMenu = false }
+                    ) {
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text("Help...", fontSize = 12.sp) },
+                            enabled = hasHelp,
+                            onClick = {
+                                showMenu = false
+                                openHelpForModule(module, mdiState, state.engine, density, scope)
+                            },
+                            modifier = Modifier.height(28.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 fun Modifier.headerGestures(
     state: GraphState,
     module: Module,
+    onRightClick: (() -> Unit)? = null,
     onDoubleTap: () -> Unit
 ): Modifier = this.pointerInput(module, state) {
     val doubleTapTimeout = viewConfiguration.doubleTapTimeoutMillis
     awaitEachGesture {
         val down = awaitFirstDown()
+        if (currentEvent.buttons.isSecondaryPressed || currentEvent.keyboardModifiers.isCtrlPressed) {
+            down.consume()
+            onRightClick?.invoke()
+            return@awaitEachGesture
+        }
         down.consume()
         if (!state.selectedModules.contains(module)) {
             state.clearSelection()
@@ -1989,25 +1951,7 @@ fun MixerModuleNode(module: MixerModule, state: GraphState) {
         color = colors.moduleBackground
     ) {
         Column {
-            // Title bar — drag to move, double-tap to open editor
-            TooltipArea(text = getModuleTooltipText(module)) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(24.dp)
-                        .background(colors.headerAudio)
-                        .headerGestures(state, module) {
-                            state.editingModule = module
-                        }
-                ) {
-                    Text(
-                        text = module.name,
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(horizontal = 4.dp)
-                    )
-                }
-            }
+            ModuleHeader(module = module, state = state, headerColor = colors.headerAudio)
 
             // Channel strips
             for (i in 0 until module.numInputs) {
@@ -2131,24 +2075,7 @@ fun EquationModuleNode(module: EquationModule, state: GraphState) {
         color = colors.moduleBackground
     ) {
         Column {
-            TooltipArea(text = getModuleTooltipText(module)) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(24.dp)
-                        .background(colors.headerDefault)
-                        .headerGestures(state, module) {
-                            state.editingModule = module
-                        }
-                ) {
-                    Text(
-                        text = module.name,
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(horizontal = 4.dp)
-                    )
-                }
-            }
+            ModuleHeader(module = module, state = state, headerColor = colors.headerDefault)
 
             Row(
                 modifier = Modifier.fillMaxWidth().padding(4.dp),
@@ -2272,24 +2199,7 @@ fun ScaleModuleNode(module: ScaleModule, state: GraphState) {
         color = colors.moduleBackground
     ) {
         Column {
-            TooltipArea(text = getModuleTooltipText(module)) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(24.dp)
-                        .background(colors.headerDefault)
-                        .headerGestures(state, module) {
-                            state.editingModule = module
-                        }
-                ) {
-                    Text(
-                        text = module.name,
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(horizontal = 4.dp)
-                    )
-                }
-            }
+            ModuleHeader(module = module, state = state, headerColor = colors.headerDefault)
 
             Row(
                 modifier = Modifier.fillMaxWidth().padding(4.dp),
@@ -2419,24 +2329,7 @@ fun GlowModuleNode(module: GlowModule, state: GraphState) {
         color = colors.moduleBackground
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            TooltipArea(text = getModuleTooltipText(module)) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(24.dp)
-                        .background(colors.headerDefault)
-                        .headerGestures(state, module) {
-                            state.editingModule = module
-                        }
-                ) {
-                    Text(
-                        text = module.name,
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(horizontal = 4.dp).align(Alignment.CenterStart)
-                    )
-                }
-            }
+            ModuleHeader(module = module, state = state, headerColor = colors.headerDefault)
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -2496,24 +2389,7 @@ fun FlashModuleNode(module: FlashModule, state: GraphState) {
         color = colors.moduleBackground
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            TooltipArea(text = getModuleTooltipText(module)) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(24.dp)
-                        .background(colors.headerDefault)
-                        .headerGestures(state, module) {
-                            state.editingModule = module
-                        }
-                ) {
-                    Text(
-                        text = module.name,
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(horizontal = 4.dp).align(Alignment.CenterStart)
-                    )
-                }
-            }
+            ModuleHeader(module = module, state = state, headerColor = colors.headerDefault)
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -2625,85 +2501,51 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
         color = colors.moduleBackground
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
-            // Drag handle (Header)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(28.dp)
-                    .background(colors.headerDefault)
-                    .headerGestures(state, module) {
-                        state.editingModule = module
-                    },
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(start = 6.dp)
-                ) {
-                    Text(
-                        text = "Timeline",
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Button(
-                        onClick = {
-                            module.addTrigger(module.seekTime)
-                            FileState.markDirty()
-                        },
-                        modifier = Modifier.height(18.dp).width(28.dp),
-                        contentPadding = PaddingValues(0.dp)
+            ModuleHeader(
+                module = module,
+                state = state,
+                headerColor = colors.headerDefault,
+                label = "Timeline",
+                height = 28.dp,
+                trailingContent = {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        modifier = Modifier.padding(end = 4.dp)
                     ) {
-                        Text("+", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        Button(
+                            onClick = {
+                                module.addTrigger(module.seekTime)
+                                FileState.markDirty()
+                            },
+                            modifier = Modifier.height(18.dp).width(28.dp),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text("+", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Text(
+                            text = if (module.loopMode) "🔁" else "➡️",
+                            color = if (module.loopMode) Color.Green else Color.LightGray,
+                            fontSize = 12.sp,
+                            modifier = Modifier.clickable {
+                                module.loopMode = !module.loopMode
+                                FileState.markDirty()
+                            }
+                        )
+                        Text("Zoom", fontSize = 10.sp, color = Color.White)
+                        Slider(
+                            value = coercedZoom,
+                            onValueChange = {
+                                module.zoom = it
+                                FileState.markDirty()
+                            },
+                            valueRange = minZoom..maxZoom,
+                            modifier = Modifier.width(70.dp).height(18.dp)
+                        )
                     }
                 }
-
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    modifier = Modifier.padding(end = 8.dp)
-                ) {
-                    // Loop Mode Toggle widget/icon
-                    Text(
-                        text = if (module.loopMode) "🔁" else "➡️",
-                        color = if (module.loopMode) Color.Green else Color.LightGray,
-                        fontSize = 12.sp,
-                        modifier = Modifier.clickable {
-                            module.loopMode = !module.loopMode
-                            FileState.markDirty()
-                        }
-                    )
-                    Text("Zoom", fontSize = 10.sp, color = Color.White)
-                    Slider(
-                        value = coercedZoom,
-                        onValueChange = {
-                            module.zoom = it
-                            FileState.markDirty()
-                        },
-                        valueRange = minZoom..maxZoom,
-                        modifier = Modifier.width(90.dp),
-                        colors = SliderDefaults.colors(
-                            thumbColor = Color.White, // Sets the thumb color
-                            activeTrackColor = Color.Yellow, // Matches the track to the left of the thumb
-                            inactiveTrackColor = Color.LightGray // Track to the right of the thumb
-                        ),
-                        // 1. Override the default track
-                        track = { sliderState ->
-                            SliderDefaults.Track(
-                                sliderState = sliderState,
-                                // 2. Set the gap to 0 to prevent the background from showing through
-                                thumbTrackGapSize = 0.dp,
-                                colors = SliderDefaults.colors(
-                                    activeTrackColor = Color.Yellow,
-                                    inactiveTrackColor = Color.LightGray
-                                )
-                            )
-                        },
-                    )
-                }
-            }
+            )
 
             // Body with 0 padding at bottom/right
             Box(

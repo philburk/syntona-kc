@@ -69,6 +69,10 @@ fun main() {
                 .filter { it.startsWith("tutorials/") && it.endsWith(SYNTONA_FILE_SUFFIX) }
         }
 
+        LaunchedEffect(Unit) {
+            com.syntona.dataflow.registry.HelpRegistry.loadHelpFilesIndex()
+        }
+
         LaunchedEffect(mdiState, scope) {
             LinkModule.onTriggerLoad = { path ->
                 val state = mdiState

@@ -226,6 +226,9 @@ fun App(
         CompositionLocalProvider(LocalGraphColors provides DarkGraphColors) {
             var showContent by remember { mutableStateOf(true) }
         val scope = rememberCoroutineScope()
+        LaunchedEffect(Unit) {
+            com.syntona.dataflow.registry.HelpRegistry.loadHelpFilesIndex()
+        }
         val examplesList by produceState<List<String>>(emptyList()) {
             value = com.syntona.SharedResources.getFilesIndex()
                 .filter { it.startsWith("examples/") && it.endsWith(SYNTONA_FILE_SUFFIX) }
