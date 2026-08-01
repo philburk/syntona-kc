@@ -37,12 +37,12 @@ class FileDialogsJvmTest {
 
             assertEquals(
                 File(root, "examples"),
-                resolveResourceDirectory(root, "examples/wavey_square.json")
+                resolveResourceDirectory(root, "examples/wavey_square.sntn")
             )
             // Nested folders should resolve to the innermost one.
             assertEquals(
                 File(root, "tutorials/basics"),
-                resolveResourceDirectory(root, "tutorials/basics/first.json")
+                resolveResourceDirectory(root, "tutorials/basics/first.sntn")
             )
         } finally {
             root.deleteRecursively()
@@ -60,9 +60,9 @@ class FileDialogsJvmTest {
             assertEquals(null, resolveResourceDirectory(root, null))
             assertEquals(null, resolveResourceDirectory(root, ""))
             // A folder that is not present, e.g. running outside a source checkout.
-            assertEquals(null, resolveResourceDirectory(root, "missing/thing.json"))
+            assertEquals(null, resolveResourceDirectory(root, "missing/thing.sntn"))
             // No resource root at all.
-            assertEquals(null, resolveResourceDirectory(null, "examples/a.json"))
+            assertEquals(null, resolveResourceDirectory(null, "examples/a.sntn"))
         } finally {
             root.deleteRecursively()
         }
@@ -78,14 +78,14 @@ class FileDialogsJvmTest {
         val document = DocumentState(com.syntona.dataflow.modules.PatchModule("test"))
         FileState.addDocument(document)
         try {
-            document.markSaved("examples/wavey_square.json")
+            document.markSaved("examples/wavey_square.sntn")
             assertTrue(FileState.isResource, "an example should count as a resource")
             assertNotNull(FileState.currentFilePath.takeIf { FileState.isResource })
 
-            document.markSaved("tutorials/basics/first.json")
+            document.markSaved("tutorials/basics/first.sntn")
             assertTrue(FileState.isResource, "a tutorial should count as a resource")
 
-            document.markSaved("/Users/phil/Documents/Syntona/mine.json")
+            document.markSaved("/Users/phil/Documents/Syntona/mine.sntn")
             assertTrue(!FileState.isResource, "a saved file is not a resource")
             assertEquals(null, FileState.currentFilePath.takeIf { FileState.isResource })
         } finally {

@@ -62,11 +62,11 @@ fun main() {
         val density = androidx.compose.ui.platform.LocalDensity.current.density
         val examplesList by produceState<List<String>>(emptyList()) {
             value = com.syntona.SharedResources.getFilesIndex()
-                .filter { it.startsWith("examples/") && it.endsWith(".json") }
+                .filter { it.startsWith("examples/") && it.endsWith(SYNTONA_FILE_SUFFIX) }
         }
         val tutorialsList by produceState<List<String>>(emptyList()) {
             value = com.syntona.SharedResources.getFilesIndex()
-                .filter { it.startsWith("tutorials/") && it.endsWith(".json") }
+                .filter { it.startsWith("tutorials/") && it.endsWith(SYNTONA_FILE_SUFFIX) }
         }
 
         LaunchedEffect(mdiState, scope) {
@@ -147,7 +147,7 @@ fun main() {
                                 val parsed = try { JsonParser(content).parse() as? JsonValue.Obj } catch (_: Exception) { null }
                                 if (parsed != null) {
                                     val fileType = (parsed.map["type"] as? JsonValue.Str)?.value ?: "patch"
-                                    val fileName = path.substringAfterLast('/').substringAfterLast('\\').substringBeforeLast(".json")
+                                    val fileName = path.substringAfterLast('/').substringAfterLast('\\').substringBeforeLast(SYNTONA_FILE_SUFFIX)
                                     val newPatch = if (fileType == "polyPatch") {
                                         val poly = PolyPatchModule(fileName)
                                         val maxV = (parsed.map["maxVoices"] as? JsonValue.Num)?.value?.toInt() ?: 4
@@ -207,7 +207,7 @@ fun main() {
                                             rootPatch.clearModifiedRecursively()
                                             FileState.markSaved(path)
                                         } else {
-                                            showSaveFileDialog(json, "patch.json") { savedPath ->
+                                            showSaveFileDialog(json, DEFAULT_PATCH_FILENAME) { savedPath ->
                                                 rootPatch.filePath = savedPath
                                                 rootPatch.clearModifiedRecursively()
                                                 FileState.markSaved(savedPath)
@@ -229,7 +229,7 @@ fun main() {
                                         rootPatch.clearModifiedRecursively()
                                         FileState.markSaved(path)
                                     } else {
-                                        showSaveFileDialog(json, "patch.json") { savedPath ->
+                                        showSaveFileDialog(json, DEFAULT_PATCH_FILENAME) { savedPath ->
                                             rootPatch.filePath = savedPath
                                             rootPatch.clearModifiedRecursively()
                                             FileState.markSaved(savedPath)
@@ -256,7 +256,7 @@ fun main() {
                                                 rootWindowWidth = rootPatch.windowWidth,
                                                 rootWindowHeight = rootPatch.windowHeight
                                             ),
-                                            FileState.currentFileName ?: "patch.json"
+                                            FileState.currentFileName ?: DEFAULT_PATCH_FILENAME
                                         ) { savedPath ->
                                             rootPatch.filePath = savedPath
                                             rootPatch.clearModifiedRecursively()
@@ -272,7 +272,7 @@ fun main() {
                                             rootWindowWidth = rootPatch.windowWidth,
                                             rootWindowHeight = rootPatch.windowHeight
                                         ),
-                                        FileState.currentFileName ?: "patch.json"
+                                        FileState.currentFileName ?: DEFAULT_PATCH_FILENAME
                                     ) { savedPath ->
                                         rootPatch.filePath = savedPath
                                         rootPatch.clearModifiedRecursively()
@@ -300,7 +300,7 @@ fun main() {
                                                     rootWindowWidth = rootPatch.windowWidth,
                                                     rootWindowHeight = rootPatch.windowHeight
                                                 ),
-                                                FileState.currentFileName ?: "patch.json"
+                                                FileState.currentFileName ?: DEFAULT_PATCH_FILENAME
                                             ) { savedPath ->
                                                 rootPatch.filePath = savedPath
                                                 rootPatch.clearModifiedRecursively()
@@ -316,7 +316,7 @@ fun main() {
                                                 rootWindowWidth = rootPatch.windowWidth,
                                                 rootWindowHeight = rootPatch.windowHeight
                                             ),
-                                            FileState.currentFileName ?: "patch.json"
+                                            FileState.currentFileName ?: DEFAULT_PATCH_FILENAME
                                         ) { savedPath ->
                                             rootPatch.filePath = savedPath
                                             rootPatch.clearModifiedRecursively()
@@ -333,7 +333,7 @@ fun main() {
                             val json = GraphSerializer.serializePatch(target, density)
                             val defaultName = target.filePath?.let { p ->
                                 p.substringAfterLast('/').substringAfterLast('\\').ifEmpty { p }
-                            } ?: "${target.name}.json"
+                            } ?: "${target.name}$SYNTONA_FILE_SUFFIX"
                             showSaveFileDialog(json, defaultName) { path ->
                                 target.filePath = path
                                 target.clearModifiedRecursively()

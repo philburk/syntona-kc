@@ -32,31 +32,31 @@ class WindowMenuTest {
 
     @Test
     fun testUsesTheFileNameWhenThereIsOne() {
-        val saved = document("root", "/Users/phil/Documents/glow_flash.json")
+        val saved = document("root", "/Users/phil/Documents/glow_flash.sntn")
         val unsaved = document("sketch")
         assertEquals(
-            listOf("glow_flash.json", "sketch"),
+            listOf("glow_flash.sntn", "sketch"),
             WindowMenu.documentLabels(listOf(saved, unsaved))
         )
     }
 
     @Test
     fun testSameFileNameIsResolvedByShowingEnoughOfThePath() {
-        val example = document("root", "/app/composeResources/files/examples/glow_flash.json")
-        val tutorial = document("root", "/app/composeResources/files/tutorials/glow_flash.json")
+        val example = document("root", "/app/composeResources/files/examples/glow_flash.sntn")
+        val tutorial = document("root", "/app/composeResources/files/tutorials/glow_flash.sntn")
         assertEquals(
-            listOf("examples/glow_flash.json", "tutorials/glow_flash.json"),
+            listOf("examples/glow_flash.sntn", "tutorials/glow_flash.sntn"),
             WindowMenu.documentLabels(listOf(example, tutorial))
         )
     }
 
     @Test
     fun testWidensFurtherWhenOneFolderIsNotEnough() {
-        val first = document("root", "/a/shared/patches/song.json")
-        val second = document("root", "/b/shared/patches/song.json")
+        val first = document("root", "/a/shared/patches/song.sntn")
+        val second = document("root", "/b/shared/patches/song.sntn")
         val labels = WindowMenu.documentLabels(listOf(first, second))
         assertEquals(2, labels.toSet().size, "labels must end up distinct: $labels")
-        assertTrue(labels.all { it.endsWith("song.json") })
+        assertTrue(labels.all { it.endsWith("song.sntn") })
         assertTrue(labels[0] != labels[1])
     }
 
@@ -74,11 +74,11 @@ class WindowMenuTest {
 
     @Test
     fun testOnlyCollidingNamesAreQualified() {
-        val a = document("root", "/x/examples/one.json")
-        val b = document("root", "/y/examples/two.json")
+        val a = document("root", "/x/examples/one.sntn")
+        val b = document("root", "/y/examples/two.sntn")
         val labels = WindowMenu.documentLabels(listOf(a, b))
         assertEquals(
-            listOf("one.json", "two.json"),
+            listOf("one.sntn", "two.sntn"),
             labels,
             "distinct names should stay short rather than being padded with folders"
         )
@@ -87,8 +87,8 @@ class WindowMenuTest {
     @Test
     fun testPatchWindowsAreGroupedUnderTheirDocument() {
         val mdi = MdiState()
-        val first = document("first", "/tmp/first.json")
-        val second = document("second", "/tmp/second.json")
+        val first = document("first", "/tmp/first.sntn")
+        val second = document("second", "/tmp/second.sntn")
 
         val firstOsc = PatchModule("osc")
         first.rootPatch.graphState.addModule(firstOsc, Offset.Zero)
@@ -102,7 +102,7 @@ class WindowMenuTest {
 
         val entries = WindowMenu.build(mdi)
         assertEquals(
-            listOf("first.json", "osc", "second.json", "osc"),
+            listOf("first.sntn", "osc", "second.sntn", "osc"),
             entries.map { it.label },
             "each document is followed by its own patch windows"
         )
@@ -116,7 +116,7 @@ class WindowMenuTest {
     @Test
     fun testPatchWindowsCollidingInsideOneDocumentAreNumbered() {
         val mdi = MdiState()
-        val doc = document("doc", "/tmp/doc.json")
+        val doc = document("doc", "/tmp/doc.sntn")
         val first = PatchModule("osc")
         val second = PatchModule("osc")
         doc.rootPatch.graphState.addModule(first, Offset.Zero)
@@ -127,7 +127,7 @@ class WindowMenuTest {
         mdi.openWindowFor(second)
 
         assertEquals(
-            listOf("doc.json", "osc", "osc (2)"),
+            listOf("doc.sntn", "osc", "osc (2)"),
             WindowMenu.build(mdi).map { it.label }
         )
     }
@@ -135,7 +135,7 @@ class WindowMenuTest {
     @Test
     fun testTheFrontmostWindowIsMarked() {
         val mdi = MdiState()
-        val doc = document("doc", "/tmp/doc.json")
+        val doc = document("doc", "/tmp/doc.sntn")
         val child = PatchModule("child")
         doc.rootPatch.graphState.addModule(child, Offset.Zero)
 
@@ -152,7 +152,7 @@ class WindowMenuTest {
     @Test
     fun testShowRestoresAMinimizedWindowAndBringsItForward() {
         val mdi = MdiState()
-        val doc = document("doc", "/tmp/doc.json")
+        val doc = document("doc", "/tmp/doc.sntn")
         val child = PatchModule("child")
         doc.rootPatch.graphState.addModule(child, Offset.Zero)
 
@@ -170,13 +170,13 @@ class WindowMenuTest {
     @Test
     fun testUnsavedWorkIsMarkedOnTheDocumentEntry() {
         val mdi = MdiState()
-        val doc = document("doc", "/tmp/doc.json")
+        val doc = document("doc", "/tmp/doc.sntn")
         mdi.openWindowFor(doc.rootPatch)
-        assertEquals("doc.json", WindowMenu.build(mdi).first().label)
+        assertEquals("doc.sntn", WindowMenu.build(mdi).first().label)
 
         doc.markDirty()
         assertEquals(
-            "doc.json*",
+            "doc.sntn*",
             WindowMenu.build(mdi).first().label,
             "an asterisk shows which documents have unsaved work"
         )
@@ -189,7 +189,7 @@ class WindowMenuTest {
     @Test
     fun testNamesLineUpWhicheverWindowIsInFront() {
         val mdi = MdiState()
-        val doc = document("doc", "/tmp/song.json")
+        val doc = document("doc", "/tmp/song.sntn")
         val osc = PatchModule("osc")
         val filter = PatchModule("filter")
         doc.rootPatch.graphState.addModule(osc, Offset.Zero)
@@ -202,26 +202,26 @@ class WindowMenuTest {
         fun columnOf(label: String) =
             WindowMenu.build(mdi).single { it.label == label }.menuText.indexOfFirst { it != ' ' && it != '*' }
 
-        val documentColumn = columnOf("song.json")
+        val documentColumn = columnOf("song.sntn")
         val childColumn = columnOf("osc")
         assertEquals(columnOf("filter"), childColumn, "sub windows share one indent")
         assertTrue(childColumn > documentColumn, "sub windows are indented past the document")
 
         // Moving the marker around must not move any name.
         WindowMenu.show(mdi, oscWindow)
-        assertEquals(documentColumn, columnOf("song.json"))
+        assertEquals(documentColumn, columnOf("song.sntn"))
         assertEquals(childColumn, columnOf("osc"))
         assertEquals(childColumn, columnOf("filter"))
 
         WindowMenu.show(mdi, rootWindow)
-        assertEquals(documentColumn, columnOf("song.json"))
+        assertEquals(documentColumn, columnOf("song.sntn"))
         assertEquals(childColumn, columnOf("osc"))
     }
 
     @Test
     fun testTheFrontWindowIsMarkedWithAnAsterisk() {
         val mdi = MdiState()
-        val doc = document("doc", "/tmp/song.json")
+        val doc = document("doc", "/tmp/song.sntn")
         val osc = PatchModule("osc")
         doc.rootPatch.graphState.addModule(osc, Offset.Zero)
         mdi.openWindowFor(doc.rootPatch)
@@ -230,18 +230,18 @@ class WindowMenuTest {
         // osc was opened last, so it is the one in front.
         val entries = WindowMenu.build(mdi)
         assertEquals("*     osc", entries.single { it.window === oscWindow }.menuText)
-        assertEquals("  song.json", entries.first().menuText)
+        assertEquals("  song.sntn", entries.first().menuText)
 
         WindowMenu.show(mdi, mdi.windows.first { it.id === doc.rootPatch })
         val afterFocus = WindowMenu.build(mdi)
-        assertEquals("* song.json", afterFocus.first().menuText)
+        assertEquals("* song.sntn", afterFocus.first().menuText)
         assertEquals("      osc", afterFocus.single { it.window === oscWindow }.menuText)
     }
 
     @Test
     fun testMinimizedWindowsAreLabelled() {
         val mdi = MdiState()
-        val doc = document("doc", "/tmp/song.json")
+        val doc = document("doc", "/tmp/song.sntn")
         val window = mdi.openWindowFor(doc.rootPatch)
         window.minimized = true
         assertTrue(WindowMenu.build(mdi).first().menuText.endsWith("(minimized)"))
@@ -250,7 +250,7 @@ class WindowMenuTest {
     @Test
     fun testWindowsWithoutADocumentStillAppear() {
         val mdi = MdiState()
-        val doc = document("doc", "/tmp/doc.json")
+        val doc = document("doc", "/tmp/doc.sntn")
         mdi.openWindowFor(doc.rootPatch)
         val standalone = MdiWindowInfo(id = "pianoRoll", title = "Piano Roll", content = {})
         mdi.open(standalone)

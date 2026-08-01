@@ -245,7 +245,7 @@ private fun LinkModuleEditor(module: LinkModule) {
     var buttonTextVal by remember(module) { mutableStateOf(module.buttonText) }
     var expanded by remember { mutableStateOf(false) }
     val files by produceState<List<String>>(emptyList()) {
-        value = com.syntona.SharedResources.getFilesIndex().filter { it.endsWith(".json") }
+        value = com.syntona.SharedResources.getFilesIndex().filter { it.endsWith(com.syntona.SYNTONA_FILE_SUFFIX) }
     }
 
     Column(

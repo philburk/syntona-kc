@@ -132,7 +132,7 @@
       "x": 602.875,
       "y": 38,
       "jacks": {},
-      "filePath": "tutorials/01_tour/02_envelope_editor.json",
+      "filePath": "tutorials/01_tour/02_envelope_editor.sntn",
       "buttonText": ">> Next, envelope editor"
     }
   ],

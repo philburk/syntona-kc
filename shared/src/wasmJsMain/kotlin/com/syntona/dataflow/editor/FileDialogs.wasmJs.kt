@@ -5,7 +5,7 @@ package com.syntona.dataflow.editor
 @JsFun("""(callback) => {
     var input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.json';
+    input.accept = '.sntn';
     input.onchange = function(e) {
         var file = e.target.files[0];
         if (!file) return;

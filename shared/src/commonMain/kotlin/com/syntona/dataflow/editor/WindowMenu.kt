@@ -42,7 +42,7 @@ class WindowMenuEntry(
  *
  * Documents themselves are named by file, so only they can really collide. Those are resolved the
  * way editors usually do it, by showing just enough of the path to tell them apart - so two files
- * called `glow_flash.json` become `examples/glow_flash.json` and `tutorials/glow_flash.json` -
+ * called `glow_flash.sntn` become `examples/glow_flash.sntn` and `tutorials/glow_flash.sntn` -
  * falling back to a numbered suffix for documents with no path at all, such as two unsaved
  * patches both called "root".
  */
@@ -119,7 +119,7 @@ object WindowMenu {
 
     /**
      * Names each document, widening to more of its path only where that is needed to tell two
-     * apart, so the common case stays as short as `glow_flash.json`.
+     * apart, so the common case stays as short as `glow_flash.sntn`.
      */
     internal fun documentLabels(documents: List<DocumentState>): List<String> {
         val labels = MutableList(documents.size) { documents[it].displayName }
@@ -157,7 +157,7 @@ object WindowMenu {
         }
     }
 
-    /** The last [count] path segments of [path], e.g. `examples/glow_flash.json`. */
+    /** The last [count] path segments of [path], e.g. `examples/glow_flash.sntn`. */
     private fun lastSegments(path: String, count: Int): String {
         val segments = path.split('/', '\\').filter { it.isNotEmpty() }
         if (segments.isEmpty()) return path

@@ -1,5 +1,7 @@
 package com.syntona.dataflow.editor
 
+import com.syntona.SYNTONA_FILE_EXTENSION
+import com.syntona.SYNTONA_FILE_SUFFIX
 import com.syntona.storage.SettingsStore
 import java.io.File
 import javax.swing.JFileChooser
@@ -14,7 +16,7 @@ private val resourceRootDirectory: File? = File(
 private var lastResourceDirectory: File? = resourceRootDirectory
 
 /**
- * Turns a resource path such as `examples/wavey_square.json` into the directory it lives in,
+ * Turns a resource path such as `examples/wavey_square.sntn` into the directory it lives in,
  * so that saving a loaded example starts in the folder it came from rather than the resource
  * root. Returns null when the path is not a resource or the folder is not there.
  */
@@ -66,7 +68,7 @@ actual fun isSaveAsResourceAvailable(): Boolean {
 actual fun showOpenFileDialog(onResult: (path: String, content: String) -> Unit) {
     val chooser = JFileChooser().apply {
         dialogTitle = "Open Patch"
-        fileFilter = FileNameExtensionFilter("JSON files (*.json)", "json")
+        fileFilter = FileNameExtensionFilter("Syntona files (*$SYNTONA_FILE_SUFFIX)", SYNTONA_FILE_EXTENSION)
         if (!lastDocumentDirectory.exists()) lastDocumentDirectory.mkdirs()
         currentDirectory = lastDocumentDirectory
     }
@@ -80,14 +82,14 @@ actual fun showOpenFileDialog(onResult: (path: String, content: String) -> Unit)
 actual fun showSaveFileDialog(content: String, defaultName: String, onSaved: (path: String) -> Unit) {
     val chooser = JFileChooser().apply {
         dialogTitle = "Save Patch"
-        fileFilter = FileNameExtensionFilter("JSON files (*.json)", "json")
+        fileFilter = FileNameExtensionFilter("Syntona files (*$SYNTONA_FILE_SUFFIX)", SYNTONA_FILE_EXTENSION)
         if (!lastDocumentDirectory.exists()) lastDocumentDirectory.mkdirs()
         currentDirectory = lastDocumentDirectory
         selectedFile = File(lastDocumentDirectory, defaultName)
     }
     if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
         var file = chooser.selectedFile
-        if (!file.name.endsWith(".json")) file = File(file.path + ".json")
+        if (!file.name.endsWith(SYNTONA_FILE_SUFFIX)) file = File(file.path + SYNTONA_FILE_SUFFIX)
         updateLastDocumentDirectory(file.parentFile)
         file.writeText(content)
         onSaved(file.absolutePath)
@@ -106,13 +108,13 @@ actual fun showSaveAsResourceFileDialog(content: String, defaultName: String, on
     val dir = loadedFrom ?: lastResourceDirectory ?: return
     val chooser = JFileChooser().apply {
         dialogTitle = "Save Patch as Resource"
-        fileFilter = FileNameExtensionFilter("JSON files (*.json)", "json")
+        fileFilter = FileNameExtensionFilter("Syntona files (*$SYNTONA_FILE_SUFFIX)", SYNTONA_FILE_EXTENSION)
         currentDirectory = dir
         selectedFile = File(dir, defaultName)
     }
     if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
         var file = chooser.selectedFile
-        if (!file.name.endsWith(".json")) file = File(file.path + ".json")
+        if (!file.name.endsWith(SYNTONA_FILE_SUFFIX)) file = File(file.path + SYNTONA_FILE_SUFFIX)
         lastResourceDirectory = file.parentFile
         file.writeText(content)
         onSaved(file.absolutePath)

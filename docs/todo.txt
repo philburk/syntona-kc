@@ -1,7 +1,8 @@
 
 Right click on a module for a menu with "Help...". Or add a (?) button to the header.
-It will be enabled if a file called "help/{bundle}/{moduleName}.json" exists.
+It will be enabled if a file called "help/{bundle}/{moduleName}.sntn" exists.
 Add a Help>>Modules menu like Help>>Examples
+/Users/phil/Work/syntona-kc/shared/src/commonMain/composeResources/files/help/music/input/keyboard13.sntn
 
 More tutorials. Audio, timeline, pianoroll.
 

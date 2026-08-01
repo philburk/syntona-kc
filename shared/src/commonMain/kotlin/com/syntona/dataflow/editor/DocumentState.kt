@@ -18,7 +18,7 @@ class DocumentState(val rootPatch: PatchModule) {
     var isDirty by mutableStateOf(false)
         private set
 
-    /** Full path on JVM, filename on WASM, or a resource path such as `examples/foo.json`. */
+    /** Full path on JVM, filename on WASM, or a resource path such as `examples/foo.sntn`. */
     var currentFilePath by mutableStateOf<String?>(null)
         private set
 

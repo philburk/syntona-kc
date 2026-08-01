@@ -51,9 +51,9 @@ class PatchFileReferenceTest {
         child1.graphState.addModule(grandChild, Offset.Zero)
 
         // Give them file paths, but keep them unmodified initially
-        child1.filePath = "/path/to/child1.json"
-        child2.filePath = "/path/to/child2.json"
-        grandChild.filePath = "/path/to/grandChild.json"
+        child1.filePath = "/path/to/child1.sntn"
+        child2.filePath = "/path/to/child2.sntn"
+        grandChild.filePath = "/path/to/grandChild.sntn"
 
         child1.isModified = false
         child2.isModified = false
@@ -81,18 +81,18 @@ class PatchFileReferenceTest {
         val counter = CounterModule()
         child.graphState.addModule(counter, Offset.Zero)
 
-        child.filePath = "/path/to/child.json"
+        child.filePath = "/path/to/child.sntn"
 
         // Scenario A: referenced but modified (e.g. before save) -> serializes both path and patch content
         child.isModified = true
         val jsonModified = GraphSerializer.serialize(root.graphState, root.graphState.modules)
-        assertTrue(jsonModified.contains("\"filePath\": \"/path/to/child.json\""))
+        assertTrue(jsonModified.contains("\"filePath\": \"/path/to/child.sntn\""))
         assertTrue(jsonModified.contains("\"patch\":"))
 
         // Scenario B: referenced and NOT modified -> serializes only path reference
         child.isModified = false
         val jsonUnmodified = GraphSerializer.serialize(root.graphState, root.graphState.modules)
-        assertTrue(jsonUnmodified.contains("\"filePath\": \"/path/to/child.json\""))
+        assertTrue(jsonUnmodified.contains("\"filePath\": \"/path/to/child.sntn\""))
         assertFalse(jsonUnmodified.contains("\"patch\":"))
     }
 
@@ -102,7 +102,7 @@ class PatchFileReferenceTest {
         val childContent = """
             {"modules":[{"id":0,"type":"counter","name":"myCounter","x":0.0,"y":0.0}],"connections":[]}
         """.trimIndent()
-        val tempFile = File.createTempFile("child_patch_test", ".json")
+        val tempFile = File.createTempFile("child_patch_test", com.syntona.SYNTONA_FILE_SUFFIX)
         tempFile.writeText(childContent)
         tempFile.deleteOnExit()
 

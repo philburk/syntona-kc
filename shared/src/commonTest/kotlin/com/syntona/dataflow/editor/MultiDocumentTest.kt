@@ -32,14 +32,14 @@ class MultiDocumentTest {
         val first = newDocument("first")
         val second = newDocument("second")
 
-        first.markSaved("/tmp/first.json")
-        second.markSaved("examples/second.json")
+        first.markSaved("/tmp/first.sntn")
+        second.markSaved("examples/second.sntn")
         first.markDirty()
 
         assertTrue(first.isDirty, "editing one document should not depend on the other")
         assertFalse(second.isDirty)
-        assertEquals("/tmp/first.json", first.currentFilePath)
-        assertEquals("examples/second.json", second.currentFilePath)
+        assertEquals("/tmp/first.sntn", first.currentFilePath)
+        assertEquals("examples/second.sntn", second.currentFilePath)
         assertFalse(first.isResource)
         assertTrue(second.isResource, "an example is a resource whichever document holds it")
     }
@@ -48,16 +48,16 @@ class MultiDocumentTest {
     fun testFileStateReportsTheFrontmostDocument() {
         val first = newDocument("first")
         val second = newDocument("second")
-        first.markSaved("/tmp/first.json")
-        second.markSaved("/tmp/second.json")
+        first.markSaved("/tmp/first.sntn")
+        second.markSaved("/tmp/second.sntn")
 
         // addDocument focuses what it just added.
         assertSame(second, FileState.activeDocument)
-        assertEquals("/tmp/second.json", FileState.currentFilePath)
+        assertEquals("/tmp/second.sntn", FileState.currentFilePath)
 
         FileState.focusDocument(first)
-        assertEquals("/tmp/first.json", FileState.currentFilePath)
-        assertEquals("first.json", FileState.currentFileName)
+        assertEquals("/tmp/first.sntn", FileState.currentFilePath)
+        assertEquals("first.sntn", FileState.currentFileName)
     }
 
     @Test
@@ -202,7 +202,7 @@ class MultiDocumentTest {
     @Test
     fun testAnExampleIsNotTreatedAsUnsavedWork() {
         val document = newDocument("doc")
-        document.markSaved("examples/thing.json")
+        document.markSaved("examples/thing.sntn")
         document.markDirty()
         assertTrue(document.isDirty)
         assertFalse(
@@ -215,7 +215,7 @@ class MultiDocumentTest {
     @Test
     fun testTheNewWindowOptionIsOnlyOfferedWhenGiven() {
         val document = newDocument("doc")
-        document.markSaved("/tmp/a.json")
+        document.markSaved("/tmp/a.sntn")
         document.markDirty()
 
         var replaced = 0
@@ -239,7 +239,7 @@ class MultiDocumentTest {
     @Test
     fun testACleanDocumentSkipsTheDialogEntirely() {
         val document = newDocument("doc")
-        document.markSaved("/tmp/a.json")
+        document.markSaved("/tmp/a.sntn")
 
         var ran = 0
         FileState.requestIfDirty(openInNewWindow = { }) { ran++ }
@@ -255,35 +255,35 @@ class MultiDocumentTest {
     @Test
     fun testEachWindowKeepsItsOwnFileName() {
         val mine = newDocument("mine")
-        mine.markSaved("/tmp/mine.json")
+        mine.markSaved("/tmp/mine.sntn")
 
         val example = newDocument("example")
-        example.markSaved("examples/glow_flash.json")
+        example.markSaved("examples/glow_flash.sntn")
 
         // Focusing the example must not touch the other document's patch.
         FileState.focusDocument(example)
-        assertEquals("/tmp/mine.json", mine.rootPatch.filePath)
-        assertEquals("examples/glow_flash.json", example.rootPatch.filePath)
+        assertEquals("/tmp/mine.sntn", mine.rootPatch.filePath)
+        assertEquals("examples/glow_flash.sntn", example.rootPatch.filePath)
 
         FileState.focusDocument(mine)
-        assertEquals("/tmp/mine.json", mine.rootPatch.filePath)
-        assertEquals("examples/glow_flash.json", example.rootPatch.filePath)
+        assertEquals("/tmp/mine.sntn", mine.rootPatch.filePath)
+        assertEquals("examples/glow_flash.sntn", example.rootPatch.filePath)
 
         // Titles are derived from the patch path, so they stay distinct too.
-        assertTrue(mine.rootPatch.headerTitle.contains("mine.json"))
-        assertTrue(example.rootPatch.headerTitle.contains("glow_flash.json"))
+        assertTrue(mine.rootPatch.headerTitle.contains("mine.sntn"))
+        assertTrue(example.rootPatch.headerTitle.contains("glow_flash.sntn"))
     }
 
     @Test
     fun testStartingANewDocumentClearsItsOwnFileNameOnly() {
         val first = newDocument("first")
-        first.markSaved("/tmp/first.json")
+        first.markSaved("/tmp/first.sntn")
         val second = newDocument("second")
-        second.markSaved("/tmp/second.json")
+        second.markSaved("/tmp/second.sntn")
 
         second.markNew()
         assertEquals(null, second.rootPatch.filePath)
-        assertEquals("/tmp/first.json", first.rootPatch.filePath, "the other document is untouched")
+        assertEquals("/tmp/first.sntn", first.rootPatch.filePath, "the other document is untouched")
     }
 
     @Test

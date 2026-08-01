@@ -228,11 +228,11 @@ fun App(
         val scope = rememberCoroutineScope()
         val examplesList by produceState<List<String>>(emptyList()) {
             value = com.syntona.SharedResources.getFilesIndex()
-                .filter { it.startsWith("examples/") && it.endsWith(".json") }
+                .filter { it.startsWith("examples/") && it.endsWith(SYNTONA_FILE_SUFFIX) }
         }
         val tutorialsList by produceState<List<String>>(emptyList()) {
             value = com.syntona.SharedResources.getFilesIndex()
-                .filter { it.startsWith("tutorials/") && it.endsWith(".json") }
+                .filter { it.startsWith("tutorials/") && it.endsWith(SYNTONA_FILE_SUFFIX) }
         }
         val syntonaModel = remember { SyntonaModel() }
         val appDensity = LocalDensity.current.density
@@ -518,7 +518,7 @@ fun App(
                                                                val parsed = try { JsonParser(content).parse() as? JsonValue.Obj } catch (_: Exception) { null }
                                                                if (parsed != null) {
                                                                    val fileType = (parsed.map["type"] as? JsonValue.Str)?.value ?: "patch"
-                                                                   val fileName = path.substringAfterLast('/').substringAfterLast('\\').substringBeforeLast(".json")
+                                                                   val fileName = path.substringAfterLast('/').substringAfterLast('\\').substringBeforeLast(SYNTONA_FILE_SUFFIX)
                                                                    val newPatch = if (fileType == "polyPatch") {
                                                                        val poly = PolyPatchModule(fileName)
                                                                        val maxV = (parsed.map["maxVoices"] as? JsonValue.Num)?.value?.toInt() ?: 4
@@ -574,7 +574,7 @@ fun App(
                                                                   docRoot.clearModifiedRecursively()
                                                                   FileState.markSaved(path)
                                                               } else {
-                                                                  showSaveFileDialog(json, "patch.json") { savedPath ->
+                                                                  showSaveFileDialog(json, DEFAULT_PATCH_FILENAME) { savedPath ->
                                                                       docRoot.filePath = savedPath
                                                                       docRoot.clearModifiedRecursively()
                                                                       FileState.markSaved(savedPath)
@@ -596,7 +596,7 @@ fun App(
                                                               docRoot.clearModifiedRecursively()
                                                               FileState.markSaved(path)
                                                           } else {
-                                                              showSaveFileDialog(json, "patch.json") { savedPath ->
+                                                              showSaveFileDialog(json, DEFAULT_PATCH_FILENAME) { savedPath ->
                                                                   docRoot.filePath = savedPath
                                                                   docRoot.clearModifiedRecursively()
                                                                   FileState.markSaved(savedPath)
@@ -623,7 +623,7 @@ fun App(
                                                                        rootWindowWidth = docRoot.windowWidth,
                                                                        rootWindowHeight = docRoot.windowHeight
                                                                    ),
-                                                                   FileState.currentFileName ?: "patch.json"
+                                                                   FileState.currentFileName ?: DEFAULT_PATCH_FILENAME
                                                                ) { savedPath ->
                                                                    docRoot.filePath = savedPath
                                                                    docRoot.clearModifiedRecursively()
@@ -639,7 +639,7 @@ fun App(
                                                                    rootWindowWidth = docRoot.windowWidth,
                                                                    rootWindowHeight = docRoot.windowHeight
                                                                ),
-                                                               FileState.currentFileName ?: "patch.json"
+                                                               FileState.currentFileName ?: DEFAULT_PATCH_FILENAME
                                                            ) { savedPath ->
                                                                docRoot.filePath = savedPath
                                                                docRoot.clearModifiedRecursively()
@@ -666,7 +666,7 @@ fun App(
                                                                            rootWindowWidth = docRoot.windowWidth,
                                                                            rootWindowHeight = docRoot.windowHeight
                                                                        ),
-                                                                       FileState.currentFileName ?: "patch.json"
+                                                                       FileState.currentFileName ?: DEFAULT_PATCH_FILENAME
                                                                    ) { savedPath ->
                                                                        docRoot.filePath = savedPath
                                                                        docRoot.clearModifiedRecursively()
@@ -682,7 +682,7 @@ fun App(
                                                                        rootWindowWidth = docRoot.windowWidth,
                                                                        rootWindowHeight = docRoot.windowHeight
                                                                    ),
-                                                                   FileState.currentFileName ?: "patch.json"
+                                                                   FileState.currentFileName ?: DEFAULT_PATCH_FILENAME
                                                                ) { savedPath ->
                                                                    docRoot.filePath = savedPath
                                                                    docRoot.clearModifiedRecursively()
@@ -701,7 +701,7 @@ fun App(
                                                           val json = GraphSerializer.serializePatch(target, appDensity)
                                                           val defaultName = target.filePath?.let { p ->
                                                               p.substringAfterLast('/').substringAfterLast('\\').ifEmpty { p }
-                                                          } ?: "${target.name}.json"
+                                                          } ?: "${target.name}$SYNTONA_FILE_SUFFIX"
                                                           showSaveFileDialog(json, defaultName) { path ->
                                                               target.filePath = path
                                                               target.clearModifiedRecursively()
@@ -1257,7 +1257,7 @@ fun buildMenuTree(paths: List<String>, rootPrefix: String): MenuNode {
         for (i in segments.indices) {
             val segment = segments[i]
             if (i == segments.lastIndex) {
-                val displayName = segment.removeSuffix(".json")
+                val displayName = segment.removeSuffix(SYNTONA_FILE_SUFFIX)
                 current.children[segment] = MenuNode(displayName, path)
             } else {
                 current = current.children.getOrPut(segment) { MenuNode(segment) }
