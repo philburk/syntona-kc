@@ -28,8 +28,7 @@ val copyAudioBridgeJsFiles = tasks.register<Copy>("copyAudioBridgeJsFiles") {
             .filter { it.isFile && it.name.startsWith("audio-bridge") }
             .map { zipTree(it) }
     }) {
-        include("kcab-webaudio.js")
-        include("kcab-output-stream.js")
+        include("kcab-*.js")
     }
     into(layout.buildDirectory.dir("processedResources/wasmJs/main"))
 }
