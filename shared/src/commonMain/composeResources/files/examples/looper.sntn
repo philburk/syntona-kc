@@ -4,8 +4,8 @@
       "id": 0,
       "type": "ksyn.data.recorder",
       "name": "recorder",
-      "x": 532,
-      "y": 26.875,
+      "x": 537,
+      "y": 107.875,
       "jacks": {
         "in": {
           "v": 0,
@@ -18,6 +18,11 @@
           "min": 0,
           "max": 2,
           "add": false
+        },
+        "latencyMs": {
+          "v": 86.52083333333333,
+          "min": 0,
+          "max": 1000
         }
       }
     },
@@ -25,16 +30,16 @@
       "id": 1,
       "type": "ksyn.lineIn",
       "name": "lineIn",
-      "x": 27.895996,
-      "y": 91.069336,
+      "x": 32.895996,
+      "y": 172.06934,
       "jacks": {}
     },
     {
       "id": 2,
       "type": "ksyn.lineOut",
       "name": "lineOut",
-      "x": 950.875,
-      "y": 148,
+      "x": 804.875,
+      "y": 246,
       "jacks": {
         "input0": {
           "v": 0,
@@ -54,8 +59,8 @@
       "id": 3,
       "type": "music.compose.beatClock",
       "name": "beatClock",
-      "x": 63.888184,
-      "y": 189.05591,
+      "x": 68.88818,
+      "y": 270.0559,
       "jacks": {
         "tempo": {
           "v": 120,
@@ -69,47 +74,41 @@
       "id": 4,
       "type": "core.basic.mod4",
       "name": "mod4",
-      "x": 324,
-      "y": 196.125,
+      "x": 329,
+      "y": 277.125,
       "jacks": {}
     },
     {
       "id": 5,
       "type": "core.basic.mod16",
       "name": "mod16",
-      "x": 184,
-      "y": 44.875,
+      "x": 185,
+      "y": 133.875,
       "jacks": {}
     },
     {
       "id": 6,
       "type": "core.view.show",
       "name": "show",
-      "x": 416.9441,
-      "y": 479.11182,
+      "x": 421.9441,
+      "y": 560.1118,
       "jacks": {}
     },
     {
       "id": 7,
       "type": "core.basic.counter",
       "name": "counter",
-      "x": 257,
-      "y": 421.125,
+      "x": 262,
+      "y": 502.125,
       "jacks": {}
     },
     {
       "id": 8,
       "type": "core.patch",
       "name": "chuff",
-      "x": 717.875,
-      "y": 284,
-      "jacks": {
-        "in1": {
-          "v": 695,
-          "min": 0,
-          "max": 100
-        }
-      },
+      "x": 663.875,
+      "y": 408,
+      "jacks": {},
       "windowX": 476.875,
       "windowY": 326.75,
       "windowWidth": 600,
@@ -255,8 +254,8 @@
       "id": 9,
       "type": "ksyn.data.recorder",
       "name": "recorder",
-      "x": 529,
-      "y": 294.125,
+      "x": 534,
+      "y": 375.125,
       "jacks": {
         "in": {
           "v": 0,
@@ -269,6 +268,11 @@
           "min": 0,
           "max": 2,
           "add": false
+        },
+        "latencyMs": {
+          "v": 86.52083333333333,
+          "min": 0,
+          "max": 1000
         }
       }
     },
@@ -276,9 +280,20 @@
       "id": 10,
       "type": "core.input.kick",
       "name": "kick",
-      "x": 24,
-      "y": 427.875,
+      "x": 29,
+      "y": 508.875,
       "jacks": {}
+    },
+    {
+      "id": 11,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 28.875,
+      "y": 6,
+      "jacks": {},
+      "text": "Use Settings in the File menu to select audio input and output device.\nThen use the Latency tab to measure the round trip latency. This will be used to compensate for the latency and allow for synchronized playback.",
+      "w": 447.896,
+      "h": 95.069336
     }
   ],
   "connections": [
@@ -411,6 +426,6 @@
   ],
   "windowX": 10,
   "windowY": 10,
-  "windowWidth": 1235,
-  "windowHeight": 641.875
+  "windowWidth": 1307,
+  "windowHeight": 722.75
 }

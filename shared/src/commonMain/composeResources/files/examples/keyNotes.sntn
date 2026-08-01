@@ -4,8 +4,8 @@
       "id": 0,
       "type": "ksyn.lineOut",
       "name": "lineOut",
-      "x": 747.875,
-      "y": 81,
+      "x": 728.875,
+      "y": 162,
       "jacks": {
         "input0": {
           "v": 0,
@@ -25,8 +25,8 @@
       "id": 1,
       "type": "core.polyPatch",
       "name": "polyPatch",
-      "x": 597.875,
-      "y": 109,
+      "x": 584.875,
+      "y": 174,
       "jacks": {},
       "maxVoices": 4,
       "windowX": 829.9439,
@@ -273,9 +273,9 @@
       "x": 46.899994,
       "y": 13.075012,
       "jacks": {},
-      "text": "The keyNotes module allows the user to play the ASCII keyboard like a two octave piano keyboard. If you have a different keyboard layout then edit the strings in the module editor.",
-      "w": 498.82324,
-      "h": 99.25
+      "text": "Click in the root window's background to give it keyboard focus.\nPress \"w r y\" and other keys.\n\nThe keyNotes module allows the user to play the ASCII keyboard like a two octave piano keyboard. If you have a different keyboard layout then edit the strings in the module editor.",
+      "w": 497.82324,
+      "h": 148
     },
     {
       "id": 5,

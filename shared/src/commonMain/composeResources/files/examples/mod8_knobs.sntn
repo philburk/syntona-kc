@@ -2,29 +2,31 @@
   "modules": [
     {
       "id": 0,
-      "type": "sineOsc",
+      "type": "ksyn.sources.sineOsc",
       "name": "sineOsc",
       "x": 479,
       "y": 49.125,
       "jacks": {
         "frequency": {
-          "v": 654.8097534179688,
+          "v": 902.1387939453125,
           "min": 40,
-          "max": 8000
+          "max": 8000,
+          "add": false
         },
         "amplitude": {
-          "v": 1,
+          "v": 0.7710187435150146,
           "min": 0,
-          "max": 1
+          "max": 1,
+          "add": false
         }
       }
     },
     {
       "id": 1,
-      "type": "clock",
+      "type": "core.basic.clock",
       "name": "clock",
-      "x": 93,
-      "y": 109.125,
+      "x": 108,
+      "y": 47.125,
       "jacks": {
         "period(ms)": {
           "v": 153.00676509266256,
@@ -35,10 +37,10 @@
     },
     {
       "id": 2,
-      "type": "knob",
+      "type": "core.input.knob",
       "name": "knob",
-      "x": 345.875,
-      "y": 37,
+      "x": 331.875,
+      "y": 39,
       "jacks": {
         "in": {
           "v": 552.63720703125,
@@ -49,7 +51,7 @@
     },
     {
       "id": 3,
-      "type": "lineOut",
+      "type": "ksyn.lineOut",
       "name": "lineOut",
       "x": 642.875,
       "y": 170,
@@ -57,24 +59,26 @@
         "input0": {
           "v": 0,
           "min": 0,
-          "max": 1
+          "max": 1,
+          "add": false
         },
         "input1": {
           "v": 0,
           "min": 0,
-          "max": 1
+          "max": 1,
+          "add": false
         }
       }
     },
     {
       "id": 4,
-      "type": "knob",
+      "type": "core.input.knob",
       "name": "knob",
       "x": 331.875,
       "y": 184,
       "jacks": {
         "in": {
-          "v": 1445.11376953125,
+          "v": 1706.8719482421875,
           "min": 40,
           "max": 8000
         }
@@ -82,13 +86,13 @@
     },
     {
       "id": 5,
-      "type": "knob",
+      "type": "core.input.knob",
       "name": "knob",
-      "x": 340.875,
+      "x": 331.875,
       "y": 325,
       "jacks": {
         "in": {
-          "v": 654.8097534179688,
+          "v": 902.1387939453125,
           "min": 40,
           "max": 8000
         }
@@ -96,26 +100,28 @@
     },
     {
       "id": 6,
-      "type": "redNoise",
+      "type": "ksyn.sources.redNoise",
       "name": "redNoise",
       "x": 482,
       "y": 194.125,
       "jacks": {
         "frequency": {
-          "v": 654.8097534179688,
+          "v": 902.1387939453125,
           "min": 40,
-          "max": 8000
+          "max": 8000,
+          "add": false
         },
         "amplitude": {
-          "v": 1,
+          "v": 0.8098902106285095,
           "min": 0,
-          "max": 1
+          "max": 1,
+          "add": false
         }
       }
     },
     {
       "id": 7,
-      "type": "loadKick",
+      "type": "core.input.loadKick",
       "name": "loadKick",
       "x": 13.911621,
       "y": 16.088379,
@@ -123,9 +129,9 @@
     },
     {
       "id": 8,
-      "type": "mod8",
+      "type": "core.basic.mod8",
       "name": "mod8",
-      "x": 202.875,
+      "x": 216.875,
       "y": 63,
       "jacks": {}
     }

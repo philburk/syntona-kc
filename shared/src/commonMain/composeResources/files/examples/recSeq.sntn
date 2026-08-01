@@ -294,7 +294,7 @@
       "y": 161.08838,
       "jacks": {
         "offset": {
-          "v": 41,
+          "v": 36,
           "min": 0,
           "max": 100
         }
@@ -388,11 +388,11 @@
       "id": 11,
       "type": "core.basic.seq8",
       "name": "seq8",
-      "x": 297.93066,
-      "y": 419.896,
+      "x": 311.93066,
+      "y": 373.896,
       "jacks": {
         "in0": {
-          "v": 36,
+          "v": 0,
           "min": 0,
           "max": 100
         },
@@ -412,7 +412,7 @@
           "max": 100
         },
         "in4": {
-          "v": 41,
+          "v": 0,
           "min": 0,
           "max": 100
         },
@@ -560,6 +560,12 @@
       "fromJack": "output",
       "to": 4,
       "toJack": "step"
+    },
+    {
+      "from": 13,
+      "fromJack": "output",
+      "to": 10,
+      "toJack": "in"
     }
   ],
   "windowX": 10,

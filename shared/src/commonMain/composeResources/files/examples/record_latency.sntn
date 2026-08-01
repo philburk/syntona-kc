@@ -4,8 +4,8 @@
       "id": 0,
       "type": "ksyn.data.recorder",
       "name": "recorder",
-      "x": 548,
-      "y": 285.875,
+      "x": 631,
+      "y": 433.875,
       "jacks": {
         "in": {
           "v": 0,
@@ -20,7 +20,7 @@
           "add": false
         },
         "latencyMs": {
-          "v": 85.26965608054074,
+          "v": 86.52083333333333,
           "min": 0,
           "max": 1000
         }
@@ -30,16 +30,16 @@
       "id": 1,
       "type": "ksyn.lineIn",
       "name": "lineIn",
-      "x": 27.895996,
-      "y": 91.069336,
+      "x": 512.896,
+      "y": 402.06934,
       "jacks": {}
     },
     {
       "id": 2,
       "type": "ksyn.lineOut",
       "name": "lineOut",
-      "x": 665.875,
-      "y": 49,
+      "x": 746.875,
+      "y": 342,
       "jacks": {
         "input0": {
           "v": 0,
@@ -59,8 +59,8 @@
       "id": 3,
       "type": "music.compose.beatClock",
       "name": "beatClock",
-      "x": 156.88818,
-      "y": 181.05591,
+      "x": 181.88818,
+      "y": 311.0559,
       "jacks": {
         "tempo": {
           "v": 60,
@@ -74,11 +74,11 @@
       "id": 4,
       "type": "core.patch",
       "name": "chuff",
-      "x": 398.875,
-      "y": 57,
+      "x": 433.875,
+      "y": 266,
       "jacks": {
         "in1": {
-          "v": 261,
+          "v": 142,
           "min": 0,
           "max": 100
         }
@@ -228,16 +228,43 @@
       "id": 5,
       "type": "core.input.kick",
       "name": "STOP",
-      "x": 31,
-      "y": 352.875,
+      "x": 46,
+      "y": 538.875,
       "jacks": {}
     },
     {
       "id": 6,
       "type": "core.basic.arm",
-      "name": "arm",
-      "x": 363.875,
-      "y": 274,
+      "name": "record",
+      "x": 399.875,
+      "y": 385,
+      "jacks": {}
+    },
+    {
+      "id": 7,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 45.875,
+      "y": 20,
+      "jacks": {},
+      "text": "Use Settings in the File menu to select audio input and output device.\n\nThen use the Latency tab to measure the round trip latency. This will be used to compensate for the latency and allow for synchronized playback.\n\nThen \"arm\" the \"record\" and \"play\" modules to record in sync with the chuff sound.",
+      "w": 464.771,
+      "h": 184.94434
+    },
+    {
+      "id": 8,
+      "type": "core.basic.arm",
+      "name": "play",
+      "x": 403,
+      "y": 544.875,
+      "jacks": {}
+    },
+    {
+      "id": 9,
+      "type": "core.input.loadKick",
+      "name": "loadKick",
+      "x": 42.875,
+      "y": 363,
       "jacks": {}
     }
   ],
@@ -285,16 +312,40 @@
       "toJack": "rewind"
     },
     {
+      "from": 0,
+      "fromJack": "out",
+      "to": 2,
+      "toJack": "input0"
+    },
+    {
       "from": 6,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "record"
+    },
+    {
+      "from": 3,
+      "fromJack": "output",
+      "to": 8,
+      "toJack": "in"
+    },
+    {
+      "from": 8,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "rewind"
+    },
+    {
+      "from": 8,
       "fromJack": "out",
       "to": 0,
       "toJack": "play"
     },
     {
-      "from": 0,
-      "fromJack": "out",
-      "to": 2,
-      "toJack": "input0"
+      "from": 9,
+      "fromJack": "kick",
+      "to": 3,
+      "toJack": "start"
     }
   ],
   "windowX": 10,

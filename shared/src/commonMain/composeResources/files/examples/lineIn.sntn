@@ -56,8 +56,8 @@
       "id": 3,
       "type": "core.patch",
       "name": "redDelay",
-      "x": 384.875,
-      "y": 99,
+      "x": 347.875,
+      "y": 189,
       "jacks": {
         "aIn1": {
           "v": 0,
@@ -171,7 +171,7 @@
             "y": 118.125,
             "jacks": {
               "frequency": {
-                "v": 9.699999809265137,
+                "v": 0.10000000149011612,
                 "min": 0.009999999776482582,
                 "max": 5,
                 "add": false
@@ -399,7 +399,8 @@
                 "min": 0,
                 "max": 100
               }
-            }
+            },
+            "stepValues": ["0.2", "9.7", "0.8", "23.5", "0.1", "0.3", "75.0", "0.6"]
           },
           {
             "id": 13,
@@ -556,8 +557,8 @@
       "id": 4,
       "type": "core.patch",
       "name": "phaser",
-      "x": 531.875,
-      "y": 244,
+      "x": 525.875,
+      "y": 327,
       "jacks": {
         "aIn1": {
           "v": 0,
@@ -710,8 +711,8 @@
       "id": 5,
       "type": "core.patch",
       "name": "tracker",
-      "x": 518.875,
-      "y": 351,
+      "x": 512.875,
+      "y": 434,
       "jacks": {
         "aIn1": {
           "v": 0,
@@ -967,8 +968,8 @@
       "id": 6,
       "type": "ksyn.math.mixer4x2",
       "name": "mixer4x2",
-      "x": 715.875,
-      "y": 73,
+      "x": 741.875,
+      "y": 157,
       "jacks": {
         "input0": {
           "v": 0,
@@ -1049,6 +1050,17 @@
           "add": false
         }
       }
+    },
+    {
+      "id": 7,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 61.91162,
+      "y": 13.088394,
+      "jacks": {},
+      "text": "Use \"Settings...\" in the File menu to select audio input and output devices.\n\nThen play an instrument or sing into a microphone.\n\nTHe redDelay patch is using redNoise to modulate a delay, which changes its pitch.\n\nThe tracker is following the input and playing a sawtooth a fifth above.",
+      "w": 523.875,
+      "h": 136
     }
   ],
   "connections": [

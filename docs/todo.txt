@@ -1,7 +1,19 @@
 
 More tutorials. Audio, timeline, pianoroll.
 
-Add a Discord menu option to the Help menu.
+keyboard13 needs plain index out, octave in
+keyNote13 needs plain index out, octave in
+
+Add unpackNote
+
+Extend range of wavefolder above 8.0
+
+Add wavefolder example
+
+Envelope Editor needs axis labels, X extend at right edge
+
+Modules can get wider because of changing number values, but not shrink, cut down on jitter, see function
+
 
 # ---------------------------- Alpha Release on Web
 
