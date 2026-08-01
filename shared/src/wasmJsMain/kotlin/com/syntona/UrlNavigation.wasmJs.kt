@@ -44,3 +44,11 @@ actual fun setUrlPatchPath(path: String?) {
         window.history.replaceState(null, "", newUrl)
     } catch (_: Exception) {}
 }
+
+actual fun openUrlInBrowser(url: String) {
+    try {
+        window.open(url, "_blank")
+    } catch (e: Exception) {
+        println("Failed to open URL: ${e.message}")
+    }
+}

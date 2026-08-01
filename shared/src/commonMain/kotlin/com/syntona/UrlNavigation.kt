@@ -32,3 +32,4 @@ fun sanitizeAndValidateResourcePath(rawPath: String?, validFiles: Set<String>): 
 
 expect fun getUrlPatchPath(): String?
 expect fun setUrlPatchPath(path: String?)
+expect fun openUrlInBrowser(url: String)

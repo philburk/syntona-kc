@@ -926,6 +926,13 @@ fun App(
                                                      })
                                                  }
                                              }
+                                             DropdownMenuItem(
+                                                 text = { Text("Discuss on Discord...") },
+                                                 onClick = {
+                                                     helpExpanded = false
+                                                     openUrlInBrowser("https://discord.com/channels/1532908817677942846/1532924422321864855")
+                                                 }
+                                             )
                                          }
                                      }
                                  }

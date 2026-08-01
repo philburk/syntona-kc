@@ -1,0 +1,93 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bgGrad" cx="50%" cy="42%" r="75%">
+      <stop offset="0%" stop-color="#1b1b24"/>
+      <stop offset="100%" stop-color="#0d0d12"/>
+    </radialGradient>
+
+    <linearGradient id="nodeA" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffb454"/>
+      <stop offset="100%" stop-color="#e08a2b"/>
+    </linearGradient>
+
+    <linearGradient id="nodeB" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5be6d9"/>
+      <stop offset="100%" stop-color="#22b5ac"/>
+    </linearGradient>
+
+    <linearGradient id="cableGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#d63bd6"/>
+      <stop offset="100%" stop-color="#8b5cf6"/>
+    </linearGradient>
+
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="10" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <filter id="softShadow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+
+  <!-- background -->
+  <rect width="512" height="512" fill="url(#bgGrad)"/>
+
+  <!-- faint dataflow grid dots -->
+  <g fill="#ffffff" opacity="0.05">
+    <circle cx="64" cy="64" r="3"/><circle cx="128" cy="64" r="3"/><circle cx="192" cy="64" r="3"/>
+    <circle cx="256" cy="64" r="3"/><circle cx="320" cy="64" r="3"/><circle cx="384" cy="64" r="3"/><circle cx="448" cy="64" r="3"/>
+    <circle cx="64" cy="128" r="3"/><circle cx="448" cy="128" r="3"/>
+    <circle cx="64" cy="192" r="3"/><circle cx="448" cy="192" r="3"/>
+    <circle cx="64" cy="256" r="3"/><circle cx="448" cy="256" r="3"/>
+    <circle cx="64" cy="320" r="3"/><circle cx="448" cy="320" r="3"/>
+    <circle cx="64" cy="384" r="3"/><circle cx="448" cy="384" r="3"/>
+    <circle cx="64" cy="448" r="3"/><circle cx="128" cy="448" r="3"/><circle cx="192" cy="448" r="3"/>
+    <circle cx="256" cy="448" r="3"/><circle cx="320" cy="448" r="3"/><circle cx="384" cy="448" r="3"/><circle cx="448" cy="448" r="3"/>
+  </g>
+
+  <!-- cable, snaking into an S shape connecting the two nodes -->
+  <path d="M 222,368
+           C 470,384 60,124 290,144"
+        fill="none"
+        stroke="url(#cableGrad)"
+        stroke-width="24"
+        stroke-linecap="round"
+        filter="glow"/>
+  <path d="M 222,368
+           C 470,384 60,124 290,144"
+        fill="none"
+        stroke="url(#cableGrad)"
+        stroke-width="24"
+        stroke-linecap="round"/>
+
+  <!-- Node A: lower left -->
+  <g filter="softShadow">
+    <rect x="72" y="336" width="150" height="106" rx="20" fill="url(#nodeA)"/>
+  </g>
+  <!-- Node A ports -->
+  <circle cx="72" cy="368" r="9" fill="#0d0d12"/>
+  <circle cx="72" cy="368" r="5" fill="#ffd9a0"/>
+  <circle cx="222" cy="368" r="9" fill="#0d0d12"/>
+  <circle cx="222" cy="368" r="5" fill="#ffd9a0"/>
+  <g transform="translate(97,340)" fill="#0d0d12" opacity="0.85">
+    <ellipse cx="20" cy="75" rx="15" ry="11" transform="rotate(-16 20 75)"/>
+    <rect x="33" y="8" width="7" height="70"/>
+    <path d="M40,8 C 66,14 72,40 56,56 C 68,44 60,22 40,8 Z"/>
+  </g>
+
+  <!-- Node B: upper right -->
+  <g filter="softShadow">
+    <rect x="290" y="70" width="150" height="106" rx="20" fill="url(#nodeB)"/>
+  </g>
+  <!-- Node B ports -->
+  <circle cx="290" cy="144" r="9" fill="#0d0d12"/>
+  <circle cx="290" cy="144" r="5" fill="#c8fff7"/>
+  <circle cx="440" cy="144" r="9" fill="#0d0d12"/>
+  <circle cx="440" cy="144" r="5" fill="#c8fff7"/>
+  <path d="M 312,123 C 328,95 344,151 360,123 C 376,95 392,151 408,123"
+        fill="none" stroke="#0d0d12" stroke-width="7" stroke-linecap="round" opacity="0.85"/>
+</svg>
