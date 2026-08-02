@@ -89,7 +89,9 @@ class KSynAudioBridge(val synth: Synthesizer): AudioStreamManager() {
         val numInputChannels = if (isInputActive) 1 else 0
         synth.start(audioBridge.getSampleRate(), numInputChannels, STEREO_CHANNELS)
 
-        val bufferSizeFrames = audioBridge.getFramesPerBurst().let { if (it > 0) it else 64 }
+        // Use 64 frames per render iteration to match KSyn synth's fixed buffer size (FRAMES_PER_BUFFER = 64)
+        // so that input audio samples are never truncated or dropped on platforms like WASM where audioBridge burst size is 128.
+        val bufferSizeFrames = 64
         val tempInputBuffer = FloatArray(bufferSizeFrames * 4)
         val monoInputBuffer = FloatArray(bufferSizeFrames)
         val silenceInputBuffer = FloatArray(bufferSizeFrames)
