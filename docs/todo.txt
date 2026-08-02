@@ -1,4 +1,10 @@
 
+# ----------------------------------------------- HIGH PRIORITY
+Investigate Safari silence.
+
+Fix broken Discord invitation.
+
+# ----------------------------------------------- MEDIUM PRIORITY
 More tutorials. Audio, timeline, pianoroll.
 
 keyboard13 needs plain index out, octave in
@@ -14,8 +20,9 @@ Envelope Editor needs axis labels, X extend at right edge
 
 Modules can get wider because of changing number values, but not shrink, cut down on jitter, see function
 
+When opening a new root window, offset it so that it does not hide the top window.
 
-# ---------------------------- Alpha Release on Web
+Encode entire patch into a URL. JSON>nowhite>ZIP>UUENCODE
 
 Add patch inputs for start/stop/etc that are commands with buttons.
 
