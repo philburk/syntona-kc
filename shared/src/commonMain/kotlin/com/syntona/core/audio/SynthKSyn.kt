@@ -21,6 +21,7 @@ import com.softsynth.audiobridge.AudioDeviceManager
 import com.softsynth.ksyn.KSyn
 import com.softsynth.ksyn.instruments.SubtractiveSynthVoice
 import kotlinx.coroutines.flow.firstOrNull
+import kotlinx.coroutines.withTimeoutOrNull
 import com.softsynth.ksyn.unitgen.LineOut
 import com.softsynth.ksyn.unitgen.UnitVoice
 import com.softsynth.ksyn.util.VoiceAllocator
@@ -63,6 +64,18 @@ object SynthKSyn {
      * preference was saved resolves to the default instead.
      */
     private suspend fun applyPreferredDevices() {
+        // Nothing to resolve unless the user actually picked a device, and asking for the device
+        // list is not free: in a browser it can block until microphone permission is granted.
+        // Skipping it here keeps the common case - no preference stored - starting immediately.
+        if (AudioSettings.preferredOutputName.isNullOrEmpty() &&
+            AudioSettings.preferredInputName.isNullOrEmpty()
+        ) {
+            ksynAudioBridge.requestedOutputDeviceId = AudioSettings.DEFAULT_DEVICE_ID
+            ksynAudioBridge.requestedInputDeviceId = AudioSettings.DEFAULT_DEVICE_ID
+            AudioSettings.outputFellBackToDefault = false
+            AudioSettings.inputFellBackToDefault = false
+            return
+        }
         val outputs = currentOutputDevices()
         val inputs = currentInputDevices()
         ksynAudioBridge.requestedOutputDeviceId =
@@ -80,12 +93,27 @@ object SynthKSyn {
         AudioSettings.activeInputName = ksynAudioBridge.activeInputDeviceName
     }
 
-    /** A snapshot of the device list, which is normally exposed only as a Flow. */
+    /**
+     * A snapshot of the device list, which is normally exposed only as a Flow.
+     *
+     * Bounded by a timeout because that Flow is not guaranteed to emit. In a browser the device
+     * list is empty until microphone permission is granted, and the Flow only emits when the list
+     * changes - so on Safari, which reports no devices at all beforehand, it emits nothing and
+     * waiting on it would hang audio startup completely. Falling back to an empty list simply
+     * means the default device is used, which is the right answer when nothing is enumerable.
+     */
     suspend fun currentOutputDevices(): List<AudioDeviceInfo> =
-        AudioDeviceManager.outputDevices.firstOrNull() ?: emptyList()
+        withTimeoutOrNull(DEVICE_QUERY_TIMEOUT_MILLIS) {
+            AudioDeviceManager.outputDevices.firstOrNull()
+        } ?: emptyList()
 
     suspend fun currentInputDevices(): List<AudioDeviceInfo> =
-        AudioDeviceManager.inputDevices.firstOrNull() ?: emptyList()
+        withTimeoutOrNull(DEVICE_QUERY_TIMEOUT_MILLIS) {
+            AudioDeviceManager.inputDevices.firstOrNull()
+        } ?: emptyList()
+
+    /** Long enough for a real enumeration, short enough not to stall the first sound. */
+    private const val DEVICE_QUERY_TIMEOUT_MILLIS = 1500L
 
     fun stop() {
         ksynAudioBridge.stop()
