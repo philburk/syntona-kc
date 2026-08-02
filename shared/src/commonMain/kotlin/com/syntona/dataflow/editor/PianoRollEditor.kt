@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
@@ -1059,7 +1058,7 @@ private fun DurationSelector(durationTicks: Int, onChange: (Int) -> Unit) {
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             options.forEach { (label, shortcut, ticks) ->
-                DropdownMenuItem(
+                CompactDropdownMenuItem(
                     text = { Text("$label ($shortcut)") },
                     onClick = {
                         onChange(ticks)
@@ -1085,7 +1084,7 @@ private fun BpmSelector(module: PianoRollModule) {
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             for (bpm in PianoRollTiming.MIN_BPM..PianoRollTiming.MAX_BPM step 10) {
-                DropdownMenuItem(
+                CompactDropdownMenuItem(
                     text = { Text("$bpm") },
                     onClick = {
                         module.bpm = bpm

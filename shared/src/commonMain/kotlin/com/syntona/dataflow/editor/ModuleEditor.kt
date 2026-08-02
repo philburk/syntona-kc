@@ -316,7 +316,7 @@ private fun LinkModuleEditor(module: LinkModule) {
                         onDismissRequest = { expanded = false }
                     ) {
                         files.forEach { path ->
-                            androidx.compose.material3.DropdownMenuItem(
+                            CompactDropdownMenuItem(
                                 text = { Text(path, fontSize = 12.sp) },
                                 onClick = {
                                     filePathText = path
@@ -361,7 +361,7 @@ private fun PackVoiceModuleEditor(module: PackVoiceModule) {
                     onDismissRequest = { expanded = false }
                 ) {
                     Message.VoiceOpcode.entries.forEach { candidate ->
-                        androidx.compose.material3.DropdownMenuItem(
+                        CompactDropdownMenuItem(
                             text = { Text(candidate.name, fontSize = 12.sp) },
                             onClick = {
                                 module.opcode = candidate

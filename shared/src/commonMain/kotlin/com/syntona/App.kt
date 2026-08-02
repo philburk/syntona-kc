@@ -9,7 +9,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -488,7 +487,7 @@ fun App(
                                              expanded = fileExpanded,
                                              onDismissRequest = { fileExpanded = false }
                                          ) {
-                                              DropdownMenuItem(
+                                              CompactDropdownMenuItem(
                                                   text = { Text("New") },
                                                   trailingIcon = { ShortcutHint("⌘N") },
                                                   onClick = {
@@ -510,7 +509,7 @@ fun App(
                                                       }
                                                   }
                                               )
-                                              DropdownMenuItem(
+                                              CompactDropdownMenuItem(
                                                   text = { Text("Open...") },
                                                   trailingIcon = { ShortcutHint("⌘O") },
                                                   onClick = {
@@ -532,7 +531,7 @@ fun App(
                                                       }
                                                   }
                                               )
-                                              DropdownMenuItem(
+                                              CompactDropdownMenuItem(
                                                    text = { Text("Add Patch from File...") },
                                                    onClick = {
                                                        fileExpanded = false
@@ -573,7 +572,7 @@ fun App(
                                                    }
                                                )
                                               HorizontalDivider()
-                                              DropdownMenuItem(
+                                              CompactDropdownMenuItem(
                                                   text = { Text("Save") },
                                                   trailingIcon = { ShortcutHint("⌘S") },
                                                   enabled = FileState.isDirty && FileState.currentFilePath != null && !FileState.isResource,
@@ -629,7 +628,7 @@ fun App(
                                                       }
                                                   }
                                               )
-                                              DropdownMenuItem(
+                                              CompactDropdownMenuItem(
                                                    text = { Text("Save As...") },
                                                    trailingIcon = { ShortcutHint("⌘⇧S") },
                                                    onClick = {
@@ -673,7 +672,7 @@ fun App(
                                                    }
                                                )
                                                if (isSaveAsResourceAvailable()) {
-                                                   DropdownMenuItem(
+                                                   CompactDropdownMenuItem(
                                                        text = { Text("SaveAsResource...") },
                                                        onClick = {
                                                            fileExpanded = false
@@ -722,7 +721,7 @@ fun App(
                                                        }
                                                    )
                                                }
-                                              DropdownMenuItem(
+                                              CompactDropdownMenuItem(
                                                   text = { Text("Save Patch As...") },
                                                   onClick = {
                                                       fileExpanded = false
@@ -742,7 +741,7 @@ fun App(
                                                       }
                                                   }
                                               )
-                                              DropdownMenuItem(
+                                              CompactDropdownMenuItem(
                                                   text = { Text("Detach File from Patch") },
                                                   enabled = mdiState.activeGraphState?.parentPatch?.filePath != null,
                                                   onClick = {
@@ -754,7 +753,7 @@ fun App(
                                                   }
                                               )
                                               HorizontalDivider()
-                                              DropdownMenuItem(
+                                              CompactDropdownMenuItem(
                                                   text = { Text("Settings...") },
                                                   onClick = {
                                                       fileExpanded = false
@@ -775,7 +774,7 @@ fun App(
                                             expanded = editExpanded,
                                             onDismissRequest = { editExpanded = false }
                                         ) {
-                                            DropdownMenuItem(
+                                            CompactDropdownMenuItem(
                                                 text = { Text("Undo") },
                                                 trailingIcon = { ShortcutHint("⌘Z") },
                                                 onClick = {
@@ -783,7 +782,7 @@ fun App(
                                                     editExpanded = false
                                                 }
                                             )
-                                            DropdownMenuItem(
+                                            CompactDropdownMenuItem(
                                                 text = { Text("Redo") },
                                                 trailingIcon = { ShortcutHint("⌘⇧Z") },
                                                 onClick = {
@@ -792,7 +791,7 @@ fun App(
                                                 }
                                             )
                                             HorizontalDivider()
-                                            DropdownMenuItem(
+                                            CompactDropdownMenuItem(
                                                 text = { Text("Cut") },
                                                 trailingIcon = { ShortcutHint("⌘X") },
                                                 enabled = EditActions.canCut(mdiState),
@@ -801,7 +800,7 @@ fun App(
                                                     editExpanded = false
                                                 }
                                             )
-                                            DropdownMenuItem(
+                                            CompactDropdownMenuItem(
                                                 text = { Text("Copy") },
                                                 trailingIcon = { ShortcutHint("⌘C") },
                                                 enabled = EditActions.canCopy(mdiState),
@@ -810,7 +809,7 @@ fun App(
                                                     editExpanded = false
                                                 }
                                             )
-                                            DropdownMenuItem(
+                                            CompactDropdownMenuItem(
                                                 text = { Text("Paste") },
                                                 trailingIcon = { ShortcutHint("⌘V") },
                                                 enabled = EditActions.canPaste(mdiState),
@@ -832,7 +831,7 @@ fun App(
                                             onDismissRequest = { windowsExpanded = false }
                                         ) {
                                             WindowMenu.build(mdiState).forEach { entry ->
-                                                DropdownMenuItem(
+                                                CompactDropdownMenuItem(
                                                     text = {
                                                         Text(
                                                             text = entry.menuText,
@@ -879,7 +878,7 @@ fun App(
                                              Box(modifier = Modifier.onGloballyPositioned { coordinates ->
                                                  itemWidth = coordinates.size.width
                                              }) {
-                                                 DropdownMenuItem(
+                                                 CompactDropdownMenuItem(
                                                      text = { Text("Load Example") },
                                                      trailingIcon = { Text("›", fontSize = 16.sp) },
                                                      onClick = { examplesExpanded = true },
@@ -909,7 +908,7 @@ fun App(
                                              Box(modifier = Modifier.onGloballyPositioned { coordinates ->
                                                  itemWidth = coordinates.size.width
                                              }) {
-                                                 DropdownMenuItem(
+                                                 CompactDropdownMenuItem(
                                                      text = { Text("Load Tutorial") },
                                                      trailingIcon = { Text("›", fontSize = 16.sp) },
                                                      onClick = { tutorialsExpanded = true },
@@ -936,7 +935,7 @@ fun App(
                                                      })
                                                  }
                                              }
-                                             DropdownMenuItem(
+                                             CompactDropdownMenuItem(
                                                  text = { Text("Discuss on Discord...") },
                                                  onClick = {
                                                      helpExpanded = false
@@ -1078,7 +1077,7 @@ fun App(
                                         onDismissRequest = { menuExpanded = false }
                                     ) {
                                         listOf(1, 2, 3, 5, 10, 20, 60).forEach { mins ->
-                                            DropdownMenuItem(
+                                            CompactDropdownMenuItem(
                                                 text = { Text("$mins") },
                                                 onClick = {
                                                     KSynRecorder.maxDurationMinutes = mins
@@ -1321,7 +1320,7 @@ fun RenderDropdownMenuNode(
     for (child in sortedChildren) {
         val path = child.path
         if (path != null) {
-            DropdownMenuItem(
+            CompactDropdownMenuItem(
                 text = { Text(child.name) },
                 onClick = {
                     onClose()
@@ -1361,7 +1360,7 @@ fun RenderDropdownMenuNode(
                     width = coordinates.size.width
                 }
             ) {
-                DropdownMenuItem(
+                CompactDropdownMenuItem(
                     text = { Text(child.name) },
                     trailingIcon = { Text("›", fontSize = 16.sp) },
                     onClick = { isExpanded = true },

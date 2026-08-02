@@ -1,8 +1,6 @@
 
 # ----------------------------------------------- HIGH PRIORITY
-Investigate Safari silence.
 
-Fix broken Discord invitation.
 
 # ----------------------------------------------- MEDIUM PRIORITY
 More tutorials. Audio, timeline, pianoroll.

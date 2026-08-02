@@ -13,13 +13,13 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
@@ -40,12 +40,14 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.softsynth.audiobridge.AudioDeviceInfo
 import com.softsynth.audiobridge.AudioDeviceManager
 import com.softsynth.audiobridge.AudioInputBridge
 import com.syntona.core.audio.AudioSettings
+import com.syntona.dataflow.editor.CompactDropdownMenuItem
 import com.syntona.core.audio.LatencyMeasurement
 import com.syntona.core.audio.SynthKSyn
 import kotlin.math.abs
@@ -525,21 +527,36 @@ private fun DeviceChooser(
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         Box {
-            Button(onClick = { expanded = true }, enabled = enabled) {
-                Text(preferredName ?: DEFAULT_LABEL)
+            Button(
+                onClick = { expanded = true },
+                enabled = enabled,
+                modifier = Modifier.widthIn(max = DEVICE_MENU_WIDTH)
+            ) {
+                Text(
+                    text = preferredName ?: DEFAULT_LABEL,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                DropdownMenuItem(
-                    text = { Text(DEFAULT_LABEL) },
+            // Device names run long - a USB id, "(system default)" and the channel count on top of
+            // the name itself - so the menu is given the full width of the dialog and the rows are
+            // held to a single line. Wrapping would be cut off by the fixed row height.
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                modifier = Modifier.width(DEVICE_MENU_WIDTH)
+            ) {
+                CompactDropdownMenuItem(
+                    text = { DeviceMenuText(DEFAULT_LABEL) },
                     onClick = {
                         expanded = false
                         onSelect(null)
                     }
                 )
                 devices.forEach { device ->
-                    DropdownMenuItem(
+                    CompactDropdownMenuItem(
                         text = {
-                            Text(
+                            DeviceMenuText(
                                 buildString {
                                     append(device.name)
                                     if (device.isDefault) append("  (system default)")
@@ -565,4 +582,19 @@ private fun DeviceChooser(
     }
 }
 
+/** One row of a device menu: never wraps, ellipsized if even the wide menu cannot hold it. */
+@Composable
+private fun DeviceMenuText(text: String) {
+    Text(
+        text = text,
+        fontSize = 12.sp,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Ellipsis
+    )
+}
+
 private const val DEFAULT_LABEL = "System Default"
+
+/** Matches the dialog body width so a device name has as much room as the dialog can give it. */
+private val DEVICE_MENU_WIDTH = 460.dp
