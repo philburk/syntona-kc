@@ -20,7 +20,7 @@ object HelpRegistry {
     suspend fun loadHelpFilesIndex() {
         try {
             availableHelpFiles = SharedResources.getFilesIndex()
-                .filter { it.startsWith("help/") && it.endsWith(SYNTONA_FILE_SUFFIX) }
+                .filter { it.startsWith("help/") && (it.endsWith(".json") || it.endsWith(SYNTONA_FILE_SUFFIX)) }
                 .toSet()
         } catch (_: Exception) {
             availableHelpFiles = emptySet()
@@ -36,16 +36,20 @@ object HelpRegistry {
 
     /**
      * Resolves the help resource path for a given module type name.
-     * E.g. "keyboard13" -> "help/music/input/keyboard13.sntn"
+     * E.g. "keyboard13" -> "help/music/input/keyboard13.json" or ".sntn"
      */
     fun getHelpFilePath(typeName: String): String? {
         val bundlePath = ModuleRegistry.getBundlePath(typeName)
         if (bundlePath != null) {
-            val path = "help/${bundlePath.replace('.', '/')}$SYNTONA_FILE_SUFFIX"
-            if (availableHelpFiles.contains(path)) return path
+            val pathJson = "help/${bundlePath.replace('.', '/')}.json"
+            if (availableHelpFiles.contains(pathJson)) return pathJson
+            val pathSntn = "help/${bundlePath.replace('.', '/')}$SYNTONA_FILE_SUFFIX"
+            if (availableHelpFiles.contains(pathSntn)) return pathSntn
         }
-        val fallbackPath = "help/${typeName.replace('.', '/')}$SYNTONA_FILE_SUFFIX"
-        if (availableHelpFiles.contains(fallbackPath)) return fallbackPath
+        val fallbackJson = "help/${typeName.replace('.', '/')}.json"
+        if (availableHelpFiles.contains(fallbackJson)) return fallbackJson
+        val fallbackSntn = "help/${typeName.replace('.', '/')}$SYNTONA_FILE_SUFFIX"
+        if (availableHelpFiles.contains(fallbackSntn)) return fallbackSntn
         return null
     }
 

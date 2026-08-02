@@ -35,8 +35,11 @@ actual fun getUrlPatchPath(): String? {
 actual fun setUrlPatchPath(path: String?) {
     try {
         val currentPath = window.location.pathname
-        val newUrl = if (path != null) {
-            val encoded = encodeURIComponent(path).replace("%2F", "/")
+        val displayPath = path?.let {
+            if (it.endsWith(".json")) it.removeSuffix(".json") + SYNTONA_FILE_SUFFIX else it
+        }
+        val newUrl = if (displayPath != null) {
+            val encoded = encodeURIComponent(displayPath).replace("%2F", "/")
             "$currentPath?patch=$encoded"
         } else {
             currentPath

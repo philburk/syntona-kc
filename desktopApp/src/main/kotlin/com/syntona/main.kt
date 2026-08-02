@@ -62,11 +62,11 @@ fun main() {
         val density = androidx.compose.ui.platform.LocalDensity.current.density
         val examplesList by produceState<List<String>>(emptyList()) {
             value = com.syntona.SharedResources.getFilesIndex()
-                .filter { it.startsWith("examples/") && it.endsWith(SYNTONA_FILE_SUFFIX) }
+                .filter { it.startsWith("examples/") && (it.endsWith(".json") || it.endsWith(SYNTONA_FILE_SUFFIX)) }
         }
         val tutorialsList by produceState<List<String>>(emptyList()) {
             value = com.syntona.SharedResources.getFilesIndex()
-                .filter { it.startsWith("tutorials/") && it.endsWith(SYNTONA_FILE_SUFFIX) }
+                .filter { it.startsWith("tutorials/") && (it.endsWith(".json") || it.endsWith(SYNTONA_FILE_SUFFIX)) }
         }
 
         LaunchedEffect(Unit) {

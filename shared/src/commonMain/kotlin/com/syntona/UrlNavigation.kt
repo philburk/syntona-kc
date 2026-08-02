@@ -21,13 +21,24 @@ fun sanitizeAndValidateResourcePath(rawPath: String?, validFiles: Set<String>): 
     if (!trimmed.startsWith("examples/") &&
         !trimmed.startsWith("tutorials/") &&
         !trimmed.startsWith("help/") &&
-        trimmed != "lineIn$SYNTONA_FILE_SUFFIX"
+        trimmed != "lineIn$SYNTONA_FILE_SUFFIX" &&
+        trimmed != "lineIn.json" &&
+        trimmed != "lineIn"
     ) {
         return null
     }
 
     // Must exist in pre-compiled resource files index
-    return if (validFiles.contains(trimmed)) trimmed else null
+    if (validFiles.contains(trimmed)) return trimmed
+
+    if (trimmed.endsWith(SYNTONA_FILE_SUFFIX)) {
+        val jsonPath = trimmed.removeSuffix(SYNTONA_FILE_SUFFIX) + ".json"
+        if (validFiles.contains(jsonPath)) return jsonPath
+    }
+    val jsonPath = "$trimmed.json"
+    if (validFiles.contains(jsonPath)) return jsonPath
+
+    return null
 }
 
 expect fun getUrlPatchPath(): String?

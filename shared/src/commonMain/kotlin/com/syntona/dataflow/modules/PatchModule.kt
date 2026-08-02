@@ -12,6 +12,7 @@ import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.model.OutputJack
+import com.syntona.SYNTONA_FILE_SUFFIX
 
 open class PatchModule(name: String = "patch") : Module(name), EngineAware {
 
@@ -39,13 +40,23 @@ open class PatchModule(name: String = "patch") : Module(name), EngineAware {
             return if (path == null) {
                 "$name$suffix"
             } else {
-                val marker = "composeResources/files/"
-                val formattedPath = if (path.contains(marker)) {
-                    path.substringAfter(marker)
+                val isResource = path.startsWith("examples/") || path.startsWith("tutorials/") || path.startsWith("help/")
+                if (isResource) {
+                    "$name$suffix"
                 } else {
-                    path
+                    val marker = "composeResources/files/"
+                    val formattedPath = if (path.contains(marker)) {
+                        path.substringAfter(marker)
+                    } else {
+                        path
+                    }
+                    val cleanPath = if (formattedPath.endsWith(".json")) {
+                        formattedPath.removeSuffix(".json") + SYNTONA_FILE_SUFFIX
+                    } else {
+                        formattedPath
+                    }
+                    "$name$suffix - $cleanPath"
                 }
-                "$name$suffix - $formattedPath"
             }
         }
 

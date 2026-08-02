@@ -24,7 +24,9 @@ class DocumentState(val rootPatch: PatchModule) {
 
     val currentFileName: String?
         get() = currentFilePath?.let { p ->
-            p.substringAfterLast('/').substringAfterLast('\\').ifEmpty { p }
+            val name = p.substringAfterLast('/').substringAfterLast('\\').ifEmpty { p }
+            val clean = name.removeSuffix(".json").removeSuffix(com.syntona.SYNTONA_FILE_SUFFIX)
+            "$clean${com.syntona.SYNTONA_FILE_SUFFIX}"
         }
 
     /** True for the examples, tutorials, and help files that ship with the app, which must not be overwritten. */
@@ -33,21 +35,31 @@ class DocumentState(val rootPatch: PatchModule) {
             path.startsWith("examples/") || path.startsWith("tutorials/") || path.startsWith("help/")
         } ?: false
 
-    /** Title for this document's window: its file name, or the patch name before it is saved. */
+    /** Title for this document's window: clean name for built-in resources, file name with extension for saved files. */
     val displayName: String
-        get() = currentFileName ?: rootPatch.name
+        get() {
+            val file = currentFilePath ?: return rootPatch.name
+            val name = file.substringAfterLast('/').substringAfterLast('\\').ifEmpty { file }
+            return if (isResource) {
+                name.removeSuffix(".json").removeSuffix(com.syntona.SYNTONA_FILE_SUFFIX)
+            } else {
+                name
+            }
+        }
 
     fun markDirty() {
         isDirty = true
     }
 
     fun markSaved(path: String) {
-        currentFilePath = path
+        val targetPath = if (!path.startsWith("examples/") && !path.startsWith("tutorials/") && !path.startsWith("help/")) {
+            if (path.endsWith(".json")) path.removeSuffix(".json") + com.syntona.SYNTONA_FILE_SUFFIX else path
+        } else {
+            path
+        }
+        currentFilePath = targetPath
         isDirty = false
-        // The window title reads the patch's own path, so keep the two in step here rather than
-        // syncing them from outside. Doing it globally meant the frontmost document's path could
-        // be written onto a different document's patch, relabelling the wrong window.
-        rootPatch.filePath = path
+        rootPatch.filePath = targetPath
     }
 
     fun markNew() {

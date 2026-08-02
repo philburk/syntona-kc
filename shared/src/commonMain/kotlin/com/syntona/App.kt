@@ -197,6 +197,10 @@ fun loadIntoDocument(
     restoreRootWindowGeometry(mdiState, document.rootPatch, content, density)
     document.markSaved(path)
     document.rootPatch.clearModifiedRecursively()
+    val win = mdiState.windows.firstOrNull { it.id == document.rootPatch }
+    if (win != null) {
+        win.title = document.displayName
+    }
     graphState.kickLoadKickModules()
     if (document.isResource) {
         setUrlPatchPath(path)
@@ -231,11 +235,11 @@ fun App(
             val scope = rememberCoroutineScope()
         val examplesList by produceState<List<String>>(emptyList()) {
             value = com.syntona.SharedResources.getFilesIndex()
-                .filter { it.startsWith("examples/") && it.endsWith(SYNTONA_FILE_SUFFIX) }
+                .filter { it.startsWith("examples/") && (it.endsWith(".json") || it.endsWith(SYNTONA_FILE_SUFFIX)) }
         }
         val tutorialsList by produceState<List<String>>(emptyList()) {
             value = com.syntona.SharedResources.getFilesIndex()
-                .filter { it.startsWith("tutorials/") && it.endsWith(SYNTONA_FILE_SUFFIX) }
+                .filter { it.startsWith("tutorials/") && (it.endsWith(".json") || it.endsWith(SYNTONA_FILE_SUFFIX)) }
         }
         val syntonaModel = remember { SyntonaModel() }
         val appDensity = LocalDensity.current.density
@@ -691,6 +695,9 @@ fun App(
                                                                        docRoot.filePath = savedPath
                                                                        docRoot.clearModifiedRecursively()
                                                                        FileState.markSaved(savedPath)
+                                                                       mdiState.windows.firstOrNull { it.id == docRoot }?.let { win ->
+                                                                           win.title = FileState.activeDocument?.displayName ?: docRoot.name
+                                                                       }
                                                                    }
                                                                }
                                                            } else {
@@ -707,6 +714,9 @@ fun App(
                                                                    docRoot.filePath = savedPath
                                                                    docRoot.clearModifiedRecursively()
                                                                    FileState.markSaved(savedPath)
+                                                                   mdiState.windows.firstOrNull { it.id == docRoot }?.let { win ->
+                                                                       win.title = FileState.activeDocument?.displayName ?: docRoot.name
+                                                                   }
                                                                }
                                                            }
                                                        }
@@ -1284,7 +1294,7 @@ fun buildMenuTree(paths: List<String>, rootPrefix: String): MenuNode {
         for (i in segments.indices) {
             val segment = segments[i]
             if (i == segments.lastIndex) {
-                val displayName = segment.removeSuffix(SYNTONA_FILE_SUFFIX)
+                val displayName = segment.removeSuffix(".json").removeSuffix(SYNTONA_FILE_SUFFIX)
                 current.children[segment] = MenuNode(displayName, path)
             } else {
                 current = current.children.getOrPut(segment) { MenuNode(segment) }

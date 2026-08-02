@@ -304,7 +304,7 @@ class MultiDocumentTest {
 
         // Titles are derived from the patch path, so they stay distinct too.
         assertTrue(mine.rootPatch.headerTitle.contains("mine.sntn"))
-        assertTrue(example.rootPatch.headerTitle.contains("glow_flash.sntn"))
+        assertEquals("example", example.rootPatch.headerTitle)
     }
 
     @Test
