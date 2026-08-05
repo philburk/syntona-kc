@@ -4,6 +4,10 @@ actual fun getUrlPatchPath(): String? = null
 
 actual fun setUrlPatchPath(path: String?) {}
 
+actual fun isShareUrlAvailable(): Boolean = false
+actual fun sharePatchUrl(json: String): Boolean = false
+actual fun getUrlEncodedPatchJson(): String? = null
+
 actual fun openUrlInBrowser(url: String) {
     try {
         if (java.awt.Desktop.isDesktopSupported()) {

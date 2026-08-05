@@ -11,6 +11,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
@@ -269,6 +270,14 @@ fun App(
             }
         }
 
+        var showShareNotification by remember { mutableStateOf(false) }
+        if (showShareNotification) {
+            LaunchedEffect(showShareNotification) {
+                kotlinx.coroutines.delay(3000)
+                showShareNotification = false
+            }
+        }
+
         val mdiState = remember {
             MdiState().also { mdi ->
                 val document = DocumentState(rootPatch)
@@ -309,19 +318,31 @@ fun App(
         LaunchedEffect(Unit) {
             syntonaModel.start()
             com.syntona.dataflow.registry.HelpRegistry.loadHelpFilesIndex()
-            val rawUrlPath = getUrlPatchPath()
-            if (!rawUrlPath.isNullOrEmpty()) {
-                val filesIndex = com.syntona.SharedResources.getFilesIndex().toSet()
-                val validatedPath = sanitizeAndValidateResourcePath(rawUrlPath, filesIndex)
-                if (validatedPath != null) {
-                    try {
-                        val bytes = com.syntona.SharedResources.readBytes("files/$validatedPath")
-                        val activeDoc = FileState.activeDocument ?: FileState.documents.firstOrNull()
-                        if (activeDoc != null) {
-                            loadIntoDocument(mdiState, activeDoc, validatedPath, bytes.decodeToString(), appDensity)
+            val encodedJson = getUrlEncodedPatchJson()
+            if (!encodedJson.isNullOrEmpty()) {
+                try {
+                    val activeDoc = FileState.activeDocument ?: FileState.documents.firstOrNull()
+                    if (activeDoc != null) {
+                        loadIntoDocument(mdiState, activeDoc, "shared_piece$SYNTONA_FILE_SUFFIX", encodedJson, appDensity)
+                    }
+                } catch (e: Exception) {
+                    println("Failed to load encoded URL patch: ${e.message}")
+                }
+            } else {
+                val rawUrlPath = getUrlPatchPath()
+                if (!rawUrlPath.isNullOrEmpty()) {
+                    val filesIndex = com.syntona.SharedResources.getFilesIndex().toSet()
+                    val validatedPath = sanitizeAndValidateResourcePath(rawUrlPath, filesIndex)
+                    if (validatedPath != null) {
+                        try {
+                            val bytes = com.syntona.SharedResources.readBytes("files/$validatedPath")
+                            val activeDoc = FileState.activeDocument ?: FileState.documents.firstOrNull()
+                            if (activeDoc != null) {
+                                loadIntoDocument(mdiState, activeDoc, validatedPath, bytes.decodeToString(), appDensity)
+                            }
+                        } catch (e: Exception) {
+                            println("Failed to load initial URL patch: ${e.message}")
                         }
-                    } catch (e: Exception) {
-                        println("Failed to load initial URL patch: ${e.message}")
                     }
                 }
             }
@@ -480,6 +501,19 @@ fun App(
                                      val docRoot = activeDoc?.rootPatch ?: rootPatch
                                      val gs = docRoot.graphState
                                      val engine = syntonaModel.engine
+                                     val performShareUrl: () -> Unit = {
+                                         val json = GraphSerializer.serialize(
+                                             gs, gs.modules.toList(), appDensity,
+                                             rootWindowX = docRoot.windowX,
+                                             rootWindowY = docRoot.windowY,
+                                             rootWindowWidth = docRoot.windowWidth,
+                                             rootWindowHeight = docRoot.windowHeight
+                                         )
+                                         val minified = GraphSerializer.minifyJson(json)
+                                         if (sharePatchUrl(minified)) {
+                                             showShareNotification = true
+                                         }
+                                     }
                                      var fileExpanded by remember { mutableStateOf(false) }
                                      Box {
                                          Button(onClick = { fileExpanded = true }) { Text("File") }
@@ -742,17 +776,26 @@ fun App(
                                                   }
                                               )
                                               CompactDropdownMenuItem(
-                                                  text = { Text("Detach File from Patch") },
-                                                  enabled = mdiState.activeGraphState?.parentPatch?.filePath != null,
-                                                  onClick = {
-                                                      fileExpanded = false
-                                                      val target = mdiState.activeGraphState?.parentPatch
-                                                      if (target != null) {
-                                                          target.filePath = null
-                                                      }
-                                                  }
-                                              )
-                                              HorizontalDivider()
+                                                   text = { Text("Detach File from Patch") },
+                                                   enabled = mdiState.activeGraphState?.parentPatch?.filePath != null,
+                                                   onClick = {
+                                                       fileExpanded = false
+                                                       val target = mdiState.activeGraphState?.parentPatch
+                                                       if (target != null) {
+                                                           target.filePath = null
+                                                       }
+                                                   }
+                                               )
+                                               if (isShareUrlAvailable()) {
+                                                   CompactDropdownMenuItem(
+                                                       text = { Text("Share Piece as URL...") },
+                                                       onClick = {
+                                                           fileExpanded = false
+                                                           performShareUrl()
+                                                       }
+                                                   )
+                                               }
+                                               HorizontalDivider()
                                               CompactDropdownMenuItem(
                                                   text = { Text("Settings...") },
                                                   onClick = {
@@ -1256,6 +1299,27 @@ fun App(
                                 }) { Text("Cancel") }
                             }
                         )
+                    }
+                    if (showShareNotification) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(top = 48.dp, end = 16.dp),
+                            contentAlignment = Alignment.TopEnd
+                        ) {
+                            Surface(
+                                color = Color(0xFF2E7D32),
+                                contentColor = Color.White,
+                                shape = RoundedCornerShape(6.dp),
+                                shadowElevation = 6.dp
+                            ) {
+                                Text(
+                                    text = "URL copied to clipboard!",
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
                     }
                     } // end outer Box
                 }

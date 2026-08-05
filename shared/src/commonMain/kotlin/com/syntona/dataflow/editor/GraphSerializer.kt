@@ -59,6 +59,36 @@ object GraphSerializer {
         return JsonValue.Obj(merged).stringify(0)
     }
 
+    /** Strips all non-string formatting whitespace from a JSON string. */
+    fun minifyJson(json: String): String {
+        val sb = StringBuilder(json.length)
+        var inString = false
+        var i = 0
+        while (i < json.length) {
+            val c = json[i]
+            if (c == '"') {
+                inString = !inString
+                sb.append(c)
+            } else if (inString) {
+                if (c == '\\') {
+                    sb.append(c)
+                    if (i + 1 < json.length) {
+                        i++
+                        sb.append(json[i])
+                    }
+                } else {
+                    sb.append(c)
+                }
+            } else {
+                if (!c.isWhitespace()) {
+                    sb.append(c)
+                }
+            }
+            i++
+        }
+        return sb.toString()
+    }
+
     /** Reads the root patch window's saved geometry, if any, without touching module data. */
     fun readRootWindowGeometry(json: String): RootWindowGeometry? {
         val root = try { JsonParser(json).parse() as? JsonValue.Obj } catch (_: Exception) { null } ?: return null
@@ -99,9 +129,11 @@ object GraphSerializer {
             val pos = graphState.modulePositions[module] ?: Offset.Zero
             val xDp = pos.x
             val yDp = pos.y
+            val xDpStr = if (xDp % 1f == 0f) xDp.toInt().toString() else (kotlin.math.round(xDp * 10f) / 10f).toString()
+            val yDpStr = if (yDp % 1f == 0f) yDp.toInt().toString() else (kotlin.math.round(yDp * 10f) / 10f).toString()
             val resolvedType = ModuleRegistry.getBundlePath(module.type) ?: module.type
             append("{\"id\":$i,\"type\":\"${resolvedType.jsonEscape}\",\"name\":\"${module.name.jsonEscape}\"")
-            append(",\"x\":$xDp,\"y\":$yDp,\"jacks\":{")
+            append(",\"x\":$xDpStr,\"y\":$yDpStr")
             val valueJacks = module.inputs.filter { jack ->
                 jack !is CommandJack &&
                 (jack.lastMessage is Message.FloatValue || jack is AudioInputJack ||
@@ -109,15 +141,34 @@ object GraphSerializer {
                  ((module is KnobModule || module is FaderModule) && jack.name == "in") ||
                  (module is SequenceModule && jack.name.startsWith("in") && jack.name.substring(2).toIntOrNull() != null))
             }
-            valueJacks.forEachIndexed { j, jack ->
-                if (j > 0) append(",")
-                append("\"${jack.name.jsonEscape}\":{\"v\":${jack.getValue()},\"min\":${jack.min},\"max\":${jack.max},\"kickable\":${jack.isKickable}")
-                if (jack is AudioInputJack) {
-                    append(",\"add\":${jack.isValueAdded}")
+            if (valueJacks.isNotEmpty()) {
+                append(",\"jacks\":{")
+                valueJacks.forEachIndexed { j, jack ->
+                    if (j > 0) append(",")
+                    append("\"${jack.name.jsonEscape}\":{")
+                    val fields = mutableListOf<String>()
+                    if (jack.getValue() != 0.0) {
+                        val v = jack.getValue()
+                        val vStr = if (v % 1.0 == 0.0) v.toLong().toString() else (kotlin.math.round(v * 100.0) / 100.0).toString()
+                        fields.add("\"v\":$vStr")
+                    }
+                    if (jack.min != 0.0) {
+                        val m = jack.min
+                        val mStr = if (m % 1.0 == 0.0) m.toLong().toString() else (kotlin.math.round(m * 100.0) / 100.0).toString()
+                        fields.add("\"min\":$mStr")
+                    }
+                    if (jack.max != 100.0) {
+                        val m = jack.max
+                        val mStr = if (m % 1.0 == 0.0) m.toLong().toString() else (kotlin.math.round(m * 100.0) / 100.0).toString()
+                        fields.add("\"max\":$mStr")
+                    }
+                    if (jack.isKickable) fields.add("\"kickable\":true")
+                    if (jack is AudioInputJack && jack.isValueAdded) fields.add("\"add\":true")
+                    append(fields.joinToString(","))
+                    append("}")
                 }
                 append("}")
             }
-            append("}")
             if (module is CommentModule) {
                 append(",\"text\":\"${module.text.jsonEscape}\"")
                 append(",\"w\":${module.width},\"h\":${module.height}")
