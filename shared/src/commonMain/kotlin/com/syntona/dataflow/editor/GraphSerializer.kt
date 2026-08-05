@@ -103,14 +103,15 @@ object GraphSerializer {
             append("{\"id\":$i,\"type\":\"${resolvedType.jsonEscape}\",\"name\":\"${module.name.jsonEscape}\"")
             append(",\"x\":$xDp,\"y\":$yDp,\"jacks\":{")
             val valueJacks = module.inputs.filter { jack ->
-                jack !is CommandJack && !jack.isKickable &&
+                jack !is CommandJack &&
                 (jack.lastMessage is Message.FloatValue || jack is AudioInputJack ||
+                 jack.min != 0.0 || jack.max != 100.0 || jack.isKickable || jack.getValue() != 0.0 ||
                  ((module is KnobModule || module is FaderModule) && jack.name == "in") ||
                  (module is SequenceModule && jack.name.startsWith("in") && jack.name.substring(2).toIntOrNull() != null))
             }
             valueJacks.forEachIndexed { j, jack ->
                 if (j > 0) append(",")
-                append("\"${jack.name.jsonEscape}\":{\"v\":${jack.getValue()},\"min\":${jack.min},\"max\":${jack.max}")
+                append("\"${jack.name.jsonEscape}\":{\"v\":${jack.getValue()},\"min\":${jack.min},\"max\":${jack.max},\"kickable\":${jack.isKickable}")
                 if (jack is AudioInputJack) {
                     append(",\"add\":${jack.isValueAdded}")
                 }
@@ -411,6 +412,7 @@ object GraphSerializer {
                         (jackValue.map["min"] as? JsonValue.Num)?.value?.let { inputJack.min = it }
                         (jackValue.map["max"] as? JsonValue.Num)?.value?.let { inputJack.max = it }
                         (jackValue.map["v"] as? JsonValue.Num)?.value?.let { inputJack.setValue(it) }
+                        (jackValue.map["kickable"] as? JsonValue.Bool)?.value?.let { inputJack.isKickable = it }
                         if (inputJack is AudioInputJack) {
                             (jackValue.map["add"] as? JsonValue.Bool)?.value?.let { inputJack.isValueAdded = it }
                         }

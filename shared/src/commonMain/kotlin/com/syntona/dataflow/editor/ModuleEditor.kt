@@ -193,6 +193,21 @@ private fun JackEditorRow(jack: InputJack) {
                     modifier = Modifier.width(80.dp)
                 )
 
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Kick?", fontSize = 11.sp, color = LABEL_COLOR)
+                var isKickable by remember(jack) { mutableStateOf(jack.isKickable) }
+                CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
+                    Checkbox(
+                        checked = isKickable,
+                        onCheckedChange = {
+                            isKickable = it
+                            jack.isKickable = it
+                            FileState.markDirty()
+                        },
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
                 if (jack is AudioInputJack) {
                     Spacer(modifier = Modifier.width(4.dp))
                     Text("Add?", fontSize = 11.sp, color = LABEL_COLOR)
@@ -203,6 +218,7 @@ private fun JackEditorRow(jack: InputJack) {
                             onCheckedChange = {
                                 isValueAdded = it
                                 jack.isValueAdded = it
+                                FileState.markDirty()
                             },
                             modifier = Modifier.size(20.dp)
                         )

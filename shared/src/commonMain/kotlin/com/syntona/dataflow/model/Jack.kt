@@ -26,9 +26,10 @@ sealed class Jack {
 open class InputJack(
     name: String,
     override val module: Module,
-    val isKickable: Boolean = false
+    isKickable: Boolean = false
 ) : Jack() {
     override var name by mutableStateOf(name)
+    open var isKickable by mutableStateOf(isKickable)
     var isKicked = false
         private set
 

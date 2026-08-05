@@ -5,11 +5,7 @@ BUG: deleted the sine_ins patch from onesine.sntn while the patch was open. The 
 
 Need more ways to indicate Done. monoRdr could have an "empty" output jack.
 
-In module editor, allow setting of kickable property.
-
 Need order4
-
-
 
 # ----------------------------------------------- MEDIUM PRIORITY
 More tutorials. Audio, timeline, pianoroll.
