@@ -15,6 +15,7 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isShiftPressed
+import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -2978,7 +2979,9 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
 
                                             awaitPointerEventScope {
                                                 while (true) {
-                                                    val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                                                    val event = awaitPointerEvent(PointerEventPass.Initial)
+                                                    val down = event.changes.firstOrNull { !it.previousPressed && it.pressed } ?: continue
+                                                    val isShiftHeld = event.keyboardModifiers.isShiftPressed
                                                     val pxPerSecond = getPxPerSecond()
                                                     val clickX = down.position.x
                                                     val clickY = down.position.y
@@ -3000,17 +3003,22 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
 
                                                     if (activeTrigger != null) {
                                                         down.consume()
-                                                        do {
-                                                            val event = awaitPointerEvent(PointerEventPass.Initial)
-                                                            val change = event.changes.firstOrNull()
-                                                            if (change != null && change.pressed) {
-                                                                change.consume()
-                                                                val currentX = change.position.x
-                                                                val pxPerSecondDrag = getPxPerSecond()
-                                                                activeTrigger.time = (currentX / pxPerSecondDrag).toDouble().coerceIn(0.0, module.maxTime)
-                                                                FileState.markDirty()
-                                                            }
-                                                        } while (event.changes.any { it.pressed })
+                                                        if (isShiftHeld) {
+                                                            module.removeTrigger(activeTrigger)
+                                                            FileState.markDirty()
+                                                        } else {
+                                                            do {
+                                                                val dragEvent = awaitPointerEvent(PointerEventPass.Initial)
+                                                                val change = dragEvent.changes.firstOrNull()
+                                                                if (change != null && change.pressed) {
+                                                                    change.consume()
+                                                                    val currentX = change.position.x
+                                                                    val pxPerSecondDrag = getPxPerSecond()
+                                                                    activeTrigger.time = (currentX / pxPerSecondDrag).toDouble().coerceIn(0.0, module.maxTime)
+                                                                    FileState.markDirty()
+                                                                }
+                                                            } while (dragEvent.changes.any { it.pressed })
+                                                        }
                                                     }
                                                 }
                                             }
@@ -3066,14 +3074,6 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                                         .size(8.dp)
                                                         .graphicsLayer(rotationZ = 45f)
                                                         .background(Color.Yellow)
-                                                        .pointerInput(trigger) {
-                                                            detectTapGestures(
-                                                                onLongPress = {
-                                                                    module.removeTrigger(trigger)
-                                                                    FileState.markDirty()
-                                                                }
-                                                            )
-                                                        }
                                                 )
                                                 // Vertical line (dark stem)
                                                 Box(
