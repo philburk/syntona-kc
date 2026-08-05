@@ -425,6 +425,31 @@ class PolyPatchModuleTest {
     }
 
     @Test
+    fun testStartDraggingFromOutputWithShiftDisconnectsLastConnection() {
+        val graphState = GraphState()
+        val mod1 = CounterModule()
+        val mod2 = CounterModule()
+        val mod3 = CounterModule()
+
+        graphState.addModule(mod1, androidx.compose.ui.geometry.Offset.Zero)
+        graphState.addModule(mod2, androidx.compose.ui.geometry.Offset.Zero)
+        graphState.addModule(mod3, androidx.compose.ui.geometry.Offset.Zero)
+
+        graphState.connect(mod1.output, mod2.reset)
+        graphState.connect(mod1.output, mod3.reset)
+
+        assertEquals(2, graphState.connections.size)
+        assertEquals(mod2.reset, graphState.connections[0].input)
+        assertEquals(mod3.reset, graphState.connections[1].input)
+
+        graphState.startDraggingFromOutput(mod1.output, isShiftPressed = true)
+
+        assertEquals(1, graphState.connections.size)
+        assertEquals(mod2.reset, graphState.connections[0].input)
+        assertEquals(mod1.output, graphState.draggingWireByOutput)
+    }
+
+    @Test
     fun testInputJackDropTargetBounds() {
         val graphState = GraphState()
         val mod1 = CounterModule()

@@ -5,8 +5,6 @@ BUG: deleted the sine_ins patch from onesine.sntn while the patch was open. The 
 
 Need more ways to indicate Done. monoRdr could have an "empty" output jack.
 
-Need more ways to disconnect modules. Click on output to start dragging a new connection?
-
 In module editor, allow setting of kickable property.
 
 Need order4

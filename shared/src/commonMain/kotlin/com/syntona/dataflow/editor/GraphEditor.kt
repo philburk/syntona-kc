@@ -16,6 +16,7 @@ import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.pointer.isShiftPressed
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -666,22 +667,28 @@ fun UnlabelledJackView(jack: Jack, state: GraphState) {
                 state.updateJackOffset(jack, pos + edgeOffset, Size(size.width.toFloat(), size.height.toFloat()))
             }
             .pointerInput(jack) {
-                detectDragGestures(
-                    onDragStart = { startOffset ->
-                        if (jack is OutputJack) state.startDraggingFromOutput(jack)
-                        state.onPointerMove(jackRootPosition - state.rootOffset + startOffset)
-                    },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        state.onPointerMove(state.dragPointerPosition + dragAmount)
-                    },
-                    onDragEnd = {
-                        state.onPointerUp(null)
-                    },
-                    onDragCancel = {
-                        state.onPointerUp(null)
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val isShiftPressed = currentEvent.keyboardModifiers.isShiftPressed
+                    val startOffset = down.position
+                    if (jack is OutputJack) state.startDraggingFromOutput(jack, isShiftPressed)
+                    else if (jack is InputJack) state.startDraggingFromInput(jack)
+                    state.onPointerMove(jackRootPosition - state.rootOffset + startOffset)
+
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!change.pressed) {
+                            state.onPointerUp(null)
+                            break
+                        }
+                        val dragAmount = change.positionChange()
+                        if (dragAmount != Offset.Zero) {
+                            change.consume()
+                            state.onPointerMove(state.dragPointerPosition + dragAmount)
+                        }
                     }
-                )
+                }
             }
     ) {
         Box(
@@ -765,58 +772,56 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
                     }
                 }
             }
-            // Drag detection: value edit or wire drag depending on jack state
             .pointerInput(jack) {
-                detectDragGestures(
-                    onDragStart = { startOffset ->
-                        val unconnectedInput = jack is InputJack &&
-                            state.connections.none { it.input == jack }
-                        if (unconnectedInput) {
-                            valueDragCurrentValue = jack.getValue()
-                            valueDragAccumX = 0f
-                            isValueDragging = true
-                        } else {
-                            if (jack is OutputJack) state.startDraggingFromOutput(jack)
-                            else if (jack is InputJack) state.startDraggingFromInput(jack)
-                            // Place the rubber-band end at the actual pointer position,
-                            // not at the jack edge, to avoid an initial offset.
-                            state.onPointerMove(jackRootPosition - state.rootOffset + startOffset)
-                        }
-                    },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        if (isValueDragging) {
-                            val inputJack = jack as InputJack
-                            valueDragAccumX += dragAmount.x
-                            // Apply current sensitivity to this frame's delta only (incremental).
-                            // Left = coarser, right = finer. Using accumulated Y would
-                            // retroactively re-scale all past movement when X changes.
-                            val range = inputJack.max - inputJack.min
-                            val sensitivity = range / 400.0 * 10.0.pow(-valueDragAccumX / 200.0)
-                            val newValue = (valueDragCurrentValue - dragAmount.y * sensitivity)
-                                .coerceIn(inputJack.min, inputJack.max)
-                            valueDragCurrentValue = newValue
-                            val e = state.engine
-                            if (e != null) e.post(SetValueCommand(inputJack, newValue, ScoreClock.now()))
-                            else inputJack.setValue(newValue)
-                            state.markChanged()
-                            FileState.markDirty()
-                        } else {
-                            state.onPointerMove(state.dragPointerPosition + dragAmount)
-                        }
-                    },
-                    onDragEnd = {
-                        if (isValueDragging) {
-                            isValueDragging = false
-                        } else {
-                            state.onPointerUp(null)
-                        }
-                    },
-                    onDragCancel = {
-                        isValueDragging = false
-                        state.onPointerUp(null)
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val isShiftPressed = currentEvent.keyboardModifiers.isShiftPressed
+                    val startOffset = down.position
+                    val unconnectedInput = jack is InputJack &&
+                        state.connections.none { it.input == jack }
+                    if (unconnectedInput) {
+                        valueDragCurrentValue = jack.getValue()
+                        valueDragAccumX = 0f
+                        isValueDragging = true
+                    } else {
+                        if (jack is OutputJack) state.startDraggingFromOutput(jack, isShiftPressed)
+                        else if (jack is InputJack) state.startDraggingFromInput(jack)
+                        state.onPointerMove(jackRootPosition - state.rootOffset + startOffset)
                     }
-                )
+
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!change.pressed) {
+                            if (isValueDragging) {
+                                isValueDragging = false
+                            } else {
+                                state.onPointerUp(null)
+                            }
+                            break
+                        }
+                        val dragAmount = change.positionChange()
+                        if (dragAmount != Offset.Zero) {
+                            change.consume()
+                            if (isValueDragging) {
+                                val inputJack = jack as InputJack
+                                valueDragAccumX += dragAmount.x
+                                val range = inputJack.max - inputJack.min
+                                val sensitivity = range / 400.0 * 10.0.pow(-valueDragAccumX / 200.0)
+                                val newValue = (valueDragCurrentValue - dragAmount.y * sensitivity)
+                                    .coerceIn(inputJack.min, inputJack.max)
+                                valueDragCurrentValue = newValue
+                                val e = state.engine
+                                if (e != null) e.post(SetValueCommand(inputJack, newValue, ScoreClock.now()))
+                                else inputJack.setValue(newValue)
+                                state.markChanged()
+                                FileState.markDirty()
+                            } else {
+                                state.onPointerMove(state.dragPointerPosition + dragAmount)
+                            }
+                        }
+                    }
+                }
             }
     ) {
         if (isLeft) {
@@ -933,18 +938,27 @@ fun CommandOutputJackView(jack: CommandOutputJack, state: GraphState, isLeft: Bo
                 state.updateJackOffset(jack, jackRootPosition - state.rootOffset + edgeOffset, Size(size.width.toFloat(), size.height.toFloat()))
             }
             .pointerInput(jack) {
-                detectDragGestures(
-                    onDragStart = { startOffset ->
-                        state.startDraggingFromOutput(jack)
-                        state.onPointerMove(jackRootPosition - state.rootOffset + startOffset)
-                    },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        state.onPointerMove(state.dragPointerPosition + dragAmount)
-                    },
-                    onDragEnd = { state.onPointerUp(null) },
-                    onDragCancel = { state.onPointerUp(null) }
-                )
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val isShiftPressed = currentEvent.keyboardModifiers.isShiftPressed
+                    val startOffset = down.position
+                    state.startDraggingFromOutput(jack, isShiftPressed)
+                    state.onPointerMove(jackRootPosition - state.rootOffset + startOffset)
+
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!change.pressed) {
+                            state.onPointerUp(null)
+                            break
+                        }
+                        val dragAmount = change.positionChange()
+                        if (dragAmount != Offset.Zero) {
+                            change.consume()
+                            state.onPointerMove(state.dragPointerPosition + dragAmount)
+                        }
+                    }
+                }
             }
     ) {
         if (isLeft) {
@@ -1005,19 +1019,28 @@ fun CompactJackConnector(jack: Jack, state: GraphState, isLeft: Boolean) {
                 )
             }
             .pointerInput(jack) {
-                detectDragGestures(
-                    onDragStart = { startOffset ->
-                        if (jack is OutputJack) state.startDraggingFromOutput(jack)
-                        else if (jack is InputJack) state.startDraggingFromInput(jack)
-                        state.onPointerMove(jackRootPosition - state.rootOffset + startOffset)
-                    },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        state.onPointerMove(state.dragPointerPosition + dragAmount)
-                    },
-                    onDragEnd = { state.onPointerUp(null) },
-                    onDragCancel = { state.onPointerUp(null) }
-                )
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val isShiftPressed = currentEvent.keyboardModifiers.isShiftPressed
+                    val startOffset = down.position
+                    if (jack is OutputJack) state.startDraggingFromOutput(jack, isShiftPressed)
+                    else if (jack is InputJack) state.startDraggingFromInput(jack)
+                    state.onPointerMove(jackRootPosition - state.rootOffset + startOffset)
+
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!change.pressed) {
+                            state.onPointerUp(null)
+                            break
+                        }
+                        val dragAmount = change.positionChange()
+                        if (dragAmount != Offset.Zero) {
+                            change.consume()
+                            state.onPointerMove(state.dragPointerPosition + dragAmount)
+                        }
+                    }
+                }
             }
     ) {
         Box(modifier = Modifier.size(8.dp).background(connectorColor))
@@ -2457,18 +2480,27 @@ fun TimelineTriggerJackView(
                 state.updateJackOffset(jack, connectionOffset, Size(size.width.toFloat(), size.height.toFloat()))
             }
             .pointerInput(jack) {
-                detectDragGestures(
-                    onDragStart = { startOffset ->
-                        state.startDraggingFromOutput(jack)
-                        state.onPointerMove(jackRootPosition - state.rootOffset + startOffset)
-                    },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        state.onPointerMove(state.dragPointerPosition + dragAmount)
-                    },
-                    onDragEnd = { state.onPointerUp(null) },
-                    onDragCancel = { state.onPointerUp(null) }
-                )
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val isShiftPressed = currentEvent.keyboardModifiers.isShiftPressed
+                    val startOffset = down.position
+                    state.startDraggingFromOutput(jack, isShiftPressed)
+                    state.onPointerMove(jackRootPosition - state.rootOffset + startOffset)
+
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!change.pressed) {
+                            state.onPointerUp(null)
+                            break
+                        }
+                        val dragAmount = change.positionChange()
+                        if (dragAmount != Offset.Zero) {
+                            change.consume()
+                            state.onPointerMove(state.dragPointerPosition + dragAmount)
+                        }
+                    }
+                }
             }
     )
 }

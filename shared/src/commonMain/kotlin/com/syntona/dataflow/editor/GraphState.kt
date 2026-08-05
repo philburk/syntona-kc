@@ -466,9 +466,17 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
         }
     }
 
-    fun startDraggingFromOutput(output: OutputJack) {
-        // Many fan-out from an OutputJack are now allowed.
-        // Clicking an OutputJack should NOT disconnect any existing wires.
+    fun startDraggingFromOutput(output: OutputJack, isShiftPressed: Boolean = false) {
+        // Many fan-out from an OutputJack are allowed.
+        // If Shift is pressed, disconnect the last (most recent) connection from this OutputJack.
+        if (isShiftPressed) {
+            val existing = connections.lastOrNull { it.output == output }
+            if (existing != null) {
+                deleteConnection(existing)
+                markChanged()
+                FileState.markDirty()
+            }
+        }
         draggingWireByOutput = output
     }
 
