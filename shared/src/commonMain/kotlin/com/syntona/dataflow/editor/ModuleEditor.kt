@@ -26,6 +26,8 @@ import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
+import com.syntona.dataflow.modules.AudioInputModule
+import com.syntona.dataflow.modules.InputModule
 import com.syntona.dataflow.modules.LinkModule
 import com.syntona.dataflow.modules.KeyMatchModule
 import com.syntona.dataflow.modules.KeyNotesModule
@@ -126,6 +128,14 @@ fun ModuleEditor(module: Module, onDismiss: () -> Unit, modifier: Modifier = Mod
                     KeyNotesModuleEditor(module)
                 } else if (module is PackVoiceModule) {
                     PackVoiceModuleEditor(module)
+                } else if (module is InputModule) {
+                    module.patchJack?.let { jack ->
+                        JackEditorRow(jack)
+                    }
+                } else if (module is AudioInputModule) {
+                    module.patchJack?.let { jack ->
+                        JackEditorRow(jack)
+                    }
                 } else {
                     module.inputs.forEach { jack ->
                         JackEditorRow(jack)

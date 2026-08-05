@@ -56,6 +56,26 @@ class PatchParameterRenameTest {
     }
 
     @Test
+    fun testInputModulePatchJackMinMaxEditing() {
+        val patchModule = PatchModule()
+        val inputModule = InputModule()
+        patchModule.graphState.addModule(inputModule, androidx.compose.ui.geometry.Offset.Zero)
+        inputModule.name = "freq"
+
+        val jack = inputModule.patchJack
+        assertNotNull(jack)
+        assertEquals("freq", jack.name)
+
+        jack.min = 20.0
+        jack.max = 20000.0
+
+        assertEquals(20.0, jack.min)
+        assertEquals(20000.0, jack.max)
+        assertEquals(20.0, patchModule.inputs[0].min)
+        assertEquals(20000.0, patchModule.inputs[0].max)
+    }
+
+    @Test
     fun testPatchRenamingSerializationAndDeserialization() {
         val rootGraph = GraphState()
         val patchModule = PatchModule()

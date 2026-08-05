@@ -1,6 +1,17 @@
 
 # ----------------------------------------------- HIGH PRIORITY
 
+BUG: deleted the sine_ins patch from onesine.sntn while the patch was open. The patch window was left open.
+
+Need way to indicate Done. monoRdr could have an "empty" output jack.
+
+Need more ways to disconnect modules. Click on output to start dragging a new connection?
+
+In module editor, allow setting of kickable property.
+
+Need order4
+
+
 
 # ----------------------------------------------- MEDIUM PRIORITY
 More tutorials. Audio, timeline, pianoroll.
@@ -75,7 +86,6 @@ Convert Syntona timestamps to KSyn timestamps and apply small "advance-time" for
 
 Add Granular synthesis.
 
-In module editor, allow setting of kickable property.
 
 Add Gaussian distribution and histogram.
 
