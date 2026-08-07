@@ -134,36 +134,31 @@ object GraphSerializer {
             val resolvedType = ModuleRegistry.getBundlePath(module.type) ?: module.type
             append("{\"id\":$i,\"type\":\"${resolvedType.jsonEscape}\",\"name\":\"${module.name.jsonEscape}\"")
             append(",\"x\":$xDpStr,\"y\":$yDpStr")
-            val valueJacks = module.inputs.filter { jack ->
-                jack !is CommandJack &&
-                (jack.lastMessage is Message.FloatValue || jack is AudioInputJack ||
-                 jack.min != 0.0 || jack.max != 100.0 || jack.isKickable || jack.getValue() != 0.0 ||
-                 ((module is KnobModule || module is FaderModule) && jack.name == "in") ||
-                 (module is SequenceModule && jack.name.startsWith("in") && jack.name.substring(2).toIntOrNull() != null))
-            }
+            // Every editable jack is written out. Deciding what to omit by comparing against
+            // hardcoded defaults does not work: modules override min/max/kickable in their own
+            // constructors, and a missing field on load means "keep the module's own default",
+            // so anything omitted that does not match is silently lost. Redundant fields cost
+            // almost nothing once the file is compressed for sharing.
+            val valueJacks = module.inputs.filter { it !is CommandJack }
             if (valueJacks.isNotEmpty()) {
                 append(",\"jacks\":{")
                 valueJacks.forEachIndexed { j, jack ->
                     if (j > 0) append(",")
                     append("\"${jack.name.jsonEscape}\":{")
                     val fields = mutableListOf<String>()
-                    if (jack.getValue() != 0.0) {
-                        val v = jack.getValue()
-                        val vStr = if (v % 1.0 == 0.0) v.toLong().toString() else (kotlin.math.round(v * 100.0) / 100.0).toString()
-                        fields.add("\"v\":$vStr")
-                    }
-                    if (jack.min != 0.0) {
-                        val m = jack.min
-                        val mStr = if (m % 1.0 == 0.0) m.toLong().toString() else (kotlin.math.round(m * 100.0) / 100.0).toString()
-                        fields.add("\"min\":$mStr")
-                    }
-                    if (jack.max != 100.0) {
-                        val m = jack.max
-                        val mStr = if (m % 1.0 == 0.0) m.toLong().toString() else (kotlin.math.round(m * 100.0) / 100.0).toString()
-                        fields.add("\"max\":$mStr")
-                    }
-                    if (jack.isKickable) fields.add("\"kickable\":true")
-                    if (jack is AudioInputJack && jack.isValueAdded) fields.add("\"add\":true")
+                    // "v" is restored by delivering a message, which fires execute() on a kickable
+                    // jack. Only jacks that actually hold a value get one, so loading a patch does
+                    // not trigger modules that were merely sitting there.
+                    val holdsValue = jack.lastMessage is Message.FloatValue ||
+                        jack is AudioInputJack ||
+                        ((module is KnobModule || module is FaderModule) && jack.name == "in") ||
+                        (module is SequenceModule && jack.name.startsWith("in") &&
+                            jack.name.substring(2).toIntOrNull() != null)
+                    if (holdsValue) fields.add("\"v\":${jack.getValue()}")
+                    fields.add("\"min\":${jack.min}")
+                    fields.add("\"max\":${jack.max}")
+                    fields.add("\"kickable\":${jack.isKickable}")
+                    if (jack is AudioInputJack) fields.add("\"add\":${jack.isValueAdded}")
                     append(fields.joinToString(","))
                     append("}")
                 }

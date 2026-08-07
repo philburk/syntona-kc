@@ -41,9 +41,27 @@ fun sanitizeAndValidateResourcePath(rawPath: String?, validFiles: Set<String>): 
     return null
 }
 
+/**
+ * Outcome of [sharePatchUrl].
+ *
+ * @property url the shareable link, or null if one could not be built.
+ * @property copiedToClipboard whether the link actually reached the clipboard. The browser can
+ *   refuse the write, so this is reported rather than assumed.
+ * @property warning a note worth showing the user even though sharing succeeded.
+ */
+data class ShareUrlResult(
+    val url: String?,
+    val copiedToClipboard: Boolean,
+    val warning: String? = null
+)
+
 expect fun getUrlPatchPath(): String?
 expect fun setUrlPatchPath(path: String?)
 expect fun openUrlInBrowser(url: String)
 expect fun isShareUrlAvailable(): Boolean
-expect fun sharePatchUrl(json: String): Boolean
-expect fun getUrlEncodedPatchJson(): String?
+
+/** Builds a shareable link containing [json] and copies it to the clipboard. Web only. */
+expect suspend fun sharePatchUrl(json: String): ShareUrlResult
+
+/** Returns the patch JSON carried by the current URL, if any. Web only. */
+expect suspend fun getUrlEncodedPatchJson(): String?

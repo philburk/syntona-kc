@@ -5,8 +5,9 @@ actual fun getUrlPatchPath(): String? = null
 actual fun setUrlPatchPath(path: String?) {}
 
 actual fun isShareUrlAvailable(): Boolean = false
-actual fun sharePatchUrl(json: String): Boolean = false
-actual fun getUrlEncodedPatchJson(): String? = null
+// Sharing a patch as a link only means anything in a browser.
+actual suspend fun sharePatchUrl(json: String): ShareUrlResult = ShareUrlResult(null, false)
+actual suspend fun getUrlEncodedPatchJson(): String? = null
 
 actual fun openUrlInBrowser(url: String) {
     try {

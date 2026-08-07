@@ -270,11 +270,13 @@ fun App(
             }
         }
 
-        var showShareNotification by remember { mutableStateOf(false) }
-        if (showShareNotification) {
-            LaunchedEffect(showShareNotification) {
-                kotlinx.coroutines.delay(3000)
-                showShareNotification = false
+        // Transient banner shown after "Share Piece as URL...". Null when nothing to say.
+        var shareNotice by remember { mutableStateOf<String?>(null) }
+        var shareNoticeIsProblem by remember { mutableStateOf(false) }
+        shareNotice?.let { notice ->
+            LaunchedEffect(notice) {
+                kotlinx.coroutines.delay(if (shareNoticeIsProblem) 6000 else 3000)
+                shareNotice = null
             }
         }
 
@@ -510,8 +512,17 @@ fun App(
                                              rootWindowHeight = docRoot.windowHeight
                                          )
                                          val minified = GraphSerializer.minifyJson(json)
-                                         if (sharePatchUrl(minified)) {
-                                             showShareNotification = true
+                                         scope.launch {
+                                             val result = sharePatchUrl(minified)
+                                             shareNoticeIsProblem =
+                                                 result.url == null || !result.copiedToClipboard || result.warning != null
+                                             shareNotice = when {
+                                                 result.url == null -> "Could not build a link for this patch."
+                                                 !result.copiedToClipboard ->
+                                                     "Link created, but the browser would not write to the clipboard."
+                                                 result.warning != null -> result.warning
+                                                 else -> "URL copied to clipboard!"
+                                             }
                                          }
                                      }
                                      var fileExpanded by remember { mutableStateOf(false) }
@@ -1300,7 +1311,7 @@ fun App(
                             }
                         )
                     }
-                    if (showShareNotification) {
+                    shareNotice?.let { notice ->
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -1308,14 +1319,16 @@ fun App(
                             contentAlignment = Alignment.TopEnd
                         ) {
                             Surface(
-                                color = Color(0xFF2E7D32),
+                                color = if (shareNoticeIsProblem) Color(0xFFB35300) else Color(0xFF2E7D32),
                                 contentColor = Color.White,
                                 shape = RoundedCornerShape(6.dp),
                                 shadowElevation = 6.dp
                             ) {
                                 Text(
-                                    text = "URL copied to clipboard!",
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                                    text = notice,
+                                    modifier = Modifier
+                                        .widthIn(max = 320.dp)
+                                        .padding(horizontal = 14.dp, vertical = 8.dp),
                                     fontSize = 13.sp
                                 )
                             }
