@@ -4,6 +4,7 @@ package com.syntona
 
 import kotlinx.browser.window
 import kotlinx.coroutines.await
+import org.w3c.dom.events.Event
 import kotlin.js.Promise
 
 /**
@@ -112,6 +113,18 @@ actual suspend fun getUrlEncodedPatchJson(): String? {
     } catch (e: Throwable) {
         println("Could not decode the patch in this URL: ${e.message}")
         null
+    }
+}
+
+actual fun observeUrlPatchChanges(onChange: () -> Unit): () -> Unit {
+    // "hashchange" is what the browser fires instead of navigating when a pasted URL differs from
+    // the current one only in its fragment. "popstate" covers the back and forward buttons.
+    val listener: (Event) -> Unit = { onChange() }
+    window.addEventListener("hashchange", listener)
+    window.addEventListener("popstate", listener)
+    return {
+        window.removeEventListener("hashchange", listener)
+        window.removeEventListener("popstate", listener)
     }
 }
 

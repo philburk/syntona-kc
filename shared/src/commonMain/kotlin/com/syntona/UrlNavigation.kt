@@ -65,3 +65,14 @@ expect suspend fun sharePatchUrl(json: String): ShareUrlResult
 
 /** Returns the patch JSON carried by the current URL, if any. Web only. */
 expect suspend fun getUrlEncodedPatchJson(): String?
+
+/**
+ * Calls [onChange] when the URL starts naming a different patch without the page reloading.
+ *
+ * Pasting a new share link over an old one changes only the fragment, and a fragment-only change
+ * is the same document as far as the browser is concerned: it does not reload, so nothing would
+ * otherwise notice the new patch.
+ *
+ * @return a function that stops listening.
+ */
+expect fun observeUrlPatchChanges(onChange: () -> Unit): () -> Unit

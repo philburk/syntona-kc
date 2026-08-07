@@ -9,6 +9,9 @@ actual fun isShareUrlAvailable(): Boolean = false
 actual suspend fun sharePatchUrl(json: String): ShareUrlResult = ShareUrlResult(null, false)
 actual suspend fun getUrlEncodedPatchJson(): String? = null
 
+// There is no address bar to watch outside a browser.
+actual fun observeUrlPatchChanges(onChange: () -> Unit): () -> Unit = {}
+
 actual fun openUrlInBrowser(url: String) {
     try {
         if (java.awt.Desktop.isDesktopSupported()) {

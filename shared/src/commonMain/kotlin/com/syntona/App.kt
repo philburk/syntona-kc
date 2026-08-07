@@ -208,6 +208,47 @@ fun loadIntoDocument(
 }
 
 /**
+ * Loads whatever patch the current URL names into [document].
+ *
+ * That is either a patch encoded in the fragment by "Share Piece as URL...", or a bundled example
+ * or tutorial named by the query string. Shared by the startup load and by the listener that
+ * reacts to the URL changing later, so both behave identically.
+ *
+ * @return true if a patch was loaded.
+ */
+private suspend fun loadPatchFromUrl(
+    mdiState: MdiState,
+    document: DocumentState,
+    density: Float
+): Boolean {
+    val encodedJson = getUrlEncodedPatchJson()
+    if (!encodedJson.isNullOrEmpty()) {
+        return try {
+            loadIntoDocument(
+                mdiState, document, "shared_piece$SYNTONA_FILE_SUFFIX", encodedJson, density
+            )
+            true
+        } catch (e: Exception) {
+            println("Failed to load encoded URL patch: ${e.message}")
+            false
+        }
+    }
+
+    val rawUrlPath = getUrlPatchPath()
+    if (rawUrlPath.isNullOrEmpty()) return false
+    val filesIndex = com.syntona.SharedResources.getFilesIndex().toSet()
+    val validatedPath = sanitizeAndValidateResourcePath(rawUrlPath, filesIndex) ?: return false
+    return try {
+        val bytes = com.syntona.SharedResources.readBytes("files/$validatedPath")
+        loadIntoDocument(mdiState, document, validatedPath, bytes.decodeToString(), density)
+        true
+    } catch (e: Exception) {
+        println("Failed to load URL patch: ${e.message}")
+        false
+    }
+}
+
+/**
  * True when this is a key-down of [letter], for matching shortcuts such as Cmd+C.
  *
  * Matching on [Key] alone is not enough. When a modifier is held, Compose on the web reports the
@@ -320,34 +361,31 @@ fun App(
         LaunchedEffect(Unit) {
             syntonaModel.start()
             com.syntona.dataflow.registry.HelpRegistry.loadHelpFilesIndex()
-            val encodedJson = getUrlEncodedPatchJson()
-            if (!encodedJson.isNullOrEmpty()) {
-                try {
-                    val activeDoc = FileState.activeDocument ?: FileState.documents.firstOrNull()
-                    if (activeDoc != null) {
-                        loadIntoDocument(mdiState, activeDoc, "shared_piece$SYNTONA_FILE_SUFFIX", encodedJson, appDensity)
+            val activeDoc = FileState.activeDocument ?: FileState.documents.firstOrNull()
+            if (activeDoc != null) {
+                loadPatchFromUrl(mdiState, activeDoc, appDensity)
+            }
+        }
+
+        // Pasting a new share link over an old one only changes the fragment, which the browser
+        // treats as the same document: no reload happens, so the new patch has to be picked up
+        // here. The user's work is never replaced without asking.
+        DisposableEffect(mdiState, scope) {
+            val stopListening = observeUrlPatchChanges {
+                val engine = syntonaModel.engine
+                FileState.requestIfDirty(
+                    openInNewWindow = {
+                        val document = openNewDocument(mdiState, engine, appDensity)
+                        scope.launch { loadPatchFromUrl(mdiState, document, appDensity) }
                     }
-                } catch (e: Exception) {
-                    println("Failed to load encoded URL patch: ${e.message}")
-                }
-            } else {
-                val rawUrlPath = getUrlPatchPath()
-                if (!rawUrlPath.isNullOrEmpty()) {
-                    val filesIndex = com.syntona.SharedResources.getFilesIndex().toSet()
-                    val validatedPath = sanitizeAndValidateResourcePath(rawUrlPath, filesIndex)
-                    if (validatedPath != null) {
-                        try {
-                            val bytes = com.syntona.SharedResources.readBytes("files/$validatedPath")
-                            val activeDoc = FileState.activeDocument ?: FileState.documents.firstOrNull()
-                            if (activeDoc != null) {
-                                loadIntoDocument(mdiState, activeDoc, validatedPath, bytes.decodeToString(), appDensity)
-                            }
-                        } catch (e: Exception) {
-                            println("Failed to load initial URL patch: ${e.message}")
-                        }
+                ) {
+                    val document = FileState.activeDocument ?: FileState.documents.firstOrNull()
+                    if (document != null) {
+                        scope.launch { loadPatchFromUrl(mdiState, document, appDensity) }
                     }
                 }
             }
+            onDispose { stopListening() }
         }
         LaunchedEffect(mdiState, scope) {
             LinkModule.onTriggerLoad = { path ->
