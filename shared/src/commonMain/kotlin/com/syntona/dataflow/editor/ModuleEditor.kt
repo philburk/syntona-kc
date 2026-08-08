@@ -31,7 +31,11 @@ import com.syntona.dataflow.modules.InputModule
 import com.syntona.dataflow.modules.LinkModule
 import com.syntona.dataflow.modules.KeyMatchModule
 import com.syntona.dataflow.modules.KeyNotesModule
+import com.syntona.dataflow.modules.MidiInModule
+import com.syntona.dataflow.modules.MidiOutModule
 import com.syntona.dataflow.modules.PackVoiceModule
+import com.syntona.core.midi.MidiDeviceService
+import com.softsynth.midibridge.MidiDirection
 import com.syntona.dataflow.editor.FileState
 
 private val HEADER_COLOR = Color(0xFFCC6666)
@@ -128,6 +132,20 @@ fun ModuleEditor(module: Module, onDismiss: () -> Unit, modifier: Modifier = Mod
                     KeyNotesModuleEditor(module)
                 } else if (module is PackVoiceModule) {
                     PackVoiceModuleEditor(module)
+                } else if (module is MidiInModule) {
+                    MidiDeviceEditor(
+                        label = "Source Device:",
+                        direction = MidiDirection.SOURCE,
+                        selected = module.deviceName,
+                        onSelect = { module.selectDevice(it) }
+                    )
+                } else if (module is MidiOutModule) {
+                    MidiDeviceEditor(
+                        label = "Destination Device:",
+                        direction = MidiDirection.DESTINATION,
+                        selected = module.deviceName,
+                        onSelect = { module.selectDevice(it) }
+                    )
                 } else if (module is InputModule) {
                     module.patchJack?.let { jack ->
                         JackEditorRow(jack)
@@ -355,6 +373,73 @@ private fun LinkModuleEditor(module: LinkModule) {
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * Device picker shared by midiIn and midiOut.
+ *
+ * Opening the bridge is what makes the browser ask for MIDI permission, so it is deferred to the
+ * moment this editor appears rather than done at startup. "None" is offered first so a patch can
+ * be detached from a device without deleting the module.
+ */
+@Composable
+private fun MidiDeviceEditor(
+    label: String,
+    direction: MidiDirection,
+    selected: String,
+    onSelect: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { MidiDeviceService.open() }
+    val deviceNames = MidiDeviceService.endpointNames(direction)
+    val error = MidiDeviceService.errorMessage
+
+    Column(
+        modifier = Modifier.padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(label, fontSize = 12.sp, color = LABEL_COLOR)
+        Box {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, BORDER_COLOR, RoundedCornerShape(4.dp))
+                    .background(Color.White)
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                    .clickable { expanded = true }
+            ) {
+                Text(if (selected.isEmpty()) "None" else selected, fontSize = 13.sp)
+            }
+            androidx.compose.material3.DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                CompactDropdownMenuItem(
+                    text = { Text("None", fontSize = 12.sp) },
+                    onClick = {
+                        onSelect("")
+                        FileState.markDirty()
+                        expanded = false
+                    }
+                )
+                deviceNames.forEach { name ->
+                    CompactDropdownMenuItem(
+                        text = { Text(name, fontSize = 12.sp) },
+                        onClick = {
+                            onSelect(name)
+                            FileState.markDirty()
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
+        if (error != null) {
+            Text(error, fontSize = 11.sp, color = HEADER_COLOR)
+        } else if (deviceNames.isEmpty()) {
+            Text("No MIDI devices found.", fontSize = 11.sp, color = LABEL_COLOR)
         }
     }
 }

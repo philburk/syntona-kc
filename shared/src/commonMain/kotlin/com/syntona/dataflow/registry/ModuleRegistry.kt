@@ -91,6 +91,8 @@ object ModuleRegistry {
         voices.modules.add(ModuleEntry("packVoice") { PackVoiceModule() })
         voices.modules.add(ModuleEntry("packBend") { PackBendModule() })
         voices.modules.add(ModuleEntry("packNote") { PackNoteModule() })
+        voices.modules.add(ModuleEntry("midiIn") { MidiInModule() })
+        voices.modules.add(ModuleEntry("midiOut") { MidiOutModule() })
 
         val compose = getOrCreateBundle(music, "compose")
         compose.modules.add(ModuleEntry("beatClock") { BeatClockModule() })

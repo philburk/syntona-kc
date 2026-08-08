@@ -1,0 +1,432 @@
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "core.input.loadKick",
+      "name": "loadKick",
+      "x": 51.1,
+      "y": 181
+    },
+    {
+      "id": 1,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 46.9,
+      "y": 13.1,
+      "text": "The midiOut module will send voice messages to a MIDI device.\nThe device could be an external synthesizer or another MIDI capable app.\nOn Mac OS use the Audio MIDI Setup and the IAC Driver to connect Syntona to Logic Pro or other apps.",
+      "w": 609.69824,
+      "h": 89.25
+    },
+    {
+      "id": 2,
+      "type": "music.compose.recSeq",
+      "name": "recSeq",
+      "x": 460.1,
+      "y": 163,
+      "jacks": {
+        "step": {
+          "v": 2706,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "stepsPerCycle": {
+          "v": 8,
+          "min": 2,
+          "max": 32,
+          "kickable": false
+        },
+        "density": {
+          "v": 0.781637858971406,
+          "min": 0,
+          "max": 1,
+          "kickable": false
+        },
+        "limit": {
+          "v": 11,
+          "min": 2,
+          "max": 35,
+          "kickable": false
+        },
+        "maxJump": {
+          "v": 5,
+          "min": 2,
+          "max": 35,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "music.compose.scale",
+      "name": "scale",
+      "x": 673.9,
+      "y": 161.1,
+      "jacks": {
+        "in": {
+          "v": 18,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "offset": {
+          "v": 36,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        }
+      },
+      "scale": "0,2,4,7,9"
+    },
+    {
+      "id": 4,
+      "type": "core.view.showMany",
+      "name": "showMany",
+      "x": 651,
+      "y": 368.9,
+      "jacks": {
+        "in": {
+          "v": 79,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "music.voices.packNote",
+      "name": "packNote",
+      "x": 963,
+      "y": 159.9,
+      "jacks": {
+        "pitch": {
+          "v": 79,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "tag": {
+          "v": -1,
+          "min": -1,
+          "max": 127,
+          "kickable": false
+        },
+        "amplitude": {
+          "v": 0.7715466873013581,
+          "min": 0,
+          "max": 2,
+          "kickable": false
+        },
+        "duration": {
+          "v": 115.63032261414693,
+          "min": 0,
+          "max": 1000,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "music.compose.recSeq",
+      "name": "recSeq",
+      "x": 460.1,
+      "y": 376,
+      "jacks": {
+        "step": {
+          "v": 2706,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "stepsPerCycle": {
+          "v": 4,
+          "min": 2,
+          "max": 32,
+          "kickable": false
+        },
+        "density": {
+          "v": 0.35145642003033056,
+          "min": 0,
+          "max": 1,
+          "kickable": false
+        },
+        "limit": {
+          "v": 11,
+          "min": 2,
+          "max": 35,
+          "kickable": false
+        },
+        "maxJump": {
+          "v": 5,
+          "min": 2,
+          "max": 35,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "core.math.+",
+      "name": "+",
+      "x": 588.9,
+      "y": 150,
+      "jacks": {
+        "A": {
+          "v": 8,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "B": {
+          "v": 10,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "core.basic.mod8",
+      "name": "mod8",
+      "x": 156,
+      "y": 347.9,
+      "jacks": {
+        "reset": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 2706,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "core.basic.seq8",
+      "name": "seq8",
+      "x": 311.9,
+      "y": 373.9,
+      "jacks": {
+        "reset": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 339,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in0": {
+          "v": 0,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        },
+        "in1": {
+          "v": 0,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        },
+        "in2": {
+          "v": 0,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        },
+        "in3": {
+          "v": 0,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        },
+        "in4": {
+          "v": 0,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        },
+        "in5": {
+          "v": 0,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        },
+        "in6": {
+          "v": 0,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        },
+        "in7": {
+          "v": 0,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        }
+      },
+      "stepValues": ["36.0", "0.0", "0.0", "0.0", "41.0", "0.0", "0.0", "0.0"]
+    },
+    {
+      "id": 10,
+      "type": "core.basic.counter",
+      "name": "counter",
+      "x": 219,
+      "y": 418.9,
+      "jacks": {
+        "reset": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "inc": {
+          "v": 0,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 11,
+      "type": "music.compose.beatClock",
+      "name": "beatClock",
+      "x": 238,
+      "y": 166.9,
+      "jacks": {
+        "tempo": {
+          "v": 90.08590212755715,
+          "min": 20,
+          "max": 300,
+          "kickable": false
+        }
+      },
+      "division": "1/4"
+    },
+    {
+      "id": 12,
+      "type": "music.voices.midiOut",
+      "name": "midiOut",
+      "x": 1079,
+      "y": 234.9,
+      "jacks": {
+        "in": {
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        }
+      },
+      "device": "Gervill"
+    }
+  ],
+  "connections": [
+    {
+      "from": 2,
+      "fromJack": "output",
+      "to": 4,
+      "toJack": "in"
+    },
+    {
+      "from": 3,
+      "fromJack": "out",
+      "to": 5,
+      "toJack": "pitch"
+    },
+    {
+      "from": 3,
+      "fromJack": "out",
+      "to": 4,
+      "toJack": "in"
+    },
+    {
+      "from": 2,
+      "fromJack": "output",
+      "to": 7,
+      "toJack": "A"
+    },
+    {
+      "from": 7,
+      "fromJack": "out",
+      "to": 3,
+      "toJack": "in"
+    },
+    {
+      "from": 6,
+      "fromJack": "output",
+      "to": 3,
+      "toJack": "in"
+    },
+    {
+      "from": 8,
+      "fromJack": "out0",
+      "to": 10,
+      "toJack": "inc"
+    },
+    {
+      "from": 10,
+      "fromJack": "out",
+      "to": 9,
+      "toJack": "in"
+    },
+    {
+      "from": 9,
+      "fromJack": "out0",
+      "to": 3,
+      "toJack": "offset"
+    },
+    {
+      "from": 9,
+      "fromJack": "out4",
+      "to": 3,
+      "toJack": "offset"
+    },
+    {
+      "from": 0,
+      "fromJack": "kick",
+      "to": 11,
+      "toJack": "reset"
+    },
+    {
+      "from": 0,
+      "fromJack": "kick",
+      "to": 11,
+      "toJack": "start"
+    },
+    {
+      "from": 11,
+      "fromJack": "output",
+      "to": 6,
+      "toJack": "step"
+    },
+    {
+      "from": 11,
+      "fromJack": "output",
+      "to": 2,
+      "toJack": "step"
+    },
+    {
+      "from": 11,
+      "fromJack": "output",
+      "to": 8,
+      "toJack": "in"
+    },
+    {
+      "from": 5,
+      "fromJack": "out",
+      "to": 12,
+      "toJack": "in"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 1390,
+  "windowHeight": 906.6651611328125
+}

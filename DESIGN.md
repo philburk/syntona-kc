@@ -92,7 +92,7 @@ Add a module that can execute a script. (ECMA). Input and output ports are decla
   and a rubber-band line to the connected OutputJack should be drawn.
   If the pointer is released over an InputJack then a connection should be made and a Wire should be drawn.
 
-#### Voice Messages
+## Voice Messages
 
 VoiceMessage is a subclass of Message. It is a compound messages that contain fields related to MIDI Channel Voice Messages.
 
@@ -137,7 +137,7 @@ Questions:
 * Turning notes on and off is tedious. Maybe a duration field could simplify this.
 For controllers, the duration could define a ramp to the new value for smoothing.
 
-#### Polyphonic Patches
+## Polyphonic Patches
 
 The goal is to allow the user to design a custom synthesizer voice using a dataflow patch editor.
 The patch will be playable as a multi-note polyphonic instrument.
@@ -158,6 +158,24 @@ When a NoteOn message is received the parameters will be passed to the Polyphoni
 
 The aInput and aOutput modules will work as before except they will
 be added as Ports in all the contained Circuits using addPort.
+
+## MIDI Device Input/Output
+
+Add MIDI support using kc-midi-bridge.
+Add new midiIn and midiOut modules to the music.voice bundle.
+
+The midiIn should have an output jack for voice messages.
+Its module editor will have a menu for selecting the source MIDI device.
+
+The midiOut should have an input jack for voice messages.
+Its module editor will have a menu for selecting the destination MIDI device.
+Fractional pitches will be rounded to nearest MIDI pitch for MIDI 1.0.
+
+unpackNote and unpackControl will be added to the voice bundle.
+The unpackNote module will ignore messages that are not NOTE_ON or NOTE_OFF.
+Or maybe unpackNoteOn and unpackNoteOff are needed.
+Could add midiSplit to route incoming voice messages by opcode.
+
 
 ### Harmonic Progression Editor
 

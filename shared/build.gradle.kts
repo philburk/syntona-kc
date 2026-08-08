@@ -43,6 +43,7 @@ kotlin {
 
         audioMain.dependencies {
             implementation("com.softsynth:audio-bridge:0.4.0")
+            implementation("com.softsynth:midi-bridge:0.1.0")
         }
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)

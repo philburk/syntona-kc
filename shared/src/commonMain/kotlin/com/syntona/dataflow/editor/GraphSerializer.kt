@@ -16,6 +16,8 @@ import com.syntona.dataflow.modules.SegmentedEnvelopeModule
 import com.syntona.dataflow.modules.LinkModule
 import com.syntona.dataflow.modules.KeyMatchModule
 import com.syntona.dataflow.modules.KeyNotesModule
+import com.syntona.dataflow.modules.MidiInModule
+import com.syntona.dataflow.modules.MidiOutModule
 import com.syntona.dataflow.modules.PianoRollModule
 import com.syntona.dataflow.modules.PianoRollNote
 import com.syntona.dataflow.modules.Ratio
@@ -186,6 +188,12 @@ object GraphSerializer {
             }
             if (module is KeyMatchModule) {
                 append(",\"keyChar\":\"${module.keyChar.toString().jsonEscape}\"")
+            }
+            if (module is MidiInModule) {
+                append(",\"device\":\"${module.deviceName.jsonEscape}\"")
+            }
+            if (module is MidiOutModule) {
+                append(",\"device\":\"${module.deviceName.jsonEscape}\"")
             }
             if (module is BeatClockModule) {
                 append(",\"division\":\"${module.division.jsonEscape}\"")
@@ -369,6 +377,12 @@ object GraphSerializer {
             }
             if (module is KeyMatchModule) {
                 (obj?.map?.get("keyChar") as? JsonValue.Str)?.value?.firstOrNull()?.let { module.keyChar = it }
+            }
+            if (module is MidiInModule) {
+                (obj?.map?.get("device") as? JsonValue.Str)?.value?.let { module.selectDevice(it) }
+            }
+            if (module is MidiOutModule) {
+                (obj?.map?.get("device") as? JsonValue.Str)?.value?.let { module.selectDevice(it) }
             }
             if (module is BeatClockModule) {
                 (obj?.map?.get("division") as? JsonValue.Str)?.value?.let { module.division = it }
