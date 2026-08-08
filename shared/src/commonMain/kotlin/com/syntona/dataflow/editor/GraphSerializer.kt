@@ -59,6 +59,36 @@ object GraphSerializer {
         return JsonValue.Obj(merged).stringify(0)
     }
 
+    /** Strips all non-string formatting whitespace from a JSON string. */
+    fun minifyJson(json: String): String {
+        val sb = StringBuilder(json.length)
+        var inString = false
+        var i = 0
+        while (i < json.length) {
+            val c = json[i]
+            if (c == '"') {
+                inString = !inString
+                sb.append(c)
+            } else if (inString) {
+                if (c == '\\') {
+                    sb.append(c)
+                    if (i + 1 < json.length) {
+                        i++
+                        sb.append(json[i])
+                    }
+                } else {
+                    sb.append(c)
+                }
+            } else {
+                if (!c.isWhitespace()) {
+                    sb.append(c)
+                }
+            }
+            i++
+        }
+        return sb.toString()
+    }
+
     /** Reads the root patch window's saved geometry, if any, without touching module data. */
     fun readRootWindowGeometry(json: String): RootWindowGeometry? {
         val root = try { JsonParser(json).parse() as? JsonValue.Obj } catch (_: Exception) { null } ?: return null
@@ -99,25 +129,41 @@ object GraphSerializer {
             val pos = graphState.modulePositions[module] ?: Offset.Zero
             val xDp = pos.x
             val yDp = pos.y
+            val xDpStr = if (xDp % 1f == 0f) xDp.toInt().toString() else (kotlin.math.round(xDp * 10f) / 10f).toString()
+            val yDpStr = if (yDp % 1f == 0f) yDp.toInt().toString() else (kotlin.math.round(yDp * 10f) / 10f).toString()
             val resolvedType = ModuleRegistry.getBundlePath(module.type) ?: module.type
             append("{\"id\":$i,\"type\":\"${resolvedType.jsonEscape}\",\"name\":\"${module.name.jsonEscape}\"")
-            append(",\"x\":$xDp,\"y\":$yDp,\"jacks\":{")
-            val valueJacks = module.inputs.filter { jack ->
-                jack !is CommandJack &&
-                (jack.lastMessage is Message.FloatValue || jack is AudioInputJack ||
-                 jack.min != 0.0 || jack.max != 100.0 || jack.isKickable || jack.getValue() != 0.0 ||
-                 ((module is KnobModule || module is FaderModule) && jack.name == "in") ||
-                 (module is SequenceModule && jack.name.startsWith("in") && jack.name.substring(2).toIntOrNull() != null))
-            }
-            valueJacks.forEachIndexed { j, jack ->
-                if (j > 0) append(",")
-                append("\"${jack.name.jsonEscape}\":{\"v\":${jack.getValue()},\"min\":${jack.min},\"max\":${jack.max},\"kickable\":${jack.isKickable}")
-                if (jack is AudioInputJack) {
-                    append(",\"add\":${jack.isValueAdded}")
+            append(",\"x\":$xDpStr,\"y\":$yDpStr")
+            // Every editable jack is written out. Deciding what to omit by comparing against
+            // hardcoded defaults does not work: modules override min/max/kickable in their own
+            // constructors, and a missing field on load means "keep the module's own default",
+            // so anything omitted that does not match is silently lost. Redundant fields cost
+            // almost nothing once the file is compressed for sharing.
+            val valueJacks = module.inputs.filter { it !is CommandJack }
+            if (valueJacks.isNotEmpty()) {
+                append(",\"jacks\":{")
+                valueJacks.forEachIndexed { j, jack ->
+                    if (j > 0) append(",")
+                    append("\"${jack.name.jsonEscape}\":{")
+                    val fields = mutableListOf<String>()
+                    // "v" is restored by delivering a message, which fires execute() on a kickable
+                    // jack. Only jacks that actually hold a value get one, so loading a patch does
+                    // not trigger modules that were merely sitting there.
+                    val holdsValue = jack.lastMessage is Message.FloatValue ||
+                        jack is AudioInputJack ||
+                        ((module is KnobModule || module is FaderModule) && jack.name == "in") ||
+                        (module is SequenceModule && jack.name.startsWith("in") &&
+                            jack.name.substring(2).toIntOrNull() != null)
+                    if (holdsValue) fields.add("\"v\":${jack.getValue()}")
+                    fields.add("\"min\":${jack.min}")
+                    fields.add("\"max\":${jack.max}")
+                    fields.add("\"kickable\":${jack.isKickable}")
+                    if (jack is AudioInputJack) fields.add("\"add\":${jack.isValueAdded}")
+                    append(fields.joinToString(","))
+                    append("}")
                 }
                 append("}")
             }
-            append("}")
             if (module is CommentModule) {
                 append(",\"text\":\"${module.text.jsonEscape}\"")
                 append(",\"w\":${module.width},\"h\":${module.height}")

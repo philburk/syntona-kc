@@ -15,17 +15,15 @@ keyNote13 needs plain index out, octave in
 
 Add unpackNote
 
-Extend range of wavefolder above 8.0
+Extend range of wavefolder above 8.0 (KSyn)
 
 Add wavefolder example
 
-Envelope Editor needs axis labels, X extend at right edge
+Envelope Editor needs axis labels, X extend at right edge (KSyn)
 
 Modules can get wider because of changing number values, but not shrink, cut down on jitter, see function
 
 When opening a new root window, offset it so that it does not hide the top window.
-
-Encode entire patch into a URL. JSON>nowhite>ZIP>UUENCODE
 
 Add patch inputs for start/stop/etc that are commands with buttons.
 

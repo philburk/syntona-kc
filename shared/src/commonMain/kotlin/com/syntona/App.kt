@@ -11,6 +11,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.*
@@ -207,6 +208,47 @@ fun loadIntoDocument(
 }
 
 /**
+ * Loads whatever patch the current URL names into [document].
+ *
+ * That is either a patch encoded in the fragment by "Share Piece as URL...", or a bundled example
+ * or tutorial named by the query string. Shared by the startup load and by the listener that
+ * reacts to the URL changing later, so both behave identically.
+ *
+ * @return true if a patch was loaded.
+ */
+private suspend fun loadPatchFromUrl(
+    mdiState: MdiState,
+    document: DocumentState,
+    density: Float
+): Boolean {
+    val encodedJson = getUrlEncodedPatchJson()
+    if (!encodedJson.isNullOrEmpty()) {
+        return try {
+            loadIntoDocument(
+                mdiState, document, "shared_piece$SYNTONA_FILE_SUFFIX", encodedJson, density
+            )
+            true
+        } catch (e: Exception) {
+            println("Failed to load encoded URL patch: ${e.message}")
+            false
+        }
+    }
+
+    val rawUrlPath = getUrlPatchPath()
+    if (rawUrlPath.isNullOrEmpty()) return false
+    val filesIndex = com.syntona.SharedResources.getFilesIndex().toSet()
+    val validatedPath = sanitizeAndValidateResourcePath(rawUrlPath, filesIndex) ?: return false
+    return try {
+        val bytes = com.syntona.SharedResources.readBytes("files/$validatedPath")
+        loadIntoDocument(mdiState, document, validatedPath, bytes.decodeToString(), density)
+        true
+    } catch (e: Exception) {
+        println("Failed to load URL patch: ${e.message}")
+        false
+    }
+}
+
+/**
  * True when this is a key-down of [letter], for matching shortcuts such as Cmd+C.
  *
  * Matching on [Key] alone is not enough. When a modifier is held, Compose on the web reports the
@@ -269,6 +311,16 @@ fun App(
             }
         }
 
+        // Transient banner shown after "Share Piece as URL...". Null when nothing to say.
+        var shareNotice by remember { mutableStateOf<String?>(null) }
+        var shareNoticeIsProblem by remember { mutableStateOf(false) }
+        shareNotice?.let { notice ->
+            LaunchedEffect(notice) {
+                kotlinx.coroutines.delay(if (shareNoticeIsProblem) 6000 else 3000)
+                shareNotice = null
+            }
+        }
+
         val mdiState = remember {
             MdiState().also { mdi ->
                 val document = DocumentState(rootPatch)
@@ -309,22 +361,31 @@ fun App(
         LaunchedEffect(Unit) {
             syntonaModel.start()
             com.syntona.dataflow.registry.HelpRegistry.loadHelpFilesIndex()
-            val rawUrlPath = getUrlPatchPath()
-            if (!rawUrlPath.isNullOrEmpty()) {
-                val filesIndex = com.syntona.SharedResources.getFilesIndex().toSet()
-                val validatedPath = sanitizeAndValidateResourcePath(rawUrlPath, filesIndex)
-                if (validatedPath != null) {
-                    try {
-                        val bytes = com.syntona.SharedResources.readBytes("files/$validatedPath")
-                        val activeDoc = FileState.activeDocument ?: FileState.documents.firstOrNull()
-                        if (activeDoc != null) {
-                            loadIntoDocument(mdiState, activeDoc, validatedPath, bytes.decodeToString(), appDensity)
-                        }
-                    } catch (e: Exception) {
-                        println("Failed to load initial URL patch: ${e.message}")
+            val activeDoc = FileState.activeDocument ?: FileState.documents.firstOrNull()
+            if (activeDoc != null) {
+                loadPatchFromUrl(mdiState, activeDoc, appDensity)
+            }
+        }
+
+        // Pasting a new share link over an old one only changes the fragment, which the browser
+        // treats as the same document: no reload happens, so the new patch has to be picked up
+        // here. The user's work is never replaced without asking.
+        DisposableEffect(mdiState, scope) {
+            val stopListening = observeUrlPatchChanges {
+                val engine = syntonaModel.engine
+                FileState.requestIfDirty(
+                    openInNewWindow = {
+                        val document = openNewDocument(mdiState, engine, appDensity)
+                        scope.launch { loadPatchFromUrl(mdiState, document, appDensity) }
+                    }
+                ) {
+                    val document = FileState.activeDocument ?: FileState.documents.firstOrNull()
+                    if (document != null) {
+                        scope.launch { loadPatchFromUrl(mdiState, document, appDensity) }
                     }
                 }
             }
+            onDispose { stopListening() }
         }
         LaunchedEffect(mdiState, scope) {
             LinkModule.onTriggerLoad = { path ->
@@ -480,6 +541,28 @@ fun App(
                                      val docRoot = activeDoc?.rootPatch ?: rootPatch
                                      val gs = docRoot.graphState
                                      val engine = syntonaModel.engine
+                                     val performShareUrl: () -> Unit = {
+                                         val json = GraphSerializer.serialize(
+                                             gs, gs.modules.toList(), appDensity,
+                                             rootWindowX = docRoot.windowX,
+                                             rootWindowY = docRoot.windowY,
+                                             rootWindowWidth = docRoot.windowWidth,
+                                             rootWindowHeight = docRoot.windowHeight
+                                         )
+                                         val minified = GraphSerializer.minifyJson(json)
+                                         scope.launch {
+                                             val result = sharePatchUrl(minified)
+                                             shareNoticeIsProblem =
+                                                 result.url == null || !result.copiedToClipboard || result.warning != null
+                                             shareNotice = when {
+                                                 result.url == null -> "Could not build a link for this patch."
+                                                 !result.copiedToClipboard ->
+                                                     "Link created, but the browser would not write to the clipboard."
+                                                 result.warning != null -> result.warning
+                                                 else -> "URL copied to clipboard!"
+                                             }
+                                         }
+                                     }
                                      var fileExpanded by remember { mutableStateOf(false) }
                                      Box {
                                          Button(onClick = { fileExpanded = true }) { Text("File") }
@@ -742,17 +825,26 @@ fun App(
                                                   }
                                               )
                                               CompactDropdownMenuItem(
-                                                  text = { Text("Detach File from Patch") },
-                                                  enabled = mdiState.activeGraphState?.parentPatch?.filePath != null,
-                                                  onClick = {
-                                                      fileExpanded = false
-                                                      val target = mdiState.activeGraphState?.parentPatch
-                                                      if (target != null) {
-                                                          target.filePath = null
-                                                      }
-                                                  }
-                                              )
-                                              HorizontalDivider()
+                                                   text = { Text("Detach File from Patch") },
+                                                   enabled = mdiState.activeGraphState?.parentPatch?.filePath != null,
+                                                   onClick = {
+                                                       fileExpanded = false
+                                                       val target = mdiState.activeGraphState?.parentPatch
+                                                       if (target != null) {
+                                                           target.filePath = null
+                                                       }
+                                                   }
+                                               )
+                                               if (isShareUrlAvailable()) {
+                                                   CompactDropdownMenuItem(
+                                                       text = { Text("Share Piece as URL...") },
+                                                       onClick = {
+                                                           fileExpanded = false
+                                                           performShareUrl()
+                                                       }
+                                                   )
+                                               }
+                                               HorizontalDivider()
                                               CompactDropdownMenuItem(
                                                   text = { Text("Settings...") },
                                                   onClick = {
@@ -1256,6 +1348,29 @@ fun App(
                                 }) { Text("Cancel") }
                             }
                         )
+                    }
+                    shareNotice?.let { notice ->
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(top = 48.dp, end = 16.dp),
+                            contentAlignment = Alignment.TopEnd
+                        ) {
+                            Surface(
+                                color = if (shareNoticeIsProblem) Color(0xFFB35300) else Color(0xFF2E7D32),
+                                contentColor = Color.White,
+                                shape = RoundedCornerShape(6.dp),
+                                shadowElevation = 6.dp
+                            ) {
+                                Text(
+                                    text = notice,
+                                    modifier = Modifier
+                                        .widthIn(max = 320.dp)
+                                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
                     }
                     } // end outer Box
                 }
