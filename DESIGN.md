@@ -176,7 +176,6 @@ The unpackNote module will ignore messages that are not NOTE_ON or NOTE_OFF.
 Or maybe unpackNoteOn and unpackNoteOff are needed.
 Could add midiSplit to route incoming voice messages by opcode.
 
-
 ### Harmonic Progression Editor
 
 Useful but maybe mentally constraining
