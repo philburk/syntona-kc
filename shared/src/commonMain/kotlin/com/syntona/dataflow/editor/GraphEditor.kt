@@ -582,7 +582,7 @@ fun KeyMatchModuleNode(module: KeyMatchModule, state: GraphState) {
         Column {
             ModuleHeader(module = module, state = state, headerColor = colors.headerDefault)
 
-            // Body containing the button and unlabelled jacks
+            // Body containing the button and labeled jacks
             Row(
                 modifier = Modifier
                     .fillMaxSize()
@@ -638,67 +638,17 @@ fun KeyMatchModuleNode(module: KeyMatchModule, state: GraphState) {
                     )
                 }
 
-                // Unlabelled Jacks stacked vertically
+                // Labeled Jacks stacked vertically
                 Column(
-                    modifier = Modifier.fillMaxHeight(),
+                    modifier = Modifier.fillMaxHeight().weight(1f),
                     verticalArrangement = Arrangement.SpaceEvenly,
                     horizontalAlignment = Alignment.End
                 ) {
-                    UnlabelledJackView(module.on, state)
-                    UnlabelledJackView(module.off, state)
+                    JackView(module.on, state, isLeft = false)
+                    JackView(module.off, state, isLeft = false)
                 }
             }
         }
-    }
-}
-
-@Composable
-fun UnlabelledJackView(jack: Jack, state: GraphState) {
-    val colors = LocalGraphColors.current
-    val connectorColor = colors.jackDefault
-    var jackRootPosition by remember { mutableStateOf(Offset.Zero) }
-
-    Box(
-        modifier = Modifier
-            .size(12.dp)
-            .onGloballyPositioned { layoutCoordinates ->
-                jackRootPosition = layoutCoordinates.positionInRoot()
-                val size = layoutCoordinates.size
-                val pos = jackRootPosition - state.rootOffset
-                val edgeOffset = Offset(size.width.toFloat(), size.height / 2f)
-                state.updateJackOffset(jack, pos + edgeOffset, Size(size.width.toFloat(), size.height.toFloat()))
-            }
-            .pointerInput(jack) {
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    val isShiftPressed = currentEvent.keyboardModifiers.isShiftPressed
-                    val startOffset = down.position
-                    if (jack is OutputJack) state.startDraggingFromOutput(jack, isShiftPressed)
-                    else if (jack is InputJack) state.startDraggingFromInput(jack)
-                    state.onPointerMove(jackRootPosition - state.rootOffset + startOffset)
-
-                    while (true) {
-                        val event = awaitPointerEvent()
-                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                        if (!change.pressed) {
-                            state.onPointerUp(null)
-                            break
-                        }
-                        val dragAmount = change.positionChange()
-                        if (dragAmount != Offset.Zero) {
-                            change.consume()
-                            state.onPointerMove(state.dragPointerPosition + dragAmount)
-                        }
-                    }
-                }
-            }
-    ) {
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .background(connectorColor)
-                .align(Alignment.Center)
-        )
     }
 }
 
