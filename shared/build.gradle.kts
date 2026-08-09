@@ -41,10 +41,6 @@ kotlin {
         jvmMain.get().dependsOn(audioMain)
         wasmJsMain.get().dependsOn(audioMain)
 
-        audioMain.dependencies {
-            implementation("com.softsynth:audio-bridge:0.4.0")
-            implementation("com.softsynth:midi-bridge:0.1.0")
-        }
         androidMain.dependencies {
             implementation(libs.compose.uiToolingPreview)
         }
@@ -58,6 +54,8 @@ kotlin {
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
 
+            implementation("com.softsynth:audio-bridge:0.4.0")
+            implementation("com.softsynth:midi-bridge:0.1.0")
             implementation("com.softsynth.ksyn:ksyn:1.2.0")
             implementation("com.softsynth.ksyn.compose:ksyn-compose:1.2.0")
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
