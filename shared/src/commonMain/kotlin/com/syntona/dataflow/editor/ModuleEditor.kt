@@ -532,7 +532,6 @@ private fun KeyMatchModuleEditor(module: KeyMatchModule) {
 private fun KeyNotesModuleEditor(module: KeyNotesModule) {
     var bottomKeysText by remember(module) { mutableStateOf(module.bottomOctaveKeys) }
     var topKeysText by remember(module) { mutableStateOf(module.topOctaveKeys) }
-    var startingNoteText by remember(module) { mutableStateOf(module.startingNote.toString()) }
 
     Column(
         modifier = Modifier.padding(12.dp),
@@ -584,29 +583,12 @@ private fun KeyNotesModuleEditor(module: KeyNotesModule) {
             }
         }
 
-        Column {
-            Text("Starting Midi Note:", fontSize = 12.sp, color = LABEL_COLOR)
-            Spacer(modifier = Modifier.height(4.dp))
-            Box(
-                modifier = Modifier
-                    .width(80.dp)
-                    .border(1.dp, BORDER_COLOR, RoundedCornerShape(4.dp))
-                    .background(Color.White)
-                    .padding(horizontal = 8.dp, vertical = 6.dp)
-            ) {
-                androidx.compose.foundation.text.BasicTextField(
-                    value = startingNoteText,
-                    onValueChange = {
-                        startingNoteText = it
-                        it.toIntOrNull()?.let { note ->
-                            module.startingNote = note
-                            FileState.markDirty()
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp)
-                )
-            }
+        androidx.compose.material3.HorizontalDivider(color = BORDER_COLOR, thickness = 1.dp)
+
+        // The octave jack replaced the old "Starting Midi Note" field: the lowest key sounds
+        // at 12 * octave.
+        module.inputs.forEach { jack ->
+            JackEditorRow(jack)
         }
     }
 }

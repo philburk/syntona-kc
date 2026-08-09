@@ -99,6 +99,8 @@ import com.syntona.dataflow.modules.SendModule
 import com.syntona.dataflow.modules.ReceiveModule
 import com.syntona.dataflow.modules.CommentModule
 import com.syntona.dataflow.modules.KeyboardModule
+import com.syntona.dataflow.modules.SEMITONES_PER_OCTAVE
+import com.syntona.dataflow.modules.currentAmplitude
 import com.softsynth.ksyn.compose.BlackWhiteKeyboard
 import com.syntona.dataflow.modules.SequenceModule
 import com.syntona.dataflow.modules.ModuloSelectModule
@@ -1558,6 +1560,9 @@ fun CommentModuleNode(module: CommentModule, state: GraphState) {
     }
 }
 
+/** Width of one jack in the keyboard's top row, wide enough for "amplitude". */
+private val KEYBOARD_JACK_WIDTH = 76.dp
+
 @Composable
 fun KeyboardModuleNode(module: KeyboardModule, state: GraphState) {
     val colors = LocalGraphColors.current
@@ -1567,62 +1572,62 @@ fun KeyboardModuleNode(module: KeyboardModule, state: GraphState) {
         headerColor = colors.headerInputOutput,
         initialWidth = module.width.dp,
         initialHeight = module.height.dp,
-        minWidth = 150.dp,
+        minWidth = 260.dp,
         minHeight = 80.dp,
         onResize = { w, h ->
             module.width = w.value
             module.height = h.value
         }
     ) { _, _ ->
-        Row(
-            modifier = Modifier.fillMaxSize().padding(4.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier.weight(1f).fillMaxHeight()
+        Column(modifier = Modifier.fillMaxSize().padding(4.dp)) {
+            // Jacks sit above the keys rather than beside them, so the keyboard gets the whole
+            // width of the module. JackView, not CompactJackConnector, because these carry values
+            // worth seeing: it swaps the name for the value on hover and drags to set it.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
             ) {
+                Column() {
+                    module.inputs.forEach { jack ->
+                        Box(modifier = Modifier.width(KEYBOARD_JACK_WIDTH)) {
+                            JackView(jack, state, isLeft = true)
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                module.outputs.forEach { jack ->
+                    Box(modifier = Modifier.width(KEYBOARD_JACK_WIDTH)) {
+                        JackView(jack, state, isLeft = false)
+                    }
+                }
+            }
+            Box(
+                modifier = Modifier.weight(1f).fillMaxWidth()
+            ) {
+                // Reading module.octave, not the jack, is what makes the keys redraw and start
+                // sending their new pitches when the octave input changes.
+                val sendNote = { noteNumber: Int, opcode: Message.VoiceOpcode ->
+                    val e = state.engine
+                    val msg = Message.VoiceMessage(
+                        time = ScoreClock.now(),
+                        opcode = opcode,
+                        tag = noteNumber,
+                        value = noteNumber.toDouble(),
+                        extra = module.currentAmplitude()
+                    )
+                    if (e != null) {
+                        e.post(SendOutputCommand(module.output, msg))
+                    } else {
+                        module.output.send(msg)
+                    }
+                }
                 BlackWhiteKeyboard(
                     modifier = Modifier.fillMaxSize(),
-                    onKeyDown = { noteNumber ->
-                        val e = state.engine
-                        val msg = Message.VoiceMessage(
-                            time = ScoreClock.now(),
-                            opcode = Message.VoiceOpcode.NOTE_ON,
-                            tag = noteNumber,
-                            value = noteNumber.toDouble(),
-                            extra = 0.2
-                        )
-                        if (e != null) {
-                            e.post(SendOutputCommand(module.output, msg))
-                        } else {
-                            module.output.send(msg)
-                        }
-                    },
-                    onKeyUp = { noteNumber ->
-                        val e = state.engine
-                        val msg = Message.VoiceMessage(
-                            time = ScoreClock.now(),
-                            opcode = Message.VoiceOpcode.NOTE_OFF,
-                            tag = noteNumber,
-                            value = noteNumber.toDouble(),
-                            extra = 0.2
-                        )
-                        if (e != null) {
-                            e.post(SendOutputCommand(module.output, msg))
-                        } else {
-                            module.output.send(msg)
-                        }
-                    },
+                    onKeyDown = { noteNumber -> sendNote(noteNumber, Message.VoiceOpcode.NOTE_ON) },
+                    onKeyUp = { noteNumber -> sendNote(noteNumber, Message.VoiceOpcode.NOTE_OFF) },
                     numNotes = module.numNotes,
-                    startingNote = 60
+                    startingNote = module.octave * SEMITONES_PER_OCTAVE
                 )
-            }
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-                modifier = Modifier.fillMaxHeight().padding(start = 4.dp)
-            ) {
-                module.outputs.forEach { CompactJackConnector(it, state, isLeft = false) }
             }
         }
     }

@@ -4,8 +4,8 @@
       "id": 0,
       "type": "ksyn.lineOut",
       "name": "lineOut",
-      "x": 556.9,
-      "y": 210,
+      "x": 701.9,
+      "y": 155,
       "jacks": {
         "input0": {
           "v": 0,
@@ -41,7 +41,7 @@
       "windowY": 60.957336,
       "windowWidth": 583.00946,
       "windowHeight": 589.9957,
-      "windowOpen": false,
+      "windowOpen": true,
       "patch": {
         "modules": [
           {
@@ -84,14 +84,14 @@
             "y": 22,
             "jacks": {
               "frequency": {
-                "v": 9.147310256958008,
+                "v": 7.153436660766602,
                 "min": 0.10000000149011612,
                 "max": 10,
                 "kickable": false,
                 "add": false
               },
               "amplitude": {
-                "v": 0.07174260169267654,
+                "v": 0.04665609076619148,
                 "min": 0,
                 "max": 1,
                 "kickable": false,
@@ -193,14 +193,14 @@
                 "add": false
               },
               "sustain": {
-                "v": 0.45036154985427856,
+                "v": 0.48947274684906006,
                 "min": 0,
                 "max": 1,
                 "kickable": false,
                 "add": false
               },
               "release": {
-                "v": 2.7154958248138428,
+                "v": 5.282153129577637,
                 "min": 0,
                 "max": 15,
                 "kickable": false,
@@ -270,8 +270,8 @@
       "id": 3,
       "type": "core.view.showMany",
       "name": "showMany",
-      "x": 257.9,
-      "y": 306.9,
+      "x": 143.9,
+      "y": 300.9,
       "jacks": {
         "in": {
           "min": 0,
@@ -286,7 +286,36 @@
       "name": "midiIn",
       "x": 52,
       "y": 205.9,
-      "device": "Arturia KeyStep 32"
+      "device": "MIDI"
+    },
+    {
+      "id": 5,
+      "type": "ksyn.data.recorder",
+      "name": "recorder",
+      "x": 514.9,
+      "y": 233,
+      "jacks": {
+        "in": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "amplitude": {
+          "v": 1,
+          "min": 0,
+          "max": 2,
+          "kickable": false,
+          "add": false
+        },
+        "latencyMs": {
+          "v": 0,
+          "min": 0,
+          "max": 1000,
+          "kickable": false
+        }
+      }
     }
   ],
   "connections": [
@@ -307,6 +336,18 @@
       "fromJack": "out",
       "to": 3,
       "toJack": "in"
+    },
+    {
+      "from": 1,
+      "fromJack": "output",
+      "to": 5,
+      "toJack": "in"
+    },
+    {
+      "from": 5,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "input1"
     }
   ],
   "windowX": 10,

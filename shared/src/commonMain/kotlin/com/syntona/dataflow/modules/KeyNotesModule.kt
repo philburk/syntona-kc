@@ -7,14 +7,26 @@ import com.syntona.core.model.ScoreTime
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
 
-class KeyNotesModule : Module("keyNotes") {
+class KeyNotesModule : Module("keyNotes"), PlayableKeys {
+    override val amplitudeIn = addInput("amplitude").also {
+        it.min = 0.0
+        it.max = 1.0
+    }
+    override val octaveIn = addInput("octave").also {
+        it.min = MIN_KEY_OCTAVE
+        it.max = MAX_KEY_OCTAVE
+    }
     val output = addVoiceOutput("out")
 
     var bottomOctaveKeys by mutableStateOf("zsxdcvgbhnjm,")
     var topOctaveKeys by mutableStateOf("q2w3er5t6y7u8io")
-    var startingNote by mutableStateOf(60)
 
     val activeNotes = mutableMapOf<Char, Int>()
+
+    init {
+        amplitudeIn.setValue(DEFAULT_KEY_AMPLITUDE)
+        octaveIn.setValue(DEFAULT_KEY_OCTAVE.toDouble())
+    }
 
     override fun teardown() {
         activeNotes.clear()
@@ -49,17 +61,19 @@ class KeyNotesModule : Module("keyNotes") {
                     }
                 }
                 if (found) {
-                    var noteNumber = startingNote + pitchOffset
+                    var noteNumber = basePitch() + pitchOffset
                     if (isShiftPressed) {
                         noteNumber += 24
                     }
+                    // Remembered so that releasing the key turns off the note that was struck,
+                    // even if the octave jack has moved in the meantime.
                     activeNotes[char] = noteNumber
                     val msg = Message.VoiceMessage(
                         time = time,
                         opcode = Message.VoiceOpcode.NOTE_ON,
                         tag = noteNumber,
                         value = noteNumber.toDouble(),
-                        extra = 0.2
+                        extra = currentAmplitude()
                     )
                     if (engine != null) {
                         engine.post(com.syntona.dataflow.engine.SendOutputCommand(output, msg))
@@ -79,7 +93,7 @@ class KeyNotesModule : Module("keyNotes") {
                     opcode = Message.VoiceOpcode.NOTE_OFF,
                     tag = noteNumber,
                     value = noteNumber.toDouble(),
-                    extra = 0.2
+                    extra = currentAmplitude()
                 )
                 if (engine != null) {
                     engine.post(com.syntona.dataflow.engine.SendOutputCommand(output, msg))

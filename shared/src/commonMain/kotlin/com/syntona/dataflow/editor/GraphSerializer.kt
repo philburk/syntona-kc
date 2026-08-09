@@ -18,6 +18,12 @@ import com.syntona.dataflow.modules.KeyMatchModule
 import com.syntona.dataflow.modules.KeyNotesModule
 import com.syntona.dataflow.modules.MidiInModule
 import com.syntona.dataflow.modules.MidiOutModule
+import com.syntona.dataflow.modules.LEGACY_KEY_BASE_PITCH
+import com.syntona.dataflow.modules.MAX_KEY_OCTAVE
+import com.syntona.dataflow.modules.MIN_KEY_OCTAVE
+import com.syntona.dataflow.modules.PlayableKeys
+import com.syntona.dataflow.modules.SEMITONES_PER_OCTAVE
+import kotlin.math.round
 import com.syntona.dataflow.modules.PianoRollModule
 import com.syntona.dataflow.modules.PianoRollNote
 import com.syntona.dataflow.modules.Ratio
@@ -216,7 +222,6 @@ object GraphSerializer {
             if (module is KeyNotesModule) {
                 append(",\"bottomOctaveKeys\":\"${module.bottomOctaveKeys.jsonEscape}\"")
                 append(",\"topOctaveKeys\":\"${module.topOctaveKeys.jsonEscape}\"")
-                append(",\"startingNote\":${module.startingNote}")
             }
             if (module is PianoRollModule) {
                 append(",\"bpm\":${module.bpm}")
@@ -419,7 +424,16 @@ object GraphSerializer {
                         module.topOctaveKeys = oldMap.drop(13)
                     }
                 }
-                (obj?.map?.get("startingNote") as? JsonValue.Num)?.value?.toInt()?.let { module.startingNote = it }
+            }
+
+            // Patches saved before the amplitude and octave jacks existed keep the pitch they
+            // played at: keyNotes stored an absolute "startingNote" and the keyboards were fixed
+            // at 60. The absence of a saved octave jack is what marks a patch as one of those.
+            if (module is PlayableKeys && jacks?.map?.containsKey("octave") != true) {
+                val legacyBase = (obj?.map?.get("startingNote") as? JsonValue.Num)?.value
+                    ?: LEGACY_KEY_BASE_PITCH
+                val octave = round(legacyBase / SEMITONES_PER_OCTAVE)
+                module.octaveIn.setValue(octave.coerceIn(MIN_KEY_OCTAVE, MAX_KEY_OCTAVE))
             }
 
             if (module is PolyPatchModule) {

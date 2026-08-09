@@ -29,8 +29,22 @@
       "id": 2,
       "type": "music.input.keyboard25",
       "name": "keyboard25",
-      "x": 69.9,
-      "y": 166.9,
+      "x": 55.9,
+      "y": 190.9,
+      "jacks": {
+        "amplitude": {
+          "v": 0.8,
+          "min": 0,
+          "max": 1,
+          "kickable": false
+        },
+        "octave": {
+          "v": 5,
+          "min": 2,
+          "max": 8,
+          "kickable": false
+        }
+      },
       "w": 733,
       "h": 239.875
     },
@@ -47,6 +61,29 @@
           "kickable": true
         }
       }
+    },
+    {
+      "id": 4,
+      "type": "music.input.keyNotes",
+      "name": "keyNotes",
+      "x": 144,
+      "y": 553.9,
+      "jacks": {
+        "amplitude": {
+          "v": 0.8,
+          "min": 0,
+          "max": 1,
+          "kickable": false
+        },
+        "octave": {
+          "v": 4,
+          "min": 2,
+          "max": 8,
+          "kickable": false
+        }
+      },
+      "bottomOctaveKeys": "zsxdcvgbhnjm,",
+      "topOctaveKeys": "q2w3er5t6y7u8io"
     }
   ],
   "connections": [
@@ -60,6 +97,18 @@
       "from": 2,
       "fromJack": "out",
       "to": 3,
+      "toJack": "in"
+    },
+    {
+      "from": 4,
+      "fromJack": "out",
+      "to": 3,
+      "toJack": "in"
+    },
+    {
+      "from": 4,
+      "fromJack": "out",
+      "to": 1,
       "toJack": "in"
     }
   ],
