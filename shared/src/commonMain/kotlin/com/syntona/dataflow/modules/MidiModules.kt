@@ -24,6 +24,7 @@ import com.softsynth.midibridge.MidiClock
 import com.softsynth.midibridge.MidiDestination
 import com.softsynth.midibridge.MidiEvent
 import com.softsynth.midibridge.Midi1Messages
+import com.softsynth.midibridge.channel
 import com.softsynth.midibridge.controller
 import com.softsynth.midibridge.controllerValue7
 import com.softsynth.midibridge.data1
@@ -52,7 +53,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.round
 
 /**
@@ -67,6 +70,9 @@ private const val MIDI_7BIT_MAX = 127
 
 /** How long the input poller idles when no MIDI is waiting. */
 private const val POLL_INTERVAL_MS = 2L
+
+/** How long to wait before trying again for a device that is not attached yet. */
+private const val RETRY_INTERVAL_MS = 200L
 
 /** Rounds a fractional pitch to the nearest MIDI 1.0 note number. */
 private fun toMidiNote(pitch: Double): Int = round(pitch).toInt().coerceIn(0, MIDI_7BIT_MAX)
@@ -92,9 +98,24 @@ class MidiInModule : Module("midiIn"), EngineAware {
     var deviceName: String by mutableStateOf("")
         private set
 
+    /** Filter channel: -1 for ALL channels, or 1..16 for a specific channel. */
+    var channelFilter: Int by mutableStateOf(-1)
+
+    fun selectChannelFilter(ch: Int) {
+        channelFilter = if (ch in 1..16) ch else -1
+    }
+
     private var engine: DataFlowEngine? = null
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    private var pollJob: Job? = null
+    private var unsubscribe: (() -> Unit)? = null
+    private var subscribeJob: Job? = null
+
+    /**
+     * Bumped by every device change and by teardown. Subscribing suspends, so a subscription can
+     * finish after the device it was for has already been switched away from; the generation it
+     * was started in is what tells it whether it is still wanted.
+     */
+    private var subscriptionGeneration = 0
 
     override fun setEngine(engine: DataFlowEngine) {
         this.engine = engine
@@ -107,8 +128,11 @@ class MidiInModule : Module("midiIn"), EngineAware {
     }
 
     override fun teardown() {
-        pollJob?.cancel()
-        pollJob = null
+        subscriptionGeneration++
+        subscribeJob?.cancel()
+        subscribeJob = null
+        unsubscribe?.invoke()
+        unsubscribe = null
         scope.cancel()
     }
 
@@ -116,26 +140,32 @@ class MidiInModule : Module("midiIn"), EngineAware {
     override fun execute(triggerMessage: Message) {}
 
     private fun restartPolling() {
-        pollJob?.cancel()
+        val generation = ++subscriptionGeneration
+        subscribeJob?.cancel()
+        unsubscribe?.invoke()
+        unsubscribe = null
         val name = deviceName
         if (name.isEmpty()) {
-            pollJob = null
+            subscribeJob = null
             return
         }
-        pollJob = scope.launch {
-            val source = MidiDeviceService.openSource(name) ?: return@launch
-            try {
-                val event = MidiEvent()
-                while (isActive && source.isOpen) {
-                    var delivered = false
-                    while (source.next(event)) {
-                        delivered = true
-                        toVoiceMessage(event, ScoreClock.now())?.let { emit(it) }
-                    }
-                    if (!delivered) delay(POLL_INTERVAL_MS)
+
+        subscribeJob = scope.launch {
+            val cancelSubscription = MidiDeviceService.subscribeSource(name) { event ->
+                if (channelFilter == -1 || event.channel == (channelFilter - 1)) {
+                    toVoiceMessage(event, ScoreClock.now())?.let { emit(it) }
                 }
-            } finally {
-                source.close()
+            } ?: return@launch
+
+            // Handing the subscription over must not be interrupted: a cancellation landing
+            // between subscribing and storing the handle would strand a listener that keeps
+            // feeding this module from a device it no longer listens to, with no way to stop it.
+            withContext(NonCancellable) {
+                if (generation == subscriptionGeneration) {
+                    unsubscribe = cancelSubscription
+                } else {
+                    cancelSubscription()
+                }
             }
         }
     }
@@ -152,10 +182,7 @@ class MidiInModule : Module("midiIn"), EngineAware {
 
 /**
  * Converts an incoming MIDI 1.0 channel voice message to a [Message.VoiceMessage], or returns
- * null for anything with no VoiceMessage equivalent, such as clock and program change.
- *
- * Channel is discarded: VoiceMessage has no channel field, and its tag identifies a note rather
- * than a MIDI channel.
+ * null for anything with no VoiceMessage equivalent, such as clock.
  */
 internal fun toVoiceMessage(event: MidiEvent, time: ScoreTime): Message.VoiceMessage? {
     if (event.messageType != Ump.MT_MIDI1_CHANNEL_VOICE) return null
@@ -196,6 +223,12 @@ internal fun toVoiceMessage(event: MidiEvent, time: ScoreTime): Message.VoiceMes
             value = event.pitchBendFraction.toDouble() * PITCH_BEND_SEMITONES,
             extra = 0.0
         )
+        event.messageStatus == Midi1.PROGRAM_CHANGE -> Message.VoiceMessage(
+            time, Message.VoiceOpcode.PROGRAM_CHANGE,
+            tag = -1,
+            value = event.data1.toDouble(),
+            extra = 0.0
+        )
         else -> null
     }
 }
@@ -208,14 +241,40 @@ internal fun toVoiceMessage(event: MidiEvent, time: ScoreTime): Message.VoiceMes
  */
 class MidiOutModule : Module("midiOut") {
     val input = addVoiceInput("in")
+    val channelIn = addInput("channel").also {
+        it.min = 1.0
+        it.max = 16.0
+    }
 
     /** Name of the destination device to send to, or empty for none. */
     var deviceName: String by mutableStateOf("")
         private set
 
+    /** Target MIDI channel (1..16, 1-indexed, default 1). */
+    var channel: Int by mutableStateOf(1)
+
+    init {
+        channelIn.setValue(1.0)
+    }
+
+    /**
+     * The jack is written too, not just [channel]. They are two views of one setting, and the
+     * loader restores module properties before jack values - so a menu choice that only touched
+     * [channel] would be overwritten by the jack's stale value on the next load.
+     */
+    fun selectChannel(ch: Int) {
+        val clamped = ch.coerceIn(1, 16)
+        channel = clamped
+        if (channelIn.getDoubleValue() != clamped.toDouble()) {
+            channelIn.setValue(clamped.toDouble())
+        }
+    }
+
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    private var destination: MidiDestination? = null
+    private var lease: MidiDeviceService.DestinationLease? = null
     private var openJob: Job? = null
+
+    private val destination: MidiDestination? get() = lease?.destination
 
     fun selectDevice(name: String) {
         if (name == deviceName) return
@@ -226,12 +285,17 @@ class MidiOutModule : Module("midiOut") {
     override fun teardown() {
         openJob?.cancel()
         openJob = null
-        destination?.close()
-        destination = null
+        releaseDestination()
         scope.cancel()
     }
 
     override fun onMessageReceived(jack: InputJack, msg: Message) {
+        if (jack === channelIn && msg is Message.FloatValue) {
+            val ch = msg.value.toInt().coerceIn(1, 16)
+            if (channel != ch) {
+                channel = ch
+            }
+        }
         if (jack === input && msg is Message.VoiceMessage) {
             sendVoiceMessage(msg)
         }
@@ -241,17 +305,34 @@ class MidiOutModule : Module("midiOut") {
     /** Nothing kicks a midiOut; it forwards whatever arrives on [input]. */
     override fun execute(triggerMessage: Message) {}
 
+    private fun releaseDestination() {
+        lease?.release()
+        lease = null
+    }
+
     private fun reopenDestination() {
         openJob?.cancel()
-        destination?.close()
-        destination = null
+        releaseDestination()
         val name = deviceName
         if (name.isEmpty()) {
             openJob = null
             return
         }
         openJob = scope.launch {
-            destination = MidiDeviceService.openDestination(name)
+            while (isActive) {
+                val acquired = MidiDeviceService.acquireDestination(name)
+                if (acquired != null) {
+                    // The device may have been changed again while this one was opening. Giving
+                    // the lease straight back is what keeps that race from leaking a port.
+                    if (isActive && deviceName == name) {
+                        lease = acquired
+                    } else {
+                        acquired.release()
+                    }
+                    return@launch
+                }
+                delay(RETRY_INTERVAL_MS)
+            }
         }
     }
 
@@ -262,38 +343,41 @@ class MidiOutModule : Module("midiOut") {
      */
     private fun sendVoiceMessage(msg: Message.VoiceMessage) {
         val dest = destination ?: return
-        dest.send(toMidi1Word(msg), MidiClock.nowNanos())
+        val chZeroBased = (channel - 1).coerceIn(0, 15)
+        dest.send(toMidi1Word(msg, chZeroBased), MidiClock.nowNanos())
     }
 }
 
 /**
  * Converts a [Message.VoiceMessage] to the single Universal MIDI Packet word that carries it as
- * a MIDI 1.0 channel voice message, on channel 0.
- *
- * Pitch arrives in fractional semitones and leaves as a note number, rounded to the nearest
- * semitone because MIDI 1.0 has nowhere to put the fraction. Controller and pressure values are
- * treated as 0.0 to 1.0 fractions, matching the unit generator ports PolyPatchModule drives with
- * them, and a bend in semitones is scaled by the default +/- 2 semitone bend sensitivity.
+ * a MIDI 1.0 channel voice message, on the specified 0-based channel.
  */
-internal fun toMidi1Word(msg: Message.VoiceMessage): Int = when (msg.opcode) {
-    Message.VoiceOpcode.NOTE_ON -> {
-        val velocity = toMidi7Bit(msg.extra).coerceAtLeast(1) // 0 would mean note off
-        Midi1Messages.noteOn(toMidiNote(msg.value), velocity)
-    }
-    Message.VoiceOpcode.NOTE_OFF -> Midi1Messages.noteOff(toMidiNote(msg.value))
-    Message.VoiceOpcode.CONTROL_CHANGE ->
-        Midi1Messages.controlChange(
-            msg.extra.toInt().coerceIn(0, MIDI_7BIT_MAX),
-            toMidi7Bit(msg.value)
-        )
-    Message.VoiceOpcode.PRESSURE -> {
-        val amount = toMidi7Bit(msg.value)
-        if (msg.tag >= 0) {
-            Midi1Messages.polyPressure(msg.tag.coerceIn(0, MIDI_7BIT_MAX), amount)
-        } else {
-            Midi1Messages.channelPressure(amount)
+internal fun toMidi1Word(msg: Message.VoiceMessage, channelZeroBased: Int = 0): Int {
+    val ch = channelZeroBased.coerceIn(0, 15)
+    return when (msg.opcode) {
+        Message.VoiceOpcode.NOTE_ON -> {
+            val velocity = toMidi7Bit(msg.extra).coerceAtLeast(1) // 0 would mean note off
+            Midi1Messages.noteOn(toMidiNote(msg.value), velocity, ch)
         }
+        // noteOff takes a velocity before the channel, so ch must be named or it lands in it.
+        Message.VoiceOpcode.NOTE_OFF -> Midi1Messages.noteOff(toMidiNote(msg.value), channel = ch)
+        Message.VoiceOpcode.CONTROL_CHANGE ->
+            Midi1Messages.controlChange(
+                msg.extra.toInt().coerceIn(0, MIDI_7BIT_MAX),
+                toMidi7Bit(msg.value),
+                ch
+            )
+        Message.VoiceOpcode.PRESSURE -> {
+            val amount = toMidi7Bit(msg.value)
+            if (msg.tag >= 0) {
+                Midi1Messages.polyPressure(msg.tag.coerceIn(0, MIDI_7BIT_MAX), amount, ch)
+            } else {
+                Midi1Messages.channelPressure(amount, ch)
+            }
+        }
+        Message.VoiceOpcode.PITCH_BEND ->
+            Midi1Messages.pitchBendFraction((msg.value / PITCH_BEND_SEMITONES).toFloat(), ch)
+        Message.VoiceOpcode.PROGRAM_CHANGE ->
+            Midi1Messages.programChange(msg.value.toInt().coerceIn(0, MIDI_7BIT_MAX), ch)
     }
-    Message.VoiceOpcode.PITCH_BEND ->
-        Midi1Messages.pitchBendFraction((msg.value / PITCH_BEND_SEMITONES).toFloat())
 }

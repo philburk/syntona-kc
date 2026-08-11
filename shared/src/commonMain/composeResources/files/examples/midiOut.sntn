@@ -52,8 +52,8 @@
       "id": 3,
       "type": "core.view.showMany",
       "name": "showMany",
-      "x": 889.1,
-      "y": 464,
+      "x": 982.1,
+      "y": 531,
       "jacks": {
         "in": {
           "min": 0,
@@ -66,8 +66,8 @@
       "id": 4,
       "type": "music.input.keyNotes",
       "name": "keyNotes",
-      "x": 144,
-      "y": 553.9,
+      "x": 187,
+      "y": 590.9,
       "jacks": {
         "amplitude": {
           "v": 0.8,
@@ -83,7 +83,56 @@
         }
       },
       "bottomOctaveKeys": "zsxdcvgbhnjm,",
-      "topOctaveKeys": "q2w3er5t6y7u8io"
+      "topOctaveKeys": "q2w3er5t6y7ui9o0p"
+    },
+    {
+      "id": 5,
+      "type": "music.voices.packProgram",
+      "name": "packProgram",
+      "x": 700.9,
+      "y": 504,
+      "jacks": {
+        "program": {
+          "v": 41,
+          "min": 0,
+          "max": 127,
+          "kickable": true
+        },
+        "tag": {
+          "v": -1,
+          "min": -1,
+          "max": 127,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "core.input.number",
+      "name": "number",
+      "x": 488.9,
+      "y": 508,
+      "jacks": {
+        "kick": {
+          "v": 0,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 41,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "core.input.loadKick",
+      "name": "loadKick",
+      "x": 332.9,
+      "y": 509.9
     }
   ],
   "connections": [
@@ -110,6 +159,24 @@
       "fromJack": "out",
       "to": 1,
       "toJack": "in"
+    },
+    {
+      "from": 5,
+      "fromJack": "out",
+      "to": 1,
+      "toJack": "in"
+    },
+    {
+      "from": 6,
+      "fromJack": "out",
+      "to": 5,
+      "toJack": "program"
+    },
+    {
+      "from": 7,
+      "fromJack": "kick",
+      "to": 6,
+      "toJack": "kick"
     }
   ],
   "windowX": 10,

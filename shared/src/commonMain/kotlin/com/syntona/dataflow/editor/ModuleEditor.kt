@@ -133,19 +133,9 @@ fun ModuleEditor(module: Module, onDismiss: () -> Unit, modifier: Modifier = Mod
                 } else if (module is PackVoiceModule) {
                     PackVoiceModuleEditor(module)
                 } else if (module is MidiInModule) {
-                    MidiDeviceEditor(
-                        label = "Source Device:",
-                        direction = MidiDirection.SOURCE,
-                        selected = module.deviceName,
-                        onSelect = { module.selectDevice(it) }
-                    )
+                    MidiInModuleEditor(module)
                 } else if (module is MidiOutModule) {
-                    MidiDeviceEditor(
-                        label = "Destination Device:",
-                        direction = MidiDirection.DESTINATION,
-                        selected = module.deviceName,
-                        onSelect = { module.selectDevice(it) }
-                    )
+                    MidiOutModuleEditor(module)
                 } else if (module is InputModule) {
                     module.patchJack?.let { jack ->
                         JackEditorRow(jack)
@@ -588,6 +578,105 @@ private fun KeyNotesModuleEditor(module: KeyNotesModule) {
         // The octave jack replaced the old "Starting Midi Note" field: the lowest key sounds
         // at 12 * octave.
         module.inputs.forEach { jack ->
+            JackEditorRow(jack)
+        }
+    }
+}
+
+@Composable
+private fun MidiInModuleEditor(module: MidiInModule) {
+    var expanded by remember { mutableStateOf(false) }
+    Column(
+        modifier = Modifier.padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        MidiDeviceEditor(
+            label = "Source Device:",
+            direction = MidiDirection.SOURCE,
+            selected = module.deviceName,
+            onSelect = { module.selectDevice(it) }
+        )
+        androidx.compose.material3.HorizontalDivider(color = BORDER_COLOR, thickness = 1.dp)
+        Column {
+            Text("MIDI Channel:", fontSize = 12.sp, color = LABEL_COLOR)
+            Spacer(modifier = Modifier.height(4.dp))
+            Box(
+                modifier = Modifier
+                    .width(180.dp)
+                    .border(1.dp, BORDER_COLOR, RoundedCornerShape(4.dp))
+                    .background(Color.White)
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                    .clickable { expanded = true }
+            ) {
+                val label = if (module.channelFilter == -1) "ALL" else "Channel ${module.channelFilter}"
+                Text(label, fontSize = 13.sp)
+            }
+            androidx.compose.material3.DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                val options = listOf(-1) + (1..16).toList()
+                options.forEach { ch ->
+                    val optLabel = if (ch == -1) "ALL" else "Channel $ch"
+                    CompactDropdownMenuItem(
+                        text = { Text(optLabel, fontSize = 12.sp) },
+                        onClick = {
+                            module.selectChannelFilter(ch)
+                            FileState.markDirty()
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MidiOutModuleEditor(module: MidiOutModule) {
+    var expanded by remember { mutableStateOf(false) }
+    Column(
+        modifier = Modifier.padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        MidiDeviceEditor(
+            label = "Destination Device:",
+            direction = MidiDirection.DESTINATION,
+            selected = module.deviceName,
+            onSelect = { module.selectDevice(it) }
+        )
+        androidx.compose.material3.HorizontalDivider(color = BORDER_COLOR, thickness = 1.dp)
+        Column {
+            Text("MIDI Channel:", fontSize = 12.sp, color = LABEL_COLOR)
+            Spacer(modifier = Modifier.height(4.dp))
+            Box(
+                modifier = Modifier
+                    .width(180.dp)
+                    .border(1.dp, BORDER_COLOR, RoundedCornerShape(4.dp))
+                    .background(Color.White)
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                    .clickable { expanded = true }
+            ) {
+                Text("Channel ${module.channel}", fontSize = 13.sp)
+            }
+            androidx.compose.material3.DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                (1..16).forEach { ch ->
+                    CompactDropdownMenuItem(
+                        text = { Text("Channel $ch", fontSize = 12.sp) },
+                        onClick = {
+                            module.selectChannel(ch)
+                            FileState.markDirty()
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
+        androidx.compose.material3.HorizontalDivider(color = BORDER_COLOR, thickness = 1.dp)
+        module.inputs.filter { it !== module.channelIn }.forEach { jack ->
             JackEditorRow(jack)
         }
     }

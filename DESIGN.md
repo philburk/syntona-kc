@@ -113,17 +113,14 @@ opcode = NOTE_ON or NOTE_OFF
 * extra = amplitude, 0.0 to 1.0
 
 opcode = CONTROL_CHANGE
-* tag = noteNumber or -1 for all notes
 * value = the value of the controller
 * extra = which controller to change
 
 opcode = PRESSURE
-* tag = noteNumber or -1 for all notes
 * value = the value of the controller
 * extra = ignored
 
 opcode = PITCH_BEND
-* tag = noteNumber or -1 for all notes
 * value = amount in semitones to offset the pitches
 * extra = ignored
 
@@ -171,9 +168,12 @@ The midiOut should have an input jack for voice messages.
 Its module editor will have a menu for selecting the destination MIDI device.
 Fractional pitches will be rounded to nearest MIDI pitch for MIDI 1.0.
 
-unpackNote and unpackControl will be added to the voice bundle.
-The unpackNote module will ignore messages that are not NOTE_ON or NOTE_OFF.
-Or maybe unpackNoteOn and unpackNoteOff are needed.
+Add a packProgram module similar to the packControl module. It encodes a PROGRAM_CHANGE command.
+New unpackNoteOn, unpackNoteOff, unpackControl, unpackBend unpackProgram modules should be added to the music.voice bundle.
+These should do the inverse of the packNote, packControl, and packBend modules.
+The unpackNoteOn module will ignore messages that are not NOTE_ON. Other unpackers will do the same.
+
+
 Could add midiSplit to route incoming voice messages by opcode.
 
 ### Harmonic Progression Editor

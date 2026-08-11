@@ -7,21 +7,34 @@ Need more ways to indicate Done. monoRdr could have an "empty" output jack.
 
 Need order4
 
+BUG: keyNotes topOctave should be "q2w3er5t6y7ui9o0p"
+
+polyPatch pitchBend connection not needed because the pitch jack follows pitchBend
+replace with modWheel from CONTROL_CHANGE==1
+
+Need conditionals for selecting a controller value when index==N
+Or a specific module for catching an indexed controller that can be armed by moving a MIDI fader
+
+EnvelopeEditor needs axis labels, time extend at right edge (KSyn)
+
 # ----------------------------------------------- MEDIUM PRIORITY
+
+Claude says:
+unsubscribe, subscribeJob, and subscriptionGeneration are plain fields written from both the
+caller's thread and the module's coroutines. The generation check closes the logical race,
+but strictly these are unsynchronized reads on JVM. Same shape as the existing MidiOutModule
+fields, so I kept it consistent rather than diverging — worth confining the module's coroutines
+to a single-threaded dispatcher if you want that airtight.
+
 More tutorials. Audio, timeline, pianoroll.
 
-keyboard13 needs plain index out, octave in
-keyNote13 needs plain index out, octave in
-
-Add unpackNote
+Add unpackNoteOn and unpackNoteOff.
 
 Extend range of wavefolder above 8.0 (KSyn)
 
 Add wavefolder example
 
-Envelope Editor needs axis labels, X extend at right edge (KSyn)
-
-Modules can get wider because of changing number values, but not shrink, cut down on jitter, see function
+Show Modules can get wider because of changing number values, but not shrink, cut down on jitter, see function
 
 When opening a new root window, offset it so that it does not hide the top window.
 
@@ -54,8 +67,6 @@ Use KVault to store Patches for web users.
 Request Persistent Storage Permission.
 Export/Import feature for moving from local storage to/from a ZIP archive.
 
-EnvelopeEditor needs to show time and allow more time.
-
 Change keyboard13 so we can drag between notes for legato sweeps. ON/ON/OFF/OFF.
 
 Maybe be able to click on wires to select and disconnect by BACKSPACE.
@@ -72,16 +83,15 @@ That will be useful if we support a more DAW-like interface.,
 Seq8 should support feedback cycle.
 seq16
 
-Possible bug the CMR knob on the drum rhythm for it does not seem to affect the sound!
+Possible bug the CMR knob on the drum rhythm for it does not seem to affect the sound! Kickable?
 
 Convert Syntona timestamps to KSyn timestamps and apply small "advance-time" for jitter reduction.
 
 Add Granular synthesis.
 
-
 Add Gaussian distribution and histogram.
 
-Add amplitude/velocity editing in pianoRoll editor.
+Add amplitude/velocity editing in pianoRoll editor. Bottom panel?
 
 Note processing elements. unpackNote, packNote, scaleAmp, transpose.
 

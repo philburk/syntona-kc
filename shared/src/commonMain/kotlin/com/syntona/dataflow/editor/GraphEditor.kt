@@ -113,6 +113,8 @@ import com.syntona.dataflow.modules.TimelineTrigger
 import com.syntona.dataflow.modules.KeyNotesModule
 import com.syntona.dataflow.modules.PianoRollModule
 import com.syntona.dataflow.modules.KickModule
+import com.syntona.dataflow.modules.MidiInModule
+import com.syntona.dataflow.modules.MidiOutModule
 import com.syntona.dataflow.modules.LoadKickModule
 import com.syntona.dataflow.modules.ShowManyModule
 import com.softsynth.ksyn.compose.SegmentedEnvelopeEditor
@@ -284,6 +286,8 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                     is SendModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
                     is ReceiveModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
                     is TimelineModule -> TimelineModuleNode(module, state)
+                    is MidiInModule -> MidiInModuleNode(module, state)
+                    is MidiOutModule -> MidiOutModuleNode(module, state)
                     else -> ModuleNode(module, state)
                 }
             }
@@ -647,6 +651,172 @@ fun KeyMatchModuleNode(module: KeyMatchModule, state: GraphState) {
                     JackView(module.on, state, isLeft = false)
                     JackView(module.off, state, isLeft = false)
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun MidiInModuleNode(module: MidiInModule, state: GraphState) {
+    val colors = LocalGraphColors.current
+    val position = state.modulePositions[module] ?: Offset.Zero
+    val isSelected = state.selectedModules.contains(module)
+    val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
+    val borderWidth = if (isSelected) 2.dp else 1.dp
+
+    Surface(
+        modifier = Modifier
+            .offset { IntOffset((position.x * density).roundToInt(), (position.y * density).roundToInt()) }
+            .width(IntrinsicSize.Max)
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
+            .onSizeChanged { size ->
+                state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
+            },
+        shape = RoundedCornerShape(4.dp),
+        color = colors.moduleBackground
+    ) {
+        Column(modifier = Modifier.width(IntrinsicSize.Max)) {
+            ModuleHeader(module = module, state = state, headerColor = colors.headerInputOutput, label = module.name)
+
+            // On-module channel selector
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                var expanded by remember { mutableStateOf(false) }
+                val chText = if (module.channelFilter == -1) "Ch: ALL" else "Ch: ${module.channelFilter}"
+                Box(
+                    modifier = Modifier
+                        .border(1.dp, Color.Gray, RoundedCornerShape(4.dp))
+                        .background(Color(0xFFE0E0E0))
+                        .clickable { expanded = true }
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = chText,
+                            color = Color.Black,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = "▼",
+                            color = Color.Gray,
+                            fontSize = 9.sp
+                        )
+                    }
+                }
+                androidx.compose.material3.DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    val channels = listOf(-1) + (1..16).toList()
+                    channels.forEach { ch ->
+                        val label = if (ch == -1) "ALL" else "Channel $ch"
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text(label, fontSize = 12.sp) },
+                            onClick = {
+                                module.selectChannelFilter(ch)
+                                FileState.markDirty()
+                                expanded = false
+                            },
+                            modifier = Modifier.height(28.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                        )
+                    }
+                }
+            }
+
+            if (module.outputs.isNotEmpty()) {
+                HorizontalDivider(color = Color.Black, thickness = 1.dp)
+                module.outputs.forEach { JackView(it, state, isLeft = false) }
+            }
+        }
+    }
+}
+
+@Composable
+fun MidiOutModuleNode(module: MidiOutModule, state: GraphState) {
+    val colors = LocalGraphColors.current
+    val position = state.modulePositions[module] ?: Offset.Zero
+    val isSelected = state.selectedModules.contains(module)
+    val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
+    val borderWidth = if (isSelected) 2.dp else 1.dp
+
+    Surface(
+        modifier = Modifier
+            .offset { IntOffset((position.x * density).roundToInt(), (position.y * density).roundToInt()) }
+            .width(IntrinsicSize.Max)
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
+            .onSizeChanged { size ->
+                state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
+            },
+        shape = RoundedCornerShape(4.dp),
+        color = colors.moduleBackground
+    ) {
+        Column(modifier = Modifier.width(IntrinsicSize.Max)) {
+            ModuleHeader(module = module, state = state, headerColor = colors.headerInputOutput, label = module.name)
+
+            // On-module channel selector
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                var expanded by remember { mutableStateOf(false) }
+                val chText = "Ch: ${module.channel}"
+                Box(
+                    modifier = Modifier
+                        .border(1.dp, Color.Gray, RoundedCornerShape(4.dp))
+                        .background(Color(0xFFE0E0E0))
+                        .clickable { expanded = true }
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Text(
+                            text = chText,
+                            color = Color.Black,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = "▼",
+                            color = Color.Gray,
+                            fontSize = 9.sp
+                        )
+                    }
+                }
+                androidx.compose.material3.DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    (1..16).forEach { ch ->
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text("Channel $ch", fontSize = 12.sp) },
+                            onClick = {
+                                module.selectChannel(ch)
+                                FileState.markDirty()
+                                expanded = false
+                            },
+                            modifier = Modifier.height(28.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                        )
+                    }
+                }
+            }
+
+            if (module.inputs.isNotEmpty()) {
+                HorizontalDivider(color = Color.Black, thickness = 1.dp)
+                module.inputs.forEach { JackView(it, state, isLeft = true) }
             }
         }
     }

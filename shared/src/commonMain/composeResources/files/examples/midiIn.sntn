@@ -27,8 +27,8 @@
       "id": 1,
       "type": "core.polyPatch",
       "name": "polyPatch",
-      "x": 285.9,
-      "y": 196,
+      "x": 358.9,
+      "y": 154,
       "jacks": {
         "input": {
           "min": 0,
@@ -37,8 +37,8 @@
         }
       },
       "maxVoices": 4,
-      "windowX": 144.02936,
-      "windowY": 245.96375,
+      "windowX": 412.90436,
+      "windowY": 239.96375,
       "windowWidth": 989.88446,
       "windowHeight": 629.9957,
       "windowOpen": false,
@@ -91,7 +91,7 @@
                 "add": false
               },
               "amplitude": {
-                "v": 0.04665609076619148,
+                "v": 0,
                 "min": 0,
                 "max": 1,
                 "kickable": false,
@@ -477,8 +477,8 @@
       "id": 3,
       "type": "core.view.showMany",
       "name": "showMany",
-      "x": 143.9,
-      "y": 300.9,
+      "x": 139.9,
+      "y": 373.9,
       "jacks": {
         "in": {
           "min": 0,
@@ -499,8 +499,8 @@
       "id": 5,
       "type": "ksyn.data.recorder",
       "name": "recorder",
-      "x": 521.9,
-      "y": 248,
+      "x": 570.9,
+      "y": 236,
       "jacks": {
         "in": {
           "v": 0,
@@ -517,10 +517,54 @@
           "add": false
         },
         "latencyMs": {
-          "v": 85.0625,
+          "v": 82,
           "min": 0,
           "max": 1000,
           "kickable": false
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "music.voices.unpackControl",
+      "name": "unpackControl",
+      "x": 181.9,
+      "y": 252,
+      "jacks": {
+        "in": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 327.9,
+      "y": 247.9,
+      "jacks": {
+        "in": {
+          "v": 0.4251968503937008,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 416.9,
+      "y": 300,
+      "jacks": {
+        "in": {
+          "v": 1,
+          "min": 0,
+          "max": 100,
+          "kickable": true
         }
       }
     }
@@ -555,6 +599,24 @@
       "fromJack": "out",
       "to": 0,
       "toJack": "input1"
+    },
+    {
+      "from": 6,
+      "fromJack": "value",
+      "to": 7,
+      "toJack": "in"
+    },
+    {
+      "from": 6,
+      "fromJack": "index",
+      "to": 8,
+      "toJack": "in"
+    },
+    {
+      "from": 4,
+      "fromJack": "out",
+      "to": 6,
+      "toJack": "in"
     }
   ],
   "windowX": 10,

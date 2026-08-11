@@ -197,9 +197,11 @@ object GraphSerializer {
             }
             if (module is MidiInModule) {
                 append(",\"device\":\"${module.deviceName.jsonEscape}\"")
+                append(",\"channelFilter\":${module.channelFilter}")
             }
             if (module is MidiOutModule) {
                 append(",\"device\":\"${module.deviceName.jsonEscape}\"")
+                append(",\"channel\":${module.channel}")
             }
             if (module is BeatClockModule) {
                 append(",\"division\":\"${module.division.jsonEscape}\"")
@@ -385,9 +387,11 @@ object GraphSerializer {
             }
             if (module is MidiInModule) {
                 (obj?.map?.get("device") as? JsonValue.Str)?.value?.let { module.selectDevice(it) }
+                (obj?.map?.get("channelFilter") as? JsonValue.Num)?.value?.toInt()?.let { module.selectChannelFilter(it) }
             }
             if (module is MidiOutModule) {
                 (obj?.map?.get("device") as? JsonValue.Str)?.value?.let { module.selectDevice(it) }
+                (obj?.map?.get("channel") as? JsonValue.Num)?.value?.toInt()?.let { module.selectChannel(it) }
             }
             if (module is BeatClockModule) {
                 (obj?.map?.get("division") as? JsonValue.Str)?.value?.let { module.division = it }

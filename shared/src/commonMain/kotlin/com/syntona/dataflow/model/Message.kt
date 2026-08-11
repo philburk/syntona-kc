@@ -39,7 +39,7 @@ sealed class Message {
 
     /** Commands for [VoiceMessage], modeled after MIDI Channel Voice Messages. */
     enum class VoiceOpcode {
-        NOTE_ON, NOTE_OFF, CONTROL_CHANGE, PRESSURE, PITCH_BEND
+        NOTE_ON, NOTE_OFF, CONTROL_CHANGE, PRESSURE, PITCH_BEND, PROGRAM_CHANGE
     }
 
     /**
@@ -52,6 +52,8 @@ sealed class Message {
      *   extra = which controller to change
      * - PRESSURE: tag = noteNumber, or -1 for all notes; value = pressure value; extra ignored
      * - PITCH_BEND: tag = noteNumber, or -1 for all notes; value = offset in semitones;
+     *   extra ignored
+     * - PROGRAM_CHANGE: tag = noteNumber, or -1 for all notes; value = program number;
      *   extra ignored
      */
     data class VoiceMessage(

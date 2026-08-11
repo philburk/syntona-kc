@@ -75,8 +75,14 @@ class MidiConversionTest {
     }
 
     @Test
+    fun programChangeBecomesVoiceMessage() {
+        val msg = voiceMessageOf(Midi1Messages.programChange(5))!!
+        assertEquals(Message.VoiceOpcode.PROGRAM_CHANGE, msg.opcode)
+        assertEquals(5.0, msg.value)
+    }
+
+    @Test
     fun messagesWithNoVoiceEquivalentAreDropped() {
-        assertNull(voiceMessageOf(Midi1Messages.programChange(5)))
         assertNull(voiceMessageOf(Midi1Messages.timingClock()))
     }
 

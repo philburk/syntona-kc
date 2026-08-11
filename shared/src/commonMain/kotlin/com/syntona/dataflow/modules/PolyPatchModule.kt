@@ -170,6 +170,9 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
                     Message.VoiceOpcode.PITCH_BEND -> {
                         setVoicePort(msg.tag, "pitchBend", msg.value, timeStamp)
                     }
+                    Message.VoiceOpcode.PROGRAM_CHANGE -> {
+                        setVoicePort(msg.tag, "program", msg.value, timeStamp)
+                    }
                 }
             }
         }

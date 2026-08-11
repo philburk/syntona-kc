@@ -135,3 +135,172 @@ class PackBendModule : Module("packBend"), EngineAware {
             tag, bend, 0.0))
     }
 }
+
+/**
+ * Generates a CONTROL_CHANGE VoiceMessage with value and index.
+ * Receiving a message on [valueIn] (kickable) sends a CONTROL_CHANGE immediately.
+ *
+ * The message's tag is always -1, addressing every note. Per-note controllers are a MIDI 2.0
+ * idea and there is nothing behind them here yet, so no tag is offered. The note modules keep
+ * their tag because internal intonation depends on it.
+ */
+class PackControlModule : Module("packControl") {
+    val valueIn = addInput("value", isKickable = true)
+    val indexIn = addInput("index").also {
+        it.min = 0.0
+        it.max = 127.0
+    }
+    val output = addVoiceOutput("out")
+
+    init {
+        valueIn.setValue(0.0)
+        indexIn.setValue(0.0)
+    }
+
+    override fun execute(triggerMessage: Message) {
+        val value = valueIn.getDoubleValue()
+        val index = indexIn.getDoubleValue()
+        output.send(
+            Message.VoiceMessage(
+                triggerMessage.time,
+                Message.VoiceOpcode.CONTROL_CHANGE,
+                tag = -1,
+                value = value,
+                extra = index
+            )
+        )
+    }
+}
+
+/**
+ * Generates a PROGRAM_CHANGE VoiceMessage with a program number.
+ * Receiving a message on [programIn] (kickable) sends a PROGRAM_CHANGE immediately.
+ *
+ * The message's tag is always -1: a program change applies to a whole channel, so there is
+ * nothing per-note to address until MIDI 2.0 arrives.
+ */
+class PackProgramModule : Module("packProgram") {
+    val programIn = addInput("program", isKickable = true).also {
+        it.min = 0.0
+        it.max = 127.0
+    }
+    val output = addVoiceOutput("out")
+
+    init {
+        programIn.setValue(0.0)
+    }
+
+    override fun execute(triggerMessage: Message) {
+        val program = programIn.getDoubleValue()
+        output.send(
+            Message.VoiceMessage(
+                triggerMessage.time,
+                Message.VoiceOpcode.PROGRAM_CHANGE,
+                tag = -1,
+                value = program,
+                extra = 0.0
+            )
+        )
+    }
+}
+
+/**
+ * Unpacks NOTE_ON VoiceMessages into pitch, tag, and amplitude outputs.
+ * Ignores messages that are not NOTE_ON.
+ * Outputs fire in order from bottom to top: amplitude, tag, pitch.
+ */
+class UnpackNoteOnModule : Module("unpackNoteOn") {
+    val input = addVoiceInput("in", isKickable = true)
+    val pitch = addOutput("pitch")
+    val tag = addOutput("tag")
+    val amplitude = addOutput("amplitude")
+
+    override fun execute(triggerMessage: Message) {
+        val msg = triggerMessage as? Message.VoiceMessage ?: return
+        if (msg.opcode != Message.VoiceOpcode.NOTE_ON) return
+
+        amplitude.send(Message.FloatValue(msg.time, msg.extra))
+        tag.send(Message.FloatValue(msg.time, msg.tag.toDouble()))
+        pitch.send(Message.FloatValue(msg.time, msg.value))
+    }
+}
+
+/**
+ * Unpacks NOTE_OFF VoiceMessages into pitch, tag, and amplitude outputs.
+ * Ignores messages that are not NOTE_OFF.
+ * Outputs fire in order from bottom to top: amplitude, tag, pitch.
+ */
+class UnpackNoteOffModule : Module("unpackNoteOff") {
+    val input = addVoiceInput("in", isKickable = true)
+    val pitch = addOutput("pitch")
+    val tag = addOutput("tag")
+    val amplitude = addOutput("amplitude")
+
+    override fun execute(triggerMessage: Message) {
+        val msg = triggerMessage as? Message.VoiceMessage ?: return
+        if (msg.opcode != Message.VoiceOpcode.NOTE_OFF) return
+
+        amplitude.send(Message.FloatValue(msg.time, msg.extra))
+        tag.send(Message.FloatValue(msg.time, msg.tag.toDouble()))
+        pitch.send(Message.FloatValue(msg.time, msg.value))
+    }
+}
+
+/**
+ * Unpacks CONTROL_CHANGE VoiceMessages into value and index outputs.
+ * Ignores messages that are not CONTROL_CHANGE.
+ * Outputs fire in order from bottom to top: index, value.
+ *
+ * The message's tag is dropped rather than given a jack, since per-note controllers are a
+ * MIDI 2.0 feature this does not support yet.
+ */
+class UnpackControlModule : Module("unpackControl") {
+    val input = addVoiceInput("in", isKickable = true)
+    val value = addOutput("value")
+    val index = addOutput("index")
+
+    override fun execute(triggerMessage: Message) {
+        val msg = triggerMessage as? Message.VoiceMessage ?: return
+        if (msg.opcode != Message.VoiceOpcode.CONTROL_CHANGE) return
+
+        index.send(Message.FloatValue(msg.time, msg.extra))
+        value.send(Message.FloatValue(msg.time, msg.value))
+    }
+}
+
+/**
+ * Unpacks PITCH_BEND VoiceMessages into bend and tag outputs.
+ * Ignores messages that are not PITCH_BEND.
+ * Outputs fire in order from bottom to top: tag, bend.
+ */
+class UnpackBendModule : Module("unpackBend") {
+    val input = addVoiceInput("in", isKickable = true)
+    val bend = addOutput("bend")
+    val tag = addOutput("tag")
+
+    override fun execute(triggerMessage: Message) {
+        val msg = triggerMessage as? Message.VoiceMessage ?: return
+        if (msg.opcode != Message.VoiceOpcode.PITCH_BEND) return
+
+        tag.send(Message.FloatValue(msg.time, msg.tag.toDouble()))
+        bend.send(Message.FloatValue(msg.time, msg.value))
+    }
+}
+
+/**
+ * Unpacks PROGRAM_CHANGE VoiceMessages into a program output.
+ * Ignores messages that are not PROGRAM_CHANGE.
+ *
+ * The message's tag is dropped: a program change applies to a whole channel.
+ */
+class UnpackProgramModule : Module("unpackProgram") {
+    val input = addVoiceInput("in", isKickable = true)
+    val program = addOutput("program")
+
+    override fun execute(triggerMessage: Message) {
+        val msg = triggerMessage as? Message.VoiceMessage ?: return
+        if (msg.opcode != Message.VoiceOpcode.PROGRAM_CHANGE) return
+
+        program.send(Message.FloatValue(msg.time, msg.value))
+    }
+}
