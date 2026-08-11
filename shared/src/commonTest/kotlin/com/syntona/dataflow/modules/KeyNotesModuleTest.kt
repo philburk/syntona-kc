@@ -16,7 +16,7 @@ class KeyNotesModuleTest {
         val module = KeyNotesModule()
         assertEquals("keyNotes", module.name)
         assertEquals("zsxdcvgbhnjm,", module.bottomOctaveKeys)
-        assertEquals("q2w3er5t6y7u8io", module.topOctaveKeys)
+        assertEquals("q2w3er5t6y7ui9o0p", module.topOctaveKeys)
 
         val output = module.outputs.find { it.name == "out" }
         assertNotNull(output, "KeyNotesModule should have an output named 'out'")
@@ -289,7 +289,7 @@ class KeyNotesModuleTest {
                   "x": 0.0,
                   "y": 0.0,
                   "jacks": {},
-                  "mappingString": "zsxdcvgbhnjm,q2w3er5t6y7u8io",
+                  "mappingString": "zsxdcvgbhnjm,q2w3er5t6y7ui9o0p",
                   "startingNote": 60
                 }
               ],
@@ -302,7 +302,7 @@ class KeyNotesModuleTest {
         val module = graphState.modules.find { it.name == "keyNotes" } as? KeyNotesModule
         assertNotNull(module)
         assertEquals("zsxdcvgbhnjm,", module.bottomOctaveKeys)
-        assertEquals("q2w3er5t6y7u8io", module.topOctaveKeys)
+        assertEquals("q2w3er5t6y7ui9o0p", module.topOctaveKeys)
         // The old absolute startingNote becomes the equivalent octave, so the patch plays the
         // pitches it always did.
         assertEquals(5.0, module.octaveIn.getDoubleValue())

@@ -8,8 +8,6 @@ then delete the midiOut while the note is ON,
 then I get a hun note that I cannot turn off.
 Please send ALL_NOTES_OFF when changing channels or when deleting a midiOut.
 
-BUG: My Arturia Keylab just says "MIDI" in Syntona but in the kc-midi-bridge demo it is listed as "".
-
 Need more ways to indicate Done. monoRdr could have an "empty" output jack.
 
 Need order4

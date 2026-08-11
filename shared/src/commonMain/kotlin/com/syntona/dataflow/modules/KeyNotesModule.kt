@@ -19,7 +19,7 @@ class KeyNotesModule : Module("keyNotes"), PlayableKeys {
     val output = addVoiceOutput("out")
 
     var bottomOctaveKeys by mutableStateOf("zsxdcvgbhnjm,")
-    var topOctaveKeys by mutableStateOf("q2w3er5t6y7u8io")
+    var topOctaveKeys by mutableStateOf("q2w3er5t6y7ui9o0p")
 
     val activeNotes = mutableMapOf<Char, Int>()
 
