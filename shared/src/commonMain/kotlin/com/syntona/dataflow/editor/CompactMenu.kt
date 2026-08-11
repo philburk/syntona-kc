@@ -35,13 +35,14 @@ fun CompactDropdownMenuItem(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     leadingIcon: (@Composable () -> Unit)? = null,
-    trailingIcon: (@Composable () -> Unit)? = null
+    trailingIcon: (@Composable () -> Unit)? = null,
+    height: Dp = CompactMenuItemHeight
 ) {
     CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
         DropdownMenuItem(
             text = text,
             onClick = onClick,
-            modifier = modifier.height(CompactMenuItemHeight),
+            modifier = modifier.height(height),
             enabled = enabled,
             leadingIcon = leadingIcon,
             trailingIcon = trailingIcon,
@@ -49,3 +50,11 @@ fun CompactDropdownMenuItem(
         )
     }
 }
+
+/**
+ * Height for a menu row carrying a second line, such as a device's manufacturer.
+ *
+ * The row height is fixed rather than intrinsic, so a two-line item needs to say so or its
+ * second line is clipped.
+ */
+val CompactMenuItemHeightTwoLine: Dp = 44.dp

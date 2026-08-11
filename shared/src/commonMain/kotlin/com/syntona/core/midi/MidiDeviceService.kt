@@ -64,6 +64,9 @@ object MidiDeviceService {
 
     private var bridge: MidiBridge? = null
 
+    /** Collects hotplug updates from the open bridge. Cancelled when the bridge is replaced. */
+    private var endpointCollectorJob: Job? = null
+
     private class SourceSubscription(
         val deviceName: String,
         val midi: MidiBridge
@@ -161,7 +164,11 @@ object MidiDeviceService {
             bridge = opened
             errorMessage = null
             publish(opened.endpointsNow())
-            scope.launch {
+            // Held so it can be cancelled when the bridge is replaced. Two collectors writing
+            // the same snapshot state list conflict, and the survivor would be publishing the
+            // endpoints of a bridge nobody is using any more.
+            endpointCollectorJob?.cancel()
+            endpointCollectorJob = scope.launch {
                 opened.endpoints.collect { list -> publish(list) }
             }
             opened
@@ -178,6 +185,22 @@ object MidiDeviceService {
 
     fun endpointNames(direction: MidiDirection): List<String> =
         endpoints.filter { it.direction == direction }.map { it.name }
+
+    /**
+     * Endpoints of one direction, for a device menu that wants more than the bare name.
+     *
+     * Device names alone are often too vague to choose between - an Arturia keyboard reports
+     * itself as plain "MIDI" - so the menu shows the manufacturer as well.
+     */
+    fun endpointsFor(direction: MidiDirection): List<MidiEndpoint> =
+        endpoints.filter { it.direction == direction }
+
+    /**
+     * Manufacturer of the named device, or empty if it is unknown or the device is not attached.
+     * Lets a menu label a saved selection without the module having to store the manufacturer.
+     */
+    fun manufacturerOf(deviceName: String, direction: MidiDirection): String =
+        findEndpoint(deviceName, direction)?.manufacturer ?: ""
 
     /**
      * Subscribes to events from the named MIDI source. Multiple subscribers to the same device
@@ -255,6 +278,8 @@ object MidiDeviceService {
 
     /** Drops every port and the bridge itself, so each test starts from a clean service. */
     internal suspend fun resetForTest(replacement: MidiBridge?) {
+        endpointCollectorJob?.cancel()
+        endpointCollectorJob = null
         portMutex.withLock {
             sourceSubscriptions.values.forEach { it.cancel() }
             sourceSubscriptions.clear()

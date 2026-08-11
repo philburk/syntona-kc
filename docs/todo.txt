@@ -1,11 +1,12 @@
 
 # ----------------------------------------------- HIGH PRIORITY
 
-BUG: Add and Kick? checkboxes are clobbering each other!
-
 BUG: deleted the sine_ins patch from onesine.sntn while the patch was open. The patch window was left open.
 
-BUG: Hung note if I delete a midiOut while a note is ON. Send ALL_NOTES_OFF when changing channels or when deleting a midiOut.
+NOT A BUG: If I connect a keyNotes to a midiOut, press a key to make a note sound,
+then delete the midiOut while the note is ON,
+then I get a hun note that I cannot turn off.
+Please send ALL_NOTES_OFF when changing channels or when deleting a midiOut.
 
 BUG: My Arturia Keylab just says "MIDI" in Syntona but in the kc-midi-bridge demo it is listed as "".
 

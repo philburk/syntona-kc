@@ -413,8 +413,13 @@ private fun MidiDeviceEditor(
 ) {
     var expanded by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { MidiDeviceService.open() }
-    val deviceNames = MidiDeviceService.endpointNames(direction)
+    val devices = MidiDeviceService.endpointsFor(direction)
     val error = MidiDeviceService.errorMessage
+    // Only the name is stored in the patch, so the manufacturer for the current selection is
+    // looked up from the attached devices. Empty when the device is not plugged in right now.
+    val selectedMaker = if (selected.isEmpty()) "" else {
+        MidiDeviceService.manufacturerOf(selected, direction)
+    }
 
     Column(
         modifier = Modifier.padding(12.dp),
@@ -422,7 +427,7 @@ private fun MidiDeviceEditor(
     ) {
         Text(label, fontSize = 12.sp, color = LABEL_COLOR)
         Box {
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .border(1.dp, BORDER_COLOR, RoundedCornerShape(4.dp))
@@ -431,6 +436,9 @@ private fun MidiDeviceEditor(
                     .clickable { expanded = true }
             ) {
                 Text(if (selected.isEmpty()) "None" else selected, fontSize = 13.sp)
+                if (selectedMaker.isNotEmpty()) {
+                    Text(selectedMaker, fontSize = 11.sp, color = LABEL_COLOR)
+                }
             }
             androidx.compose.material3.DropdownMenu(
                 expanded = expanded,
@@ -444,21 +452,37 @@ private fun MidiDeviceEditor(
                         expanded = false
                     }
                 )
-                deviceNames.forEach { name ->
+                devices.forEach { endpoint ->
+                    val hasMaker = endpoint.manufacturer.isNotEmpty()
                     CompactDropdownMenuItem(
-                        text = { Text(name, fontSize = 12.sp) },
+                        text = {
+                            // Name over manufacturer, matching the kc-midi-bridge demo. Several
+                            // devices report a name as vague as "MIDI", and the maker is what
+                            // tells them apart.
+                            Column {
+                                Text(endpoint.name, fontSize = 12.sp)
+                                if (hasMaker) {
+                                    Text(
+                                        endpoint.manufacturer,
+                                        fontSize = 10.sp,
+                                        color = LABEL_COLOR
+                                    )
+                                }
+                            }
+                        },
                         onClick = {
-                            onSelect(name)
+                            onSelect(endpoint.name)
                             FileState.markDirty()
                             expanded = false
-                        }
+                        },
+                        height = if (hasMaker) CompactMenuItemHeightTwoLine else CompactMenuItemHeight
                     )
                 }
             }
         }
         if (error != null) {
             Text(error, fontSize = 11.sp, color = HEADER_COLOR)
-        } else if (deviceNames.isEmpty()) {
+        } else if (devices.isEmpty()) {
             Text("No MIDI devices found.", fontSize = 11.sp, color = LABEL_COLOR)
         }
     }
