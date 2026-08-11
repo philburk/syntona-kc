@@ -93,7 +93,9 @@ fun ModuleNameEditor(
 fun ModuleEditor(module: Module, onDismiss: () -> Unit, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
-            .width(480.dp)
+            // Wide enough for the whole jack row: three labelled number fields plus the Kick?
+            // and Add? checkboxes, which an audio input shows both of.
+            .width(600.dp)
             .background(PANEL_COLOR, RoundedCornerShape(8.dp))
             .border(1.dp, BORDER_COLOR, RoundedCornerShape(8.dp))
             .onKeyEvent { true }
@@ -154,6 +156,40 @@ fun ModuleEditor(module: Module, onDismiss: () -> Unit, modifier: Modifier = Mod
     }
 }
 
+/**
+ * A labelled checkbox for one of a jack's boolean flags, sized so it cannot be squeezed.
+ *
+ * The label and box travel together in their own Row with wrapping switched off. Left loose in
+ * the parent Row, a Text with no width is the first thing Compose shrinks when the line runs
+ * long, and "Add?" ends up rendered one letter per line on top of the checkbox.
+ */
+@Composable
+private fun JackFlagCheckbox(
+    label: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(
+            label,
+            fontSize = 11.sp,
+            color = LABEL_COLOR,
+            maxLines = 1,
+            softWrap = false
+        )
+        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
+            Checkbox(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
 @Composable
 private fun JackEditorRow(jack: InputJack) {
     var currentValue by remember(jack) { mutableStateOf(jack.getValue()) }
@@ -202,35 +238,29 @@ private fun JackEditorRow(jack: InputJack) {
                 )
 
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Kick?", fontSize = 11.sp, color = LABEL_COLOR)
                 var isKickable by remember(jack) { mutableStateOf(jack.isKickable) }
-                CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
-                    Checkbox(
-                        checked = isKickable,
-                        onCheckedChange = {
-                            isKickable = it
-                            jack.isKickable = it
-                            FileState.markDirty()
-                        },
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
+                JackFlagCheckbox(
+                    label = "Kick?",
+                    checked = isKickable,
+                    onCheckedChange = {
+                        isKickable = it
+                        jack.isKickable = it
+                        FileState.markDirty()
+                    }
+                )
 
                 if (jack is AudioInputJack) {
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Add?", fontSize = 11.sp, color = LABEL_COLOR)
                     var isValueAdded by remember(jack) { mutableStateOf(jack.isValueAdded) }
-                    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
-                        Checkbox(
-                            checked = isValueAdded,
-                            onCheckedChange = {
-                                isValueAdded = it
-                                jack.isValueAdded = it
-                                FileState.markDirty()
-                            },
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
+                    JackFlagCheckbox(
+                        label = "Add?",
+                        checked = isValueAdded,
+                        onCheckedChange = {
+                            isValueAdded = it
+                            jack.isValueAdded = it
+                            FileState.markDirty()
+                        }
+                    )
                 }
             }
 
