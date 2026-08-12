@@ -27,6 +27,8 @@ import com.softsynth.midibridge.MidiDirection
 import com.softsynth.midibridge.MidiEndpoint
 import com.softsynth.midibridge.MidiEvent
 import com.softsynth.midibridge.MidiSource
+import com.syntona.storage.InMemorySettingsBackend
+import com.syntona.storage.SettingsStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -194,6 +196,52 @@ object MidiDeviceService {
         endpoints.filter { it.direction == direction }.map { it.name }
 
     /**
+     * Where the remembered devices are kept. Replaceable so that tests can use an in-memory
+     * store: these values live in the user's real application settings, and a test has no
+     * business rewriting the device someone picked in the app.
+     */
+    internal var settings: SettingsStore = SettingsStore.default
+
+    private fun lastDeviceKey(direction: MidiDirection): String = when (direction) {
+        MidiDirection.SOURCE -> SettingsStore.KEY_LAST_MIDI_SOURCE
+        MidiDirection.DESTINATION -> SettingsStore.KEY_LAST_MIDI_DESTINATION
+    }
+
+    /**
+     * Records the device just chosen, so a patch that arrives without one can pick it up.
+     *
+     * Kept per direction: a rig has one keyboard and one synth, and remembering them separately
+     * is what lets both a midiIn and a midiOut land on the right thing.
+     */
+    fun rememberDevice(direction: MidiDirection, deviceName: String) {
+        if (deviceName.isEmpty()) return
+        try {
+            settings.putString(lastDeviceKey(direction), deviceName)
+        } catch (_: Exception) {
+            // A settings write that fails costs the convenience, not the session.
+        }
+    }
+
+    /** The device last chosen for this direction, or empty if there has never been one. */
+    fun lastUsedDevice(direction: MidiDirection): String =
+        try {
+            settings.getString(lastDeviceKey(direction))
+        } catch (_: Exception) {
+            ""
+        }
+
+    /**
+     * The device a module loading with [savedName] should end up on.
+     *
+     * A patch saved with no device takes the one last chosen, which is the common case when a
+     * patch is shared or was saved before a keyboard was plugged in. A patch that names a device
+     * keeps it, even when that device is absent right now: silently retargeting to a different
+     * instrument would be worse than staying quiet until it is plugged back in.
+     */
+    fun resolveLoadedDevice(direction: MidiDirection, savedName: String): String =
+        savedName.ifEmpty { lastUsedDevice(direction) }
+
+    /**
      * Endpoints of one direction, for a device menu that wants more than the bare name.
      *
      * Device names alone are often too vague to choose between - an Arturia keyboard reports
@@ -285,6 +333,9 @@ object MidiDeviceService {
 
     /** Drops every port and the bridge itself, so each test starts from a clean service. */
     internal suspend fun resetForTest(replacement: MidiBridge?) {
+        // A scratch store, so that a test choosing a device cannot rewrite the one the user
+        // picked in the app: these values live in their real application settings.
+        settings = SettingsStore(backend = InMemorySettingsBackend())
         // The whole scope goes, not just the jobs this object still has handles for. A poll loop
         // or a retry loop left running from an earlier test would otherwise keep writing to the
         // maps and the endpoint list, and the next test would inherit its mess.

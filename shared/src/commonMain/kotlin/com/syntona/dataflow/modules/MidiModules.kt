@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
 import com.softsynth.midibridge.MidiClock
 import com.softsynth.midibridge.MidiDestination
+import com.softsynth.midibridge.MidiDirection
 import com.softsynth.midibridge.MidiEvent
 import com.softsynth.midibridge.Midi1Messages
 import com.softsynth.midibridge.channel
@@ -43,6 +44,7 @@ import com.syntona.core.model.ScoreTime
 import com.syntona.dataflow.engine.DataFlowEngine
 import com.syntona.dataflow.engine.EngineAware
 import com.syntona.dataflow.engine.SendOutputCommand
+import com.syntona.dataflow.model.AdoptsRememberedDefaults
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
@@ -91,7 +93,7 @@ private fun fromMidi7Bit(value: Int): Double = value.toDouble() / MIDI_7BIT_MAX
  * than on the data flow engine, and each converted message is posted back to the engine as a
  * command so that the graph is only ever touched from the engine coroutine.
  */
-class MidiInModule : Module("midiIn"), EngineAware {
+class MidiInModule : Module("midiIn"), EngineAware, AdoptsRememberedDefaults {
     val output = addVoiceOutput("out")
 
     /** Name of the source device to listen to, or empty for none. */
@@ -121,10 +123,39 @@ class MidiInModule : Module("midiIn"), EngineAware {
         this.engine = engine
     }
 
+    /**
+     * The user picked this device, so it becomes the one remembered for next time.
+     *
+     * Only a deliberate choice is remembered. Opening a patch that happens to name a device is
+     * not the user saying "this is my keyboard now", and letting it overwrite the memory would
+     * mean loading someone else's patch quietly retargeted every patch opened afterwards.
+     */
     fun selectDevice(name: String) {
+        applyDevice(name)
+        MidiDeviceService.rememberDevice(MidiDirection.SOURCE, name)
+    }
+
+    /** Points the module at a device without treating it as a choice worth remembering. */
+    private fun applyDevice(name: String) {
         if (name == deviceName) return
         deviceName = name
         restartPolling()
+    }
+
+    /**
+     * Applies the device a saved patch specified, falling back to the one last chosen when it
+     * specified none. A patch shared by someone else, or saved before anything was plugged in,
+     * then plays from whatever keyboard this machine uses without being told again.
+     */
+    fun loadDevice(savedName: String) {
+        applyDevice(MidiDeviceService.resolveLoadedDevice(MidiDirection.SOURCE, savedName))
+    }
+
+    /** A module dropped into a patch starts on the keyboard already in use, not on None. */
+    override fun adoptRememberedDefaults() {
+        if (deviceName.isEmpty()) {
+            applyDevice(MidiDeviceService.lastUsedDevice(MidiDirection.SOURCE))
+        }
     }
 
     override fun teardown() {
@@ -239,7 +270,7 @@ internal fun toVoiceMessage(event: MidiEvent, time: ScoreTime): Message.VoiceMes
  * The device is chosen by name in the module editor. Fractional pitches are rounded to the
  * nearest MIDI note number, since MIDI 1.0 has nowhere to put the fraction.
  */
-class MidiOutModule : Module("midiOut") {
+class MidiOutModule : Module("midiOut"), AdoptsRememberedDefaults {
     val input = addVoiceInput("in")
     val channelIn = addInput("channel").also {
         it.min = 1.0
@@ -276,10 +307,35 @@ class MidiOutModule : Module("midiOut") {
 
     private val destination: MidiDestination? get() = lease?.destination
 
+    /**
+     * The user picked this device, so it becomes the one remembered for next time.
+     * See [MidiInModule.selectDevice] for why loading does not do the same.
+     */
     fun selectDevice(name: String) {
+        applyDevice(name)
+        MidiDeviceService.rememberDevice(MidiDirection.DESTINATION, name)
+    }
+
+    /** Points the module at a device without treating it as a choice worth remembering. */
+    private fun applyDevice(name: String) {
         if (name == deviceName) return
         deviceName = name
         reopenDestination()
+    }
+
+    /**
+     * Applies the device a saved patch specified, falling back to the one last chosen when it
+     * specified none. See [MidiInModule.loadDevice].
+     */
+    fun loadDevice(savedName: String) {
+        applyDevice(MidiDeviceService.resolveLoadedDevice(MidiDirection.DESTINATION, savedName))
+    }
+
+    /** A module dropped into a patch starts on the synth already in use, not on None. */
+    override fun adoptRememberedDefaults() {
+        if (deviceName.isEmpty()) {
+            applyDevice(MidiDeviceService.lastUsedDevice(MidiDirection.DESTINATION))
+        }
     }
 
     override fun teardown() {

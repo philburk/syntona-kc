@@ -6,6 +6,20 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
 /**
+ * A module that fills in a remembered choice when it is placed in a patch.
+ *
+ * Applied by [com.syntona.dataflow.editor.GraphState.addModule], which covers both dropping a
+ * module from the tree and loading a patch, and deliberately not by the undo path, where the
+ * module already carries the state it had when it was deleted.
+ *
+ * Only for settings the module has none of yet: the implementation is expected to leave an
+ * explicit choice alone, since loading applies a patch's own values before this runs.
+ */
+interface AdoptsRememberedDefaults {
+    fun adoptRememberedDefaults()
+}
+
+/**
  * Base class for all data flow modules.
  */
 abstract class Module(val type: String) {

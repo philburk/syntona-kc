@@ -1,30 +1,27 @@
 
 # ----------------------------------------------- HIGH PRIORITY
 
-BUG: When I save a patch using "Save As Resource" it defaults to a "patch.sntn" file. Should it default to "patch.json"?
-When I change the name to "xyz.json" then it save the file as "xyz.json.sntn"!
-Then I have to rename it to "xyz.json" in the Terminal.
-This makes it hard to create new Resources.
 
-If a midiIn is loaded with "None" as the device then use whatever the last selected MIDI device was.
-That way the user only needs to select that once. Persist the value in the Settings.
+If a midiIn or midiOut is loaded with "None" as the device then use whatever the last selected
+MIDI input or output device was.
+That will be very convenient for the user.
+When a device is selected, persist the value in the Settings Storage for both input and output.
+
 
 BUG: deleted the sine_ins patch from onesine.sntn while the patch was open. The patch window was left open.
 
-NOT A BUG: If I connect a keyNotes to a midiOut, press a key to make a note sound,
+NOT A BUG - FIXED? : If I connect a keyNotes to a midiOut, press a key to make a note sound,
 then delete the midiOut while the note is ON,
-then I get a hun note that I cannot turn off.
+then I get a hung note that I cannot turn off.
 Please send ALL_NOTES_OFF when changing channels or when deleting a midiOut.
 
 Need more ways to indicate Done. monoRdr could have an "empty" output jack.
+Ties in with the hierarchy editor.
 
 Need order4
 
 polyPatch pitchBend connection not needed because the pitch jack follows pitchBend
 replace with modWheel from CONTROL_CHANGE==1
-
-Need conditionals for selecting a controller value when index==N
-Or a specific module for catching an indexed controller that can be armed by moving a MIDI fader
 
 EnvelopeEditor needs axis labels, time extend at right edge (KSyn)
 

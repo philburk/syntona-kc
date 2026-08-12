@@ -386,11 +386,13 @@ object GraphSerializer {
                 (obj?.map?.get("keyChar") as? JsonValue.Str)?.value?.firstOrNull()?.let { module.keyChar = it }
             }
             if (module is MidiInModule) {
-                (obj?.map?.get("device") as? JsonValue.Str)?.value?.let { module.selectDevice(it) }
+                // loadDevice, not selectDevice: a patch saved with no device picks up the one
+                // last chosen on this machine.
+                module.loadDevice((obj?.map?.get("device") as? JsonValue.Str)?.value ?: "")
                 (obj?.map?.get("channelFilter") as? JsonValue.Num)?.value?.toInt()?.let { module.selectChannelFilter(it) }
             }
             if (module is MidiOutModule) {
-                (obj?.map?.get("device") as? JsonValue.Str)?.value?.let { module.selectDevice(it) }
+                module.loadDevice((obj?.map?.get("device") as? JsonValue.Str)?.value ?: "")
                 (obj?.map?.get("channel") as? JsonValue.Num)?.value?.toInt()?.let { module.selectChannel(it) }
             }
             if (module is BeatClockModule) {

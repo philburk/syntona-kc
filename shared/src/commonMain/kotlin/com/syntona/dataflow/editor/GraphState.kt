@@ -10,6 +10,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import com.syntona.dataflow.engine.DataFlowEngine
 import com.syntona.dataflow.engine.EngineAware
+import com.syntona.dataflow.model.AdoptsRememberedDefaults
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.AudioOutputJack
 import com.syntona.dataflow.model.DataQueueInputJack
@@ -87,6 +88,8 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
     fun addModule(module: Module, position: Offset) {
         onModuleAdded?.invoke(module)  // runs before Compose observes the module
         if (module is EngineAware) engine?.let { module.setEngine(it) }
+        // After a loaded patch has applied its own values, so an explicit choice still wins.
+        if (module is AdoptsRememberedDefaults) module.adoptRememberedDefaults()
         modules.add(module)
         modulePositions[module] = position
         notifyChanged()

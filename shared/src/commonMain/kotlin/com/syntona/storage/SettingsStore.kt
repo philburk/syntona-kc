@@ -157,5 +157,9 @@ class SettingsStore(
         /** Key for the directory the user last opened or saved a patch in. */
         const val KEY_LAST_DIRECTORY = "lastDirectoryUsed"
         const val KEY_LAST_DOCUMENT_DIRECTORY = "lastDocumentDirectoryUsed"
+
+        /** Keys for the MIDI devices last chosen, so a patch with none can pick them up. */
+        const val KEY_LAST_MIDI_SOURCE = "lastMidiSourceUsed"
+        const val KEY_LAST_MIDI_DESTINATION = "lastMidiDestinationUsed"
     }
 }

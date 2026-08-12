@@ -493,7 +493,8 @@
       "name": "midiIn",
       "x": 52,
       "y": 205.9,
-      "device": "MIDI"
+      "device": "",
+      "channelFilter": -1
     },
     {
       "id": 5,
