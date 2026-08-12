@@ -73,6 +73,18 @@ open class InputJack(
  * An input jack rendered as a clickable Button in the UI rather than a value-draggable label.
  * Clicking the button sends a kick message to this jack's module.
  */
+/**
+ * A module that shows a short status next to one of its command buttons.
+ *
+ * For a button whose effect is not visible on the module otherwise: matchControl's learn button
+ * shows "?" while it waits and the controller number once it has one, so the assignment can be
+ * read off the patch instead of hunting for it in the editor.
+ */
+interface CommandJackBadge {
+    /** Text to show beside [jack], or null for no badge. */
+    fun badgeFor(jack: CommandJack): String?
+}
+
 class CommandJack(name: String, module: Module) : InputJack(name, module, isKickable = true) {
     override var name: String
         get() = if (module is com.syntona.dataflow.modules.LinkModule) module.buttonText else super.name

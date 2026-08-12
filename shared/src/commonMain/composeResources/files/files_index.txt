@@ -7,6 +7,7 @@ examples/key_control.json
 examples/keyboard13.json
 examples/lineIn.json
 examples/looper.json
+examples/matchControl.json
 examples/midiIn.sntn
 examples/midiOut.sntn
 examples/mod8_knobs.json

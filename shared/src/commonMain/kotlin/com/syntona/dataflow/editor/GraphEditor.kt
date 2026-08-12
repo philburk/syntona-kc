@@ -43,6 +43,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -1021,6 +1022,9 @@ fun CommandJackView(jack: CommandJack, state: GraphState, isLeft: Boolean) {
             Box(modifier = Modifier.size(8.dp).background(colors.jackKickable))
             Spacer(modifier = Modifier.width(4.dp))
         }
+        // A highlighted command jack is one whose module is waiting for something - armed, or
+        // learning a controller. Tinting the button is what makes that state visible; without
+        // it, setting isHighlighted on a CommandJack has no effect at all.
         Button(
             onClick = {
                 val e = state.engine
@@ -1031,9 +1035,27 @@ fun CommandJackView(jack: CommandJack, state: GraphState, isLeft: Boolean) {
                 }
             },
             modifier = Modifier.height(24.dp),
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+            colors = if (jack.isHighlighted) {
+                ButtonDefaults.buttonColors(
+                    containerColor = colors.buttonBgArmed,
+                    contentColor = Color.Black
+                )
+            } else {
+                ButtonDefaults.buttonColors()
+            }
         ) {
             Text(jack.name, fontSize = 10.sp)
+        }
+        (jack.module as? CommandJackBadge)?.badgeFor(jack)?.let { badge ->
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                badge,
+                fontSize = 10.sp,
+                color = if (jack.isHighlighted) colors.buttonBgArmed else Color.Gray,
+                maxLines = 1,
+                softWrap = false
+            )
         }
         if (!isLeft) {
             Spacer(modifier = Modifier.width(4.dp))

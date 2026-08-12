@@ -42,6 +42,8 @@ data class GraphColors(
     val jackBgVoice: Color,
     val jackBgDataQueue: Color,
     val jackBgHighlighted: Color,
+    /** Fill for a command button whose module is armed and waiting for input. */
+    val buttonBgArmed: Color,
 
     // Wire lines
     val wireDefault: Color,
@@ -88,6 +90,7 @@ val DarkGraphColors = GraphColors(
     jackBgVoice = Color(0xFF4E3610),
     jackBgDataQueue = Color(0xFF3A3A1A),
     jackBgHighlighted = Color(180, 170, 130),
+    buttonBgArmed = Color(0xFFFF8C00),
 
     wireDefault = Color.Gray,
     wireAudio = Color(0xFF44DD44),
@@ -132,6 +135,7 @@ val LightGraphColors = GraphColors(
     jackBgVoice = Color(0xFFFFE0B2),
     jackBgDataQueue = Color(0xFFFFF9C4),
     jackBgHighlighted = Color(220, 210, 160),
+    buttonBgArmed = Color(0xFFF57C00),
 
     wireDefault = Color(0xFF90A4AE),
     wireAudio = Color(0xFF388E3C),

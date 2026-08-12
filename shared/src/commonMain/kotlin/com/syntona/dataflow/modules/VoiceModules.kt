@@ -1,9 +1,15 @@
 package com.syntona.dataflow.modules
 
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.syntona.core.model.ScoreTime
 import com.syntona.dataflow.engine.DataFlowEngine
 import com.syntona.dataflow.engine.EngineAware
+import com.syntona.dataflow.model.CommandJack
+import com.syntona.dataflow.model.CommandJackBadge
+import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
 import kotlin.math.round
@@ -302,5 +308,90 @@ class UnpackProgramModule : Module("unpackProgram") {
         if (msg.opcode != Message.VoiceOpcode.PROGRAM_CHANGE) return
 
         program.send(Message.FloatValue(msg.time, msg.value))
+    }
+}
+
+/** Value of the index jack that means "not assigned yet; learn from the next controller". */
+const val MATCH_CONTROL_ARMED = -1.0
+
+/**
+ * Passes on the value of one chosen MIDI controller, ignoring every other controller.
+ *
+ * Where unpackControl forwards whatever arrives and leaves the sorting to you, this listens for
+ * a single controller number and emits only its value, so a knob can be wired straight to a
+ * parameter.
+ *
+ * Which controller it listens for is [indexIn]. Setting that jack to [MATCH_CONTROL_ARMED] arms
+ * the module: the next CONTROL_CHANGE to arrive claims it, and its value is passed on in the
+ * same breath, so the knob you reached for is already in control by the time you let go. The
+ * [learn] button does exactly that - it is the arming gesture made visible, rather than asking
+ * anyone to remember that -1 is a magic number.
+ *
+ * A new module starts armed, since the first thing you want is to tell it which knob it is.
+ */
+class MatchControlModule : Module("matchControl"), CommandJackBadge {
+    val input = addVoiceInput("in", isKickable = true)
+    val learn = addCommandInput("learn")
+    val indexIn = addInput("index").also {
+        it.min = MATCH_CONTROL_ARMED
+        it.max = 127.0
+    }
+    val value = addOutput("value")
+
+    /**
+     * Mirrors [indexIn] as Compose state. Jack values are plain fields, so the badge on the node
+     * would keep showing "?" after a controller was learned without this.
+     */
+    var index: Int by mutableStateOf(MATCH_CONTROL_ARMED.toInt())
+        private set
+
+    init {
+        indexIn.setValue(MATCH_CONTROL_ARMED)
+        syncIndicators()
+    }
+
+    /** True while waiting to be told which controller to follow. */
+    val isArmed: Boolean get() = index < 0
+
+    /** Arms the module, so the next controller to move claims it. */
+    fun arm() {
+        indexIn.setValue(MATCH_CONTROL_ARMED)
+    }
+
+    /** Shows what the learn button is waiting for, or what it caught. */
+    override fun badgeFor(jack: CommandJack): String? =
+        if (jack !== learn) null else if (isArmed) "?" else index.toString()
+
+    override fun onMessageReceived(jack: InputJack, msg: Message) {
+        super.onMessageReceived(jack, msg)
+        // The index can also be set by a wire or by the editor, so the button follows the jack
+        // rather than the other way round.
+        if (jack === indexIn) syncIndicators()
+    }
+
+    override fun execute(triggerMessage: Message) {
+        if (learn.isKicked) {
+            arm()
+            return
+        }
+        val msg = triggerMessage as? Message.VoiceMessage ?: return
+        if (msg.opcode != Message.VoiceOpcode.CONTROL_CHANGE) return
+
+        val incoming = round(msg.extra).toInt()
+        if (isArmed) {
+            indexIn.setValue(incoming.toDouble().coerceIn(0.0, indexIn.max))
+        } else if (incoming != index) {
+            return
+        }
+        value.send(Message.FloatValue(msg.time, msg.value))
+    }
+
+    /**
+     * Brings the node's indicators into line with the jack: the learn button turns orange while
+     * armed, and the badge beside it shows "?" or the controller number.
+     */
+    private fun syncIndicators() {
+        index = round(indexIn.getDoubleValue()).toInt()
+        learn.isHighlighted = isArmed
     }
 }

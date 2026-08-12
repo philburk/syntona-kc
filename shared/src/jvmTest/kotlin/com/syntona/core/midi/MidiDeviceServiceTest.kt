@@ -2,6 +2,8 @@ package com.syntona.core.midi
 
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertNotNull
 
@@ -18,6 +20,14 @@ import kotlin.test.assertNotNull
 class MidiDeviceServiceTest {
 
     private val timeoutMillis = 3000L
+
+    // The service is a process-wide singleton, so start from a clean one rather than inheriting
+    // whatever bridge and coroutines the previous test class left behind.
+    @BeforeTest
+    fun startClean() = runBlocking { MidiDeviceService.resetForTest(null) }
+
+    @AfterTest
+    fun cleanUp() = runBlocking { MidiDeviceService.resetForTest(null) }
 
     @Test
     fun subscribeSourceReturnsRatherThanDeadlocking() {

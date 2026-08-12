@@ -31,6 +31,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -54,13 +55,19 @@ private const val POLL_INTERVAL_MS = 2L
  */
 object MidiDeviceService {
 
-    private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+    // A var only so that resetForTest can replace it. Every port poller, retry loop and hotplug
+    // collector lives in here, and a test cannot be isolated from the one before it unless all
+    // of them can be stopped at once. Production opens one scope and keeps it.
+    private var scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 
     /** Guards opening the bridge itself. Held only by [open]. */
     private val openMutex = Mutex()
 
     /** Guards the shared port registries. Never held while calling [open]. */
     private val portMutex = Mutex()
+
+    /** Serializes writes to [endpoints]. A leaf lock: nothing is called while holding it. */
+    private val publishMutex = Mutex()
 
     private var bridge: MidiBridge? = null
 
@@ -278,7 +285,11 @@ object MidiDeviceService {
 
     /** Drops every port and the bridge itself, so each test starts from a clean service. */
     internal suspend fun resetForTest(replacement: MidiBridge?) {
-        endpointCollectorJob?.cancel()
+        // The whole scope goes, not just the jobs this object still has handles for. A poll loop
+        // or a retry loop left running from an earlier test would otherwise keep writing to the
+        // maps and the endpoint list, and the next test would inherit its mess.
+        scope.cancel()
+        scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
         endpointCollectorJob = null
         portMutex.withLock {
             sourceSubscriptions.values.forEach { it.cancel() }
@@ -334,11 +345,21 @@ object MidiDeviceService {
         return bridge?.endpointsNow()?.firstOrNull { it.name == deviceName && it.direction == direction }
     }
 
-    private fun publish(list: List<MidiEndpoint>) {
-        // The collector runs off the UI thread, so the state list is updated inside a snapshot.
-        Snapshot.withMutableSnapshot {
-            endpoints.clear()
-            endpoints.addAll(list)
+    /**
+     * Replaces the visible endpoint list.
+     *
+     * Serialized, because opening the bridge and the hotplug collector both publish and they run
+     * on different coroutines: two mutable snapshots touching the same state list at once throw
+     * SnapshotApplyConflictException, which inside the collector would silently end hotplug
+     * updates for the rest of the session. The snapshot is still needed because the collector
+     * runs off the UI thread.
+     */
+    private suspend fun publish(list: List<MidiEndpoint>) {
+        publishMutex.withLock {
+            Snapshot.withMutableSnapshot {
+                endpoints.clear()
+                endpoints.addAll(list)
+            }
         }
     }
 }

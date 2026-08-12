@@ -1,0 +1,153 @@
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "music.voices.midiIn",
+      "name": "midiIn",
+      "x": 29.9,
+      "y": 172,
+      "device": "MIDI",
+      "channelFilter": -1
+    },
+    {
+      "id": 1,
+      "type": "music.voices.matchControl",
+      "name": "matchControl",
+      "x": 412.9,
+      "y": 152,
+      "jacks": {
+        "in": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "index": {
+          "v": 19,
+          "min": -1,
+          "max": 127,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "core.input.knob",
+      "name": "knob",
+      "x": 545.9,
+      "y": 159,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 0.25196850393700787,
+          "min": 0,
+          "max": 1,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "music.voices.matchControl",
+      "name": "matchControl",
+      "x": 411.9,
+      "y": 306,
+      "jacks": {
+        "in": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "index": {
+          "v": 16,
+          "min": -1,
+          "max": 127,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "core.input.knob",
+      "name": "knob",
+      "x": 546.9,
+      "y": 314,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 0.4409448818897638,
+          "min": 0,
+          "max": 1,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 63.9,
+      "y": 12,
+      "text": "Double click to open the midiIn editor and select a MIDI device.\nClick \"learn\" on one of the matchControl modules. Then move a controller knob or the modWheel on your keyboard.\nThe matchControl has now learned to respond to that controller.",
+      "w": 482.75,
+      "h": 97.875
+    },
+    {
+      "id": 6,
+      "type": "core.view.showMany",
+      "name": "showMany",
+      "x": 143.9,
+      "y": 266.1,
+      "jacks": {
+        "in": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": 1,
+      "fromJack": "value",
+      "to": 2,
+      "toJack": "in"
+    },
+    {
+      "from": 3,
+      "fromJack": "value",
+      "to": 4,
+      "toJack": "in"
+    },
+    {
+      "from": 0,
+      "fromJack": "out",
+      "to": 1,
+      "toJack": "in"
+    },
+    {
+      "from": 0,
+      "fromJack": "out",
+      "to": 3,
+      "toJack": "in"
+    },
+    {
+      "from": 0,
+      "fromJack": "out",
+      "to": 6,
+      "toJack": "in"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 865.91162109375,
+  "windowHeight": 531.91162109375
+}

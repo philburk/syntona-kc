@@ -12,8 +12,6 @@ Need more ways to indicate Done. monoRdr could have an "empty" output jack.
 
 Need order4
 
-BUG: keyNotes topOctave should be "q2w3er5t6y7ui9o0p"
-
 polyPatch pitchBend connection not needed because the pitch jack follows pitchBend
 replace with modWheel from CONTROL_CHANGE==1
 
@@ -21,6 +19,13 @@ Need conditionals for selecting a controller value when index==N
 Or a specific module for catching an indexed controller that can be armed by moving a MIDI fader
 
 EnvelopeEditor needs axis labels, time extend at right edge (KSyn)
+
+Show Modules can get wider because of changing number values, but not shrink, cut down on jitter, see function example.
+
+When I save a patch using "Save As Resource" it defaults to "patch.sntn" file. Should it be "patch.json"?
+
+If a midiIn is loaded with "None" as the device then use whatever the last selected MIDI device was.
+That way the user only needs to select that once. Persist the value in the Settings.
 
 # ----------------------------------------------- MEDIUM PRIORITY
 
@@ -38,8 +43,6 @@ Add unpackNoteOn and unpackNoteOff.
 Extend range of wavefolder above 8.0 (KSyn)
 
 Add wavefolder example
-
-Show Modules can get wider because of changing number values, but not shrink, cut down on jitter, see function
 
 When opening a new root window, offset it so that it does not hide the top window.
 
