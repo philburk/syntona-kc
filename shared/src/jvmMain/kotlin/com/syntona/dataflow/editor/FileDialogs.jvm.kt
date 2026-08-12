@@ -1,5 +1,6 @@
 package com.syntona.dataflow.editor
 
+import com.syntona.DEFAULT_PATCH_FILENAME
 import com.syntona.SYNTONA_FILE_EXTENSION
 import com.syntona.SYNTONA_FILE_SUFFIX
 import com.syntona.storage.SettingsStore
@@ -14,6 +15,49 @@ private val resourceRootDirectory: File? = File(
 ).takeIf { it.exists() }
 
 private var lastResourceDirectory: File? = resourceRootDirectory
+
+/**
+ * Extension for patches saved into composeResources. Resources are served over HTTP by the web
+ * build, where a known type carries better than an invented one, and the bundled patches are
+ * .json almost to a file.
+ */
+private const val RESOURCE_FILE_SUFFIX = ".json"
+
+/** Extensions a saved patch may already carry, in which case nothing is appended. */
+private val PATCH_SUFFIXES = listOf(RESOURCE_FILE_SUFFIX, SYNTONA_FILE_SUFFIX)
+
+/**
+ * Forces the resource extension onto a name or path.
+ *
+ * A patch under composeResources is always .json. A .sntn name is converted rather than
+ * accepted: a static web server has no content type for .sntn, so such a file is served wrongly
+ * or not at all, and the failure only shows up once the site is deployed. Choosing the extension
+ * here is the one place that can prevent it.
+ */
+internal fun asResourcePath(path: String): String {
+    val stem = PATCH_SUFFIXES.firstOrNull { path.endsWith(it, ignoreCase = true) }
+        ?.let { path.dropLast(it.length) }
+        ?: path
+    return stem + RESOURCE_FILE_SUFFIX
+}
+
+/**
+ * The name to offer when saving into composeResources.
+ *
+ * The name arrives from the open document, so it is usually `something.sntn`; resources want
+ * `.json`, and offering the wrong one is how a folder of .json files ends up with a stray .sntn.
+ */
+internal fun defaultResourceFileName(documentName: String): String =
+    asResourcePath(documentName.trim().ifEmpty { DEFAULT_PATCH_FILENAME })
+
+/**
+ * Adds [defaultSuffix] only when the name does not already end in a patch extension.
+ *
+ * Appending unconditionally is what turned a deliberately typed `xyz.json` into `xyz.json.sntn`:
+ * a name the user has already given an extension to should be taken at their word.
+ */
+internal fun withPatchExtension(path: String, defaultSuffix: String): String =
+    if (PATCH_SUFFIXES.any { path.endsWith(it, ignoreCase = true) }) path else path + defaultSuffix
 
 /**
  * Turns a resource path such as `examples/wavey_square.sntn` into the directory it lives in,
@@ -88,8 +132,9 @@ actual fun showSaveFileDialog(content: String, defaultName: String, onSaved: (pa
         selectedFile = File(lastDocumentDirectory, defaultName)
     }
     if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
-        var file = chooser.selectedFile
-        if (!file.name.endsWith(SYNTONA_FILE_SUFFIX)) file = File(file.path + SYNTONA_FILE_SUFFIX)
+        // Documents default to .sntn, but a name the user has already given a patch extension to
+        // is kept as typed rather than doubled up.
+        val file = File(withPatchExtension(chooser.selectedFile.path, SYNTONA_FILE_SUFFIX))
         updateLastDocumentDirectory(file.parentFile)
         file.writeText(content)
         onSaved(file.absolutePath)
@@ -101,20 +146,24 @@ actual fun showSaveAsResourceFileDialog(content: String, defaultName: String, on
     // opened from the Help menu starts in examples/ rather than the resource root. Once the
     // patch has been saved somewhere concrete it is no longer a resource, and the directory
     // last used for saving takes over again.
-    val loadedFrom = resolveResourceDirectory(
-        resourceRootDirectory,
-        FileState.currentFilePath.takeIf { FileState.isResource }
-    )
+    // The resource-relative path, not the raw one: once a patch has been saved here its path is
+    // absolute, and joining that to the root would resolve somewhere unintended.
+    val loadedFrom = resolveResourceDirectory(resourceRootDirectory, FileState.resourcePath)
     val dir = loadedFrom ?: lastResourceDirectory ?: return
     val chooser = JFileChooser().apply {
         dialogTitle = "Save Patch as Resource"
-        fileFilter = FileNameExtensionFilter("Syntona files (*$SYNTONA_FILE_SUFFIX)", SYNTONA_FILE_EXTENSION)
+        fileFilter = FileNameExtensionFilter(
+            "Patch resources (*$RESOURCE_FILE_SUFFIX, *$SYNTONA_FILE_SUFFIX)",
+            RESOURCE_FILE_SUFFIX.removePrefix("."),
+            SYNTONA_FILE_EXTENSION
+        )
         currentDirectory = dir
-        selectedFile = File(dir, defaultName)
+        selectedFile = File(dir, defaultResourceFileName(defaultName))
     }
     if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
-        var file = chooser.selectedFile
-        if (!file.name.endsWith(SYNTONA_FILE_SUFFIX)) file = File(file.path + SYNTONA_FILE_SUFFIX)
+        // Forced, not merely defaulted: picking an existing .sntn from the file list fills the
+        // name field with it, which is the easiest way to put one here by accident.
+        val file = File(asResourcePath(chooser.selectedFile.path))
         lastResourceDirectory = file.parentFile
         file.writeText(content)
         onSaved(file.absolutePath)

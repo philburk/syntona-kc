@@ -202,9 +202,9 @@ fun loadIntoDocument(
         win.title = document.displayName
     }
     graphState.kickLoadKickModules()
-    if (document.isResource) {
-        setUrlPatchPath(path)
-    }
+    // The URL carries the resource-relative path, which is not the same as the path on disk once
+    // a resource has been saved from a source checkout.
+    document.resourcePath?.let { setUrlPatchPath(it) }
 }
 
 /**

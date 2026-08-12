@@ -91,6 +91,10 @@ object FileState {
     val isResource: Boolean
         get() = activeDocument?.isResource ?: false
 
+    /** The active document's path within the resource tree, or null when it is an ordinary file. */
+    val resourcePath: String?
+        get() = activeDocument?.resourcePath
+
     fun markDirty() {
         activeDocument?.markDirty()
     }

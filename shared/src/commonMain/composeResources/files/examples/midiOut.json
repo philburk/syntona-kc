@@ -21,9 +21,16 @@
           "min": 0,
           "max": 100,
           "kickable": false
+        },
+        "channel": {
+          "v": 1,
+          "min": 1,
+          "max": 16,
+          "kickable": false
         }
       },
-      "device": "Gervill"
+      "device": "Gervill",
+      "channel": 1
     },
     {
       "id": 2,
@@ -66,8 +73,8 @@
       "id": 4,
       "type": "music.input.keyNotes",
       "name": "keyNotes",
-      "x": 187,
-      "y": 590.9,
+      "x": 227,
+      "y": 589.9,
       "jacks": {
         "amplitude": {
           "v": 0.8,
@@ -97,12 +104,6 @@
           "min": 0,
           "max": 127,
           "kickable": true
-        },
-        "tag": {
-          "v": -1,
-          "min": -1,
-          "max": 127,
-          "kickable": false
         }
       }
     },

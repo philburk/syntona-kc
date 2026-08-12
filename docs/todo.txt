@@ -1,6 +1,14 @@
 
 # ----------------------------------------------- HIGH PRIORITY
 
+BUG: When I save a patch using "Save As Resource" it defaults to a "patch.sntn" file. Should it default to "patch.json"?
+When I change the name to "xyz.json" then it save the file as "xyz.json.sntn"!
+Then I have to rename it to "xyz.json" in the Terminal.
+This makes it hard to create new Resources.
+
+If a midiIn is loaded with "None" as the device then use whatever the last selected MIDI device was.
+That way the user only needs to select that once. Persist the value in the Settings.
+
 BUG: deleted the sine_ins patch from onesine.sntn while the patch was open. The patch window was left open.
 
 NOT A BUG: If I connect a keyNotes to a midiOut, press a key to make a note sound,
@@ -22,10 +30,6 @@ EnvelopeEditor needs axis labels, time extend at right edge (KSyn)
 
 Show Modules can get wider because of changing number values, but not shrink, cut down on jitter, see function example.
 
-When I save a patch using "Save As Resource" it defaults to "patch.sntn" file. Should it be "patch.json"?
-
-If a midiIn is loaded with "None" as the device then use whatever the last selected MIDI device was.
-That way the user only needs to select that once. Persist the value in the Settings.
 
 # ----------------------------------------------- MEDIUM PRIORITY
 
