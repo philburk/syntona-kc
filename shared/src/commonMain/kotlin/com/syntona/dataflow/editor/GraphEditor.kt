@@ -852,13 +852,6 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
         return
     }
     val colors = LocalGraphColors.current
-    val connectorColor = when {
-        jack is InputJack && jack.isKickable -> colors.jackKickable
-        jack is AudioInputJack || jack is AudioOutputJack -> colors.jackAudio
-        jack is VoiceInputJack || jack is VoiceOutputJack -> colors.jackVoice
-        jack is DataQueueInputJack || jack is DataQueueOutputJack -> colors.jackDataQueue
-        else -> colors.jackDefault
-    }
     val textColor = if (jack.isHighlighted) Color.Black else Color.LightGray
     val backgroundColor = when {
         jack.isHighlighted -> colors.jackBgHighlighted
@@ -964,7 +957,7 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
             }
     ) {
         if (isLeft) {
-            Box(modifier = Modifier.size(8.dp).background(connectorColor))
+            JackMarker(jack)
             Spacer(modifier = Modifier.width(4.dp))
             Text(displayText, color = textColor, fontSize = 10.sp, maxLines = 1, softWrap = false)
             if (jack.module is SendModule) {
@@ -997,7 +990,8 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
                 )
             }
             Spacer(modifier = Modifier.width(4.dp))
-            Box(modifier = Modifier.size(8.dp).background(connectorColor))
+            // Outputs are never kickable, so this is the plain type-coloured square.
+            JackMarker(jack)
         }
     }
 }
@@ -1151,16 +1145,46 @@ fun CommandOutputJackView(jack: CommandOutputJack, state: GraphState, isLeft: Bo
  * Connector dot with wire-drag support but no name label.
  * Used by compact module layouts such as [NumberModuleNode].
  */
+/**
+ * The square that marks a jack, coloured by the kind of message it carries, with a red triangle
+ * butting against its right edge when arriving there runs the module.
+ *
+ * Two facts needed one square. Colour used to mean the message type except when the jack was
+ * kickable, when it meant that instead - so a kickable voice jack could advertise only one of
+ * the two, and always the less useful one. Colour now always means the type; the triangle alone
+ * means kickable.
+ */
 @Composable
-fun CompactJackConnector(jack: Jack, state: GraphState, isLeft: Boolean) {
+private fun JackMarker(jack: Jack, squareSize: Dp = 8.dp) {
     val colors = LocalGraphColors.current
-    val connectorColor = when {
-        jack is InputJack && jack.isKickable -> colors.jackKickable
+    val typeColor = when {
         jack is AudioInputJack || jack is AudioOutputJack -> colors.jackAudio
         jack is VoiceInputJack || jack is VoiceOutputJack -> colors.jackVoice
         jack is DataQueueInputJack || jack is DataQueueOutputJack -> colors.jackDataQueue
         else -> colors.jackDefault
     }
+    val kickColor = colors.jackKickable
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(modifier = Modifier.size(squareSize).background(typeColor))
+        if (jack is InputJack && jack.isKickable) {
+            Canvas(modifier = Modifier.size(width = squareSize / 2, height = squareSize)) {
+                drawPath(
+                    Path().apply {
+                        moveTo(0f, 0f)
+                        lineTo(size.width, size.height / 2f)
+                        lineTo(0f, size.height)
+                        close()
+                    },
+                    kickColor
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun CompactJackConnector(jack: Jack, state: GraphState, isLeft: Boolean) {
+    val colors = LocalGraphColors.current
     var jackRootPosition by remember { mutableStateOf(Offset.Zero) }
 
     Box(
@@ -1203,7 +1227,9 @@ fun CompactJackConnector(jack: Jack, state: GraphState, isLeft: Boolean) {
                 }
             }
     ) {
-        Box(modifier = Modifier.size(8.dp).background(connectorColor))
+        // Square plus triangle is exactly the 12.dp box, so a kickable jack keeps the same
+        // footprint in the compact nodes and nothing around it shifts.
+        JackMarker(jack)
     }
 }
 
