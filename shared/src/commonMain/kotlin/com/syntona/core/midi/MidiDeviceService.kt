@@ -147,6 +147,13 @@ object MidiDeviceService {
     /** Endpoints currently visible, updated as devices are plugged in and unplugged. */
     val endpoints = mutableStateListOf<MidiEndpoint>()
 
+    /**
+     * The same endpoints as an ordinary immutable list, for code that is not in a composition.
+     * The menus read [endpoints] so they follow hotplug; everything else reads this, because a
+     * snapshot state list cannot safely be iterated while another coroutine is replacing it.
+     */
+    private var plainEndpoints: List<MidiEndpoint> = emptyList()
+
     /** Why MIDI is unavailable, for the device menus to show. Null while all is well. */
     var errorMessage: String? by mutableStateOf(null)
         private set
@@ -392,7 +399,12 @@ object MidiDeviceService {
     }
 
     private fun findEndpoint(deviceName: String, direction: MidiDirection): MidiEndpoint? {
-        endpoints.firstOrNull { it.name == deviceName && it.direction == direction }?.let { return it }
+        // The plain list, not the snapshot state one. This runs on port-opening coroutines, and
+        // iterating the state list there throws ConcurrentModificationException if a hotplug
+        // update is applied mid-search - a device being plugged in could kill the very call that
+        // was opening a port.
+        plainEndpoints.firstOrNull { it.name == deviceName && it.direction == direction }
+            ?.let { return it }
         return bridge?.endpointsNow()?.firstOrNull { it.name == deviceName && it.direction == direction }
     }
 
@@ -407,6 +419,9 @@ object MidiDeviceService {
      */
     private suspend fun publish(list: List<MidiEndpoint>) {
         publishMutex.withLock {
+            // The plain copy is swapped as one reference, so a reader outside a composition
+            // always sees a whole list rather than one being rebuilt underneath it.
+            plainEndpoints = list
             Snapshot.withMutableSnapshot {
                 endpoints.clear()
                 endpoints.addAll(list)
