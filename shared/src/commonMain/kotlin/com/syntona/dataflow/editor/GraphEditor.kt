@@ -397,18 +397,34 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color? = null, la
     val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
     val borderWidth = if (isSelected) 2.dp else 1.dp
 
+    // A show module's width follows the text it is displaying, so a value losing a digit would
+    // narrow the whole node. With values streaming in that reads as a jitter, so the node may
+    // grow to fit but never shrink back. Reset when the composable is reused for another module.
+    val nodeDensity = LocalDensity.current
+    var widestSoFar by remember(module) { mutableStateOf(0.dp) }
+    val growOnlyWidth = module is ShowModule
+
     Surface(
         modifier = Modifier
             .offset { IntOffset((position.x * density).roundToInt(), (position.y * density).roundToInt()) }
+            .then(if (growOnlyWidth) Modifier.widthIn(min = widestSoFar) else Modifier)
             .width(IntrinsicSize.Max)
             .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
             .onSizeChanged { size ->
                 state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
+                if (growOnlyWidth) {
+                    with(nodeDensity) {
+                        val measured = size.width.toDp()
+                        if (measured > widestSoFar) widestSoFar = measured
+                    }
+                }
             },
         shape = RoundedCornerShape(4.dp),
         color = colors.moduleBackground
     ) {
-        Column(modifier = Modifier.width(IntrinsicSize.Max)) {
+        // fillMaxWidth rather than IntrinsicSize.Max, so the header and body still span the node
+        // when the grow-only minimum holds it wider than its content needs.
+        Column(modifier = Modifier.fillMaxWidth()) {
             // Header
             ModuleHeader(module = module, state = state, headerColor = resolvedHeaderColor, label = label)
 

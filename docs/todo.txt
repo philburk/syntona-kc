@@ -3,20 +3,20 @@
 
 MAKE SOME MUSIC!
 
-need matchNoteOn so we can trigger events from the drum pad on the keyboard or specific MIDI notes without using a "compare". Can "learn".
-outputs amplitude
-
 segEnv should not have to end on y==0, may want to queue an upward ramp of frequency.
 BUG: EnvelopeEditor, points at end or added to the end cannot be moved up or deleted. See midi_driven.sntn.
 
-matchControl in jack needs to be orange for VoiceMessage type and red for kickable! Can't be both. Outline in red?
+A VoiceMessage in jack needs to be orange for VoiceMessage type and red for kickable!
+But it can't be both. We need an different ways to indicate Kickable and jack message type.
+Indicate kickable with a red triangle pointing right that is butting up against the right edge of the original jack square.
+
+BUG: on web, the triangle controls in the ModuleTree look like broken placeholders.
 
 add *= or a ranger module for easy scaling of knobs to frequency.
 
 Show Modules can get wider because of changing number values, but not shrink, cut down on jitter, see function example.
 
 polyPatch pitchBend connection not needed because the pitch jack follows pitchBend
-replace with modWheel from CONTROL_CHANGE==1
 
 Claude says:
 unsubscribe, subscribeJob, and subscriptionGeneration are plain fields written from both the
