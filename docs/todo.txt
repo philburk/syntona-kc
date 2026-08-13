@@ -1,12 +1,33 @@
 
 # ----------------------------------------------- HIGH PRIORITY
 
+MAKE SOME MUSIC!
 
-If a midiIn or midiOut is loaded with "None" as the device then use whatever the last selected
-MIDI input or output device was.
-That will be very convenient for the user.
-When a device is selected, persist the value in the Settings Storage for both input and output.
+need matchNoteOn so we can trigger events from the drum pad on the keyboard or specific MIDI notes without using a "compare". Can "learn".
+outputs amplitude
 
+segEnv should not have to end on y==0, may want to queue an upward ramp of frequency.
+BUG: EnvelopeEditor, points at end or added to the end cannot be moved up or deleted. See midi_driven.sntn.
+
+matchControl in jack needs to be orange for VoiceMessage type and red for kickable! Can't be both. Outline in red?
+
+add *= or a ranger module for easy scaling of knobs to frequency.
+
+Show Modules can get wider because of changing number values, but not shrink, cut down on jitter, see function example.
+
+polyPatch pitchBend connection not needed because the pitch jack follows pitchBend
+replace with modWheel from CONTROL_CHANGE==1
+
+Claude says:
+unsubscribe, subscribeJob, and subscriptionGeneration are plain fields written from both the
+caller's thread and the module's coroutines. The generation check closes the logical race,
+but strictly these are unsynchronized reads on JVM. Same shape as the existing MidiOutModule
+fields, so I kept it consistent rather than diverging — worth confining the module's coroutines
+to a single-threaded dispatcher if you want that airtight.
+
+More Help patches
+
+More tutorials. Audio, timeline, pianoroll, Help
 
 BUG: deleted the sine_ins patch from onesine.sntn while the patch was open. The patch window was left open.
 
@@ -20,24 +41,15 @@ Ties in with the hierarchy editor.
 
 Need order4
 
-polyPatch pitchBend connection not needed because the pitch jack follows pitchBend
-replace with modWheel from CONTROL_CHANGE==1
-
 EnvelopeEditor needs axis labels, time extend at right edge (KSyn)
 
-Show Modules can get wider because of changing number values, but not shrink, cut down on jitter, see function example.
-
+Can't kick an audio jack so remove Kick? checkboxes from audio inputs.
 
 # ----------------------------------------------- MEDIUM PRIORITY
 
-Claude says:
-unsubscribe, subscribeJob, and subscriptionGeneration are plain fields written from both the
-caller's thread and the module's coroutines. The generation check closes the logical race,
-but strictly these are unsynchronized reads on JVM. Same shape as the existing MidiOutModule
-fields, so I kept it consistent rather than diverging — worth confining the module's coroutines
-to a single-threaded dispatcher if you want that airtight.
+Pack SysEx for controlling LEDs on KeyLab drum pads.
 
-More tutorials. Audio, timeline, pianoroll.
+Add theremin (XY) input module.
 
 Add unpackNoteOn and unpackNoteOff.
 
@@ -53,6 +65,11 @@ Maybe??? Add a resource folder with a "library" of patches. Add a "Load Patch fr
 similar to the Help menu items. Or add them to the moduleTree. Example???
 
 Consolidate stock polyPatch inputs into a block.
+
+Add multiTrack module like a DAW, + button for MIDI or Audio or composable Patch tracks.
+Audio tracks have audio in/out, MIDI tracks have VoiceMessage in/out.
+Support quantization based on tempo, save original content for requantization.
+Save audio in adjacent /audio/ folder. What does Logic do?
 
 Help trace wires by highlighting the wires connected to a highlighted module.
 Widget to put wires in front.
@@ -102,7 +119,7 @@ Add Gaussian distribution and histogram.
 
 Add amplitude/velocity editing in pianoRoll editor. Bottom panel?
 
-Note processing elements. unpackNote, packNote, scaleAmp, transpose.
+Note processing elements. scaleAmp, transpose.
 
 Add MIDI in/out support using VoiceMessages.
 

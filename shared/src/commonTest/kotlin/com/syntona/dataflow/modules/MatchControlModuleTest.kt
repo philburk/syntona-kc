@@ -36,7 +36,7 @@ class MatchControlModuleTest {
     private fun matcherWithRecorder(): Pair<MatchControlModule, Recorder> {
         val module = MatchControlModule()
         val recorder = Recorder()
-        module.value.connect(recorder.input)
+        module.output.connect(recorder.input)
         return module to recorder
     }
 
@@ -52,7 +52,7 @@ class MatchControlModuleTest {
     fun startsArmedSoItCanBeTaught() {
         val module = MatchControlModule()
         assertTrue(module.isArmed)
-        assertEquals(-1, module.index)
+        assertEquals(-1, module.matchNumber)
         assertTrue(module.learn.isHighlighted, "the learn button should be lit while armed")
     }
 
@@ -62,7 +62,7 @@ class MatchControlModuleTest {
 
         module.input.receive(controlChange(index = 74.0, value = 0.5))
 
-        assertEquals(74, module.index)
+        assertEquals(74, module.matchNumber)
         assertFalse(module.isArmed)
         assertFalse(module.learn.isHighlighted, "the light goes out once it has learned")
         // The knob that taught it is already in control, without needing a second nudge.
@@ -80,14 +80,14 @@ class MatchControlModuleTest {
         module.input.receive(controlChange(index = 74.0, value = 0.75))
 
         assertEquals(listOf(0.25, 0.75), recorder.values, "another knob must not get through")
-        assertEquals(74, module.index, "a stray controller must not steal the assignment")
+        assertEquals(74, module.matchNumber, "a stray controller must not steal the assignment")
     }
 
     @Test
     fun theLearnButtonRearmsIt() {
         val (module, recorder) = matcherWithRecorder()
         module.input.receive(controlChange(index = 74.0, value = 0.1))
-        assertEquals(74, module.index)
+        assertEquals(74, module.matchNumber)
 
         module.learn.receive(Message.FloatValue(testTime, 0.0))
 
@@ -96,19 +96,19 @@ class MatchControlModuleTest {
 
         recorder.values.clear()
         module.input.receive(controlChange(index = 7.0, value = 0.6))
-        assertEquals(7, module.index, "rearming lets a different knob take over")
+        assertEquals(7, module.matchNumber, "rearming lets a different knob take over")
         assertEquals(listOf(0.6), recorder.values)
     }
 
     @Test
     fun settingTheIndexJackToMinusOneAlsoArmsIt() {
         val module = MatchControlModule()
-        module.indexIn.setValue(20.0)
+        module.matchIn.setValue(20.0)
         assertFalse(module.isArmed)
         assertFalse(module.learn.isHighlighted)
 
         // The jack is the state; the button is one way of setting it, a wire is another.
-        module.indexIn.setValue(MATCH_CONTROL_ARMED)
+        module.matchIn.setValue(MATCH_ARMED)
 
         assertTrue(module.isArmed)
         assertTrue(module.learn.isHighlighted, "the button follows the jack, however it was set")
@@ -138,14 +138,14 @@ class MatchControlModuleTest {
         // The badge reads this mirror rather than the jack, because jack values are not Compose
         // state and a node reading one would never repaint when a controller was learned.
         val module = MatchControlModule()
-        assertEquals(-1, module.index)
+        assertEquals(-1, module.matchNumber)
 
-        module.indexIn.setValue(64.0)
-        assertEquals(64, module.index)
+        module.matchIn.setValue(64.0)
+        assertEquals(64, module.matchNumber)
         assertEquals("64", module.badgeFor(module.learn))
 
-        module.indexIn.setValue(MATCH_CONTROL_ARMED)
-        assertEquals(-1, module.index)
+        module.matchIn.setValue(MATCH_ARMED)
+        assertEquals(-1, module.matchNumber)
     }
 
     @Test
@@ -172,7 +172,7 @@ class MatchControlModuleTest {
         GraphSerializer.deserialize(reloaded, GraphSerializer.serialize(state, state.modules))
         val loaded = reloaded.modules.first { it is MatchControlModule } as MatchControlModule
 
-        assertEquals(74, loaded.index)
+        assertEquals(74, loaded.matchNumber)
         assertFalse(loaded.isArmed, "a saved patch should not re-learn on load")
         assertFalse(loaded.learn.isHighlighted)
     }

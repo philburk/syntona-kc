@@ -311,62 +311,73 @@ class UnpackProgramModule : Module("unpackProgram") {
     }
 }
 
-/** Value of the index jack that means "not assigned yet; learn from the next controller". */
-const val MATCH_CONTROL_ARMED = -1.0
+/** Value of a match module's selector jack meaning "not assigned yet; learn from the next one". */
+const val MATCH_ARMED = -1.0
 
 /**
- * Passes on the value of one chosen MIDI controller, ignoring every other controller.
+ * Listens for one voice message out of the stream and passes on a single number from it.
  *
- * Where unpackControl forwards whatever arrives and leaves the sorting to you, this listens for
- * a single controller number and emits only its value, so a knob can be wired straight to a
- * parameter.
+ * Where the unpack modules forward whatever arrives and leave the sorting to you, these pick one
+ * controller or one note and emit only that, so a knob or a drum pad can be wired straight to
+ * what it drives.
  *
- * Which controller it listens for is [indexIn]. Setting that jack to [MATCH_CONTROL_ARMED] arms
- * the module: the next CONTROL_CHANGE to arrive claims it, and its value is passed on in the
- * same breath, so the knob you reached for is already in control by the time you let go. The
- * [learn] button does exactly that - it is the arming gesture made visible, rather than asking
- * anyone to remember that -1 is a magic number.
+ * Which one it listens for is [matchIn]. Setting that jack to [MATCH_ARMED] arms the module: the
+ * next matching message claims it, and its payload is passed on in the same breath, so the
+ * control you reached for is already live by the time you let go. The [learn] button does
+ * exactly that - it is the arming gesture made visible, rather than asking anyone to remember
+ * that -1 is a magic number.
  *
- * A new module starts armed, since the first thing you want is to tell it which knob it is.
+ * A new module starts armed, since the first thing you want is to tell it which control it is.
  */
-class MatchControlModule : Module("matchControl"), CommandJackBadge {
+abstract class MatchVoiceModule(
+    type: String,
+    selectorName: String,
+    payloadName: String,
+    private val opcode: Message.VoiceOpcode
+) : Module(type), CommandJackBadge {
     val input = addVoiceInput("in", isKickable = true)
     val learn = addCommandInput("learn")
-    val indexIn = addInput("index").also {
-        it.min = MATCH_CONTROL_ARMED
+    val matchIn = addInput(selectorName).also {
+        it.min = MATCH_ARMED
         it.max = 127.0
     }
-    val value = addOutput("value")
+    val output = addOutput(payloadName)
 
     /**
-     * Mirrors [indexIn] as Compose state. Jack values are plain fields, so the badge on the node
-     * would keep showing "?" after a controller was learned without this.
+     * Mirrors [matchIn] as Compose state. Jack values are plain fields, so the badge on the node
+     * would keep showing "?" after something was learned without this.
      */
-    var index: Int by mutableStateOf(MATCH_CONTROL_ARMED.toInt())
+    var matchNumber: Int by mutableStateOf(MATCH_ARMED.toInt())
         private set
 
     init {
-        indexIn.setValue(MATCH_CONTROL_ARMED)
+        matchIn.setValue(MATCH_ARMED)
         syncIndicators()
     }
 
-    /** True while waiting to be told which controller to follow. */
-    val isArmed: Boolean get() = index < 0
+    /** Which field of an incoming message says which control it came from. */
+    protected abstract fun identifierOf(msg: Message.VoiceMessage): Double
 
-    /** Arms the module, so the next controller to move claims it. */
+    /** Which field is passed on when a message matches. */
+    protected abstract fun payloadOf(msg: Message.VoiceMessage): Double
+
+    /** True while waiting to be told what to follow. */
+    val isArmed: Boolean get() = matchNumber < 0
+
+    /** Arms the module, so the next matching message claims it. */
     fun arm() {
-        indexIn.setValue(MATCH_CONTROL_ARMED)
+        matchIn.setValue(MATCH_ARMED)
     }
 
     /** Shows what the learn button is waiting for, or what it caught. */
     override fun badgeFor(jack: CommandJack): String? =
-        if (jack !== learn) null else if (isArmed) "?" else index.toString()
+        if (jack !== learn) null else if (isArmed) "?" else matchNumber.toString()
 
     override fun onMessageReceived(jack: InputJack, msg: Message) {
         super.onMessageReceived(jack, msg)
-        // The index can also be set by a wire or by the editor, so the button follows the jack
-        // rather than the other way round.
-        if (jack === indexIn) syncIndicators()
+        // The selector can also be set by a wire or by the editor, so the button follows the
+        // jack rather than the other way round.
+        if (jack === matchIn) syncIndicators()
     }
 
     override fun execute(triggerMessage: Message) {
@@ -375,23 +386,58 @@ class MatchControlModule : Module("matchControl"), CommandJackBadge {
             return
         }
         val msg = triggerMessage as? Message.VoiceMessage ?: return
-        if (msg.opcode != Message.VoiceOpcode.CONTROL_CHANGE) return
+        if (msg.opcode != opcode) return
 
-        val incoming = round(msg.extra).toInt()
+        val incoming = round(identifierOf(msg)).toInt()
         if (isArmed) {
-            indexIn.setValue(incoming.toDouble().coerceIn(0.0, indexIn.max))
-        } else if (incoming != index) {
+            matchIn.setValue(incoming.toDouble().coerceIn(0.0, matchIn.max))
+        } else if (incoming != matchNumber) {
             return
         }
-        value.send(Message.FloatValue(msg.time, msg.value))
+        output.send(Message.FloatValue(msg.time, payloadOf(msg)))
     }
 
     /**
      * Brings the node's indicators into line with the jack: the learn button turns orange while
-     * armed, and the badge beside it shows "?" or the controller number.
+     * armed, and the badge beside it shows "?" or the number it is following.
      */
     private fun syncIndicators() {
-        index = round(indexIn.getDoubleValue()).toInt()
+        matchNumber = round(matchIn.getDoubleValue()).toInt()
         learn.isHighlighted = isArmed
     }
+}
+
+/**
+ * Follows one MIDI controller and emits its value, ignoring every other controller.
+ *
+ * The controller number travels in a CONTROL_CHANGE's extra field, and its value in the value
+ * field. Wire the output to a knob's parameter and turn the hardware knob to teach it.
+ */
+class MatchControlModule : MatchVoiceModule(
+    type = "matchControl",
+    selectorName = "index",
+    payloadName = "value",
+    opcode = Message.VoiceOpcode.CONTROL_CHANGE
+) {
+    override fun identifierOf(msg: Message.VoiceMessage): Double = msg.extra
+
+    override fun payloadOf(msg: Message.VoiceMessage): Double = msg.value
+}
+
+/**
+ * Follows one note and emits its amplitude on every strike, ignoring every other note.
+ *
+ * For triggering from a drum pad or one key of a keyboard: match on the note, and the amplitude
+ * carries how hard it was hit, so a trigger arrives with its dynamics attached. NOTE_OFF is not
+ * matched - this fires when a pad is struck, not when it is released.
+ */
+class MatchNoteOnModule : MatchVoiceModule(
+    type = "matchNoteOn",
+    selectorName = "tag",
+    payloadName = "amplitude",
+    opcode = Message.VoiceOpcode.NOTE_ON
+) {
+    override fun identifierOf(msg: Message.VoiceMessage): Double = msg.tag.toDouble()
+
+    override fun payloadOf(msg: Message.VoiceMessage): Double = msg.extra
 }

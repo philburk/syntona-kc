@@ -97,6 +97,7 @@ object ModuleRegistry {
         voices.modules.add(ModuleEntry("unpackNoteOff") { UnpackNoteOffModule() })
         voices.modules.add(ModuleEntry("unpackControl") { UnpackControlModule() })
         voices.modules.add(ModuleEntry("matchControl") { MatchControlModule() })
+        voices.modules.add(ModuleEntry("matchNoteOn") { MatchNoteOnModule() })
         voices.modules.add(ModuleEntry("unpackBend") { UnpackBendModule() })
         voices.modules.add(ModuleEntry("unpackProgram") { UnpackProgramModule() })
         voices.modules.add(ModuleEntry("midiIn") { MidiInModule() })
