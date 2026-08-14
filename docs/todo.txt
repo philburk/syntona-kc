@@ -3,12 +3,14 @@
 
 MAKE SOME MUSIC!
 
-BUG: deleted the sine_ins patch from onesine.sntn while the patch was open. The patch window was left open.
-
 BUG: loaded example, chose New from File menu.
 Name of the example was still in the top window header.
 
-BUG: load one example, name appears as patch name
+BUG:
+Load an example from the Help menu.
+The patch name appears as patch name
+
+
 Load second example, still has the same old patch name.
 
 

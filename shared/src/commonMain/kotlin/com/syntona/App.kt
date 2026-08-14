@@ -590,6 +590,7 @@ fun App(
                                                               current.rootPatch.clearModifiedRecursively()
                                                               current.markNew()
                                                               mdiState.closeSubWindows(current)
+                                                              setUrlPatchPath(null)
                                                           }
                                                       }
                                                   }

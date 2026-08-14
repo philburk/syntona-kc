@@ -124,6 +124,7 @@ fun main() {
                                 current.rootPatch.clearModifiedRecursively()
                                 current.markNew()
                                 state.closeSubWindows(current)
+                                com.syntona.setUrlPatchPath(null)
                             }
                         }
                     }

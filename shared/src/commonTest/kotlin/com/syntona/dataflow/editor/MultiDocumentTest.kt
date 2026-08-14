@@ -316,7 +316,38 @@ class MultiDocumentTest {
 
         second.markNew()
         assertEquals(null, second.rootPatch.filePath)
+        assertEquals("root", second.rootPatch.name, "patch name should reset to root")
+        assertEquals("root", second.displayName, "display name should reset to root")
+        assertEquals("root", second.rootPatch.headerTitle, "header title should reset to root")
         assertEquals("/tmp/first.sntn", first.rootPatch.filePath, "the other document is untouched")
+    }
+
+    @Test
+    fun testMarkNewResetsWindowHeaderToRootAfterLoadingExample() {
+        val mdi = MdiState()
+        val doc = newDocument("root")
+        val rootWindow = MdiWindowInfo(
+            id = doc.rootPatch,
+            title = doc.rootPatch.name,
+            closable = false,
+            graphState = doc.rootPatch.graphState,
+            content = {}
+        )
+        mdi.open(rootWindow)
+
+        // Simulate loading an example into the document
+        doc.markSaved("examples/drum_rhythm.json")
+        rootWindow.title = doc.displayName
+
+        assertEquals("drum_rhythm", rootWindow.title)
+        assertEquals("drum_rhythm", doc.rootPatch.headerTitle)
+
+        // File -> New
+        doc.markNew()
+
+        assertEquals("root", doc.rootPatch.name)
+        assertEquals("root", doc.rootPatch.headerTitle)
+        assertEquals("root", rootWindow.title)
     }
 
     @Test

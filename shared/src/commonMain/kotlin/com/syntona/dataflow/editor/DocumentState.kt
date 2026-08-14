@@ -103,6 +103,7 @@ class DocumentState(val rootPatch: PatchModule) {
         currentFilePath = null
         isDirty = false
         rootPatch.filePath = null
+        rootPatch.name = "root"
     }
 
     /** Unsaved work that would actually be lost. A bundled resource can always be reloaded. */
