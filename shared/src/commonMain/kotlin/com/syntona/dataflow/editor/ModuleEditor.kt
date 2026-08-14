@@ -95,7 +95,7 @@ fun ModuleEditor(module: Module, onDismiss: () -> Unit, modifier: Modifier = Mod
     Box(
         modifier = modifier
             // Wide enough for the whole jack row: three labelled number fields plus the Kick?
-            // and Add? checkboxes, which an audio input shows both of.
+            // or Add? checkbox.
             .width(600.dp)
             .background(PANEL_COLOR, RoundedCornerShape(8.dp))
             .border(1.dp, BORDER_COLOR, RoundedCornerShape(8.dp))
@@ -238,17 +238,19 @@ private fun JackEditorRow(jack: InputJack) {
                     modifier = Modifier.width(80.dp)
                 )
 
-                Spacer(modifier = Modifier.width(4.dp))
-                var isKickable by remember(jack) { mutableStateOf(jack.isKickable) }
-                JackFlagCheckbox(
-                    label = "Kick?",
-                    checked = isKickable,
-                    onCheckedChange = {
-                        isKickable = it
-                        jack.isKickable = it
-                        FileState.markDirty()
-                    }
-                )
+                if (jack !is AudioInputJack) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    var isKickable by remember(jack) { mutableStateOf(jack.isKickable) }
+                    JackFlagCheckbox(
+                        label = "Kick?",
+                        checked = isKickable,
+                        onCheckedChange = {
+                            isKickable = it
+                            jack.isKickable = it
+                            FileState.markDirty()
+                        }
+                    )
+                }
 
                 if (jack is AudioInputJack) {
                     Spacer(modifier = Modifier.width(4.dp))

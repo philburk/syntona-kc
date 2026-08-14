@@ -332,4 +332,121 @@ class MultiDocumentTest {
         assertTrue(background.isDirty, "the document that changed should be the dirty one")
         assertFalse(front.isDirty, "the frontmost document did not change")
     }
+
+    @Test
+    fun testDeletePatchClosesItsWindow() {
+        val mdi = MdiState()
+        val doc = newDocument("doc")
+        val rootWindow = MdiWindowInfo(
+            id = doc.rootPatch,
+            title = "doc",
+            closable = false,
+            graphState = doc.rootPatch.graphState,
+            content = {}
+        )
+        mdi.open(rootWindow)
+
+        val childPatch = PatchModule("osc")
+        doc.rootPatch.graphState.addModule(childPatch, Offset.Zero)
+
+        val childWindow = MdiWindowInfo(
+            id = childPatch,
+            title = "osc",
+            closable = true,
+            graphState = childPatch.graphState,
+            content = {}
+        )
+        mdi.open(childWindow)
+
+        assertEquals(2, mdi.windows.size)
+        assertTrue(childPatch.isWindowOpen)
+
+        doc.rootPatch.graphState.selectModule(childPatch)
+        doc.rootPatch.graphState.deleteSelectedModules()
+
+        assertEquals(1, mdi.windows.size, "deleting the patch module should close its window")
+        assertSame(rootWindow, mdi.windows.first())
+        assertFalse(childPatch.isWindowOpen)
+    }
+
+    @Test
+    fun testDeleteParentPatchClosesDescendantWindows() {
+        val mdi = MdiState()
+        val doc = newDocument("doc")
+        val rootWindow = MdiWindowInfo(
+            id = doc.rootPatch,
+            title = "doc",
+            closable = false,
+            graphState = doc.rootPatch.graphState,
+            content = {}
+        )
+        mdi.open(rootWindow)
+
+        val parent = PatchModule("parent")
+        doc.rootPatch.graphState.addModule(parent, Offset.Zero)
+
+        val child = PatchModule("child")
+        parent.graphState.addModule(child, Offset.Zero)
+
+        val parentWindow = MdiWindowInfo(
+            id = parent,
+            title = "parent",
+            closable = true,
+            graphState = parent.graphState,
+            content = {}
+        )
+        val childWindow = MdiWindowInfo(
+            id = child,
+            title = "child",
+            closable = true,
+            graphState = child.graphState,
+            content = {}
+        )
+        mdi.open(parentWindow)
+        mdi.open(childWindow)
+
+        assertEquals(3, mdi.windows.size)
+
+        doc.rootPatch.graphState.selectModule(parent)
+        doc.rootPatch.graphState.deleteSelectedModules()
+
+        assertEquals(1, mdi.windows.size, "deleting the parent patch should close all descendant windows")
+        assertSame(rootWindow, mdi.windows.first())
+        assertFalse(parent.isWindowOpen)
+        assertFalse(child.isWindowOpen)
+    }
+
+    @Test
+    fun testDeleteModuleWithWindowClosesWindow() {
+        val mdi = MdiState()
+        val doc = newDocument("doc")
+        val rootWindow = MdiWindowInfo(
+            id = doc.rootPatch,
+            title = "doc",
+            closable = false,
+            graphState = doc.rootPatch.graphState,
+            content = {}
+        )
+        mdi.open(rootWindow)
+
+        val pianoRoll = com.syntona.dataflow.modules.PianoRollModule()
+        doc.rootPatch.graphState.addModule(pianoRoll, Offset.Zero)
+
+        val pianoRollWindow = MdiWindowInfo(
+            id = pianoRoll,
+            title = "pianoRoll",
+            closable = true,
+            graphState = doc.rootPatch.graphState,
+            content = {}
+        )
+        mdi.open(pianoRollWindow)
+
+        assertEquals(2, mdi.windows.size)
+
+        doc.rootPatch.graphState.selectModule(pianoRoll)
+        doc.rootPatch.graphState.deleteSelectedModules()
+
+        assertEquals(1, mdi.windows.size, "deleting a module with an open window should close that window")
+        assertSame(rootWindow, mdi.windows.first())
+    }
 }

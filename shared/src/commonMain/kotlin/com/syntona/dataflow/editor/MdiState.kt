@@ -10,6 +10,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.syntona.dataflow.model.Module
+import com.syntona.dataflow.modules.PatchModule
 
 val LocalMdiState = compositionLocalOf<MdiState> { error("No MdiState provided") }
 
@@ -147,7 +148,7 @@ class MdiState {
     }
 
     fun open(window: MdiWindowInfo) {
-        (window.id as? com.syntona.dataflow.modules.PatchModule)?.isWindowOpen = true
+        (window.id as? PatchModule)?.isWindowOpen = true
         val existing = windows.find { it.id == window.id }
         if (existing != null) {
             if (existing.minimized) existing.minimized = false
@@ -156,6 +157,48 @@ class MdiState {
             windows.add(window)
             window.graphState?.let { focusGraph(it) }
         }
+        window.graphState?.addModuleRemovedListener(::onModuleRemovedFromGraph)
+        (window.id as? Module)?.parentPatch?.graphState?.addModuleRemovedListener(::onModuleRemovedFromGraph)
+    }
+
+    fun closeWindowsForModules(deletedModules: Collection<Module>) {
+        if (deletedModules.isEmpty()) return
+        val allDeleted = mutableSetOf<Module>()
+        fun collect(m: Module) {
+            allDeleted.add(m)
+            if (m is PatchModule) {
+                for (child in m.graphState.modules) {
+                    collect(child)
+                }
+            }
+        }
+        deletedModules.forEach { collect(it) }
+
+        val doomed = windows.filter { w ->
+            w.closable && (
+                w.id in allDeleted ||
+                (w.graphState != null && allDeleted.any { it is PatchModule && it.graphState === w.graphState })
+            )
+        }
+        if (doomed.isEmpty()) return
+
+        doomed.forEach { w ->
+            if (w.graphState == activeGraphState) activeGraphState = null
+            (w.id as? PatchModule)?.isWindowOpen = false
+        }
+        windows.removeAll { w -> doomed.any { it === w } }
+
+        if (activeGraphState == null) {
+            windows.lastOrNull { !it.minimized }?.graphState?.let { focusGraph(it) }
+        }
+    }
+
+    fun closeWindowsForModule(deletedModule: Module) {
+        closeWindowsForModules(listOf(deletedModule))
+    }
+
+    private fun onModuleRemovedFromGraph(module: Module) {
+        closeWindowsForModule(module)
     }
 
     fun close(id: Any) {

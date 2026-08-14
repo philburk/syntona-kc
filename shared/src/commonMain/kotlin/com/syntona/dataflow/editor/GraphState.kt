@@ -62,6 +62,18 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
 
     var onModuleAddedCallback: ((Module) -> Unit)? = null
     var onModuleRemovedCallback: ((Module) -> Unit)? = null
+    private val moduleRemovedListeners = mutableListOf<(Module) -> Unit>()
+
+    fun addModuleRemovedListener(listener: (Module) -> Unit) {
+        if (!moduleRemovedListeners.contains(listener)) {
+            moduleRemovedListeners.add(listener)
+        }
+    }
+
+    fun removeModuleRemovedListener(listener: (Module) -> Unit) {
+        moduleRemovedListeners.remove(listener)
+    }
+
     var onConnectionAddedCallback: ((OutputJack, InputJack) -> Unit)? = null
     var onConnectionRemovedCallback: ((OutputJack, InputJack) -> Unit)? = null
 
@@ -121,6 +133,10 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
 
     // Core deletion logic used by DeleteModulesCommand.execute()
     fun removeModulesDirectly(modulesToRemove: List<Module>) {
+        if (modulesToRemove.isEmpty()) return
+        modulesToRemove.forEach { module ->
+            moduleRemovedListeners.forEach { it(module) }
+        }
         modulesToRemove.forEach { module ->
             module.teardown()
             val connsToRemove = connections.filter { it.output.module === module || it.input.module === module }

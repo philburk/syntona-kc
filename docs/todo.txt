@@ -3,8 +3,18 @@
 
 MAKE SOME MUSIC!
 
+BUG: deleted the sine_ins patch from onesine.sntn while the patch was open. The patch window was left open.
+
+BUG: loaded example, chose New from File menu.
+Name of the example was still in the top window header.
+
+BUG: load one example, name appears as patch name
+Load second example, still has the same old patch name.
+
+
 segEnv should not have to end on y==0, may want to queue an upward ramp of frequency.
 BUG: EnvelopeEditor, points at end or added to the end cannot be moved up or deleted. See midi_driven.sntn.
+EnvelopeEditor needs axis labels, time extend at right edge (KSyn)
 
 add *= or a ranger module for easy scaling of knobs to frequency.
 
@@ -21,8 +31,6 @@ More Help patches
 
 More tutorials. Audio, timeline, pianoroll, Help
 
-BUG: deleted the sine_ins patch from onesine.sntn while the patch was open. The patch window was left open.
-
 NOT A BUG - FIXED? : If I connect a keyNotes to a midiOut, press a key to make a note sound,
 then delete the midiOut while the note is ON,
 then I get a hung note that I cannot turn off.
@@ -32,10 +40,6 @@ Need more ways to indicate Done. monoRdr could have an "empty" output jack.
 Ties in with the hierarchy editor.
 
 Need order4
-
-EnvelopeEditor needs axis labels, time extend at right edge (KSyn)
-
-Can't kick an audio jack so remove Kick? checkboxes from audio inputs.
 
 # ----------------------------------------------- MEDIUM PRIORITY
 
