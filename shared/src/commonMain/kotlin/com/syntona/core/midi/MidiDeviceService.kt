@@ -238,15 +238,33 @@ object MidiDeviceService {
         }
 
     /**
+     * Checks whether a device with the given name is currently available for [direction].
+     */
+    fun isDeviceAvailable(direction: MidiDirection, deviceName: String): Boolean {
+        if (deviceName.isEmpty()) return false
+        return findEndpoint(deviceName, direction) != null
+    }
+
+    /**
      * The device a module loading with [savedName] should end up on.
      *
-     * A patch saved with no device takes the one last chosen, which is the common case when a
-     * patch is shared or was saved before a keyboard was plugged in. A patch that names a device
-     * keeps it, even when that device is absent right now: silently retargeting to a different
-     * instrument would be worse than staying quiet until it is plugged back in.
+     * A patch saved with no device takes the one last chosen from Settings Storage.
+     * If a saved device name is specified but is no longer available among attached devices,
+     * it falls back to the device last chosen from Settings Storage for [direction].
      */
-    fun resolveLoadedDevice(direction: MidiDirection, savedName: String): String =
-        savedName.ifEmpty { lastUsedDevice(direction) }
+    fun resolveLoadedDevice(direction: MidiDirection, savedName: String): String {
+        if (bridge == null) {
+            openInBackground()
+        }
+        if (savedName.isEmpty()) {
+            return lastUsedDevice(direction)
+        }
+        val available = endpointsFor(direction)
+        if (available.isNotEmpty() && !isDeviceAvailable(direction, savedName)) {
+            return lastUsedDevice(direction)
+        }
+        return savedName
+    }
 
     /**
      * Endpoints of one direction, for a device menu that wants more than the bare name.
@@ -399,11 +417,9 @@ object MidiDeviceService {
     }
 
     private fun findEndpoint(deviceName: String, direction: MidiDirection): MidiEndpoint? {
-        // The plain list, not the snapshot state one. This runs on port-opening coroutines, and
-        // iterating the state list there throws ConcurrentModificationException if a hotplug
-        // update is applied mid-search - a device being plugged in could kill the very call that
-        // was opening a port.
         plainEndpoints.firstOrNull { it.name == deviceName && it.direction == direction }
+            ?.let { return it }
+        endpoints.firstOrNull { it.name == deviceName && it.direction == direction }
             ?.let { return it }
         return bridge?.endpointsNow()?.firstOrNull { it.name == deviceName && it.direction == direction }
     }

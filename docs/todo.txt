@@ -6,10 +6,6 @@ MAKE SOME MUSIC!
 segEnv should not have to end on y==0, may want to queue an upward ramp of frequency.
 BUG: EnvelopeEditor, points at end or added to the end cannot be moved up or deleted. See midi_driven.sntn.
 
-
-BUG: on web, the triangle controls in the ModuleTree look like broken placeholders.
-Add screenshots.
-
 add *= or a ranger module for easy scaling of knobs to frequency.
 
 polyPatch pitchBend connection not needed because the pitch jack follows pitchBend

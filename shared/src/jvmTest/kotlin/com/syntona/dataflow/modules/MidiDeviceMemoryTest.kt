@@ -168,4 +168,16 @@ class MidiDeviceMemoryTest {
         assertEquals("Bus 1", MidiDeviceService.lastUsedDevice(MidiDirection.SOURCE))
         assertEquals("Bus 1", MidiInModule().also { it.loadDevice("") }.deviceName)
     }
+
+    @Test
+    fun loadingAPatchWithUnavailableDeviceOverwritesBadName() = runBlocking {
+        MidiDeviceService.resetForTest(com.softsynth.midibridge.loopback.LoopbackMidiBridge())
+        MidiInModule().selectDevice("Loopback Out")
+
+        val module = MidiInModule()
+        module.loadDevice("MIDI")
+        kotlinx.coroutines.delay(150)
+
+        assertEquals("Loopback Out", module.deviceName)
+    }
 }

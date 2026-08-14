@@ -123,6 +123,8 @@ class MidiInModule : Module("midiIn"), EngineAware, AdoptsRememberedDefaults {
         this.engine = engine
     }
 
+    private var rawSavedName: String? = null
+
     /**
      * The user picked this device, so it becomes the one remembered for next time.
      *
@@ -131,6 +133,7 @@ class MidiInModule : Module("midiIn"), EngineAware, AdoptsRememberedDefaults {
      * mean loading someone else's patch quietly retargeted every patch opened afterwards.
      */
     fun selectDevice(name: String) {
+        rawSavedName = null
         applyDevice(name)
         MidiDeviceService.rememberDevice(MidiDirection.SOURCE, name)
     }
@@ -148,6 +151,7 @@ class MidiInModule : Module("midiIn"), EngineAware, AdoptsRememberedDefaults {
      * then plays from whatever keyboard this machine uses without being told again.
      */
     fun loadDevice(savedName: String) {
+        rawSavedName = savedName
         applyDevice(MidiDeviceService.resolveLoadedDevice(MidiDirection.SOURCE, savedName))
     }
 
@@ -176,13 +180,27 @@ class MidiInModule : Module("midiIn"), EngineAware, AdoptsRememberedDefaults {
         unsubscribe?.invoke()
         unsubscribe = null
         val name = deviceName
-        if (name.isEmpty()) {
+        if (name.isEmpty() && rawSavedName == null) {
             subscribeJob = null
             return
         }
 
         subscribeJob = scope.launch {
-            val cancelSubscription = MidiDeviceService.subscribeSource(name) { event ->
+            MidiDeviceService.open()
+
+            val saved = rawSavedName
+            if (saved != null) {
+                val reResolved = MidiDeviceService.resolveLoadedDevice(MidiDirection.SOURCE, saved)
+                if (reResolved != deviceName) {
+                    rawSavedName = null
+                    applyDevice(reResolved)
+                    return@launch
+                }
+            }
+
+            if (deviceName.isEmpty()) return@launch
+
+            val cancelSubscription = MidiDeviceService.subscribeSource(deviceName) { event ->
                 if (channelFilter == -1 || event.channel == (channelFilter - 1)) {
                     toVoiceMessage(event, ScoreClock.now())?.let { emit(it) }
                 }
@@ -307,11 +325,14 @@ class MidiOutModule : Module("midiOut"), AdoptsRememberedDefaults {
 
     private val destination: MidiDestination? get() = lease?.destination
 
+    private var rawSavedName: String? = null
+
     /**
      * The user picked this device, so it becomes the one remembered for next time.
      * See [MidiInModule.selectDevice] for why loading does not do the same.
      */
     fun selectDevice(name: String) {
+        rawSavedName = null
         applyDevice(name)
         MidiDeviceService.rememberDevice(MidiDirection.DESTINATION, name)
     }
@@ -328,6 +349,7 @@ class MidiOutModule : Module("midiOut"), AdoptsRememberedDefaults {
      * specified none. See [MidiInModule.loadDevice].
      */
     fun loadDevice(savedName: String) {
+        rawSavedName = savedName
         applyDevice(MidiDeviceService.resolveLoadedDevice(MidiDirection.DESTINATION, savedName))
     }
 
@@ -370,13 +392,27 @@ class MidiOutModule : Module("midiOut"), AdoptsRememberedDefaults {
         openJob?.cancel()
         releaseDestination()
         val name = deviceName
-        if (name.isEmpty()) {
+        if (name.isEmpty() && rawSavedName == null) {
             openJob = null
             return
         }
         openJob = scope.launch {
+            MidiDeviceService.open()
+
+            val saved = rawSavedName
+            if (saved != null) {
+                val reResolved = MidiDeviceService.resolveLoadedDevice(MidiDirection.DESTINATION, saved)
+                if (reResolved != deviceName) {
+                    rawSavedName = null
+                    applyDevice(reResolved)
+                    return@launch
+                }
+            }
+
+            if (deviceName.isEmpty()) return@launch
+
             while (isActive) {
-                val acquired = MidiDeviceService.acquireDestination(name)
+                val acquired = MidiDeviceService.acquireDestination(deviceName)
                 if (acquired != null) {
                     // The device may have been changed again while this one was opening. Giving
                     // the lease straight back is what keeps that race from leaking a port.

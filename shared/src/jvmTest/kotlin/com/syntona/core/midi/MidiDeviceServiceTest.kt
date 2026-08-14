@@ -1,10 +1,15 @@
 package com.syntona.core.midi
 
+import com.softsynth.midibridge.MidiDirection
+import com.syntona.storage.InMemorySettingsBackend
+import com.syntona.storage.SettingsStore
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 
 /**
@@ -49,5 +54,32 @@ class MidiDeviceServiceTest {
             }
             assertNotNull(finished, "acquireDestination never returned")
         }
+    }
+
+    @Test
+    fun resolveLoadedDeviceFallsBackToLastUsedWhenDeviceNotAvailable() {
+        val testStore = SettingsStore("test_midi", InMemorySettingsBackend())
+        MidiDeviceService.settings = testStore
+
+        MidiDeviceService.rememberDevice(MidiDirection.SOURCE, "My Saved Keyboard")
+        assertEquals("My Saved Keyboard", MidiDeviceService.lastUsedDevice(MidiDirection.SOURCE))
+
+        MidiDeviceService.endpoints.add(
+            com.softsynth.midibridge.MidiEndpoint(id = "1", name = "My Saved Keyboard", direction = MidiDirection.SOURCE)
+        )
+
+        assertFalse(MidiDeviceService.isDeviceAvailable(MidiDirection.SOURCE, "Old Unavailable Keyboard"))
+        val resolved = MidiDeviceService.resolveLoadedDevice(MidiDirection.SOURCE, "Old Unavailable Keyboard")
+        assertEquals("My Saved Keyboard", resolved)
+    }
+
+    @Test
+    fun resolveLoadedDeviceEmptySavedNameUsesLastUsed() {
+        val testStore = SettingsStore("test_midi", InMemorySettingsBackend())
+        MidiDeviceService.settings = testStore
+
+        MidiDeviceService.rememberDevice(MidiDirection.SOURCE, "Default Synth Keyboard")
+        val resolved = MidiDeviceService.resolveLoadedDevice(MidiDirection.SOURCE, "")
+        assertEquals("Default Synth Keyboard", resolved)
     }
 }
