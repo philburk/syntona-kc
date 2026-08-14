@@ -153,14 +153,6 @@
                 },
                 {
                   "id": 3,
-                  "type": "ksyn.aInput",
-                  "name": "pitchBend",
-                  "x": 50,
-                  "y": 340,
-                  "jacks": {}
-                },
-                {
-                  "id": 4,
                   "type": "ksyn.aOutput",
                   "name": "output",
                   "x": 524,
@@ -175,7 +167,7 @@
                   }
                 },
                 {
-                  "id": 5,
+                  "id": 4,
                   "type": "ksyn.control.p2f",
                   "name": "p2f",
                   "x": 137.875,
@@ -190,7 +182,7 @@
                   }
                 },
                 {
-                  "id": 6,
+                  "id": 5,
                   "type": "ksyn.sources.squareOscBL",
                   "name": "squareOscBL",
                   "x": 287.88818,
@@ -211,7 +203,7 @@
                   }
                 },
                 {
-                  "id": 7,
+                  "id": 6,
                   "type": "ksyn.control.DAHDSR",
                   "name": "DAHDSR",
                   "x": 187.94409,
@@ -272,31 +264,31 @@
                 {
                   "from": 0,
                   "fromJack": "output",
-                  "to": 5,
+                  "to": 4,
                   "toJack": "input"
                 },
                 {
-                  "from": 5,
+                  "from": 4,
                   "fromJack": "output",
-                  "to": 6,
+                  "to": 5,
                   "toJack": "frequency"
-                },
-                {
-                  "from": 7,
-                  "fromJack": "output",
-                  "to": 6,
-                  "toJack": "amplitude"
                 },
                 {
                   "from": 6,
                   "fromJack": "output",
-                  "to": 4,
+                  "to": 5,
+                  "toJack": "amplitude"
+                },
+                {
+                  "from": 5,
+                  "fromJack": "output",
+                  "to": 3,
                   "toJack": "input"
                 },
                 {
                   "from": 1,
                   "fromJack": "output",
-                  "to": 7,
+                  "to": 6,
                   "toJack": "amplitude"
                 }
               ]
@@ -689,14 +681,6 @@
                 },
                 {
                   "id": 3,
-                  "type": "ksyn.aInput",
-                  "name": "pitchBend",
-                  "x": 50,
-                  "y": 340,
-                  "jacks": {}
-                },
-                {
-                  "id": 4,
                   "type": "ksyn.aOutput",
                   "name": "output",
                   "x": 524,
@@ -711,7 +695,7 @@
                   }
                 },
                 {
-                  "id": 5,
+                  "id": 4,
                   "type": "ksyn.control.p2f",
                   "name": "p2f",
                   "x": 137.875,
@@ -726,7 +710,7 @@
                   }
                 },
                 {
-                  "id": 6,
+                  "id": 5,
                   "type": "ksyn.sources.squareOscBL",
                   "name": "squareOscBL",
                   "x": 311.88818,
@@ -747,7 +731,7 @@
                   }
                 },
                 {
-                  "id": 7,
+                  "id": 6,
                   "type": "ksyn.control.DAHDSR",
                   "name": "DAHDSR",
                   "x": 187.94409,
@@ -804,7 +788,7 @@
                   }
                 },
                 {
-                  "id": 8,
+                  "id": 7,
                   "type": "ksyn.math.a*",
                   "name": "a*",
                   "x": 323.875,
@@ -825,7 +809,7 @@
                   }
                 },
                 {
-                  "id": 9,
+                  "id": 8,
                   "type": "ksyn.sources.sineOsc",
                   "name": "sineOsc",
                   "x": 411,
@@ -850,55 +834,55 @@
                 {
                   "from": 0,
                   "fromJack": "output",
-                  "to": 5,
+                  "to": 4,
                   "toJack": "input"
                 },
                 {
-                  "from": 5,
+                  "from": 4,
                   "fromJack": "output",
-                  "to": 6,
+                  "to": 5,
                   "toJack": "frequency"
-                },
-                {
-                  "from": 7,
-                  "fromJack": "output",
-                  "to": 6,
-                  "toJack": "amplitude"
                 },
                 {
                   "from": 6,
                   "fromJack": "output",
-                  "to": 4,
+                  "to": 5,
+                  "toJack": "amplitude"
+                },
+                {
+                  "from": 5,
+                  "fromJack": "output",
+                  "to": 3,
                   "toJack": "input"
                 },
                 {
                   "from": 1,
                   "fromJack": "output",
-                  "to": 7,
+                  "to": 6,
                   "toJack": "amplitude"
                 },
                 {
-                  "from": 5,
+                  "from": 4,
                   "fromJack": "output",
-                  "to": 8,
+                  "to": 7,
                   "toJack": "inputa"
-                },
-                {
-                  "from": 8,
-                  "fromJack": "output",
-                  "to": 9,
-                  "toJack": "frequency"
                 },
                 {
                   "from": 7,
                   "fromJack": "output",
-                  "to": 9,
+                  "to": 8,
+                  "toJack": "frequency"
+                },
+                {
+                  "from": 6,
+                  "fromJack": "output",
+                  "to": 8,
                   "toJack": "amplitude"
                 },
                 {
-                  "from": 9,
+                  "from": 8,
                   "fromJack": "output",
-                  "to": 4,
+                  "to": 3,
                   "toJack": "input"
                 }
               ]
