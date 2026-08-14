@@ -25,6 +25,9 @@ import androidx.compose.ui.unit.sp
 import com.syntona.SyntonaVersion
 import com.syntona.dataflow.registry.ModuleRegistry
 
+import com.syntona.ui.DisclosureTriangle
+import com.syntona.ui.SearchIcon
+
 @Composable
 fun ModuleTree(state: GraphState) {
     var filterText by remember { mutableStateOf("") }
@@ -39,12 +42,17 @@ fun ModuleTree(state: GraphState) {
                 .padding(bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "🔍 Filter:",
-                fontSize = 12.sp,
-                color = Color.LightGray,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(end = 4.dp)
-            )
+            ) {
+                SearchIcon(color = Color.LightGray, size = 12.dp, modifier = Modifier.padding(end = 4.dp))
+                Text(
+                    text = "Filter:",
+                    fontSize = 12.sp,
+                    color = Color.LightGray
+                )
+            }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -107,12 +115,16 @@ fun BundleView(
                 .padding(vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = if (isExpanded) "▼" else "▶",
-                fontSize = 10.sp,
-                color = Color.Gray,
-                modifier = Modifier.width(12.dp)
-            )
+            Box(
+                modifier = Modifier.width(14.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                DisclosureTriangle(
+                    isExpanded = isExpanded,
+                    color = Color.Gray,
+                    size = 8.dp
+                )
+            }
             Text(bundle.name, fontSize = 14.sp, color = Color.LightGray)
         }
 

@@ -6,15 +6,11 @@ MAKE SOME MUSIC!
 segEnv should not have to end on y==0, may want to queue an upward ramp of frequency.
 BUG: EnvelopeEditor, points at end or added to the end cannot be moved up or deleted. See midi_driven.sntn.
 
-A VoiceMessage in jack needs to be orange for VoiceMessage type and red for kickable!
-But it can't be both. We need an different ways to indicate Kickable and jack message type.
-Indicate kickable with a red triangle pointing right that is butting up against the right edge of the original jack square.
 
 BUG: on web, the triangle controls in the ModuleTree look like broken placeholders.
+Add screenshots.
 
 add *= or a ranger module for easy scaling of knobs to frequency.
-
-Show Modules can get wider because of changing number values, but not shrink, cut down on jitter, see function example.
 
 polyPatch pitchBend connection not needed because the pitch jack follows pitchBend
 
@@ -48,6 +44,9 @@ Can't kick an audio jack so remove Kick? checkboxes from audio inputs.
 # ----------------------------------------------- MEDIUM PRIORITY
 
 Pack SysEx for controlling LEDs on KeyLab drum pads.
+F0 00 20 6B  7F 42 02 00  16 <Pad_ID> <R> <G>  <B> F7
+Pad ID for drum pads are 0x70-0x7F.
+RGB are 0-31.
 
 Add theremin (XY) input module.
 

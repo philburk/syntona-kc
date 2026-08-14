@@ -1,5 +1,7 @@
 package com.syntona
 
+import com.syntona.ui.ChevronRightIcon
+import com.syntona.ui.DropdownArrow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
@@ -1161,7 +1163,7 @@ fun App(
                                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                                         ) {
                                             Text(KSynRecorder.maxDurationMinutes.toString())
-                                            Text("▼", style = MaterialTheme.typography.labelSmall)
+                                            DropdownArrow(color = Color.Gray, size = 8.dp)
                                         }
                                     }
                                     DropdownMenu(
@@ -1477,7 +1479,7 @@ fun RenderDropdownMenuNode(
             ) {
                 CompactDropdownMenuItem(
                     text = { Text(child.name) },
-                    trailingIcon = { Text("›", fontSize = 16.sp) },
+                    trailingIcon = { ChevronRightIcon(color = Color.Gray, size = 10.dp) },
                     onClick = { isExpanded = true },
                     modifier = Modifier.pointerInput(Unit) {
                         awaitPointerEventScope {

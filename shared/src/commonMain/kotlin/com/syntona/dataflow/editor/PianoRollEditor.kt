@@ -1,5 +1,7 @@
 package com.syntona.dataflow.editor
 
+import com.syntona.ui.PlayIcon
+import com.syntona.ui.StopIcon
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -996,11 +998,18 @@ private fun PianoRollToolbar(
                 .height(30.dp)
                 .focusProperties { canFocus = false },
         ) {
-            Text(
-                if (module.isPlaying) "◼ Stop" else "▶ Play",
-                fontSize = 12.sp,
-                color = if (module.isPlaying) PR_PLAYHEAD else Color(0xFF34D399),
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                if (module.isPlaying) {
+                    StopIcon(color = PR_PLAYHEAD, size = 10.dp)
+                    Text("Stop", fontSize = 12.sp, color = PR_PLAYHEAD)
+                } else {
+                    PlayIcon(color = Color(0xFF34D399), size = 10.dp)
+                    Text("Play", fontSize = 12.sp, color = Color(0xFF34D399))
+                }
+            }
         }
 
         DurationSelector(defaultDurationTicks, onDefaultDurationChange)

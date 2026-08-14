@@ -1,5 +1,6 @@
 package com.syntona.dataflow.editor
 
+import com.syntona.ui.DropdownArrow
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -367,13 +368,13 @@ private fun LinkModuleEditor(module: LinkModule) {
                     )
                 }
 
-                // Dropdown trigger
+// Dropdown trigger
                 Box {
                     androidx.compose.material3.IconButton(
                         onClick = { expanded = true },
                         modifier = Modifier.size(32.dp)
                     ) {
-                        Text("▼", fontSize = 12.sp)
+                        DropdownArrow(color = Color.Gray, size = 8.dp)
                     }
                     androidx.compose.material3.DropdownMenu(
                         expanded = expanded,

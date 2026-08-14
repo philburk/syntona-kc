@@ -1,5 +1,8 @@
 package com.syntona.dataflow.editor
 
+import com.syntona.ui.DropdownArrow
+import com.syntona.ui.LightbulbIcon
+import com.syntona.ui.VerticalEllipsisIcon
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -244,16 +247,22 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "💡 Look in the Help menu for Examples and Tutorials!",
-                        color = Color(0xAAFFFFFF),
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier
                             .background(Color(0x11FFFFFF), RoundedCornerShape(8.dp))
                             .border(1.dp, Color(0x14FFFFFF), RoundedCornerShape(8.dp))
                             .padding(horizontal = 24.dp, vertical = 12.dp)
-                    )
+                    ) {
+                        LightbulbIcon(color = Color(0xFFFFD54F), size = 18.dp)
+                        Text(
+                            text = "Look in the Help menu for Examples and Tutorials!",
+                            color = Color(0xAAFFFFFF),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
             }
 
@@ -541,10 +550,9 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color? = null, la
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium
                             )
-                            Text(
-                                text = "▼",
+                            DropdownArrow(
                                 color = Color.Gray,
-                                fontSize = 10.sp
+                                size = 7.dp
                             )
                         }
                     }
@@ -721,10 +729,9 @@ fun MidiInModuleNode(module: MidiInModule, state: GraphState) {
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium
                         )
-                        Text(
-                            text = "▼",
+                        DropdownArrow(
                             color = Color.Gray,
-                            fontSize = 9.sp
+                            size = 7.dp
                         )
                     }
                 }
@@ -805,10 +812,9 @@ fun MidiOutModuleNode(module: MidiOutModule, state: GraphState) {
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Medium
                         )
-                        Text(
-                            text = "▼",
+                        DropdownArrow(
                             color = Color.Gray,
-                            fontSize = 9.sp
+                            size = 7.dp
                         )
                     }
                 }
@@ -2073,14 +2079,13 @@ fun ModuleHeader(
                 }
 
                 Box {
-                    Text(
-                        text = "⋮",
-                        color = Color.White,
-                        fontSize = 12.sp,
+                    Box(
                         modifier = Modifier
                             .clickable { showMenu = true }
-                            .padding(horizontal = 2.dp)
-                    )
+                            .padding(horizontal = 4.dp, vertical = 2.dp)
+                    ) {
+                        VerticalEllipsisIcon(color = Color.White, size = 12.dp)
+                    }
 
                     androidx.compose.material3.DropdownMenu(
                         expanded = showMenu,
