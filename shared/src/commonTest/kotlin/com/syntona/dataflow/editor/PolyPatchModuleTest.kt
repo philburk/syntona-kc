@@ -149,46 +149,89 @@ class PolyPatchModuleTest {
     @Test
     fun testPitchBendVoiceSumming() = kotlinx.coroutines.runBlocking {
         val polyPatch = PolyPatchModule()
-        polyPatch.initializeVoices(1)
+        polyPatch.initializeVoices(2)
 
         val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
         engine.generateNextBuffer()
 
-        val voice = polyPatch.polyphonicInstrument!!.voices.first() as DynamicPitchedVoice
+        val voice0 = polyPatch.polyphonicInstrument!!.voices[0] as DynamicPitchedVoice
+        val voice1 = polyPatch.polyphonicInstrument!!.voices[1] as DynamicPitchedVoice
         val pitchModule = polyPatch.graphState.modules.find { it.name == "pitch" }!!
-        val pitchUnit = voice.moduleToUnitMap[pitchModule] as PassThrough
+        val pitchUnit0 = voice0.moduleToUnitMap[pitchModule] as PassThrough
+        val pitchUnit1 = voice1.moduleToUnitMap[pitchModule] as PassThrough
 
-        // Note on with pitch = 60.0, amplitude = 0.8
+        // Note on for voice 0 (tag = 10, pitch = 60.0)
         polyPatch.voiceInputJack.receive(
             Message.VoiceMessage(
                 com.syntona.core.model.ScoreTime.Zero,
                 Message.VoiceOpcode.NOTE_ON,
-                tag = 0,
+                tag = 10,
                 value = 60.0,
+                extra = 0.8
+            )
+        )
+        // Note on for voice 1 (tag = 20, pitch = 64.0)
+        polyPatch.voiceInputJack.receive(
+            Message.VoiceMessage(
+                com.syntona.core.model.ScoreTime.Zero,
+                Message.VoiceOpcode.NOTE_ON,
+                tag = 20,
+                value = 64.0,
                 extra = 0.8
             )
         )
         engine.generateNextBuffer()
 
-        assertEquals(60.0, voice.pitch, 1e-4)
-        assertEquals(0.0, voice.pitchBend, 1e-4)
-        assertEquals(60.0f, pitchUnit.input.get(0), 1e-4f)
+        assertEquals(60.0, voice0.pitch, 1e-4)
+        assertEquals(0.0, voice0.pitchBend, 1e-4)
+        assertEquals(60.0f, pitchUnit0.input.get(0), 1e-4f)
 
-        // Send pitch bend of +2.0 semitones
+        assertEquals(64.0, voice1.pitch, 1e-4)
+        assertEquals(0.0, voice1.pitchBend, 1e-4)
+        assertEquals(64.0f, pitchUnit1.input.get(0), 1e-4f)
+
+        // 1. Send per-note pitch bend of +2.0 semitones ONLY to tag = 10
         polyPatch.voiceInputJack.receive(
             Message.VoiceMessage(
                 com.syntona.core.model.ScoreTime.Zero,
                 Message.VoiceOpcode.PITCH_BEND,
-                tag = -1,
+                tag = 10,
                 value = 2.0,
                 extra = 0.0
             )
         )
         engine.generateNextBuffer()
 
-        assertEquals(60.0, voice.pitch, 1e-4)
-        assertEquals(2.0, voice.pitchBend, 1e-4)
-        assertEquals(62.0f, pitchUnit.input.get(0), 1e-4f)
+        // Voice 0 (tag 10) should have bend = 2.0, pitch = 62.0
+        assertEquals(60.0, voice0.pitch, 1e-4)
+        assertEquals(2.0, voice0.pitchBend, 1e-4)
+        assertEquals(62.0f, pitchUnit0.input.get(0), 1e-4f)
+
+        // Voice 1 (tag 20) should remain bend = 0.0, pitch = 64.0
+        assertEquals(64.0, voice1.pitch, 1e-4)
+        assertEquals(0.0, voice1.pitchBend, 1e-4)
+        assertEquals(64.0f, pitchUnit1.input.get(0), 1e-4f)
+
+        // 2. Send broadcast pitch bend of -1.5 semitones to tag = -1 (all voices)
+        polyPatch.voiceInputJack.receive(
+            Message.VoiceMessage(
+                com.syntona.core.model.ScoreTime.Zero,
+                Message.VoiceOpcode.PITCH_BEND,
+                tag = -1,
+                value = -1.5,
+                extra = 0.0
+            )
+        )
+        engine.generateNextBuffer()
+
+        // Both voices should now have bend = -1.5
+        assertEquals(60.0, voice0.pitch, 1e-4)
+        assertEquals(-1.5, voice0.pitchBend, 1e-4)
+        assertEquals(58.5f, pitchUnit0.input.get(0), 1e-4f)
+
+        assertEquals(64.0, voice1.pitch, 1e-4)
+        assertEquals(-1.5, voice1.pitchBend, 1e-4)
+        assertEquals(62.5f, pitchUnit1.input.get(0), 1e-4f)
     }
 
     @Test

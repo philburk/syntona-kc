@@ -190,10 +190,15 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
     }
 
     private fun setVoicePitchBend(tag: Int, value: Double, timeStamp: TimeStamp) {
-        SynthKSyn.synth.queueCommand {
-            for (voice in voices) {
-                voice.setPitchBend(value, timeStamp)
+        val instrument = polyphonicInstrument ?: return
+        if (tag == -1) {
+            SynthKSyn.synth.queueCommand {
+                for (voice in voices) {
+                    voice.setPitchBend(value, timeStamp)
+                }
             }
+        } else {
+            instrument.setPitchBend(tag, value, timeStamp)
         }
     }
 

@@ -44,7 +44,7 @@ class DynamicPitchedVoice : Circuit(), PitchedVoice {
         }
     }
 
-    fun setPitchBend(pitchBend: Double, timeStamp: TimeStamp) {
+    override fun setPitchBend(pitchBend: Double, timeStamp: TimeStamp) {
         this.pitchBend = pitchBend
         updatePitchPort(timeStamp)
     }
