@@ -99,14 +99,6 @@
           },
           {
             "id": 5,
-            "type": "ksyn.aInput",
-            "name": "pitchBend",
-            "x": 26,
-            "y": 287,
-            "jacks": {}
-          },
-          {
-            "id": 6,
             "type": "ksyn.sources.sawOscDPW",
             "name": "sawOscDPW",
             "x": 336,
@@ -127,7 +119,7 @@
             }
           },
           {
-            "id": 7,
+            "id": 6,
             "type": "ksyn.control.DAHDSR",
             "name": "DAHDSR",
             "x": 154.875,
@@ -184,7 +176,7 @@
             }
           },
           {
-            "id": 8,
+            "id": 7,
             "type": "ksyn.aInput",
             "name": "vibrato",
             "x": 23.875,
@@ -202,11 +194,11 @@
           {
             "from": 1,
             "fromJack": "output",
-            "to": 6,
+            "to": 5,
             "toJack": "frequency"
           },
           {
-            "from": 6,
+            "from": 5,
             "fromJack": "output",
             "to": 0,
             "toJack": "input"
@@ -214,17 +206,17 @@
           {
             "from": 3,
             "fromJack": "output",
-            "to": 7,
-            "toJack": "amplitude"
-          },
-          {
-            "from": 7,
-            "fromJack": "output",
             "to": 6,
             "toJack": "amplitude"
           },
           {
-            "from": 8,
+            "from": 6,
+            "fromJack": "output",
+            "to": 5,
+            "toJack": "amplitude"
+          },
+          {
+            "from": 7,
             "fromJack": "output",
             "to": 1,
             "toJack": "input"

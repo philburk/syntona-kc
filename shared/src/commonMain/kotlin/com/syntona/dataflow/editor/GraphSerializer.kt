@@ -297,12 +297,18 @@ object GraphSerializer {
         return root.stringify(0)
     }
 
-    fun deserialize(graphState: GraphState, json: String, offset: Offset = Offset.Zero, density: Float = 1f): List<Module> {
-        val problems = mutableListOf<String>()
+    fun deserialize(
+        graphState: GraphState,
+        json: String,
+        offset: Offset = Offset.Zero,
+        density: Float = 1f,
+        problems: MutableList<String>? = null
+    ): List<Module> {
+        val problemsList = problems ?: mutableListOf()
         val rootVal = try {
             JsonParser(json).parse() as? JsonValue.Obj
         } catch (e: Exception) {
-            problems.add("Failed to parse JSON: ${e.message}")
+            problemsList.add("Failed to parse JSON: ${e.message}")
             null
         } ?: return emptyList()
         val type = (rootVal.map["type"] as? JsonValue.Str)?.value
@@ -310,15 +316,15 @@ object GraphSerializer {
         val result = if (finalType == "patch" || finalType == "polyPatch") {
             val innerPatchObj = rootVal.map["patch"] as? JsonValue.Obj
             if (innerPatchObj != null) {
-                deserializeObj(graphState, innerPatchObj, offset, density, problems)
+                deserializeObj(graphState, innerPatchObj, offset, density, problemsList)
             } else {
-                deserializeObj(graphState, rootVal, offset, density, problems)
+                deserializeObj(graphState, rootVal, offset, density, problemsList)
             }
         } else {
-            deserializeObj(graphState, rootVal, offset, density, problems)
+            deserializeObj(graphState, rootVal, offset, density, problemsList)
         }
-        if (problems.isNotEmpty()) {
-            FileState.loadingProblemsReport = problems.joinToString("\n")
+        if (problemsList.isNotEmpty()) {
+            FileState.loadingProblemsReport = problemsList.joinToString("\n")
         }
         return result
     }

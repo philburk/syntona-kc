@@ -14,6 +14,9 @@ class DynamicPitchedVoice : Circuit(), PitchedVoice {
     val outputPassThrough = PassThrough()
     val moduleToUnitMap = mutableMapOf<Module, UnitGenerator>()
 
+    var pitch: Double = 0.0
+    var pitchBend: Double = 0.0
+
     init {
         add(outputPassThrough)
     }
@@ -22,9 +25,14 @@ class DynamicPitchedVoice : Circuit(), PitchedVoice {
         return outputPassThrough.output
     }
 
+    private fun updatePitchPort(timeStamp: TimeStamp) {
+        val pitchPort = getPitchPort()
+        pitchPort?.set((pitch + pitchBend).toFloat(), timeStamp)
+    }
+
     override fun noteOn(pitch: Double, amplitude: Double, timeStamp: TimeStamp) {
-        val pitchPort = getPortByName("Pitch") as? UnitInputPort
-        pitchPort?.set(pitch.toFloat(), timeStamp)
+        this.pitch = pitch
+        updatePitchPort(timeStamp)
 
         val amplitudePort = getPortByName("Amplitude") as? UnitInputPort
         amplitudePort?.set(amplitude.toFloat(), timeStamp)
@@ -34,6 +42,11 @@ class DynamicPitchedVoice : Circuit(), PitchedVoice {
                 unit.input.on(timeStamp)
             }
         }
+    }
+
+    fun setPitchBend(pitchBend: Double, timeStamp: TimeStamp) {
+        this.pitchBend = pitchBend
+        updatePitchPort(timeStamp)
     }
 
     override fun noteOff(timeStamp: TimeStamp) {

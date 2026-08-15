@@ -6,12 +6,30 @@ import com.syntona.dataflow.modules.*
 import com.syntona.dataflow.model.*
 import com.softsynth.ksyn.ports.UnitInputPort
 import kotlin.math.pow
+import kotlin.test.AfterTest
+import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class PolyPatchModuleTest {
+
+    @BeforeTest
+    fun setUp() {
+        val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
+        if (!engine.isRunning) {
+            engine.start()
+        }
+    }
+
+    @AfterTest
+    fun tearDown() {
+        val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
+        if (engine.isRunning) {
+            engine.stop()
+        }
+    }
 
     @Test
     fun testPolyPatchInitializationAndVoiceSync() {
@@ -88,7 +106,7 @@ class PolyPatchModuleTest {
     @Test
     fun testDefaultOutputModule() {
         val polyPatch = PolyPatchModule()
-        assertEquals(5, polyPatch.graphState.modules.size)
+        assertEquals(4, polyPatch.graphState.modules.size)
         val defaultOutput = polyPatch.graphState.modules.find { it is AudioOutputModule }
         assertNotNull(defaultOutput)
         assertEquals("output", defaultOutput.name)
@@ -129,7 +147,7 @@ class PolyPatchModuleTest {
     }
 
     @Test
-    fun testPitchBendConnection() = kotlinx.coroutines.runBlocking {
+    fun testPitchBendVoiceSumming() = kotlinx.coroutines.runBlocking {
         val polyPatch = PolyPatchModule()
         polyPatch.initializeVoices(1)
 
@@ -138,13 +156,39 @@ class PolyPatchModuleTest {
 
         val voice = polyPatch.polyphonicInstrument!!.voices.first() as DynamicPitchedVoice
         val pitchModule = polyPatch.graphState.modules.find { it.name == "pitch" }!!
-        val pitchBendModule = polyPatch.graphState.modules.find { it.name == "pitchBend" }!!
-
         val pitchUnit = voice.moduleToUnitMap[pitchModule] as PassThrough
-        val pitchBendUnit = voice.moduleToUnitMap[pitchBendModule] as PassThrough
 
-        assertTrue(pitchBendUnit.output.isConnected())
-        assertTrue(pitchUnit.input.isValueAdded)
+        // Note on with pitch = 60.0, amplitude = 0.8
+        polyPatch.voiceInputJack.receive(
+            Message.VoiceMessage(
+                com.syntona.core.model.ScoreTime.Zero,
+                Message.VoiceOpcode.NOTE_ON,
+                tag = 0,
+                value = 60.0,
+                extra = 0.8
+            )
+        )
+        engine.generateNextBuffer()
+
+        assertEquals(60.0, voice.pitch, 1e-4)
+        assertEquals(0.0, voice.pitchBend, 1e-4)
+        assertEquals(60.0f, pitchUnit.input.get(0), 1e-4f)
+
+        // Send pitch bend of +2.0 semitones
+        polyPatch.voiceInputJack.receive(
+            Message.VoiceMessage(
+                com.syntona.core.model.ScoreTime.Zero,
+                Message.VoiceOpcode.PITCH_BEND,
+                tag = -1,
+                value = 2.0,
+                extra = 0.0
+            )
+        )
+        engine.generateNextBuffer()
+
+        assertEquals(60.0, voice.pitch, 1e-4)
+        assertEquals(2.0, voice.pitchBend, 1e-4)
+        assertEquals(62.0f, pitchUnit.input.get(0), 1e-4f)
     }
 
     @Test
@@ -156,11 +200,10 @@ class PolyPatchModuleTest {
         val deserialized = GraphSerializer.deserialize(rootGraph, json)
         val polyPatch = deserialized[0] as PolyPatchModule
 
-        assertEquals(5, polyPatch.graphState.modules.size)
+        assertEquals(4, polyPatch.graphState.modules.size)
         assertTrue(polyPatch.graphState.modules.any { it.name == "pitch" })
         assertTrue(polyPatch.graphState.modules.any { it.name == "amplitude" })
         assertTrue(polyPatch.graphState.modules.any { it.name == "pressure" })
-        assertTrue(polyPatch.graphState.modules.any { it.name == "pitchBend" })
         assertTrue(polyPatch.graphState.modules.any { it.name == "output" })
     }
 

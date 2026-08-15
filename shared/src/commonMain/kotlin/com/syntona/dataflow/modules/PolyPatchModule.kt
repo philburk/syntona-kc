@@ -45,10 +45,6 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
         pressIn.name = "pressure"
         graphState.addModule(pressIn, androidx.compose.ui.geometry.Offset(50f, 260f))
 
-        val pbIn = AudioInputModule()
-        pbIn.name = "pitchBend"
-        graphState.addModule(pbIn, androidx.compose.ui.geometry.Offset(50f, 340f))
-
         // Add a default AudioOutputModule named "output"
         val defaultOutput = AudioOutputModule()
         defaultOutput.name = "output"
@@ -131,12 +127,6 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
             pressIn.name = "pressure"
             graphState.addModule(pressIn, androidx.compose.ui.geometry.Offset(50f, 260f))
         }
-        val hasPb = graphState.modules.any { it is AudioInputModule && it.name == "pitchBend" }
-        if (!hasPb) {
-            val pbIn = AudioInputModule()
-            pbIn.name = "pitchBend"
-            graphState.addModule(pbIn, androidx.compose.ui.geometry.Offset(50f, 340f))
-        }
         val hasOutput = graphState.modules.any { it is AudioOutputModule && it.name == "output" }
         if (!hasOutput) {
             val defaultOutput = AudioOutputModule()
@@ -168,7 +158,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
                         setVoicePort(msg.tag, "pressure", msg.value, timeStamp)
                     }
                     Message.VoiceOpcode.PITCH_BEND -> {
-                        setVoicePort(msg.tag, "pitchBend", msg.value, timeStamp)
+                        setVoicePitchBend(msg.tag, msg.value, timeStamp)
                     }
                     Message.VoiceOpcode.PROGRAM_CHANGE -> {
                         setVoicePort(msg.tag, "program", msg.value, timeStamp)
@@ -196,6 +186,14 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
             }
         } else {
             instrument.setPort(tag, portName, value, timeStamp)
+        }
+    }
+
+    private fun setVoicePitchBend(tag: Int, value: Double, timeStamp: TimeStamp) {
+        SynthKSyn.synth.queueCommand {
+            for (voice in voices) {
+                voice.setPitchBend(value, timeStamp)
+            }
         }
     }
 
@@ -279,24 +277,6 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
 
         if (module is AudioOutputModule && module.name != "output") {
             syncAuxOutputAdded(module)
-        }
-
-        // Connect pitchBend to pitch if both exist in voices
-        for (voice in voices) {
-            wirePitchBendIfBothExist(voice)
-        }
-    }
-
-    private fun wirePitchBendIfBothExist(voice: DynamicPitchedVoice) {
-        val pitchModule = graphState.modules.find { it is AudioInputModule && it.name == "pitch" }
-        val pitchBendModule = graphState.modules.find { it is AudioInputModule && it.name == "pitchBend" }
-        if (pitchModule != null && pitchBendModule != null) {
-            val pitchUnit = voice.moduleToUnitMap[pitchModule] as? PassThrough
-            val pitchBendUnit = voice.moduleToUnitMap[pitchBendModule] as? PassThrough
-            if (pitchUnit != null && pitchBendUnit != null) {
-                pitchBendUnit.output.connect(pitchUnit.input)
-                pitchUnit.input.isValueAdded = true
-            }
         }
     }
 
@@ -465,10 +445,6 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
             if (newInstPort != null) {
                 module.passThrough.output.connect(newInstPort)
             }
-        }
-
-        for (voice in voices) {
-            wirePitchBendIfBothExist(voice)
         }
     }
 
