@@ -22,6 +22,20 @@ class DynamicPitchedVoice : Circuit(), PitchedVoice {
     var pitchBend = 0.0
         private set
 
+    /**
+     * The tag of the note this voice is playing, so a per-note message can find it.
+     *
+     * PolyphonicInstrument allocates the voice and keeps its allocator private, so the tag never
+     * reaches [noteOn]. It is supplied instead by whoever owns the voices, read at the moment
+     * the note starts: both this and the allocation run as queued commands on the audio thread,
+     * in the order they were queued, so the value read here is the one that came with this note.
+     */
+    var tagSource: (() -> Int)? = null
+
+    /** The tag this voice was started with, or -1 when it has never played. */
+    var noteTag = -1
+        private set
+
     init {
         add(outputPassThrough)
     }
@@ -31,6 +45,7 @@ class DynamicPitchedVoice : Circuit(), PitchedVoice {
     }
 
     override fun noteOn(pitch: Double, amplitude: Double, timeStamp: TimeStamp) {
+        tagSource?.let { noteTag = it() }
         notePitch = pitch
         applyPitch(timeStamp)
 

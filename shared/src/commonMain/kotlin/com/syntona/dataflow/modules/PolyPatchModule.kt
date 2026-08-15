@@ -20,6 +20,9 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
 
     private var voices: Array<DynamicPitchedVoice> = emptyArray()
 
+    /** Tag of the note currently being started, read by whichever voice the allocator picks. */
+    private var tagBeingStarted = -1
+
     var isInitialized = false
         private set
 
@@ -88,6 +91,9 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
         if (isInitialized) return
         this.maxVoices = maxVoices
         this.voices = Array(maxVoices) { DynamicPitchedVoice() }
+        for (voice in this.voices) {
+            voice.tagSource = { tagBeingStarted }
+        }
 
         val instrument = PolyphonicInstrument(SynthKSyn.synth, this.voices.map { it as PitchedVoice }.toTypedArray())
         this.polyphonicInstrument = instrument
@@ -151,6 +157,11 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
                 val timeStamp = SynthKSyn.synth.createTimeStamp()
                 when (msg.opcode) {
                     Message.VoiceOpcode.NOTE_ON -> {
+                        // Queued before the instrument's own noteOn command, so the voice the
+                        // allocator picks reads this tag and can be found again by a later
+                        // per-note message.
+                        val startingTag = msg.tag
+                        SynthKSyn.synth.queueCommand { tagBeingStarted = startingTag }
                         instrument.noteOn(msg.tag, msg.value, msg.extra, timeStamp)
                     }
                     Message.VoiceOpcode.NOTE_OFF -> {
@@ -163,7 +174,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
                         setVoicePort(msg.tag, "pressure", msg.value, timeStamp)
                     }
                     Message.VoiceOpcode.PITCH_BEND -> {
-                        setVoicePitchBend(msg.value, timeStamp)
+                        setVoicePitchBend(msg.tag, msg.value, timeStamp)
                     }
                     Message.VoiceOpcode.PROGRAM_CHANGE -> {
                         setVoicePort(msg.tag, "program", msg.value, timeStamp)
@@ -299,20 +310,22 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
     }
 
     /**
-     * Applies a pitch bend to the voices.
+     * Applies a pitch bend, to every voice when [tag] is -1 or to the voice playing that note,
+     * matching how [setVoicePort] treats a CONTROL_CHANGE or PRESSURE tag.
      *
      * Summed in Kotlin by each voice rather than mixed in the audio graph: see
-     * [DynamicPitchedVoice.setPitchBend].
-     *
-     * Applied to every voice, whatever the message's tag. MIDI 1.0 bend is per channel, and both
-     * midiIn and packBend send a tag of -1 meaning all notes; routing a per-note bend would need
-     * a way to find the voice holding a given tag, which PolyphonicInstrument does not expose.
+     * [DynamicPitchedVoice.setPitchBend]. That is also why this cannot go through
+     * PolyphonicInstrument.setPort like the others - a bend is not a port value - so the voice
+     * playing a tag is found by asking the voices, using the tag each recorded when it started.
      */
-    private fun setVoicePitchBend(semitones: Double, timeStamp: TimeStamp) {
+    private fun setVoicePitchBend(tag: Int, semitones: Double, timeStamp: TimeStamp) {
         val instrument = polyphonicInstrument ?: return
         SynthKSyn.synth.queueCommand {
             for (voice in instrument.voices) {
-                (voice as? DynamicPitchedVoice)?.setPitchBend(semitones, timeStamp)
+                val dynamic = voice as? DynamicPitchedVoice ?: continue
+                if (tag == -1 || dynamic.noteTag == tag) {
+                    dynamic.setPitchBend(semitones, timeStamp)
+                }
             }
         }
     }

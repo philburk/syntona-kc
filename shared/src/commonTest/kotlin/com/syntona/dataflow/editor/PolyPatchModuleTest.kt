@@ -211,6 +211,45 @@ class PolyPatchModuleTest {
     }
 
     /**
+     * A tagged bend moves only the note it names, the way a tagged PRESSURE reaches only its own
+     * voice. A tag of -1 still means every note.
+     */
+    @Test
+    fun testATaggedPitchBendMovesOnlyThatNote() = kotlinx.coroutines.runBlocking {
+        val polyPatch = PolyPatchModule()
+        polyPatch.initializeVoices(2)
+        val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
+        engine.generateNextBuffer()
+        val time = com.syntona.core.model.ScoreTime(0L)
+
+        fun send(opcode: Message.VoiceOpcode, tag: Int, value: Double) {
+            polyPatch.voiceInputJack.receive(Message.VoiceMessage(time, opcode, tag, value, 0.8))
+        }
+
+        send(Message.VoiceOpcode.NOTE_ON, 60, 60.0)
+        send(Message.VoiceOpcode.NOTE_ON, 64, 64.0)
+        engine.generateNextBuffer()
+
+        val voices = polyPatch.polyphonicInstrument!!.voices.map { it as DynamicPitchedVoice }
+        val low = voices.first { it.noteTag == 60 }
+        val high = voices.first { it.noteTag == 64 }
+        assertEquals(60.0, soundingPitch(low), 0.001)
+        assertEquals(64.0, soundingPitch(high), 0.001)
+
+        // Bend only the lower note.
+        send(Message.VoiceOpcode.PITCH_BEND, 60, 2.0)
+        engine.generateNextBuffer()
+        assertEquals(62.0, soundingPitch(low), 0.001, "the tagged note should bend")
+        assertEquals(64.0, soundingPitch(high), 0.001, "the other note should not move")
+
+        // A tag of -1 is every note.
+        send(Message.VoiceOpcode.PITCH_BEND, -1, -1.0)
+        engine.generateNextBuffer()
+        assertEquals(59.0, soundingPitch(low), 0.001, "-1 bends this note too")
+        assertEquals(63.0, soundingPitch(high), 0.001, "-1 bends every note")
+    }
+
+    /**
      * The pitch input still sums its value with anything connected to it, so a patch that
      * modulates pitch - the vibrato example wires an LFO in - keeps the note's own pitch. This
      * used to be a side effect of wiring up the pitchBend module.
