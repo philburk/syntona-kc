@@ -419,8 +419,8 @@ object MidiDeviceService {
     private fun findEndpoint(deviceName: String, direction: MidiDirection): MidiEndpoint? {
         plainEndpoints.firstOrNull { it.name == deviceName && it.direction == direction }
             ?.let { return it }
-        endpoints.firstOrNull { it.name == deviceName && it.direction == direction }
-            ?.let { return it }
+        // Deliberately not the snapshot state list: iterating it here throws
+        // ConcurrentModificationException when a hotplug update lands mid-search.
         return bridge?.endpointsNow()?.firstOrNull { it.name == deviceName && it.direction == direction }
     }
 

@@ -1,0 +1,251 @@
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "core.polyPatch",
+      "name": "polyPatch",
+      "x": 298.9,
+      "y": 126,
+      "jacks": {
+        "input": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      },
+      "maxVoices": 8,
+      "windowX": 477.8761,
+      "windowY": 349.1415,
+      "windowWidth": 600,
+      "windowHeight": 450,
+      "windowOpen": true,
+      "patch": {
+        "modules": [
+          {
+            "id": 0,
+            "type": "ksyn.aInput",
+            "name": "pitch",
+            "x": 50,
+            "y": 100
+          },
+          {
+            "id": 1,
+            "type": "ksyn.aInput",
+            "name": "amplitude",
+            "x": 50,
+            "y": 180
+          },
+          {
+            "id": 2,
+            "type": "ksyn.aInput",
+            "name": "pressure",
+            "x": 50,
+            "y": 260
+          },
+          {
+            "id": 3,
+            "type": "ksyn.aOutput",
+            "name": "output",
+            "x": 477,
+            "y": 247,
+            "jacks": {
+              "input": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 4,
+            "type": "ksyn.sources.sawOscBL",
+            "name": "sawOscBL",
+            "x": 247.9,
+            "y": 63,
+            "jacks": {
+              "frequency": {
+                "v": 440,
+                "min": 40,
+                "max": 8000,
+                "kickable": false,
+                "add": false
+              },
+              "amplitude": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 5,
+            "type": "ksyn.control.p2f",
+            "name": "p2f",
+            "x": 142,
+            "y": 39.1,
+            "jacks": {
+              "input": {
+                "v": 60,
+                "min": 0,
+                "max": 127,
+                "kickable": false,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 6,
+            "type": "ksyn.control.DAHDSR",
+            "name": "DAHDSR",
+            "x": 386.9,
+            "y": 85,
+            "jacks": {
+              "input": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "delay": {
+                "v": 0,
+                "min": 0,
+                "max": 2,
+                "kickable": false,
+                "add": false
+              },
+              "attack": {
+                "v": 0.009999999776482582,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "hold": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "decay": {
+                "v": 0.20000000298023224,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "sustain": {
+                "v": 0.5,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "release": {
+                "v": 0.30000001192092896,
+                "min": 0,
+                "max": 15,
+                "kickable": false,
+                "add": false
+              },
+              "amplitude": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            }
+          }
+        ],
+        "connections": [
+          {
+            "from": 0,
+            "fromJack": "output",
+            "to": 5,
+            "toJack": "input"
+          },
+          {
+            "from": 5,
+            "fromJack": "output",
+            "to": 4,
+            "toJack": "frequency"
+          },
+          {
+            "from": 1,
+            "fromJack": "output",
+            "to": 4,
+            "toJack": "amplitude"
+          },
+          {
+            "from": 4,
+            "fromJack": "output",
+            "to": 6,
+            "toJack": "amplitude"
+          },
+          {
+            "from": 6,
+            "fromJack": "output",
+            "to": 3,
+            "toJack": "input"
+          }
+        ]
+      }
+    },
+    {
+      "id": 1,
+      "type": "music.voices.midiIn",
+      "name": "midiIn",
+      "x": 81.9,
+      "y": 93,
+      "device": "MIDI",
+      "channelFilter": -1
+    },
+    {
+      "id": 2,
+      "type": "ksyn.lineOut",
+      "name": "lineOut",
+      "x": 551.9,
+      "y": 103,
+      "jacks": {
+        "input0": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "input1": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": 0,
+      "fromJack": "output",
+      "to": 2,
+      "toJack": "input0"
+    },
+    {
+      "from": 1,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "input"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 800,
+  "windowHeight": 500
+}

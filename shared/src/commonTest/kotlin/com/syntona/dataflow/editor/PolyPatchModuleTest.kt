@@ -8,6 +8,7 @@ import com.softsynth.ksyn.ports.UnitInputPort
 import kotlin.math.pow
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -88,7 +89,8 @@ class PolyPatchModuleTest {
     @Test
     fun testDefaultOutputModule() {
         val polyPatch = PolyPatchModule()
-        assertEquals(5, polyPatch.graphState.modules.size)
+        // pitch, amplitude, pressure, output. No pitchBend, see testNoPitchBendModuleByDefault.
+        assertEquals(4, polyPatch.graphState.modules.size)
         val defaultOutput = polyPatch.graphState.modules.find { it is AudioOutputModule }
         assertNotNull(defaultOutput)
         assertEquals("output", defaultOutput.name)
@@ -128,23 +130,104 @@ class PolyPatchModuleTest {
         assertEquals("output", polyPatch.outputs[0].name)
     }
 
+    /**
+     * A polyPatch starts with no pitchBend input module.
+     */
     @Test
-    fun testPitchBendConnection() = kotlinx.coroutines.runBlocking {
+    fun testNoPitchBendModuleByDefault() {
+        val polyPatch = PolyPatchModule()
+        assertFalse(polyPatch.graphState.modules.any { it.name == "pitchBend" })
+        assertTrue(polyPatch.graphState.modules.any { it.name == "pitch" })
+    }
+
+    /** The value actually written to the voice's pitch port, which is what the synth plays. */
+    private fun soundingPitch(voice: DynamicPitchedVoice): Double =
+        (voice.getPortByName("Pitch") as UnitInputPort).get(0).toDouble()
+
+    /**
+     * A bend moves the sounding pitch, with no pitchBend module in the patch.
+     *
+     * This reads the pitch port rather than inspecting wiring. The previous two attempts both
+     * had plausible-looking connections and neither made a sound, because asserting that a graph
+     * is connected says nothing about whether a number arrives.
+     */
+    @Test
+    fun testPitchBendMovesTheSoundingPitch() = kotlinx.coroutines.runBlocking {
         val polyPatch = PolyPatchModule()
         polyPatch.initializeVoices(1)
-
         val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
         engine.generateNextBuffer()
 
+        assertFalse(polyPatch.graphState.modules.any { it.name == "pitchBend" })
+        val voice = polyPatch.polyphonicInstrument!!.voices.first() as DynamicPitchedVoice
+
+        // Port writes are timestamped, so a buffer has to be rendered before the value is live.
+        fun now() = com.syntona.core.audio.SynthKSyn.synth.createTimeStamp()
+
+        voice.noteOn(60.0, 0.8, now())
+        engine.generateNextBuffer()
+        assertEquals(60.0, soundingPitch(voice), 0.001, "the note itself should sound at 60")
+
+        voice.setPitchBend(2.0, now())
+        engine.generateNextBuffer()
+        assertEquals(62.0, soundingPitch(voice), 0.001, "a bend of +2 should raise the pitch")
+
+        voice.setPitchBend(-1.5, now())
+        engine.generateNextBuffer()
+        assertEquals(58.5, soundingPitch(voice), 0.001, "a bend of -1.5 should lower it")
+
+        // Bend is an offset that persists across notes, as a held wheel does.
+        voice.noteOn(72.0, 0.8, now())
+        engine.generateNextBuffer()
+        assertEquals(70.5, soundingPitch(voice), 0.001, "a new note keeps the current bend")
+
+        voice.setPitchBend(0.0, now())
+        engine.generateNextBuffer()
+        assertEquals(72.0, soundingPitch(voice), 0.001, "centring the wheel restores the note")
+    }
+
+    /**
+     * A PITCH_BEND message reaching the polyPatch moves the pitch, which is the path the wheel
+     * actually takes: midiIn or packBend to the voice input jack.
+     */
+    @Test
+    fun testAPitchBendMessageMovesTheSoundingPitch() = kotlinx.coroutines.runBlocking {
+        val polyPatch = PolyPatchModule()
+        polyPatch.initializeVoices(1)
+        val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
+        engine.generateNextBuffer()
+        val voice = polyPatch.polyphonicInstrument!!.voices.first() as DynamicPitchedVoice
+        val time = com.syntona.core.model.ScoreTime(0L)
+
+        polyPatch.voiceInputJack.receive(
+            Message.VoiceMessage(time, Message.VoiceOpcode.NOTE_ON, 60, 60.0, 0.8)
+        )
+        polyPatch.voiceInputJack.receive(
+            Message.VoiceMessage(time, Message.VoiceOpcode.PITCH_BEND, -1, 2.0, 0.0)
+        )
+        engine.generateNextBuffer()
+
+        assertEquals(62.0, soundingPitch(voice), 0.001, "a PITCH_BEND message should bend the note")
+    }
+
+    /**
+     * The pitch input still sums its value with anything connected to it, so a patch that
+     * modulates pitch - the vibrato example wires an LFO in - keeps the note's own pitch. This
+     * used to be a side effect of wiring up the pitchBend module.
+     */
+    @Test
+    fun testPitchInputStillSumsItsValue() = kotlinx.coroutines.runBlocking {
+        val polyPatch = PolyPatchModule()
+        polyPatch.initializeVoices(1)
+
         val voice = polyPatch.polyphonicInstrument!!.voices.first() as DynamicPitchedVoice
         val pitchModule = polyPatch.graphState.modules.find { it.name == "pitch" }!!
-        val pitchBendModule = polyPatch.graphState.modules.find { it.name == "pitchBend" }!!
-
         val pitchUnit = voice.moduleToUnitMap[pitchModule] as PassThrough
-        val pitchBendUnit = voice.moduleToUnitMap[pitchBendModule] as PassThrough
 
-        assertTrue(pitchBendUnit.output.isConnected())
-        assertTrue(pitchUnit.input.isValueAdded)
+        assertTrue(
+            pitchUnit.input.isValueAdded,
+            "a modulator wired into pitch would override the note instead of bending it"
+        )
     }
 
     @Test
@@ -156,12 +239,32 @@ class PolyPatchModuleTest {
         val deserialized = GraphSerializer.deserialize(rootGraph, json)
         val polyPatch = deserialized[0] as PolyPatchModule
 
-        assertEquals(5, polyPatch.graphState.modules.size)
+        assertEquals(4, polyPatch.graphState.modules.size)
         assertTrue(polyPatch.graphState.modules.any { it.name == "pitch" })
         assertTrue(polyPatch.graphState.modules.any { it.name == "amplitude" })
         assertTrue(polyPatch.graphState.modules.any { it.name == "pressure" })
-        assertTrue(polyPatch.graphState.modules.any { it.name == "pitchBend" })
         assertTrue(polyPatch.graphState.modules.any { it.name == "output" })
+        // No pitchBend: a bend already reaches the voice through pitch, so creating one in every
+        // new polyPatch was clutter.
+        assertFalse(polyPatch.graphState.modules.any { it.name == "pitchBend" })
+    }
+
+    /**
+     * A patch that already has a pitchBend input keeps it, and PITCH_BEND still routes to it.
+     * Only the automatic creation went away, not the capability.
+     */
+    @Test
+    fun testAHandAddedPitchBendInputIsKept() {
+        val json = """
+            {"modules":[{"id":0,"type":"polyPatch","name":"poly1","x":0.0,"y":0.0,"maxVoices":2,"patch":{"modules":[{"id":0,"type":"aOutput","name":"output","x":400.0,"y":250.0},{"id":1,"type":"aInput","name":"pitchBend","x":50.0,"y":340.0}],"connections":[]}}],"connections":[]}
+        """.trimIndent()
+        val rootGraph = GraphState()
+        val deserialized = GraphSerializer.deserialize(rootGraph, json)
+        val polyPatch = deserialized[0] as PolyPatchModule
+
+        assertTrue(polyPatch.graphState.modules.any { it.name == "pitchBend" })
+        // And it is not duplicated by the defaults pass.
+        assertEquals(1, polyPatch.graphState.modules.count { it.name == "pitchBend" })
     }
 
     @Test

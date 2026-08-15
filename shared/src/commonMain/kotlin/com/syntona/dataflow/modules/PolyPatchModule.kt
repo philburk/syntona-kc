@@ -45,9 +45,8 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
         pressIn.name = "pressure"
         graphState.addModule(pressIn, androidx.compose.ui.geometry.Offset(50f, 260f))
 
-        val pbIn = AudioInputModule()
-        pbIn.name = "pitchBend"
-        graphState.addModule(pbIn, androidx.compose.ui.geometry.Offset(50f, 340f))
+        // No pitchBend input module: bend is added to the note's pitch in Kotlin, by
+        // DynamicPitchedVoice.setPitchBend, so it works with nothing on screen.
 
         // Add a default AudioOutputModule named "output"
         val defaultOutput = AudioOutputModule()
@@ -131,12 +130,8 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
             pressIn.name = "pressure"
             graphState.addModule(pressIn, androidx.compose.ui.geometry.Offset(50f, 260f))
         }
-        val hasPb = graphState.modules.any { it is AudioInputModule && it.name == "pitchBend" }
-        if (!hasPb) {
-            val pbIn = AudioInputModule()
-            pbIn.name = "pitchBend"
-            graphState.addModule(pbIn, androidx.compose.ui.geometry.Offset(50f, 340f))
-        }
+        // No pitchBend input is added, even to a patch that lacks one: bend is added to the
+        // note's pitch by DynamicPitchedVoice.setPitchBend rather than through the audio graph.
         val hasOutput = graphState.modules.any { it is AudioOutputModule && it.name == "output" }
         if (!hasOutput) {
             val defaultOutput = AudioOutputModule()
@@ -168,7 +163,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
                         setVoicePort(msg.tag, "pressure", msg.value, timeStamp)
                     }
                     Message.VoiceOpcode.PITCH_BEND -> {
-                        setVoicePort(msg.tag, "pitchBend", msg.value, timeStamp)
+                        setVoicePitchBend(msg.value, timeStamp)
                     }
                     Message.VoiceOpcode.PROGRAM_CHANGE -> {
                         setVoicePort(msg.tag, "program", msg.value, timeStamp)
@@ -283,19 +278,41 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
 
         // Connect pitchBend to pitch if both exist in voices
         for (voice in voices) {
-            wirePitchBendIfBothExist(voice)
+            makePitchInputSumItsValue(voice)
         }
     }
 
-    private fun wirePitchBendIfBothExist(voice: DynamicPitchedVoice) {
+    /**
+     * Makes the pitch input sum its value with anything connected to it, rather than being
+     * overridden by the connection.
+     *
+     * A patch that modulates pitch - the vibrato example wires an LFO into it - needs the note's
+     * own pitch to survive that connection. This used to be a side effect of wiring up the
+     * pitchBend module, so it has to be done deliberately now that bend no longer goes through
+     * the audio graph.
+     */
+    private fun makePitchInputSumItsValue(voice: DynamicPitchedVoice) {
         val pitchModule = graphState.modules.find { it is AudioInputModule && it.name == "pitch" }
-        val pitchBendModule = graphState.modules.find { it is AudioInputModule && it.name == "pitchBend" }
-        if (pitchModule != null && pitchBendModule != null) {
-            val pitchUnit = voice.moduleToUnitMap[pitchModule] as? PassThrough
-            val pitchBendUnit = voice.moduleToUnitMap[pitchBendModule] as? PassThrough
-            if (pitchUnit != null && pitchBendUnit != null) {
-                pitchBendUnit.output.connect(pitchUnit.input)
-                pitchUnit.input.isValueAdded = true
+            ?: return
+        val pitchUnit = voice.moduleToUnitMap[pitchModule] as? PassThrough ?: return
+        pitchUnit.input.isValueAdded = true
+    }
+
+    /**
+     * Applies a pitch bend to the voices.
+     *
+     * Summed in Kotlin by each voice rather than mixed in the audio graph: see
+     * [DynamicPitchedVoice.setPitchBend].
+     *
+     * Applied to every voice, whatever the message's tag. MIDI 1.0 bend is per channel, and both
+     * midiIn and packBend send a tag of -1 meaning all notes; routing a per-note bend would need
+     * a way to find the voice holding a given tag, which PolyphonicInstrument does not expose.
+     */
+    private fun setVoicePitchBend(semitones: Double, timeStamp: TimeStamp) {
+        val instrument = polyphonicInstrument ?: return
+        SynthKSyn.synth.queueCommand {
+            for (voice in instrument.voices) {
+                (voice as? DynamicPitchedVoice)?.setPitchBend(semitones, timeStamp)
             }
         }
     }
@@ -468,7 +485,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
         }
 
         for (voice in voices) {
-            wirePitchBendIfBothExist(voice)
+            makePitchInputSumItsValue(voice)
         }
     }
 
