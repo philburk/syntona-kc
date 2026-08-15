@@ -74,7 +74,7 @@ class DynamicPitchedVoice : Circuit(), PitchedVoice {
      * second signal into the pitch port and never reached the ear; adding the two numbers before
      * writing the port is one line to read and one place to look when it misbehaves.
      */
-    fun setPitchBend(semitones: Double, timeStamp: TimeStamp) {
+    override fun setPitchBend(semitones: Double, timeStamp: TimeStamp) {
         pitchBend = semitones
         applyPitch(timeStamp)
     }
