@@ -14,9 +14,9 @@ class ShowManyModule : Module("showMany") {
     val messages = mutableStateListOf<String>()
 
     override fun execute(triggerMessage: Message) {
-        messages.add(triggerMessage.toString())
-        while (messages.size > capacity) {
+        while (messages.size >= capacity) {
             messages.removeAt(0)
         }
+        messages.add(triggerMessage.toString())
     }
 }

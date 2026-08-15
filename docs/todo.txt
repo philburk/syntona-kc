@@ -9,8 +9,6 @@ EnvelopeEditor needs axis labels, time extend at right edge (KSyn)
 
 add *= or a ranger module for easy scaling of knobs to frequency.
 
-polyPatch pitchBend connection not needed because the pitch jack follows pitchBend
-
 Claude says:
 unsubscribe, subscribeJob, and subscriptionGeneration are plain fields written from both the
 caller's thread and the module's coroutines. The generation check closes the logical race,

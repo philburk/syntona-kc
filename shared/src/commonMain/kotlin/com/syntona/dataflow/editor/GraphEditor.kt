@@ -480,10 +480,17 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color? = null, la
             // Show custom content for ShowManyModule: scrolling list of messages
             if (module is ShowManyModule) {
                 val scrollState = rememberLazyListState()
-                LaunchedEffect(module.messages.size) {
-                    if (module.messages.isNotEmpty()) {
-                        scrollState.scrollToItem(module.messages.size - 1)
-                    }
+                LaunchedEffect(scrollState) {
+                    snapshotFlow { scrollState.layoutInfo.totalItemsCount }
+                        .collect { totalItems ->
+                            if (totalItems > 0) {
+                                try {
+                                    scrollState.scrollToItem(totalItems - 1)
+                                } catch (_: Exception) {
+                                    // Ignore index race conditions during rapid state updates
+                                }
+                            }
+                        }
                 }
                 LazyColumn(
                     state = scrollState,
