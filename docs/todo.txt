@@ -3,17 +3,6 @@
 
 MAKE SOME MUSIC!
 
-BUG: loaded example, chose New from File menu.
-Name of the example was still in the top window header.
-
-BUG:
-Load an example from the Help menu.
-The patch name appears as patch name
-
-
-Load second example, still has the same old patch name.
-
-
 segEnv should not have to end on y==0, may want to queue an upward ramp of frequency.
 BUG: EnvelopeEditor, points at end or added to the end cannot be moved up or deleted. See midi_driven.sntn.
 EnvelopeEditor needs axis labels, time extend at right edge (KSyn)
@@ -33,26 +22,32 @@ More Help patches
 
 More tutorials. Audio, timeline, pianoroll, Help
 
-NOT A BUG - FIXED? : If I connect a keyNotes to a midiOut, press a key to make a note sound,
-then delete the midiOut while the note is ON,
-then I get a hung note that I cannot turn off.
-Please send ALL_NOTES_OFF when changing channels or when deleting a midiOut.
-
 Need more ways to indicate Done. monoRdr could have an "empty" output jack.
 Ties in with the hierarchy editor.
 
-Need order4
+Add an "Edit" menu item to extract modules into a sub patch with named inputs.
+Call it "Make a Patch".
+
+Add theremin (XY) input module.
+
+Add ksyn/instruments with a combination of polyPatches and maybe the built-in KSyn instruments.
+Load them from the ComposeResources/files/instruments. Auto-populate.
+
+Add patch inputs for start/stop/etc that are commands with buttons.
+Maybe automatically make a button for "start", "on", "rewind"
+and other commands.
+Or would it be more transparent if we have a command module that can be placed within a patch.
 
 # ----------------------------------------------- MEDIUM PRIORITY
+
+Need order4
 
 Pack SysEx for controlling LEDs on KeyLab drum pads.
 F0 00 20 6B  7F 42 02 00  16 <Pad_ID> <R> <G>  <B> F7
 Pad ID for drum pads are 0x70-0x7F.
 RGB are 0-31.
+May not work on WebMIDI because SysEx is blocked.
 
-Add theremin (XY) input module.
-
-Add unpackNoteOn and unpackNoteOff.
 
 Extend range of wavefolder above 8.0 (KSyn)
 
@@ -60,12 +55,9 @@ Add wavefolder example
 
 When opening a new root window, offset it so that it does not hide the top window.
 
-Add patch inputs for start/stop/etc that are commands with buttons.
 
 Maybe??? Add a resource folder with a "library" of patches. Add a "Load Patch from Library" file item,
 similar to the Help menu items. Or add them to the moduleTree. Example???
-
-Consolidate stock polyPatch inputs into a block.
 
 Add multiTrack module like a DAW, + button for MIDI or Audio or composable Patch tracks.
 Audio tracks have audio in/out, MIDI tracks have VoiceMessage in/out.
@@ -88,7 +80,6 @@ Require
 ScaleModule should allow "Eb and G#"
 NoteSeq should allow "Eb4" and output note VoiceMessages
 
-Editing menu item to extract modules into a sub patch with named inputs.
 Support converting a patch into a user library for shared patches.
 Use KVault to store Patches for web users.
 Request Persistent Storage Permission.
@@ -98,8 +89,6 @@ Change keyboard13 so we can drag between notes for legato sweeps. ON/ON/OFF/OFF.
 
 Maybe be able to click on wires to select and disconnect by BACKSPACE.
 
-Add ksyn/instruments with a combination of polyPatches and maybe the built-in KSyn instruments.
-Load them from the ComposeResources/files/instruments. Auto-populate.
 
 Combine segEnv and monoRdr?
 
