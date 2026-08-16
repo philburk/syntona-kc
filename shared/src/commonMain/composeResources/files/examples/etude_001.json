@@ -258,6 +258,14 @@
                       "add": false
                     }
                   }
+                },
+                {
+                  "id": 7,
+                  "type": "ksyn.aInput",
+                  "name": "gate",
+                  "x": 50,
+                  "y": 340,
+                  "jacks": {}
                 }
               ],
               "connections": [
@@ -290,6 +298,12 @@
                   "fromJack": "output",
                   "to": 6,
                   "toJack": "amplitude"
+                },
+                {
+                  "from": 7,
+                  "fromJack": "output",
+                  "to": 6,
+                  "toJack": "input"
                 }
               ]
             }
@@ -828,6 +842,14 @@
                       "add": false
                     }
                   }
+                },
+                {
+                  "id": 9,
+                  "type": "ksyn.aInput",
+                  "name": "gate",
+                  "x": 50,
+                  "y": 340,
+                  "jacks": {}
                 }
               ],
               "connections": [
@@ -883,6 +905,12 @@
                   "from": 8,
                   "fromJack": "output",
                   "to": 3,
+                  "toJack": "input"
+                },
+                {
+                  "from": 9,
+                  "fromJack": "output",
+                  "to": 6,
                   "toJack": "input"
                 }
               ]

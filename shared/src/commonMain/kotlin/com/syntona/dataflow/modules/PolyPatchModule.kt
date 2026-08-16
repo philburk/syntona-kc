@@ -45,6 +45,10 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
         pressIn.name = "pressure"
         graphState.addModule(pressIn, androidx.compose.ui.geometry.Offset(50f, 260f))
 
+        val gateIn = AudioInputModule()
+        gateIn.name = "gate"
+        graphState.addModule(gateIn, androidx.compose.ui.geometry.Offset(50f, 340f))
+
         // Add a default AudioOutputModule named "output"
         val defaultOutput = AudioOutputModule()
         defaultOutput.name = "output"
@@ -53,7 +57,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
 
     private fun isSpecialVoiceInput(name: String): Boolean {
         val n = name.lowercase()
-        if (n == "pitch" || n == "amplitude" || n == "pressure" || n == "pitchbend") return true
+        if (n == "pitch" || n == "amplitude" || n == "pressure" || n == "pitchbend" || n == "gate") return true
         if (n.startsWith("control") && n.length > 7) {
             val numPart = n.substring(7)
             return numPart.toIntOrNull() != null
@@ -126,6 +130,12 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
             val pressIn = AudioInputModule()
             pressIn.name = "pressure"
             graphState.addModule(pressIn, androidx.compose.ui.geometry.Offset(50f, 260f))
+        }
+        val hasGate = graphState.modules.any { it is AudioInputModule && it.name == "gate" }
+        if (!hasGate) {
+            val gateIn = AudioInputModule()
+            gateIn.name = "gate"
+            graphState.addModule(gateIn, androidx.compose.ui.geometry.Offset(50f, 340f))
         }
         val hasOutput = graphState.modules.any { it is AudioOutputModule && it.name == "output" }
         if (!hasOutput) {

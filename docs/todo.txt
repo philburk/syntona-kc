@@ -3,7 +3,11 @@
 
 MAKE SOME MUSIC!
 
-Need to resolve triggers for DAHSDR and AD envelopes before making lots of new instruments.
+BUG: segEnv and monoRdr do not work in a polyPatch
+
+DAHDSR decay needs higher range in KSyn.
+
+In Help menu, two items "Join Syntona Discord Channel" and "Discuss Syntona on Discord"
 
 segEnv should not have to end on y==0, may want to queue an upward ramp of frequency.
 BUG: EnvelopeEditor, points at end or added to the end cannot be moved up or deleted. See midi_driven.sntn.
@@ -17,6 +21,9 @@ caller's thread and the module's coroutines. The generation check closes the log
 but strictly these are unsynchronized reads on JVM. Same shape as the existing MidiOutModule
 fields, so I kept it consistent rather than diverging — worth confining the module's coroutines
 to a single-threaded dispatcher if you want that airtight.
+
+Toolbar toggle that sets a global that tells all the modules to show their jack values instead of their jack names.
+Or pass as a parameter to the module display node???
 
 More Help patches
 

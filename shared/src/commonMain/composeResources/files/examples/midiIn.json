@@ -378,6 +378,13 @@
                 "add": false
               }
             }
+          },
+          {
+            "id": 13,
+            "type": "ksyn.aInput",
+            "name": "gate",
+            "x": 28,
+            "y": 280
           }
         ],
         "connections": [
@@ -452,6 +459,18 @@
             "fromJack": "output",
             "to": 7,
             "toJack": "amplitude"
+          },
+          {
+            "from": 13,
+            "fromJack": "output",
+            "to": 7,
+            "toJack": "input"
+          },
+          {
+            "from": 13,
+            "fromJack": "output",
+            "to": 8,
+            "toJack": "input"
           }
         ]
       }

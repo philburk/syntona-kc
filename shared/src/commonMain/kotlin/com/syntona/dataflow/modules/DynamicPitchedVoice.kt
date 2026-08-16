@@ -37,11 +37,8 @@ class DynamicPitchedVoice : Circuit(), PitchedVoice {
         val amplitudePort = getPortByName("Amplitude") as? UnitInputPort
         amplitudePort?.set(amplitude.toFloat(), timeStamp)
 
-        for (unit in getUnits()) {
-            if (unit is UnitGate) {
-                unit.input.on(timeStamp)
-            }
-        }
+        val gatePort = getGatePort()
+        gatePort?.set(1.0f, timeStamp)
     }
 
     override fun setPitchBend(pitchBend: Double, timeStamp: TimeStamp) {
@@ -50,15 +47,16 @@ class DynamicPitchedVoice : Circuit(), PitchedVoice {
     }
 
     override fun noteOff(timeStamp: TimeStamp) {
-        for (unit in getUnits()) {
-            if (unit is UnitGate) {
-                unit.input.off(timeStamp)
-            }
-        }
+        val gatePort = getGatePort()
+        gatePort?.set(0.0f, timeStamp)
     }
 
     override fun getPitchPort(): UnitInputPort? {
         return getPortByName("Pitch") as? UnitInputPort
+    }
+
+    fun getGatePort(): UnitInputPort? {
+        return getPortByName("Gate") as? UnitInputPort
     }
 
     override fun usePreset(presetIndex: Int) {

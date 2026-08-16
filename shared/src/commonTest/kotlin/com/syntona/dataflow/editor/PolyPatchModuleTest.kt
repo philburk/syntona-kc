@@ -5,6 +5,7 @@ import com.softsynth.ksyn.unitgen.PassThrough
 import com.syntona.dataflow.modules.*
 import com.syntona.dataflow.model.*
 import com.softsynth.ksyn.ports.UnitInputPort
+import com.softsynth.ksyn.ports.UnitOutputPort
 import kotlin.math.pow
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
@@ -106,7 +107,7 @@ class PolyPatchModuleTest {
     @Test
     fun testDefaultOutputModule() {
         val polyPatch = PolyPatchModule()
-        assertEquals(4, polyPatch.graphState.modules.size)
+        assertEquals(5, polyPatch.graphState.modules.size)
         val defaultOutput = polyPatch.graphState.modules.find { it is AudioOutputModule }
         assertNotNull(defaultOutput)
         assertEquals("output", defaultOutput.name)
@@ -235,6 +236,87 @@ class PolyPatchModuleTest {
     }
 
     @Test
+    fun testGateSignalAndEnvelopeExplicitTriggering() = kotlinx.coroutines.runBlocking {
+        val polyPatch = PolyPatchModule()
+        polyPatch.initializeVoices(1)
+        polyPatch.polyphonicInstrument!!.start()
+
+        val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
+        engine.generateNextBuffer()
+
+        val voice0 = polyPatch.polyphonicInstrument!!.voices[0] as DynamicPitchedVoice
+        val gateModule = polyPatch.graphState.modules.find { it.name == "gate" }!!
+        val gateUnit0 = voice0.moduleToUnitMap[gateModule] as PassThrough
+
+        // Add DAHDSR module
+        val dahdsrModule = UnitGeneratorModule("DAHDSR", com.softsynth.ksyn.unitgen.EnvelopeDAHDSR())
+        polyPatch.graphState.addModule(dahdsrModule, androidx.compose.ui.geometry.Offset.Zero)
+        val dahdsrUnit0 = voice0.moduleToUnitMap[dahdsrModule] as com.softsynth.ksyn.unitgen.EnvelopeDAHDSR
+        println("DEBUG: voice0 units = ${voice0.getUnits().map { it::class.simpleName + " (enabled=" + it.isEnabled + ")" }}")
+
+        // 1. Without connecting gate, noteOn should NOT trigger DAHDSR
+        polyPatch.voiceInputJack.receive(
+            Message.VoiceMessage(
+                com.syntona.core.model.ScoreTime.Zero,
+                Message.VoiceOpcode.NOTE_ON,
+                tag = 10,
+                value = 60.0,
+                extra = 1.0
+            )
+        )
+        engine.generateNextBuffer()
+        assertEquals(1.0f, gateUnit0.input.get(0), 1e-4f)
+        assertEquals(0.0f, dahdsrUnit0.output.get(0), 1e-4f)
+
+        // Note off
+        polyPatch.voiceInputJack.receive(
+            Message.VoiceMessage(
+                com.syntona.core.model.ScoreTime.Zero,
+                Message.VoiceOpcode.NOTE_OFF,
+                tag = 10,
+                value = 60.0,
+                extra = 0.0
+            )
+        )
+        engine.generateNextBuffer()
+        assertEquals(0.0f, gateUnit0.input.get(0), 1e-4f)
+
+        // 2. Connect gate.output to DAHDSR.input
+        val gateOutJack = gateModule.outputs.find { it.name == "output" }!!
+        val dahdsrInJack = dahdsrModule.inputs.find { it.name == "input" }!!
+        polyPatch.graphState.connect(gateOutJack, dahdsrInJack)
+        engine.generateNextBuffer()
+
+        // 3. Now noteOn SHOULD trigger DAHDSR
+        polyPatch.voiceInputJack.receive(
+            Message.VoiceMessage(
+                com.syntona.core.model.ScoreTime.Zero,
+                Message.VoiceOpcode.NOTE_ON,
+                tag = 10,
+                value = 60.0,
+                extra = 1.0
+            )
+        )
+        // Run a buffer to generate envelope output
+        engine.generateNextBuffer()
+        assertEquals(1.0f, gateUnit0.input.get(0), 1e-4f)
+        assertTrue(dahdsrUnit0.output.getValues().any { it > 0.0f }, "DAHDSR envelope output should be > 0 after noteOn with gate connected")
+
+        // Note off
+        polyPatch.voiceInputJack.receive(
+            Message.VoiceMessage(
+                com.syntona.core.model.ScoreTime.Zero,
+                Message.VoiceOpcode.NOTE_OFF,
+                tag = 10,
+                value = 60.0,
+                extra = 0.0
+            )
+        )
+        engine.generateNextBuffer()
+        assertEquals(0.0f, gateUnit0.input.get(0), 1e-4f)
+    }
+
+    @Test
     fun testEnsureDefaultModulesExistOnDeserialization() {
         val json = """
             {"modules":[{"id":0,"type":"polyPatch","name":"poly1","x":0.0,"y":0.0,"maxVoices":2,"patch":{"modules":[{"id":0,"type":"aOutput","name":"output","x":400.0,"y":250.0}],"connections":[]}}],"connections":[]}
@@ -243,10 +325,11 @@ class PolyPatchModuleTest {
         val deserialized = GraphSerializer.deserialize(rootGraph, json)
         val polyPatch = deserialized[0] as PolyPatchModule
 
-        assertEquals(4, polyPatch.graphState.modules.size)
+        assertEquals(5, polyPatch.graphState.modules.size)
         assertTrue(polyPatch.graphState.modules.any { it.name == "pitch" })
         assertTrue(polyPatch.graphState.modules.any { it.name == "amplitude" })
         assertTrue(polyPatch.graphState.modules.any { it.name == "pressure" })
+        assertTrue(polyPatch.graphState.modules.any { it.name == "gate" })
         assertTrue(polyPatch.graphState.modules.any { it.name == "output" })
     }
 

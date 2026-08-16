@@ -182,6 +182,14 @@
             "x": 23.875,
             "y": 435,
             "jacks": {}
+          },
+          {
+            "id": 8,
+            "type": "ksyn.aInput",
+            "name": "gate",
+            "x": 28,
+            "y": 280,
+            "jacks": {}
           }
         ],
         "connections": [
@@ -219,6 +227,12 @@
             "from": 7,
             "fromJack": "output",
             "to": 1,
+            "toJack": "input"
+          },
+          {
+            "from": 8,
+            "fromJack": "output",
+            "to": 6,
             "toJack": "input"
           }
         ]
