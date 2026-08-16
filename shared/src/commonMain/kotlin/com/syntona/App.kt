@@ -913,6 +913,15 @@ fun App(
                                                     editExpanded = false
                                                 }
                                             )
+                                            HorizontalDivider()
+                                            CompactDropdownMenuItem(
+                                                text = { Text("Make a Patch") },
+                                                enabled = EditActions.canMakePatch(mdiState),
+                                                onClick = {
+                                                    EditActions.makePatch(mdiState, appDensity)
+                                                    editExpanded = false
+                                                }
+                                            )
                                         }
                                     }
                                 }

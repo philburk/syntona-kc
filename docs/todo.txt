@@ -3,6 +3,8 @@
 
 MAKE SOME MUSIC!
 
+Need to resolve triggers for DAHSDR and AD envelopes before making lots of new instruments.
+
 segEnv should not have to end on y==0, may want to queue an upward ramp of frequency.
 BUG: EnvelopeEditor, points at end or added to the end cannot be moved up or deleted. See midi_driven.sntn.
 EnvelopeEditor needs axis labels, time extend at right edge (KSyn)
@@ -23,8 +25,13 @@ More tutorials. Audio, timeline, pianoroll, Help
 Need more ways to indicate Done. monoRdr could have an "empty" output jack.
 Ties in with the hierarchy editor.
 
-Add an "Edit" menu item to extract modules into a sub patch with named inputs.
+Add an "Edit" menu item to extract selected modules into a sub patch with named inputs.
 Call it "Make a Patch".
+To use it, the user would select a group of modules in a patch and select "Make a Patch".
+Those modules would be replaced with a patch containing the same modules.
+Any original connections outside that group would be replicated
+using "input", "aInput", "output", or "aOutput" modules as needed.
+
 
 Add theremin (XY) input module.
 

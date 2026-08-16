@@ -29,6 +29,11 @@ object EditActions {
         return mdi.activeGraphState != null && CopyPasteService.pasteBuffer != null
     }
 
+    fun canMakePatch(mdi: MdiState): Boolean {
+        if (mdi.activeEditHandler != null) return false
+        return mdi.activeGraphState?.selectedModules?.isNotEmpty() == true
+    }
+
     fun cut(mdi: MdiState, density: Float = 1f) {
         val handler = mdi.activeEditHandler
         if (handler != null) {
@@ -60,5 +65,12 @@ object EditActions {
         }
         val graphState = mdi.activeGraphState ?: return
         CopyPasteService.paste(graphState, density)
+    }
+
+    fun makePatch(mdi: MdiState, density: Float = 1f): com.syntona.dataflow.modules.PatchModule? {
+        if (mdi.activeEditHandler != null) return null
+        val graphState = mdi.activeGraphState ?: return null
+        if (graphState.selectedModules.isEmpty()) return null
+        return PatchExtractor.extractToPatch(graphState, graphState.selectedModules.toList(), density)
     }
 }

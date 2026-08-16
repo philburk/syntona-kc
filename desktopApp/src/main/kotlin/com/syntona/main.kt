@@ -392,6 +392,10 @@ fun main() {
                     Item("Paste", shortcut = KeyShortcut(Key.V, meta = true)) {
                         EditActions.paste(state, density)
                     }
+                    Separator()
+                    Item("Make a Patch") {
+                        EditActions.makePatch(state, density)
+                    }
                 }
                 Menu("Window") {
                     com.syntona.dataflow.editor.WindowMenu.build(state).forEach { entry ->
