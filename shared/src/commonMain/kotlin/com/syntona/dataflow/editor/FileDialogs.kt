@@ -11,6 +11,9 @@ expect fun showSaveAsResourceFileDialog(content: String, defaultName: String, on
 /** Write [content] to [path] without showing a dialog. On WASM, [path] is just a filename. */
 expect fun saveFileDirect(path: String, content: String)
 
+/** Write [content] to bundled resource [relativePath] when SaveAsResource privilege is available. */
+expect fun saveResourceFileDirect(relativePath: String, content: String)
+
 expect fun chooseWavRecordFile(defaultName: String, onSelected: (path: String) -> Unit)
 
 /** Read content from [path] without showing a dialog. Returns null if error or unsupported. */

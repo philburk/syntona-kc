@@ -172,6 +172,7 @@ actual fun showSaveAsResourceFileDialog(content: String, defaultName: String, on
 
 actual fun saveFileDirect(path: String, content: String) {
     val file = File(path)
+    file.parentFile?.mkdirs()
     file.writeText(content)
     val parent = file.parentFile
     if (parent != null) {
@@ -182,6 +183,17 @@ actual fun saveFileDirect(path: String, content: String) {
             updateLastDocumentDirectory(parent)
         }
     }
+}
+
+actual fun saveResourceFileDirect(relativePath: String, content: String) {
+    val root = resourceRootDirectory ?: lastResourceDirectory
+    val file = if (root != null) {
+        File(root, relativePath)
+    } else {
+        File(relativePath)
+    }
+    file.parentFile?.mkdirs()
+    file.writeText(content)
 }
 
 actual fun chooseWavRecordFile(defaultName: String, onSelected: (path: String) -> Unit) {

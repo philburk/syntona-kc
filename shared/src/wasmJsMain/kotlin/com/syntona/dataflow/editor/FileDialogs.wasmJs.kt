@@ -48,6 +48,8 @@ actual fun saveFileDirect(path: String, content: String) {
     jsSaveFile(content, path)
 }
 
+actual fun saveResourceFileDirect(relativePath: String, content: String) {}
+
 @JsFun("() => { return prompt('Enter filename for recording:', 'recording.wav'); }")
 private external fun jsPrompt(): String?
 

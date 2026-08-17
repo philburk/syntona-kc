@@ -9,7 +9,7 @@ import com.syntona.dataflow.modules.PatchModule
 private const val RESOURCE_ROOT_MARKER = "composeResources/files/"
 
 /** Top level folders of the bundled resource tree. */
-private val RESOURCE_FOLDERS = listOf("examples/", "tutorials/", "help/")
+private val RESOURCE_FOLDERS = listOf("examples/", "tutorials/", "help/", "instruments/")
 
 /**
  * Where [path] sits relative to the resource root, or null when it is not a resource.

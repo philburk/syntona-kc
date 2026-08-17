@@ -11,7 +11,7 @@ import com.syntona.dataflow.engine.DataFlowEngine
 import com.syntona.dataflow.model.*
 import com.syntona.dataflow.registry.ModuleRegistry
 
-class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
+class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch") {
     override val isAllowedInPolyPatch: Boolean
         get() = false
 

@@ -10,7 +10,8 @@ actual fun showSaveAsResourceFileDialog(content: String, defaultName: String, on
 
 actual fun saveFileDirect(path: String, content: String) {}
 
+actual fun saveResourceFileDirect(relativePath: String, content: String) {}
+
 actual fun chooseWavRecordFile(defaultName: String, onSelected: (path: String) -> Unit) {}
 
 actual fun readFileDirect(path: String): String? = null
-

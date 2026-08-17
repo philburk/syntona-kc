@@ -3,33 +3,6 @@
 
 MAKE SOME MUSIC!
 
-The segEnv and monoRdr modules do not work in a polyPatch.
-To fix this we need to extend the design of the PolyPatchModule.
-Currently, it uses a KSyn circuit to hold the KSyn unit generators
-needed for each voice.
-I would like to be able to use almost any Syntona module inside a PolyPatch.
-That would require keeping multiple hidden patches that are all edited using one visible patch window.
-All connections, jack value editing, etcetera, would need to be passed to the hidden patches.
-The "sample" and the "segEnv" modules have data that is large and could be shared between
-all the hidden patches.
-
-We will find that some modules just may not work in a hidden patch. We need a module method that we can query
-and prevent dropping of those modules in a polyPatch if it is false.
-
-Once this is working we could add "on" and "off" input modules inside the polyPatch
-alongside the "pitch" and "gate" modules.
-The on/off modules would have regular event type jacks, not audio jacks.
-Once this is working we can convert the "pitch" module to a regular event type jack.
-The pitch messages would be sent when there was a NOTE_ON or a PITCH_BEND message.
-They could still be connected directly to the "p2f" modules in the polyPatches.
-
-Examples of what I may want to do include playing a short sequence inside a polyPatch
-using the clock and seq8 modules. Or I may want to do some match on the pitch value using the "f(x)" module.
-
-Please propose a design for this modification. Feel free to be creative.
-We can make small modifications to KSyn if needed, after the design is approved.
-
-
 DAHDSR decay needs higher range in KSyn.
 
 In Help menu, two items "Join Syntona Discord Channel" and "Discuss Syntona on Discord"
@@ -69,6 +42,23 @@ Add theremin (XY) input module.
 
 Add ksyn/instruments with a combination of polyPatches and maybe the built-in KSyn instruments.
 Load them from the ComposeResources/files/instruments. Auto-populate.
+Some basic instruments could include:
+sawLowPass
+basicFM , 2 op FM
+Also add a "sounds" folder for drum sounds, sound effects, non-melodic instruments.
+
+Replace these with new instruments:
+shared/src/commonMain/composeResources/files/examples/etude_001.json:265:                  "name": "gate",
+shared/src/commonMain/composeResources/files/examples/etude_001.json:849:                  "name": "gate",
+shared/src/commonMain/composeResources/files/examples/pianoRoll.json:195:            "name": "gate",
+shared/src/commonMain/composeResources/files/examples/poly_patch.json:259:            "name": "gate",
+shared/src/commonMain/composeResources/files/examples/keyNotes.json:149:            "name": "gate",
+shared/src/commonMain/composeResources/files/examples/recSeq.json:214:            "name": "gate",
+shared/src/commonMain/composeResources/files/examples/vibrato.json:189:            "name": "gate",
+shared/src/commonMain/composeResources/files/help/music/input/pianoRoll.json:195:            "name": "gate",
+shared/src/commonMain/composeResources/files/help/music/input/keyboard13.json:195:            "name": "gate",
+shared/src/commonMain/composeResources/files/help/music/compose/scale.json:195:            "name": "gate",
+
 
 Add patch inputs for start/stop/etc that are commands with buttons.
 Maybe automatically make a button for "start", "on", "rewind"

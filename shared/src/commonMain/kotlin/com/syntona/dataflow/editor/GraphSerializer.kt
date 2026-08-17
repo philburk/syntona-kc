@@ -268,13 +268,17 @@ object GraphSerializer {
                 module.windowWidth?.let { append(",\"windowWidth\":$it") }
                 module.windowHeight?.let { append(",\"windowHeight\":$it") }
                 append(",\"windowOpen\":${module.isWindowOpen}")
-                val path = module.filePath
-                if (path != null && !module.isModified) {
-                    append(",\"filePath\":\"${path.jsonEscape}\"")
+                val rPath = module.resourcePath
+                val fPath = module.filePath
+                if (rPath != null) {
+                    append(",\"resourcePath\":\"${rPath.jsonEscape}\"")
+                }
+                if (fPath != null) {
+                    append(",\"filePath\":\"${fPath.jsonEscape}\"")
+                }
+                if (fPath != null && !module.isModified) {
+                    // referenced external file
                 } else {
-                    if (path != null) {
-                        append(",\"filePath\":\"${path.jsonEscape}\"")
-                    }
                     append(",\"patch\":")
                     append(buildRawJson(module.graphState, module.graphState.modules.toList(), density))
                 }
@@ -513,10 +517,32 @@ object GraphSerializer {
                 (obj?.map?.get("windowWidth") as? JsonValue.Num)?.value?.let { module.windowWidth = it.toFloat() }
                 (obj?.map?.get("windowHeight") as? JsonValue.Num)?.value?.let { module.windowHeight = it.toFloat() }
                 (obj?.map?.get("windowOpen") as? JsonValue.Bool)?.value?.let { module.isWindowOpen = it }
-                val filePath = (obj?.map?.get("filePath") as? JsonValue.Str)?.value
-                if (filePath != null) {
-                    module.filePath = filePath
-                    val fileContent = readFileDirect(filePath)
+
+                val resourcePath = (obj?.map?.get("resourcePath") as? JsonValue.Str)?.value
+                val rawFilePath = (obj?.map?.get("filePath") as? JsonValue.Str)?.value
+                val resolvedResourcePath = resourcePath ?: resourceRelativePath(rawFilePath)
+
+                if (resolvedResourcePath != null) {
+                    module.resourcePath = resolvedResourcePath
+                    module.filePath = null
+                    val patchObj = obj?.map?.get("patch") as? JsonValue.Obj
+                    if (patchObj != null) {
+                        module.graphState.isDeserializing = true
+                        try {
+                            module.graphState.removeModulesDirectly(module.graphState.modules.toList())
+                            deserializeObj(module.graphState, patchObj, Offset.Zero, density, problems)
+                            if (module is PolyPatchModule) {
+                                module.ensureDefaultModulesExist()
+                            }
+                        } finally {
+                            module.graphState.isDeserializing = false
+                        }
+                    }
+                    module.isModified = false
+                } else if (rawFilePath != null) {
+                    module.filePath = rawFilePath
+                    module.resourcePath = null
+                    val fileContent = readFileDirect(rawFilePath)
                     if (fileContent != null) {
                         val childRootVal = try { JsonParser(fileContent).parse() as? JsonValue.Obj } catch (_: Exception) { null }
                         if (childRootVal != null) {
@@ -566,6 +592,7 @@ object GraphSerializer {
                             module.graphState.isDeserializing = false
                         }
                     }
+                    module.isModified = false
                 }
             }
             if (module is PianoRollModule) {

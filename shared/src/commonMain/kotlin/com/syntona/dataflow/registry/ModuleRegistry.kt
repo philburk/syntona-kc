@@ -113,6 +113,8 @@ object ModuleRegistry {
             ScaleModule("scale", isEditable = true, doubleArrayOf(0.0, 2.0, 4.0, 7.0, 9.0)) })
         compose.modules.add(ModuleEntry("recSeq") { RecSeqModule() })
 
+        val instruments = getOrCreateBundle(music, "instruments")
+
         val ksyn = getOrCreateBundle(root, "ksyn")
         addKSynModule(ksyn, "lineIn", ::LineIn)
         addKSynModule(ksyn, "lineOut", ::LineOut)
@@ -305,7 +307,7 @@ object ModuleRegistry {
         return searchBundle(root, emptyList())
     }
 
-    private fun getOrCreateBundle(parent: Bundle, name: String): Bundle {
+    fun getOrCreateBundle(parent: Bundle, name: String): Bundle {
         return parent.subBundles.find { it.name == name }
             ?: Bundle(name).also { parent.subBundles.add(it) }
     }

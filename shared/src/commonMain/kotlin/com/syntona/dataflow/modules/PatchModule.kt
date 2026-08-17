@@ -14,7 +14,11 @@ import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.model.OutputJack
 import com.syntona.SYNTONA_FILE_SUFFIX
 
-open class PatchModule(name: String = "patch") : Module(name), EngineAware {
+open class PatchModule(name: String = "patch", type: String = "patch") : Module(type), EngineAware {
+
+    init {
+        this.name = name
+    }
 
     // Maps jacks on this PatchModule to the I/O modules inside the patch
     protected val inputLinks = mutableMapOf<InputJack, InputModule>()
@@ -31,16 +35,20 @@ open class PatchModule(name: String = "patch") : Module(name), EngineAware {
     var isWindowOpen by mutableStateOf(false)
 
     var filePath by mutableStateOf<String?>(null)
+    var resourcePath by mutableStateOf<String?>(null)
     var isModified by mutableStateOf(false)
 
     val headerTitle: String
         get() {
             val suffix = if (isModified) "*" else ""
+            if (resourcePath != null) {
+                return "$name$suffix"
+            }
             val path = filePath
             return if (path == null) {
                 "$name$suffix"
             } else {
-                val isResource = path.startsWith("examples/") || path.startsWith("tutorials/") || path.startsWith("help/")
+                val isResource = path.startsWith("examples/") || path.startsWith("tutorials/") || path.startsWith("help/") || path.startsWith("instruments/")
                 if (isResource) {
                     "$name$suffix"
                 } else {
@@ -76,8 +84,17 @@ open class PatchModule(name: String = "patch") : Module(name), EngineAware {
         fun traverse(patch: PatchModule) {
             for (module in patch.graphState.modules) {
                 if (module is PatchModule) {
-                    if (module.filePath != null && module.isModified) {
-                        result.add(module)
+                    if (module.isModified) {
+                        if (module.filePath != null) {
+                            result.add(module)
+                        } else if (module.resourcePath != null) {
+                            if (com.syntona.dataflow.editor.isSaveAsResourceAvailable()) {
+                                result.add(module)
+                            } else {
+                                // If the user does not have SaveAsResource privilege, automatically detach
+                                module.resourcePath = null
+                            }
+                        }
                     }
                     traverse(module)
                 }

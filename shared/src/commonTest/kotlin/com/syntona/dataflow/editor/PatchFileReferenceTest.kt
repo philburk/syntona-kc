@@ -315,4 +315,51 @@ class PatchFileReferenceTest {
         assertEquals("myDouble", numModule.name)
         assertEquals(42.5, numModule.value)
     }
+
+    @Test
+    fun testResourcePatchSerializationAndMigration() {
+        val root = PatchModule("root")
+        val instrument = PolyPatchModule("sawLowPass")
+        instrument.resourcePath = "instruments/sawLowPass.json"
+        instrument.isModified = false
+        root.graphState.addModule(instrument, Offset.Zero)
+
+        val json = GraphSerializer.serialize(root.graphState, root.graphState.modules)
+        assertTrue(json.contains("\"resourcePath\": \"instruments/sawLowPass.json\""))
+
+        // Test deserializing with resourcePath
+        val graph = GraphState()
+        val deserialized = GraphSerializer.deserialize(graph, json)
+        assertEquals(1, deserialized.size)
+        val loadedInstrument = deserialized[0] as PolyPatchModule
+        assertEquals("instruments/sawLowPass.json", loadedInstrument.resourcePath)
+        assertEquals(null, loadedInstrument.filePath)
+
+        // Test backward-compatibility migration: if json has "filePath": "instruments/sawLowPass.json"
+        val legacyJson = """
+            {
+                "modules": [
+                    {
+                        "id": 0,
+                        "type": "core.polyPatch",
+                        "name": "sawLowPass",
+                        "x": 10.0,
+                        "y": 20.0,
+                        "filePath": "instruments/sawLowPass.json",
+                        "patch": {
+                            "modules": [],
+                            "connections": []
+                        }
+                    }
+                ],
+                "connections": []
+            }
+        """.trimIndent()
+        val legacyGraph = GraphState()
+        val legacyDeserialized = GraphSerializer.deserialize(legacyGraph, legacyJson)
+        assertEquals(1, legacyDeserialized.size)
+        val migrated = legacyDeserialized[0] as PolyPatchModule
+        assertEquals("instruments/sawLowPass.json", migrated.resourcePath)
+        assertEquals(null, migrated.filePath)
+    }
 }

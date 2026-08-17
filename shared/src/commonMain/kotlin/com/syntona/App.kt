@@ -363,6 +363,7 @@ fun App(
         LaunchedEffect(Unit) {
             syntonaModel.start()
             com.syntona.dataflow.registry.HelpRegistry.loadHelpFilesIndex()
+            com.syntona.dataflow.registry.InstrumentRegistry.loadInstrumentsIndex()
             val activeDoc = FileState.activeDocument ?: FileState.documents.firstOrNull()
             if (activeDoc != null) {
                 loadPatchFromUrl(mdiState, activeDoc, appDensity)
@@ -827,17 +828,40 @@ fun App(
                                                       }
                                                   }
                                               )
+                                              if (isSaveAsResourceAvailable()) {
+                                                  CompactDropdownMenuItem(
+                                                      text = { Text("Save Patch as Resource...") },
+                                                      onClick = {
+                                                          fileExpanded = false
+                                                          val target = mdiState.activeGraphState?.parentPatch
+                                                          if (target != null) {
+                                                              val json = GraphSerializer.serializePatch(target, appDensity)
+                                                              val defaultName = target.filePath?.let { p ->
+                                                                  p.substringAfterLast('/').substringAfterLast('\\').ifEmpty { p }
+                                                              } ?: "${target.name}$SYNTONA_FILE_SUFFIX"
+                                                              showSaveAsResourceFileDialog(json, defaultName) { path ->
+                                                                  target.filePath = path
+                                                                  target.clearModifiedRecursively()
+                                                                  if (target === docRoot) {
+                                                                      FileState.markSaved(path)
+                                                                  }
+                                                              }
+                                                          }
+                                                      }
+                                                  )
+                                              }
                                               CompactDropdownMenuItem(
-                                                   text = { Text("Detach File from Patch") },
-                                                   enabled = mdiState.activeGraphState?.parentPatch?.filePath != null,
-                                                   onClick = {
-                                                       fileExpanded = false
-                                                       val target = mdiState.activeGraphState?.parentPatch
-                                                       if (target != null) {
-                                                           target.filePath = null
-                                                       }
-                                                   }
-                                               )
+                                                    text = { Text("Detach File from Patch") },
+                                                    enabled = mdiState.activeGraphState?.parentPatch?.let { it.filePath != null || it.resourcePath != null } == true,
+                                                    onClick = {
+                                                        fileExpanded = false
+                                                        val target = mdiState.activeGraphState?.parentPatch
+                                                        if (target != null) {
+                                                            target.filePath = null
+                                                            target.resourcePath = null
+                                                        }
+                                                    }
+                                                )
                                                if (isShareUrlAvailable()) {
                                                    CompactDropdownMenuItem(
                                                        text = { Text("Share Piece as URL...") },
@@ -1222,18 +1246,25 @@ fun App(
                     }
                     if (FileState.patchesToConfirmSave.isNotEmpty()) {
                         val patchToConfirm = FileState.patchesToConfirmSave.first()
+                        val targetPath = patchToConfirm.resourcePath ?: patchToConfirm.filePath ?: ""
                         AlertDialog(
                             onDismissRequest = {
                                 FileState.patchesToConfirmSave.clear()
                                 FileState.postConfirmationSaveAction = null
                             },
                             title = { Text("Save Referenced Patch") },
-                            text = { Text("The referenced patch '${patchToConfirm.name}' has been modified. Do you want to save its changes back to '${patchToConfirm.filePath}' or detach it?") },
+                            text = { Text("The referenced patch '${patchToConfirm.name}' has been modified. Do you want to save its changes back to '$targetPath' or detach it?") },
                             confirmButton = {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Button(onClick = {
                                         val childJson = GraphSerializer.serializePatch(patchToConfirm, appDensity)
-                                        saveFileDirect(patchToConfirm.filePath!!, childJson)
+                                        val rPath = patchToConfirm.resourcePath
+                                        val fPath = patchToConfirm.filePath
+                                        if (rPath != null) {
+                                            saveResourceFileDirect(rPath, childJson)
+                                        } else if (fPath != null) {
+                                            saveFileDirect(fPath, childJson)
+                                        }
                                         patchToConfirm.clearModifiedRecursively()
                                         FileState.patchesToConfirmSave.removeAt(0)
                                         if (FileState.patchesToConfirmSave.isEmpty()) {
@@ -1243,6 +1274,7 @@ fun App(
                                     }) { Text("Save") }
                                     Button(onClick = {
                                         patchToConfirm.filePath = null
+                                        patchToConfirm.resourcePath = null
                                         patchToConfirm.clearModifiedRecursively()
                                         FileState.patchesToConfirmSave.removeAt(0)
                                         if (FileState.patchesToConfirmSave.isEmpty()) {

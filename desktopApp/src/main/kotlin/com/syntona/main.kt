@@ -71,6 +71,7 @@ fun main() {
 
         LaunchedEffect(Unit) {
             com.syntona.dataflow.registry.HelpRegistry.loadHelpFilesIndex()
+            com.syntona.dataflow.registry.InstrumentRegistry.loadInstrumentsIndex()
         }
 
         LaunchedEffect(mdiState, scope) {
@@ -349,13 +350,33 @@ fun main() {
                             }
                         }
                     }
+                    if (isSaveAsResourceAvailable()) {
+                        Item("Save Patch as Resource...") {
+                            val target = state.activeGraphState?.parentPatch
+                            if (target != null) {
+                                val json = GraphSerializer.serializePatch(target, density)
+                                val defaultName = target.filePath?.let { p ->
+                                    p.substringAfterLast('/').substringAfterLast('\\').ifEmpty { p }
+                                } ?: "${target.name}$SYNTONA_FILE_SUFFIX"
+                                showSaveAsResourceFileDialog(json, defaultName) { path ->
+                                    target.filePath = path
+                                    target.clearModifiedRecursively()
+                                    val rootPatch = FileState.activeDocument?.rootPatch
+                                    if (target === rootPatch) {
+                                        FileState.markSaved(path)
+                                    }
+                                }
+                            }
+                        }
+                    }
                     Item(
                         "Detach File from Patch",
-                        enabled = state.activeGraphState?.parentPatch?.filePath != null
+                        enabled = state.activeGraphState?.parentPatch?.let { it.filePath != null || it.resourcePath != null } == true
                     ) {
                         val target = state.activeGraphState?.parentPatch
                         if (target != null) {
                             target.filePath = null
+                            target.resourcePath = null
                         }
                     }
                     Separator()
