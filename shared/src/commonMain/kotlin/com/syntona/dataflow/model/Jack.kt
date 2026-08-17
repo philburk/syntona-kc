@@ -29,7 +29,15 @@ open class InputJack(
     isKickable: Boolean = false
 ) : Jack() {
     override var name by mutableStateOf(name)
-    open var isKickable by mutableStateOf(isKickable)
+    private var _isKickable by mutableStateOf(isKickable)
+    open var isKickable: Boolean
+        get() = _isKickable
+        set(value) {
+            _isKickable = value
+            val polyPatch = module.parentPatch as? com.syntona.dataflow.modules.PolyPatchModule
+            polyPatch?.syncInputJackKickable(this, value)
+        }
+
     var isKicked = false
         private set
 
@@ -41,6 +49,10 @@ open class InputJack(
         isKicked = true
         module.onMessageReceived(this, msg)
         isKicked = false
+        val polyPatch = module.parentPatch as? com.syntona.dataflow.modules.PolyPatchModule
+        if (polyPatch != null && msg is Message.FloatValue) {
+            polyPatch.syncInputJackValue(this, msg.value)
+        }
     }
 
     /**
@@ -51,8 +63,23 @@ open class InputJack(
         return if (msg is Message.FloatValue) msg.value else default
     }
 
-    open var min: Double by mutableStateOf(0.0)
-    open var max: Double by mutableStateOf(100.0)
+    private var _min by mutableStateOf(0.0)
+    open var min: Double
+        get() = _min
+        set(value) {
+            _min = value
+            val polyPatch = module.parentPatch as? com.syntona.dataflow.modules.PolyPatchModule
+            polyPatch?.syncInputJackMin(this, value)
+        }
+
+    private var _max by mutableStateOf(100.0)
+    open var max: Double
+        get() = _max
+        set(value) {
+            _max = value
+            val polyPatch = module.parentPatch as? com.syntona.dataflow.modules.PolyPatchModule
+            polyPatch?.syncInputJackMax(this, value)
+        }
 
     override fun getValue(): Double = getDoubleValue()
 

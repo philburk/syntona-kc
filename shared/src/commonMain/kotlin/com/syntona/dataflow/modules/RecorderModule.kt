@@ -23,6 +23,8 @@ import com.syntona.unitgen.Recorder
  * so that the audio thread can grow the recording without allocating.
  */
 class RecorderModule : Module("recorder"), EngineAware {
+    override val isAllowedInPolyPatch: Boolean
+        get() = false
 
     val unit = Recorder()
 

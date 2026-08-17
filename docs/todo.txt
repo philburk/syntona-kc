@@ -3,7 +3,32 @@
 
 MAKE SOME MUSIC!
 
-BUG: segEnv and monoRdr do not work in a polyPatch
+The segEnv and monoRdr modules do not work in a polyPatch.
+To fix this we need to extend the design of the PolyPatchModule.
+Currently, it uses a KSyn circuit to hold the KSyn unit generators
+needed for each voice.
+I would like to be able to use almost any Syntona module inside a PolyPatch.
+That would require keeping multiple hidden patches that are all edited using one visible patch window.
+All connections, jack value editing, etcetera, would need to be passed to the hidden patches.
+The "sample" and the "segEnv" modules have data that is large and could be shared between
+all the hidden patches.
+
+We will find that some modules just may not work in a hidden patch. We need a module method that we can query
+and prevent dropping of those modules in a polyPatch if it is false.
+
+Once this is working we could add "on" and "off" input modules inside the polyPatch
+alongside the "pitch" and "gate" modules.
+The on/off modules would have regular event type jacks, not audio jacks.
+Once this is working we can convert the "pitch" module to a regular event type jack.
+The pitch messages would be sent when there was a NOTE_ON or a PITCH_BEND message.
+They could still be connected directly to the "p2f" modules in the polyPatches.
+
+Examples of what I may want to do include playing a short sequence inside a polyPatch
+using the clock and seq8 modules. Or I may want to do some match on the pitch value using the "f(x)" module.
+
+Please propose a design for this modification. Feel free to be creative.
+We can make small modifications to KSyn if needed, after the design is approved.
+
 
 DAHDSR decay needs higher range in KSyn.
 

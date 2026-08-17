@@ -98,6 +98,10 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
     }
 
     fun addModule(module: Module, position: Offset) {
+        val isPolyPatchChild = parentPatch is com.syntona.dataflow.modules.PolyPatchModule
+        if (isPolyPatchChild && !module.isAllowedInPolyPatch) {
+            return
+        }
         onModuleAdded?.invoke(module)  // runs before Compose observes the module
         if (module is EngineAware) engine?.let { module.setEngine(it) }
         // After a loaded patch has applied its own values, so an explicit choice still wins.

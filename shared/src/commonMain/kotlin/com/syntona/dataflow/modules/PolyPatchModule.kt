@@ -4,26 +4,32 @@ import com.softsynth.ksyn.ports.UnitInputPort
 import com.softsynth.ksyn.ports.UnitOutputPort
 import com.softsynth.ksyn.shared.time.TimeStamp
 import com.softsynth.ksyn.unitgen.PassThrough
-import com.softsynth.ksyn.unitgen.UnitGenerator
 import com.softsynth.ksyn.voices.PitchedVoice
 import com.softsynth.ksyn.voices.PolyphonicInstrument
 import com.syntona.core.audio.SynthKSyn
+import com.syntona.dataflow.engine.DataFlowEngine
 import com.syntona.dataflow.model.*
 import com.syntona.dataflow.registry.ModuleRegistry
 
 class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
+    override val isAllowedInPolyPatch: Boolean
+        get() = false
+
     var maxVoices: Int = 8
         private set
 
     var polyphonicInstrument: PolyphonicInstrument? = null
         private set
 
-    private var voices: Array<DynamicPitchedVoice> = emptyArray()
+    var voices: Array<PolyPatchVoice> = emptyArray()
+        private set
 
     var isInitialized = false
         private set
 
     val voiceInputJack = addVoiceInput("input", isKickable = true)
+
+    private val auxMixers = mutableMapOf<String, PassThrough>()
 
     init {
         // Setup graphState lifecycle callbacks to sync edits to background voices
@@ -32,32 +38,47 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
         graphState.onConnectionAddedCallback = ::syncConnectionAdded
         graphState.onConnectionRemovedCallback = ::syncConnectionRemoved
 
-        // Add default AudioInputModules
-        val pitchIn = AudioInputModule()
+        // 1. "on" (event kick for triggering envelopes, sample queues, sequencers)
+        val onIn = InputModule()
+        onIn.name = "on"
+        graphState.addModule(onIn, androidx.compose.ui.geometry.Offset(50f, 60f))
+
+        // 2. "off" (event kick for releasing envelopes, sequencers)
+        val offIn = InputModule()
+        offIn.name = "off"
+        graphState.addModule(offIn, androidx.compose.ui.geometry.Offset(50f, 130f))
+
+        // 3. "pitch" (event input)
+        val pitchIn = InputModule()
         pitchIn.name = "pitch"
-        graphState.addModule(pitchIn, androidx.compose.ui.geometry.Offset(50f, 100f))
+        graphState.addModule(pitchIn, androidx.compose.ui.geometry.Offset(50f, 200f))
 
-        val ampIn = AudioInputModule()
+        // 4. "amplitude" (event input)
+        val ampIn = InputModule()
         ampIn.name = "amplitude"
-        graphState.addModule(ampIn, androidx.compose.ui.geometry.Offset(50f, 180f))
+        graphState.addModule(ampIn, androidx.compose.ui.geometry.Offset(50f, 270f))
 
-        val pressIn = AudioInputModule()
+        // 5. "pressure" (event input)
+        val pressIn = InputModule()
         pressIn.name = "pressure"
-        graphState.addModule(pressIn, androidx.compose.ui.geometry.Offset(50f, 260f))
+        graphState.addModule(pressIn, androidx.compose.ui.geometry.Offset(50f, 340f))
 
-        val gateIn = AudioInputModule()
-        gateIn.name = "gate"
-        graphState.addModule(gateIn, androidx.compose.ui.geometry.Offset(50f, 340f))
-
-        // Add a default AudioOutputModule named "output"
+        // 6. "output" (audio output)
         val defaultOutput = AudioOutputModule()
         defaultOutput.name = "output"
-        graphState.addModule(defaultOutput, androidx.compose.ui.geometry.Offset(400f, 250f))
+        graphState.addModule(defaultOutput, androidx.compose.ui.geometry.Offset(450f, 200f))
+    }
+
+    override fun setEngine(engine: DataFlowEngine) {
+        super.setEngine(engine)
+        for (voice in voices) {
+            voice.setEngine(engine)
+        }
     }
 
     private fun isSpecialVoiceInput(name: String): Boolean {
         val n = name.lowercase()
-        if (n == "pitch" || n == "amplitude" || n == "pressure" || n == "pitchbend" || n == "gate") return true
+        if (n == "pitch" || n == "amplitude" || n == "pressure" || n == "pitchbend" || n == "gate" || n == "on" || n == "off") return true
         if (n.startsWith("control") && n.length > 7) {
             val numPart = n.substring(7)
             return numPart.toIntOrNull() != null
@@ -82,13 +103,26 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
                 return
             }
         }
+        if (module is InputModule) {
+            module.patch = this
+            if (isSpecialVoiceInput(module.name)) {
+                return
+            }
+        }
         super.onChildModuleAdded(module)
     }
 
     fun initializeVoices(maxVoices: Int) {
         if (isInitialized) return
         this.maxVoices = maxVoices
-        this.voices = Array(maxVoices) { DynamicPitchedVoice() }
+        this.voices = Array(maxVoices) { i -> PolyPatchVoice(i, this) }
+
+        val currentEngine = graphState.engine
+        if (currentEngine != null) {
+            for (voice in voices) {
+                voice.setEngine(currentEngine)
+            }
+        }
 
         val instrument = PolyphonicInstrument(SynthKSyn.synth, this.voices.map { it as PitchedVoice }.toTypedArray())
         this.polyphonicInstrument = instrument
@@ -113,35 +147,41 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
     }
 
     fun ensureDefaultModulesExist() {
-        val hasPitch = graphState.modules.any { it is AudioInputModule && it.name == "pitch" }
+        val hasOn = graphState.modules.any { it is InputModule && it.name == "on" }
+        if (!hasOn) {
+            val onIn = InputModule()
+            onIn.name = "on"
+            graphState.addModule(onIn, androidx.compose.ui.geometry.Offset(50f, 60f))
+        }
+        val hasOff = graphState.modules.any { it is InputModule && it.name == "off" }
+        if (!hasOff) {
+            val offIn = InputModule()
+            offIn.name = "off"
+            graphState.addModule(offIn, androidx.compose.ui.geometry.Offset(50f, 130f))
+        }
+        val hasPitch = graphState.modules.any { (it is InputModule || it is AudioInputModule) && it.name == "pitch" }
         if (!hasPitch) {
-            val pitchIn = AudioInputModule()
+            val pitchIn = InputModule()
             pitchIn.name = "pitch"
-            graphState.addModule(pitchIn, androidx.compose.ui.geometry.Offset(50f, 100f))
+            graphState.addModule(pitchIn, androidx.compose.ui.geometry.Offset(50f, 200f))
         }
-        val hasAmp = graphState.modules.any { it is AudioInputModule && it.name == "amplitude" }
+        val hasAmp = graphState.modules.any { (it is InputModule || it is AudioInputModule) && it.name == "amplitude" }
         if (!hasAmp) {
-            val ampIn = AudioInputModule()
+            val ampIn = InputModule()
             ampIn.name = "amplitude"
-            graphState.addModule(ampIn, androidx.compose.ui.geometry.Offset(50f, 180f))
+            graphState.addModule(ampIn, androidx.compose.ui.geometry.Offset(50f, 270f))
         }
-        val hasPress = graphState.modules.any { it is AudioInputModule && it.name == "pressure" }
+        val hasPress = graphState.modules.any { (it is InputModule || it is AudioInputModule) && it.name == "pressure" }
         if (!hasPress) {
-            val pressIn = AudioInputModule()
+            val pressIn = InputModule()
             pressIn.name = "pressure"
-            graphState.addModule(pressIn, androidx.compose.ui.geometry.Offset(50f, 260f))
-        }
-        val hasGate = graphState.modules.any { it is AudioInputModule && it.name == "gate" }
-        if (!hasGate) {
-            val gateIn = AudioInputModule()
-            gateIn.name = "gate"
-            graphState.addModule(gateIn, androidx.compose.ui.geometry.Offset(50f, 340f))
+            graphState.addModule(pressIn, androidx.compose.ui.geometry.Offset(50f, 340f))
         }
         val hasOutput = graphState.modules.any { it is AudioOutputModule && it.name == "output" }
         if (!hasOutput) {
             val defaultOutput = AudioOutputModule()
             defaultOutput.name = "output"
-            graphState.addModule(defaultOutput, androidx.compose.ui.geometry.Offset(400f, 250f))
+            graphState.addModule(defaultOutput, androidx.compose.ui.geometry.Offset(450f, 200f))
         }
     }
 
@@ -149,10 +189,6 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
         if (jack === voiceInputJack) {
             if (msg is Message.VoiceMessage) {
                 val instrument = polyphonicInstrument ?: return
-                // NOTE: msg.time (ScoreTime) is not yet applied here; it measures elapsed time
-                // since an app-level ScoreClock mark, while TimeStamp is the Synthesizer's own
-                // transport time, and there is no shared origin to convert between the two yet.
-                // Until that clock mapping exists, voice messages always fire at "now".
                 val timeStamp = SynthKSyn.synth.createTimeStamp()
                 when (msg.opcode) {
                     Message.VoiceOpcode.NOTE_ON -> {
@@ -175,17 +211,20 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
                     }
                 }
             }
+        } else {
+            // Forward external input messages to the corresponding InputModule inside all voice patches
+            val inputMod = inputLinks[jack]
+            if (inputMod != null) {
+                inputMod.receive(msg)
+                for (voice in voices) {
+                    val voiceInMod = voice.templateToVoiceMap[inputMod] as? InputModule
+                    voiceInMod?.receive(msg)
+                }
+            }
         }
         super.onMessageReceived(jack, msg)
     }
 
-    /**
-     * Routes a controller value to the voice allocated to [tag], or — per the CONTROL_CHANGE /
-     * PRESSURE / PITCH_BEND contract in DESIGN.md — broadcasts it to every voice when [tag] is
-     * -1. [PolyphonicInstrument.setPort] only targets a single allocated voice, so the -1 case
-     * is handled directly here via the public voice list, wrapped in the same queueCommand
-     * used internally by PolyphonicInstrument to stay on the audio thread.
-     */
     private fun setVoicePort(tag: Int, portName: String, value: Double, timeStamp: TimeStamp) {
         val instrument = polyphonicInstrument ?: return
         if (tag == -1) {
@@ -212,80 +251,86 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
         }
     }
 
-    fun syncInputJackValue(jack: AudioInputJack, value: Double) {
+    fun syncInputJackValue(jack: InputJack, value: Double) {
         if (!isInitialized) return
         val visibleModule = jack.module
-        val portName = jack.unitInputPort.name
-        val partIndex = jack.partIndex
-        val ts = TimeStamp(SynthKSyn.synth.currentTime)
         for (voice in voices) {
-            val bgUnit = voice.moduleToUnitMap[visibleModule] ?: continue
-            val bgPort = bgUnit.getPortByName(portName) as? UnitInputPort ?: continue
-            bgPort.set(partIndex, value.toFloat(), ts)
+            val voiceMod = voice.templateToVoiceMap[visibleModule] ?: continue
+            val voiceJack = findMatchingInputJack(voiceMod, jack) ?: continue
+            if (voiceJack is AudioInputJack) {
+                val ts = TimeStamp(SynthKSyn.synth.currentTime)
+                voiceJack.unitInputPort.set(voiceJack.partIndex, value.toFloat(), ts)
+            } else {
+                voiceJack.setValue(value)
+            }
+        }
+    }
+
+    fun syncInputJackValueAdded(jack: AudioInputJack, value: Boolean) {
+        if (!isInitialized) return
+        val visibleModule = jack.module
+        for (voice in voices) {
+            val voiceMod = voice.templateToVoiceMap[visibleModule] ?: continue
+            val voiceJack = findMatchingInputJack(voiceMod, jack) as? AudioInputJack ?: continue
+            voiceJack.isValueAdded = value
+        }
+    }
+
+    fun syncInputJackMin(jack: InputJack, value: Double) {
+        if (!isInitialized) return
+        val visibleModule = jack.module
+        for (voice in voices) {
+            val voiceMod = voice.templateToVoiceMap[visibleModule] ?: continue
+            val voiceJack = findMatchingInputJack(voiceMod, jack) ?: continue
+            voiceJack.min = value
+        }
+    }
+
+    fun syncInputJackMax(jack: InputJack, value: Double) {
+        if (!isInitialized) return
+        val visibleModule = jack.module
+        for (voice in voices) {
+            val voiceMod = voice.templateToVoiceMap[visibleModule] ?: continue
+            val voiceJack = findMatchingInputJack(voiceMod, jack) ?: continue
+            voiceJack.max = value
+        }
+    }
+
+    fun syncInputJackKickable(jack: InputJack, value: Boolean) {
+        if (!isInitialized) return
+        val visibleModule = jack.module
+        for (voice in voices) {
+            val voiceMod = voice.templateToVoiceMap[visibleModule] ?: continue
+            val voiceJack = findMatchingInputJack(voiceMod, jack) ?: continue
+            voiceJack.isKickable = value
         }
     }
 
     private fun syncModuleAdded(module: Module) {
         if (!isInitialized) return
         for (voice in voices) {
-            if (voice.moduleToUnitMap.containsKey(module)) continue
+            if (voice.templateToVoiceMap.containsKey(module)) continue
 
-            val bgUnit: UnitGenerator = when (module) {
-                is AudioInputModule -> {
-                    val passThrough = PassThrough()
-                    voice.add(passThrough)
-                    voice.addPort(passThrough.input, module.name)
-                    passThrough
+            val voiceModule = createVoiceModule(module)
+            voice.templateToVoiceMap[module] = voiceModule
+            voice.voiceToTemplateMap[voiceModule] = module
+
+            voice.graphState.addModuleDirectly(voiceModule, androidx.compose.ui.geometry.Offset.Zero)
+
+            if (module is AudioOutputModule) {
+                val voiceOutMod = voiceModule as AudioOutputModule
+                if (module.name == "output") {
+                    voiceOutMod.passThrough.output.connect(voice.outputPassThrough.input)
+                } else {
+                    val auxMixer = getOrCreateAuxMixer(module.name)
+                    voiceOutMod.passThrough.output.connect(auxMixer.input)
                 }
-                is AudioOutputModule -> {
-                    if (module.name == "output") {
-                        // For the main output module, we use the voice's pre-created outputPassThrough
-                        val passThrough = voice.outputPassThrough
-                        voice.addPort(passThrough.output, module.name)
-                        passThrough
-                    } else {
-                        // For auxiliary outputs, we create a new PassThrough for this module in the voice
-                        val passThrough = PassThrough()
-                        voice.add(passThrough)
-                        voice.addPort(passThrough.output, module.name)
-                        passThrough
-                    }
-                }
-                is UnitGeneratorModule -> {
-                    val factory = ModuleRegistry.ksynFactories[module.type]
-                    if (factory != null) {
-                        val newUnit = factory()
-                        voice.add(newUnit)
-                        newUnit
-                    } else {
-                        continue
-                    }
-                }
-                is SamplerModule -> {
-                    val factory = ModuleRegistry.ksynFactories[module.type]
-                    if (factory != null) {
-                        val newUnit = factory()
-                        voice.add(newUnit)
-                        newUnit
-                    } else {
-                        continue
-                    }
-                }
-                else -> continue
             }
-            voice.moduleToUnitMap[module] = bgUnit
-        }
 
-        // Export input ports on PolyphonicInstrument if AudioInputModule was added
-        if (module is AudioInputModule) {
-            if (!isSpecialVoiceInput(module.name)) {
-                val instrument = polyphonicInstrument
-                if (instrument != null) {
-                    instrument.exportNamedInputPort(module.name)
-                    val instPort = instrument.getPortByName(module.name) as? UnitInputPort
-                    if (instPort != null) {
-                        module.passThrough.output.connect(instPort)
-                    }
+            if (module is AudioInputModule) {
+                if (!isSpecialVoiceInput(module.name)) {
+                    val voiceInMod = voiceModule as AudioInputModule
+                    module.passThrough.output.connect(voiceInMod.passThrough.input)
                 }
             }
         }
@@ -295,26 +340,26 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
         }
     }
 
-    private val auxMixers = mutableMapOf<String, PassThrough>()
+    private fun getOrCreateAuxMixer(portName: String): PassThrough {
+        return auxMixers.getOrPut(portName) {
+            val mixer = PassThrough()
+            SynthKSyn.synth.add(mixer)
+            if (mixer.isStartRequired) mixer.start()
+            mixer
+        }
+    }
 
     private fun syncAuxOutputAdded(module: AudioOutputModule) {
-        val instrument = polyphonicInstrument ?: return
         val portName = module.name
-        if (auxMixers.containsKey(portName)) return
+        val mixer = getOrCreateAuxMixer(portName)
 
-        // 1. Create a PassThrough mixer unit on PolyphonicInstrument
-        val mixer = PassThrough()
-        instrument.add(mixer)
-        instrument.addPort(mixer.output, portName)
-        auxMixers[portName] = mixer
-
-        // 2. Connect each voice's auxiliary output to the mixer
+        // Connect each voice's auxiliary output to the mixer
         for (voice in voices) {
-            val bgUnit = voice.moduleToUnitMap[module] as? PassThrough ?: continue
-            bgUnit.output.connect(mixer.input)
+            val voiceMod = voice.templateToVoiceMap[module] as? AudioOutputModule ?: continue
+            voiceMod.passThrough.output.connect(mixer.input)
         }
 
-        // 3. Expose the mixed port as a parent audio output jack
+        // Expose the mixed port as a parent audio output jack
         if (outputs.none { it.name == portName }) {
             val jack = addAudioOutput(portName, mixer.output, 0)
             audioOutputLinks[jack] = module
@@ -323,19 +368,16 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
     }
 
     private fun syncAuxOutputRemoved(module: AudioOutputModule) {
-        val instrument = polyphonicInstrument ?: return
         val portName = module.name
         val mixer = auxMixers.remove(portName) ?: return
 
-        // Disconnect voices and remove mixer from instrument
         for (voice in voices) {
-            val bgUnit = voice.moduleToUnitMap[module] as? PassThrough ?: continue
-            bgUnit.output.disconnect(mixer.input)
+            val voiceMod = voice.templateToVoiceMap[module] as? AudioOutputModule ?: continue
+            voiceMod.passThrough.output.disconnect(mixer.input)
         }
-        instrument.remove(mixer)
-        instrument.removePortAlias(portName)
+        if (mixer.isStartRequired) mixer.stop()
+        SynthKSyn.synth.remove(mixer)
 
-        // Remove jack from parent
         val jack = outputs.find { it.name == portName } as? AudioOutputJack
         if (jack != null) {
             removeOutput(jack)
@@ -350,145 +392,177 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
             syncAuxOutputRemoved(module)
         }
 
-        // Disconnect template passThrough from instrument port before removing ports
-        if (module is AudioInputModule) {
-            val instPort = polyphonicInstrument?.getPortByName(module.name) as? UnitInputPort
-            if (instPort != null) {
-                module.passThrough.output.disconnect(instPort)
-            }
-        }
-
         for (voice in voices) {
-            val bgUnit = voice.moduleToUnitMap.remove(module) ?: continue
-            if (module is AudioInputModule) {
-                val port = voice.getPortByName(module.name)
-                if (port != null) {
-                    voice.removePort(port)
-                    voice.removePortAlias(module.name)
-                }
-                voice.remove(bgUnit)
-            } else if (module is AudioOutputModule) {
-                val port = voice.getPortByName(module.name)
-                if (port != null) {
-                    voice.removePort(port)
-                    voice.removePortAlias(module.name)
-                }
-                if (module.name != "output") {
-                    voice.remove(bgUnit)
-                }
-            } else {
-                voice.remove(bgUnit)
-            }
-        }
+            val voiceModule = voice.templateToVoiceMap.remove(module) ?: continue
+            voice.voiceToTemplateMap.remove(voiceModule)
 
-        if (module is AudioInputModule) {
-            val instPort = polyphonicInstrument?.getPortByName(module.name)
-            if (instPort != null) {
-                polyphonicInstrument?.removePort(instPort)
-                polyphonicInstrument?.removePortAlias(module.name)
+            if (module is AudioOutputModule) {
+                val voiceOutMod = voiceModule as AudioOutputModule
+                if (module.name == "output") {
+                    voiceOutMod.passThrough.output.disconnect(voice.outputPassThrough.input)
+                } else {
+                    auxMixers[module.name]?.let { mixer ->
+                        voiceOutMod.passThrough.output.disconnect(mixer.input)
+                    }
+                }
             }
+
+            if (module is AudioInputModule) {
+                if (!isSpecialVoiceInput(module.name)) {
+                    val voiceInMod = voiceModule as AudioInputModule
+                    module.passThrough.output.disconnect(voiceInMod.passThrough.input)
+                }
+            }
+
+            voice.graphState.removeModulesDirectly(listOf(voiceModule))
         }
     }
 
     private fun syncConnectionAdded(outputJack: OutputJack, inputJack: InputJack) {
         if (!isInitialized) return
-        if (outputJack !is AudioOutputJack || inputJack !is AudioInputJack) return
 
         val outMod = outputJack.module
         val inMod = inputJack.module
-        val outPortName = outputJack.unitOutputPort.name
-        val inPortName = inputJack.unitInputPort.name
 
         for (voice in voices) {
-            val bgUnitA = voice.moduleToUnitMap[outMod] ?: continue
-            val bgUnitB = voice.moduleToUnitMap[inMod] ?: continue
-            val portA = bgUnitA.getPortByName(outPortName) as? UnitOutputPort ?: continue
-            val portB = bgUnitB.getPortByName(inPortName) as? UnitInputPort ?: continue
-            portA.connect(outputJack.partIndex, portB, inputJack.partIndex)
+            val voiceOutMod = voice.templateToVoiceMap[outMod] ?: continue
+            val voiceInMod = voice.templateToVoiceMap[inMod] ?: continue
+            val voiceOutJack = findMatchingOutputJack(voiceOutMod, outputJack) ?: continue
+            val voiceInJack = findMatchingInputJack(voiceInMod, inputJack) ?: continue
+            voice.graphState.connectDirectly(voiceOutJack, voiceInJack)
         }
     }
 
     private fun syncConnectionRemoved(outputJack: OutputJack, inputJack: InputJack) {
         if (!isInitialized) return
-        if (outputJack !is AudioOutputJack || inputJack !is AudioInputJack) return
 
         val outMod = outputJack.module
         val inMod = inputJack.module
-        val outPortName = outputJack.unitOutputPort.name
-        val inPortName = inputJack.unitInputPort.name
 
         for (voice in voices) {
-            val bgUnitA = voice.moduleToUnitMap[outMod] ?: continue
-            val bgUnitB = voice.moduleToUnitMap[inMod] ?: continue
-            val portA = bgUnitA.getPortByName(outPortName) as? UnitOutputPort ?: continue
-            val portB = bgUnitB.getPortByName(inPortName) as? UnitInputPort ?: continue
-            portA.disconnect(outputJack.partIndex, portB, inputJack.partIndex)
+            val voiceOutMod = voice.templateToVoiceMap[outMod] ?: continue
+            val voiceInMod = voice.templateToVoiceMap[inMod] ?: continue
+            val voiceOutJack = findMatchingOutputJack(voiceOutMod, outputJack) ?: continue
+            val voiceInJack = findMatchingInputJack(voiceInMod, inputJack) ?: continue
+            voice.graphState.disconnect(voiceOutJack, voiceInJack)
         }
     }
 
-       fun onAudioInputNameChanged(module: AudioInputModule, newName: String) {
-        if (!isInitialized) return
-        val firstVoice = voices.firstOrNull() ?: return
-        val firstBgUnit = firstVoice.moduleToUnitMap[module] as? PassThrough ?: return
-        val oldName = firstVoice.getPorts().find { it === firstBgUnit.input }?.name ?: return
-        if (oldName.lowercase() == newName.lowercase()) return
-
-        // 1. Disconnect template passThrough output from old instrument port
-        val oldInstPort = polyphonicInstrument?.getPortByName(oldName) as? UnitInputPort
-        if (oldInstPort != null) {
-            module.passThrough.output.disconnect(oldInstPort)
+    fun findMatchingInputJack(targetModule: Module, templateJack: InputJack): InputJack? {
+        if (templateJack is AudioInputJack) {
+            return targetModule.inputs.filterIsInstance<AudioInputJack>().find {
+                it.name == templateJack.name && it.partIndex == templateJack.partIndex
+            } ?: targetModule.inputs.find { it.name == templateJack.name }
         }
+        return targetModule.inputs.find { it.name == templateJack.name && it::class == templateJack::class }
+            ?: targetModule.inputs.find { it.name == templateJack.name }
+    }
 
-        // 2. Update voice ports for all voices
-        for (voice in voices) {
-            val bgUnit = voice.moduleToUnitMap[module] as? PassThrough ?: continue
-            voice.removePort(bgUnit.input)
-            voice.removePortAlias(oldName)
-            voice.addPort(bgUnit.input, newName)
+    fun findMatchingOutputJack(targetModule: Module, templateJack: OutputJack): OutputJack? {
+        if (templateJack is AudioOutputJack) {
+            return targetModule.outputs.filterIsInstance<AudioOutputJack>().find {
+                it.name == templateJack.name && it.partIndex == templateJack.partIndex
+            } ?: targetModule.outputs.find { it.name == templateJack.name }
         }
+        return targetModule.outputs.find { it.name == templateJack.name && it::class == templateJack::class }
+            ?: targetModule.outputs.find { it.name == templateJack.name }
+    }
 
-        // 3. Remove old port from PolyphonicInstrument
-        if (oldInstPort != null) {
-            polyphonicInstrument?.removePort(oldInstPort)
-            polyphonicInstrument?.removePortAlias(oldName)
-        }
-
-        // 4. Export new port on PolyphonicInstrument and connect template passThrough
-        if (!isSpecialVoiceInput(newName)) {
-            polyphonicInstrument?.exportNamedInputPort(newName)
-            val newInstPort = polyphonicInstrument?.getPortByName(newName) as? UnitInputPort
-            if (newInstPort != null) {
-                module.passThrough.output.connect(newInstPort)
+    private fun createVoiceModule(templateModule: Module): Module {
+        val voiceModule = when (templateModule) {
+            is InputModule -> {
+                InputModule().apply { name = templateModule.name }
             }
+            is AudioInputModule -> {
+                AudioInputModule().apply { name = templateModule.name }
+            }
+            is AudioOutputModule -> {
+                AudioOutputModule().apply { name = templateModule.name }
+            }
+            is OutputModule -> {
+                OutputModule().apply { name = templateModule.name }
+            }
+            is SegmentedEnvelopeModule -> {
+                SegmentedEnvelopeModule().apply {
+                    name = templateModule.name
+                    envelope = templateModule.envelope // Share by reference!
+                }
+            }
+            is FloatSampleModule -> {
+                FloatSampleModule().apply {
+                    name = templateModule.name
+                    sample = templateModule.sample // Share by reference!
+                }
+            }
+            is EquationModule -> {
+                EquationModule(templateModule.name).apply {
+                    equation = templateModule.equation
+                }
+            }
+            is SequenceModule -> {
+                SequenceModule(templateModule.numOutputs).apply {
+                    name = templateModule.name
+                    for (i in 0 until templateModule.numOutputs) {
+                        values[i] = templateModule.values[i]
+                    }
+                }
+            }
+            is ScaleModule -> {
+                ScaleModule(templateModule.name, templateModule.isEditable, templateModule.scaleDegrees.clone())
+            }
+            is UnitGeneratorModule -> {
+                val factory = ModuleRegistry.ksynFactories[templateModule.type]
+                if (factory != null) {
+                    UnitGeneratorModule(templateModule.name, factory())
+                } else {
+                    ModuleRegistry.findCreator(templateModule.type)?.invoke() ?: templateModule
+                }
+            }
+            is SamplerModule -> {
+                SamplerModule().apply { name = templateModule.name }
+            }
+            else -> {
+                ModuleRegistry.findCreator(templateModule.type)?.invoke() ?: templateModule
+            }
+        }
+
+        // Copy input jack properties and values
+        for (templateJack in templateModule.inputs) {
+            val voiceJack = findMatchingInputJack(voiceModule, templateJack)
+            if (voiceJack != null) {
+                voiceJack.isKickable = templateJack.isKickable
+                if (templateJack is AudioInputJack && voiceJack is AudioInputJack) {
+                    voiceJack.isValueAdded = templateJack.isValueAdded
+                }
+                voiceJack.min = templateJack.min
+                voiceJack.max = templateJack.max
+                voiceJack.setValue(templateJack.getValue())
+            }
+        }
+        return voiceModule
+    }
+
+    fun onAudioInputNameChanged(module: AudioInputModule, newName: String) {
+        if (!isInitialized) return
+        for (voice in voices) {
+            val voiceMod = voice.templateToVoiceMap[module] ?: continue
+            voiceMod.name = newName
         }
     }
 
     fun onAudioOutputNameChanged(module: AudioOutputModule, newName: String) {
         if (!isInitialized) return
-        val voice = voices.firstOrNull() ?: return
-        val bgUnit = voice.moduleToUnitMap[module] as? PassThrough ?: return
-        val oldName = voice.getPorts().find { it === bgUnit.output }?.name ?: return
+        val oldName = module.name
         if (oldName == newName) return
 
-        // Update voice port aliases
-        for (v in voices) {
-            val unit = v.moduleToUnitMap[module] as? PassThrough ?: continue
-            val oldPortName = v.getPorts().find { it === unit.output }?.name ?: continue
-            v.removePort(unit.output)
-            v.removePortAlias(oldPortName)
-            v.addPort(unit.output, newName)
-        }
-
-        // Update PolyphonicInstrument mixer port alias
-        val instrument = polyphonicInstrument ?: return
         val mixer = auxMixers.remove(oldName)
         if (mixer != null) {
-            instrument.removePortAlias(oldName)
-            instrument.addPort(mixer.output, newName)
             auxMixers[newName] = mixer
         }
-
-        // Update parent jack name
+        for (voice in voices) {
+            val voiceMod = voice.templateToVoiceMap[module] ?: continue
+            voiceMod.name = newName
+        }
         module.patchJack?.name = newName
     }
 
@@ -500,6 +574,11 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name) {
             }
             SynthKSyn.synth.remove(instrument)
         }
+        for (mixer in auxMixers.values) {
+            if (mixer.isStartRequired) mixer.stop()
+            SynthKSyn.synth.remove(mixer)
+        }
+        auxMixers.clear()
         for (voice in voices) {
             voice.teardown()
         }

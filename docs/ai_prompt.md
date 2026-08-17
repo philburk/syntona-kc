@@ -83,7 +83,7 @@ When playing, if loop mode is enabled, and the cursor reaches the end of a loop 
 jump back to the beginning of the loop.
 
 ## audio capture
-```
+
 I would like to be able to record the audio output of a performance made using Syntona.
 Please add a UI that looks like the attached screenshot, except use the label "KSyn" instead of "JSyn".
 The "Capture..." button should allow the user to select a file on disk.
@@ -93,5 +93,5 @@ The new recording coroutine will periodically read from the AudioFifo and write 
 As the data is written to disk, the equivalent recording duration time in minutes:seconds.millis.
 A menu left the user select the maximum recording time as 1,2,3,5,10,20,60 minutes.
 If the stop button is pressed, or the maximum recording time is reached then the recording process should be stopped.
-```
+
 

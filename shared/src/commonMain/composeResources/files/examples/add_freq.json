@@ -1,0 +1,117 @@
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "ksyn.lineOut",
+      "name": "lineOut",
+      "x": 548.9,
+      "y": 191.9,
+      "jacks": {
+        "input0": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "input1": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 1,
+      "type": "ksyn.sources.sineOsc",
+      "name": "sineOsc",
+      "x": 297.9,
+      "y": 207,
+      "jacks": {
+        "frequency": {
+          "v": 787.0272827148438,
+          "min": 40,
+          "max": 8000,
+          "kickable": false,
+          "add": true
+        },
+        "amplitude": {
+          "v": 1,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "core.input.knob",
+      "name": "knob",
+      "x": 48.9,
+      "y": 196,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 787.0272827148438,
+          "min": 40,
+          "max": 8000,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "ksyn.sources.sineOsc",
+      "name": "sineOsc",
+      "x": 176.9,
+      "y": 76,
+      "jacks": {
+        "frequency": {
+          "v": 6.0548176765441895,
+          "min": 0.10000000149011612,
+          "max": 8,
+          "kickable": false,
+          "add": false
+        },
+        "amplitude": {
+          "v": 82.70426177978516,
+          "min": 0,
+          "max": 100,
+          "kickable": false,
+          "add": false
+        }
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": 1,
+      "fromJack": "output",
+      "to": 0,
+      "toJack": "input0"
+    },
+    {
+      "from": 2,
+      "fromJack": "out",
+      "to": 1,
+      "toJack": "frequency"
+    },
+    {
+      "from": 3,
+      "fromJack": "output",
+      "to": 1,
+      "toJack": "frequency"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 821.98779296875,
+  "windowHeight": 647.8756103515625
+}

@@ -1,3 +1,4 @@
+examples/add_freq.json
 examples/basic_sequence.json
 examples/drum_rhythm.json
 examples/etude_001.json

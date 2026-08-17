@@ -94,6 +94,9 @@ private fun fromMidi7Bit(value: Int): Double = value.toDouble() / MIDI_7BIT_MAX
  * command so that the graph is only ever touched from the engine coroutine.
  */
 class MidiInModule : Module("midiIn"), EngineAware, AdoptsRememberedDefaults {
+    override val isAllowedInPolyPatch: Boolean
+        get() = false
+
     val output = addVoiceOutput("out")
 
     /** Name of the source device to listen to, or empty for none. */
@@ -289,6 +292,9 @@ internal fun toVoiceMessage(event: MidiEvent, time: ScoreTime): Message.VoiceMes
  * nearest MIDI note number, since MIDI 1.0 has nowhere to put the fraction.
  */
 class MidiOutModule : Module("midiOut"), AdoptsRememberedDefaults {
+    override val isAllowedInPolyPatch: Boolean
+        get() = false
+
     val input = addVoiceInput("in")
     val channelIn = addInput("channel").also {
         it.min = 1.0

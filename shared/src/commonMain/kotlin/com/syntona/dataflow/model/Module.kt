@@ -25,6 +25,14 @@ interface AdoptsRememberedDefaults {
 abstract class Module(val type: String) {
     open var name by mutableStateOf(type)
     var parentPatch: com.syntona.dataflow.modules.PatchModule? = null
+
+    /**
+     * Whether this module is allowed inside a [com.syntona.dataflow.modules.PolyPatchModule].
+     * Defaults to true. Override to return false for global hardware or incompatible modules.
+     */
+    open val isAllowedInPolyPatch: Boolean
+        get() = true
+
     private val _inputs = mutableStateListOf<InputJack>()
     val inputs: List<InputJack> get() = _inputs
 

@@ -8,7 +8,14 @@ import com.syntona.dataflow.model.Module
 import kotlin.math.pow
 
 class EquationModule(type: String) : Module(type) {
-    var equation by mutableStateOf("x")
+    private var _equation by mutableStateOf("x")
+    var equation: String
+        get() = _equation
+        set(value) {
+            _equation = value
+            compile(value)
+        }
+
     var errorMessage by mutableStateOf<String?>(null)
     private var parsedAst: ExpressionNode? = null
 
@@ -24,7 +31,7 @@ class EquationModule(type: String) : Module(type) {
     val output = addOutput("out")
 
     init {
-        compile(equation)
+        compile(_equation)
     }
 
     fun compile(eq: String): Boolean {
@@ -37,7 +44,7 @@ class EquationModule(type: String) : Module(type) {
             val ast = parser.parse()
             validateAst(ast)
             parsedAst = ast
-            equation = eq
+            _equation = eq
             errorMessage = null
             true
         } catch (e: Exception) {

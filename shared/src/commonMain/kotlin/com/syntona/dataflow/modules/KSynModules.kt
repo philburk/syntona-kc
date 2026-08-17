@@ -20,6 +20,9 @@ import com.syntona.dataflow.model.Module
  * The underlying [unit] must still be added to a KSyn synthesizer and started separately.
  */
 open class UnitGeneratorModule(name: String, val unit: UnitGenerator) : Module(name) {
+    override val isAllowedInPolyPatch: Boolean
+        get() = unit !is com.softsynth.ksyn.unitgen.LineIn && unit !is com.softsynth.ksyn.unitgen.LineOut
+
     init {
         SynthKSyn.synth.add(unit)
         for (port in unit.getPorts()) {

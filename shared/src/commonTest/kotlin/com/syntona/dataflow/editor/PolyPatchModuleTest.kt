@@ -107,7 +107,7 @@ class PolyPatchModuleTest {
     @Test
     fun testDefaultOutputModule() {
         val polyPatch = PolyPatchModule()
-        assertEquals(5, polyPatch.graphState.modules.size)
+        assertEquals(6, polyPatch.graphState.modules.size)
         val defaultOutput = polyPatch.graphState.modules.find { it is AudioOutputModule }
         assertNotNull(defaultOutput)
         assertEquals("output", defaultOutput.name)
@@ -155,11 +155,11 @@ class PolyPatchModuleTest {
         val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
         engine.generateNextBuffer()
 
-        val voice0 = polyPatch.polyphonicInstrument!!.voices[0] as DynamicPitchedVoice
-        val voice1 = polyPatch.polyphonicInstrument!!.voices[1] as DynamicPitchedVoice
+        val voice0 = polyPatch.voices[0]
+        val voice1 = polyPatch.voices[1]
         val pitchModule = polyPatch.graphState.modules.find { it.name == "pitch" }!!
-        val pitchUnit0 = voice0.moduleToUnitMap[pitchModule] as PassThrough
-        val pitchUnit1 = voice1.moduleToUnitMap[pitchModule] as PassThrough
+        val pitchIn0 = voice0.templateToVoiceMap[pitchModule] as InputModule
+        val pitchIn1 = voice1.templateToVoiceMap[pitchModule] as InputModule
 
         // Note on for voice 0 (tag = 10, pitch = 60.0)
         polyPatch.voiceInputJack.receive(
@@ -183,13 +183,13 @@ class PolyPatchModuleTest {
         )
         engine.generateNextBuffer()
 
-        assertEquals(60.0, voice0.pitch, 1e-4)
+        assertEquals(60.0, voice0.currentPitch, 1e-4)
         assertEquals(0.0, voice0.pitchBend, 1e-4)
-        assertEquals(60.0f, pitchUnit0.input.get(0), 1e-4f)
+        assertEquals(60.0, pitchIn0.output.getValue(), 1e-4)
 
-        assertEquals(64.0, voice1.pitch, 1e-4)
+        assertEquals(64.0, voice1.currentPitch, 1e-4)
         assertEquals(0.0, voice1.pitchBend, 1e-4)
-        assertEquals(64.0f, pitchUnit1.input.get(0), 1e-4f)
+        assertEquals(64.0, pitchIn1.output.getValue(), 1e-4)
 
         // 1. Send per-note pitch bend of +2.0 semitones ONLY to tag = 10
         polyPatch.voiceInputJack.receive(
@@ -204,14 +204,14 @@ class PolyPatchModuleTest {
         engine.generateNextBuffer()
 
         // Voice 0 (tag 10) should have bend = 2.0, pitch = 62.0
-        assertEquals(60.0, voice0.pitch, 1e-4)
+        assertEquals(60.0, voice0.currentPitch, 1e-4)
         assertEquals(2.0, voice0.pitchBend, 1e-4)
-        assertEquals(62.0f, pitchUnit0.input.get(0), 1e-4f)
+        assertEquals(62.0, pitchIn0.output.getValue(), 1e-4)
 
         // Voice 1 (tag 20) should remain bend = 0.0, pitch = 64.0
-        assertEquals(64.0, voice1.pitch, 1e-4)
+        assertEquals(64.0, voice1.currentPitch, 1e-4)
         assertEquals(0.0, voice1.pitchBend, 1e-4)
-        assertEquals(64.0f, pitchUnit1.input.get(0), 1e-4f)
+        assertEquals(64.0, pitchIn1.output.getValue(), 1e-4)
 
         // 2. Send broadcast pitch bend of -1.5 semitones to tag = -1 (all voices)
         polyPatch.voiceInputJack.receive(
@@ -226,17 +226,17 @@ class PolyPatchModuleTest {
         engine.generateNextBuffer()
 
         // Both voices should now have bend = -1.5
-        assertEquals(60.0, voice0.pitch, 1e-4)
+        assertEquals(60.0, voice0.currentPitch, 1e-4)
         assertEquals(-1.5, voice0.pitchBend, 1e-4)
-        assertEquals(58.5f, pitchUnit0.input.get(0), 1e-4f)
+        assertEquals(58.5, pitchIn0.output.getValue(), 1e-4)
 
-        assertEquals(64.0, voice1.pitch, 1e-4)
+        assertEquals(64.0, voice1.currentPitch, 1e-4)
         assertEquals(-1.5, voice1.pitchBend, 1e-4)
-        assertEquals(62.5f, pitchUnit1.input.get(0), 1e-4f)
+        assertEquals(62.5, pitchIn1.output.getValue(), 1e-4)
     }
 
     @Test
-    fun testGateSignalAndEnvelopeExplicitTriggering() = kotlinx.coroutines.runBlocking {
+    fun testOnOffSignalAndEnvelopeExplicitTriggering() = kotlinx.coroutines.runBlocking {
         val polyPatch = PolyPatchModule()
         polyPatch.initializeVoices(1)
         polyPatch.polyphonicInstrument!!.start()
@@ -244,17 +244,24 @@ class PolyPatchModuleTest {
         val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
         engine.generateNextBuffer()
 
-        val voice0 = polyPatch.polyphonicInstrument!!.voices[0] as DynamicPitchedVoice
-        val gateModule = polyPatch.graphState.modules.find { it.name == "gate" }!!
-        val gateUnit0 = voice0.moduleToUnitMap[gateModule] as PassThrough
+        val voice0 = polyPatch.voices[0]
+        val onModule = polyPatch.graphState.modules.find { it.name == "on" }!!
+        val offModule = polyPatch.graphState.modules.find { it.name == "off" }!!
+        val outputModule = polyPatch.graphState.modules.find { it.name == "output" }!!
 
         // Add DAHDSR module
         val dahdsrModule = UnitGeneratorModule("DAHDSR", com.softsynth.ksyn.unitgen.EnvelopeDAHDSR())
         polyPatch.graphState.addModule(dahdsrModule, androidx.compose.ui.geometry.Offset.Zero)
-        val dahdsrUnit0 = voice0.moduleToUnitMap[dahdsrModule] as com.softsynth.ksyn.unitgen.EnvelopeDAHDSR
-        println("DEBUG: voice0 units = ${voice0.getUnits().map { it::class.simpleName + " (enabled=" + it.isEnabled + ")" }}")
+        val dahdsrVoiceMod = voice0.templateToVoiceMap[dahdsrModule] as UnitGeneratorModule
+        val dahdsrUnit0 = dahdsrVoiceMod.unit as com.softsynth.ksyn.unitgen.EnvelopeDAHDSR
 
-        // 1. Without connecting gate, noteOn should NOT trigger DAHDSR
+        // Connect DAHDSR output to main output so it is pulled by the synthesis engine
+        val dahdsrOutJack = dahdsrModule.outputs.find { it.name == "output" }!!
+        val patchOutInJack = outputModule.inputs.find { it.name == "input" }!!
+        polyPatch.graphState.connect(dahdsrOutJack, patchOutInJack)
+        engine.generateNextBuffer()
+
+        // 1. Without connecting on/off, noteOn should NOT trigger DAHDSR
         polyPatch.voiceInputJack.receive(
             Message.VoiceMessage(
                 com.syntona.core.model.ScoreTime.Zero,
@@ -265,7 +272,6 @@ class PolyPatchModuleTest {
             )
         )
         engine.generateNextBuffer()
-        assertEquals(1.0f, gateUnit0.input.get(0), 1e-4f)
         assertEquals(0.0f, dahdsrUnit0.output.get(0), 1e-4f)
 
         // Note off
@@ -279,15 +285,16 @@ class PolyPatchModuleTest {
             )
         )
         engine.generateNextBuffer()
-        assertEquals(0.0f, gateUnit0.input.get(0), 1e-4f)
 
-        // 2. Connect gate.output to DAHDSR.input
-        val gateOutJack = gateModule.outputs.find { it.name == "output" }!!
+        // 2. Connect on.output and off.output to DAHDSR.input
+        val onOutJack = onModule.outputs.find { it.name == "output" }!!
+        val offOutJack = offModule.outputs.find { it.name == "output" }!!
         val dahdsrInJack = dahdsrModule.inputs.find { it.name == "input" }!!
-        polyPatch.graphState.connect(gateOutJack, dahdsrInJack)
+        polyPatch.graphState.connect(onOutJack, dahdsrInJack)
+        polyPatch.graphState.connect(offOutJack, dahdsrInJack)
         engine.generateNextBuffer()
 
-        // 3. Now noteOn SHOULD trigger DAHDSR
+        // 3. Now noteOn SHOULD trigger DAHDSR via on = 1.0
         polyPatch.voiceInputJack.receive(
             Message.VoiceMessage(
                 com.syntona.core.model.ScoreTime.Zero,
@@ -299,10 +306,10 @@ class PolyPatchModuleTest {
         )
         // Run a buffer to generate envelope output
         engine.generateNextBuffer()
-        assertEquals(1.0f, gateUnit0.input.get(0), 1e-4f)
-        assertTrue(dahdsrUnit0.output.getValues().any { it > 0.0f }, "DAHDSR envelope output should be > 0 after noteOn with gate connected")
+        polyPatch.polyphonicInstrument!!.getOutputPort().unitGenerator?.pullData(engine.frameCount)
+        assertTrue(dahdsrUnit0.output.getValues().any { it > 0.0f }, "DAHDSR envelope output should be > 0 after noteOn with on connected")
 
-        // Note off
+        // 4. Note off should release DAHDSR via off = 0.0
         polyPatch.voiceInputJack.receive(
             Message.VoiceMessage(
                 com.syntona.core.model.ScoreTime.Zero,
@@ -313,23 +320,23 @@ class PolyPatchModuleTest {
             )
         )
         engine.generateNextBuffer()
-        assertEquals(0.0f, gateUnit0.input.get(0), 1e-4f)
     }
 
     @Test
     fun testEnsureDefaultModulesExistOnDeserialization() {
         val json = """
-            {"modules":[{"id":0,"type":"polyPatch","name":"poly1","x":0.0,"y":0.0,"maxVoices":2,"patch":{"modules":[{"id":0,"type":"aOutput","name":"output","x":400.0,"y":250.0}],"connections":[]}}],"connections":[]}
+            {"modules":[{"id":0,"type":"polyPatch","name":"poly1","x":0.0,"y":0.0,"maxVoices":2,"patch":{"modules":[{"id":0,"type":"aOutput","name":"output","x":400.0,"y":200.0}],"connections":[]}}],"connections":[]}
         """.trimIndent()
         val rootGraph = GraphState()
         val deserialized = GraphSerializer.deserialize(rootGraph, json)
         val polyPatch = deserialized[0] as PolyPatchModule
 
-        assertEquals(5, polyPatch.graphState.modules.size)
+        assertEquals(6, polyPatch.graphState.modules.size)
+        assertTrue(polyPatch.graphState.modules.any { it.name == "on" })
+        assertTrue(polyPatch.graphState.modules.any { it.name == "off" })
         assertTrue(polyPatch.graphState.modules.any { it.name == "pitch" })
         assertTrue(polyPatch.graphState.modules.any { it.name == "amplitude" })
         assertTrue(polyPatch.graphState.modules.any { it.name == "pressure" })
-        assertTrue(polyPatch.graphState.modules.any { it.name == "gate" })
         assertTrue(polyPatch.graphState.modules.any { it.name == "output" })
     }
 
@@ -534,35 +541,28 @@ class PolyPatchModuleTest {
         // Run engine buffer to process connection commands queued on synth thread
         engine.generateNextBuffer()
 
-        // Verify the connection: template passThrough's output should connect to the instrument's "vibrato" port
-        val instrument = polyPatch.polyphonicInstrument
-        assertNotNull(instrument)
-        val instrumentPort = instrument.getPortByName("vibrato") as? UnitInputPort
-        assertNotNull(instrumentPort)
+        // Verify the connection: template passThrough's output should connect to each voice's "vibrato" input
+        val voice0 = polyPatch.voices[0]
+        val voice1 = polyPatch.voices[1]
+        val voiceVibrato0 = voice0.templateToVoiceMap[vibratoIn] as AudioInputModule
+        val voiceVibrato1 = voice1.templateToVoiceMap[vibratoIn] as AudioInputModule
 
         val outputPart = vibratoIn.passThrough.output.parts[0]
-        assertEquals(1, outputPart.connectionCount)
-        assertEquals(instrumentPort.parts[0], outputPart.getConnection(0))
+        assertEquals(2, outputPart.connectionCount)
+        assertTrue(outputPart.getConnection(0) === voiceVibrato0.passThrough.input.parts[0] || outputPart.getConnection(1) === voiceVibrato0.passThrough.input.parts[0])
+        assertTrue(outputPart.getConnection(0) === voiceVibrato1.passThrough.input.parts[0] || outputPart.getConnection(1) === voiceVibrato1.passThrough.input.parts[0])
 
         // 2. Rename custom AudioInputModule
         vibratoIn.name = "lfoMod"
         engine.generateNextBuffer()
-
-        // Old port should be gone or disconnected
-        val oldInstPort = instrument.getPortByName("vibrato")
-        assertTrue(oldInstPort == null)
-
-        val newInstPort = instrument.getPortByName("lfoMod") as? UnitInputPort
-        assertNotNull(newInstPort)
-        assertEquals(1, outputPart.connectionCount)
-        assertEquals(newInstPort.parts[0], outputPart.getConnection(0))
+        assertEquals("lfoMod", voiceVibrato0.name)
+        assertEquals("lfoMod", voiceVibrato1.name)
 
         // 3. Remove custom AudioInputModule
         polyPatch.graphState.removeModulesDirectly(listOf(vibratoIn))
         engine.generateNextBuffer()
 
         assertEquals(0, outputPart.connectionCount)
-        assertTrue(instrument.getPortByName("lfoMod") == null)
     }
 
     @Test
@@ -689,6 +689,220 @@ class PolyPatchModuleTest {
         val newMixer = deserialized[0] as Mixer8x2Module
         assertEquals(scaledGainVal, newMixer.getGainJack(0)!!.getValue(), 1e-4)
         assertEquals(-0.5, newMixer.getPanJack(0)!!.getValue(), 1e-4)
+    }
+
+    @Test
+    fun testSegEnvAndMonoRdrInPolyPatch() = kotlinx.coroutines.runBlocking {
+        val polyPatch = PolyPatchModule()
+        polyPatch.initializeVoices(2)
+
+        val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
+        engine.generateNextBuffer()
+
+        // 1. Add segEnv and monoRdr inside polyPatch
+        val segEnv = SegmentedEnvelopeModule()
+        val monoRdr = UnitGeneratorModule("monoRdr", com.softsynth.ksyn.unitgen.VariableRateMonoReader())
+        polyPatch.graphState.addModule(segEnv, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(monoRdr, androidx.compose.ui.geometry.Offset.Zero)
+
+        // 2. Wire on -> segEnv.queueOn, off -> segEnv.queueOff, segEnv.output -> monoRdr.data
+        val onModule = polyPatch.graphState.modules.find { it.name == "on" }!!
+        val offModule = polyPatch.graphState.modules.find { it.name == "off" }!!
+        val onOut = onModule.outputs.find { it.name == "output" }!!
+        val offOut = offModule.outputs.find { it.name == "output" }!!
+
+        val queueOnIn = segEnv.inputs.find { it.name == "queueOn" }!!
+        val queueOffIn = segEnv.inputs.find { it.name == "queueOff" }!!
+        val segEnvOut = segEnv.outputs.find { it.name == "output" }!!
+        val monoRdrDataIn = monoRdr.inputs.find { it.name == "data" }!!
+
+        polyPatch.graphState.connect(onOut, queueOnIn)
+        polyPatch.graphState.connect(offOut, queueOffIn)
+        polyPatch.graphState.connect(segEnvOut, monoRdrDataIn)
+
+        // Connect monoRdr output to main output so it is pulled during buffer generation
+        val outputModule = polyPatch.graphState.modules.find { it.name == "output" }!!
+        val monoRdrOut = monoRdr.outputs.find { it.name == "output" }!!
+        val patchOutIn = outputModule.inputs.find { it.name == "input" }!!
+        polyPatch.graphState.connect(monoRdrOut, patchOutIn)
+
+        // 3. Send NoteOn for tag = 10
+        polyPatch.voiceInputJack.receive(
+            Message.VoiceMessage(
+                com.syntona.core.model.ScoreTime.Zero,
+                Message.VoiceOpcode.NOTE_ON,
+                tag = 10,
+                value = 60.0,
+                extra = 1.0
+            )
+        )
+
+        // Process buffers
+        engine.generateNextBuffer()
+        polyPatch.polyphonicInstrument!!.getOutputPort().unitGenerator?.pullData(engine.frameCount)
+
+        // Verify that Voice 0's monoRdr receives the queued envelope
+        val voice0 = polyPatch.voices[0]
+        val voiceMonoRdr = voice0.templateToVoiceMap[monoRdr] as UnitGeneratorModule
+        val rdrUnit = voiceMonoRdr.unit as com.softsynth.ksyn.unitgen.VariableRateMonoReader
+
+        assertTrue(rdrUnit.output.getValues().any { it > 0.0f }, "monoRdr should produce envelope values > 0 after NOTE_ON triggered segEnv")
+
+        // 4. Send NoteOff for tag = 10
+        polyPatch.voiceInputJack.receive(
+            Message.VoiceMessage(
+                com.syntona.core.model.ScoreTime.Zero,
+                Message.VoiceOpcode.NOTE_OFF,
+                tag = 10,
+                value = 60.0,
+                extra = 0.0
+            )
+        )
+    }
+
+    @Test
+    fun testEquationModuleInPolyPatch() = kotlinx.coroutines.runBlocking {
+        val polyPatch = PolyPatchModule()
+        polyPatch.initializeVoices(2)
+
+        val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
+        engine.generateNextBuffer()
+
+        // Add f(x) module inside polyPatch
+        val fx = EquationModule("f(x)")
+        fx.compile("x + 12")
+        polyPatch.graphState.addModule(fx, androidx.compose.ui.geometry.Offset.Zero)
+
+        // Connect pitch.output -> f(x).x
+        val pitchModule = polyPatch.graphState.modules.find { it.name == "pitch" }!!
+        val pitchOut = pitchModule.outputs.find { it.name == "output" }!!
+        val fxIn = fx.inputs.find { it.name == "x" }!!
+        polyPatch.graphState.connect(pitchOut, fxIn)
+
+        // Send NOTE_ON with pitch 60.0
+        polyPatch.voiceInputJack.receive(
+            Message.VoiceMessage(
+                com.syntona.core.model.ScoreTime.Zero,
+                Message.VoiceOpcode.NOTE_ON,
+                tag = 10,
+                value = 60.0,
+                extra = 1.0
+            )
+        )
+        engine.generateNextBuffer()
+
+        val voice0 = polyPatch.voices[0]
+        val voiceFx = voice0.templateToVoiceMap[fx] as EquationModule
+        assertEquals(72.0, voiceFx.output.getValue(), 1e-4)
+    }
+
+    @Test
+    fun testDisallowedModuleDropInPolyPatch() {
+        val polyPatch = PolyPatchModule()
+        polyPatch.initializeVoices(2)
+
+        // 1. Nested polyPatch should be disallowed
+        val nestedPoly = PolyPatchModule("nested")
+        polyPatch.graphState.addModule(nestedPoly, androidx.compose.ui.geometry.Offset.Zero)
+        assertTrue(polyPatch.graphState.modules.none { it === nestedPoly })
+
+        // 2. MidiInModule should be disallowed
+        val midiIn = MidiInModule()
+        polyPatch.graphState.addModule(midiIn, androidx.compose.ui.geometry.Offset.Zero)
+        assertTrue(polyPatch.graphState.modules.none { it === midiIn })
+
+        // 3. ScopeModule should be disallowed
+        val scope = ScopeModule()
+        polyPatch.graphState.addModule(scope, androidx.compose.ui.geometry.Offset.Zero)
+        assertTrue(polyPatch.graphState.modules.none { it === scope })
+    }
+
+    @Test
+    fun testSharedDataReference() {
+        val polyPatch = PolyPatchModule()
+        polyPatch.initializeVoices(2)
+
+        val segEnv = SegmentedEnvelopeModule()
+        val sample = FloatSampleModule()
+
+        polyPatch.graphState.addModule(segEnv, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(sample, androidx.compose.ui.geometry.Offset.Zero)
+
+        val voice0 = polyPatch.voices[0]
+        val voice1 = polyPatch.voices[1]
+
+        val voiceSegEnv0 = voice0.templateToVoiceMap[segEnv] as SegmentedEnvelopeModule
+        val voiceSegEnv1 = voice1.templateToVoiceMap[segEnv] as SegmentedEnvelopeModule
+
+        val voiceSample0 = voice0.templateToVoiceMap[sample] as FloatSampleModule
+        val voiceSample1 = voice1.templateToVoiceMap[sample] as FloatSampleModule
+
+        // Verify exact object reference identity (shared memory)
+        assertTrue(segEnv.envelope === voiceSegEnv0.envelope)
+        assertTrue(segEnv.envelope === voiceSegEnv1.envelope)
+
+        assertTrue(sample.sample === voiceSample0.sample)
+        assertTrue(sample.sample === voiceSample1.sample)
+    }
+
+    @Test
+    fun testIsValueAddedPropagationToVoices() = kotlinx.coroutines.runBlocking {
+        val polyPatch = PolyPatchModule()
+        polyPatch.initializeVoices(2)
+
+        val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
+        engine.generateNextBuffer()
+
+        // 1. Add p2f and triOsc inside polyPatch
+        val p2f = UnitGeneratorModule("p2f", com.softsynth.ksyn.unitgen.PitchToFrequency())
+        val triOsc = UnitGeneratorModule("triOsc", com.softsynth.ksyn.unitgen.TriangleOscillator())
+        polyPatch.graphState.addModule(p2f, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(triOsc, androidx.compose.ui.geometry.Offset.Zero)
+
+        val p2fInJack = p2f.inputs.find { it.name == "input" } as AudioInputJack
+        val triOutJack = triOsc.outputs.find { it.name == "output" }!!
+        val pitchMod = polyPatch.graphState.modules.find { it.name == "pitch" }!!
+        val pitchOutJack = pitchMod.outputs.find { it.name == "output" }!!
+
+        // Wire pitch -> p2f.input and triOsc -> p2f.input
+        polyPatch.graphState.connect(pitchOutJack, p2fInJack)
+        polyPatch.graphState.connect(triOutJack, p2fInJack)
+
+        val voice0 = polyPatch.voices[0]
+        val voice1 = polyPatch.voices[1]
+        val voiceP2F0 = voice0.templateToVoiceMap[p2f] as UnitGeneratorModule
+        val voiceP2F1 = voice1.templateToVoiceMap[p2f] as UnitGeneratorModule
+        val voiceP2FInJack0 = voiceP2F0.inputs.find { it.name == "input" } as AudioInputJack
+        val voiceP2FInJack1 = voiceP2F1.inputs.find { it.name == "input" } as AudioInputJack
+
+        // 2. Initially isValueAdded is false
+        assertEquals(false, voiceP2FInJack0.isValueAdded)
+        assertEquals(false, voiceP2FInJack1.isValueAdded)
+
+        // 3. Set isValueAdded = true on the template jack
+        p2fInJack.isValueAdded = true
+
+        // Verify it synced to both hidden voice jacks
+        assertEquals(true, voiceP2FInJack0.isValueAdded)
+        assertEquals(true, voiceP2FInJack1.isValueAdded)
+
+        // 4. Send NoteOn with pitch = 60.0 (Concert Middle C, ~261.63 Hz)
+        polyPatch.voiceInputJack.receive(
+            Message.VoiceMessage(
+                com.syntona.core.model.ScoreTime.Zero,
+                Message.VoiceOpcode.NOTE_ON,
+                tag = 10,
+                value = 60.0,
+                extra = 1.0
+            )
+        )
+        engine.generateNextBuffer()
+
+        // Verify that the p2f unit outputs frequencies in the ~261 Hz range (pitch 60 + vibrato modulation)
+        val p2fUnit0 = voiceP2F0.unit as com.softsynth.ksyn.unitgen.PitchToFrequency
+        p2fUnit0.pullData(engine.frameCount)
+        val outFreqs = p2fUnit0.output.getValues()
+        assertTrue(outFreqs.all { it > 200.0f && it < 350.0f }, "p2f output frequencies should be in the ~261 Hz range with pitch 60 added to triOsc")
     }
 }
 

@@ -9,6 +9,9 @@ import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
 
 class ScopeModule : Module("scope") {
+    override val isAllowedInPolyPatch: Boolean
+        get() = false
+
     val scope = ScopeProbe(numChannels = 2)
     var width by mutableStateOf(300f)
     var height by mutableStateOf(200f)

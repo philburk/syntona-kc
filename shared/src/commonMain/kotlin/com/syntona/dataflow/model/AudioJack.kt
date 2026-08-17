@@ -21,17 +21,29 @@ class AudioInputJack(
 
     override var min: Double
         get() = unitInputPort.minimum.toDouble()
-        set(value) { unitInputPort.minimum = value.toFloat() }
+        set(value) {
+            unitInputPort.minimum = value.toFloat()
+            val polyPatch = module.parentPatch as? com.syntona.dataflow.modules.PolyPatchModule
+            polyPatch?.syncInputJackMin(this, value)
+        }
 
     override var max: Double
         get() = unitInputPort.maximum.toDouble()
-        set(value) { unitInputPort.maximum = value.toFloat() }
+        set(value) {
+            unitInputPort.maximum = value.toFloat()
+            val polyPatch = module.parentPatch as? com.syntona.dataflow.modules.PolyPatchModule
+            polyPatch?.syncInputJackMax(this, value)
+        }
 
     /** When true, the value set() on this jack is added to the audio values of connected ports
      * instead of being ignored while an audio-rate connection is present. */
     var isValueAdded: Boolean
         get() = unitInputPort.isValueAdded
-        set(value) { unitInputPort.isValueAdded = value }
+        set(value) {
+            unitInputPort.isValueAdded = value
+            val polyPatch = module.parentPatch as? com.syntona.dataflow.modules.PolyPatchModule
+            polyPatch?.syncInputJackValueAdded(this, value)
+        }
 
     override fun getValue(): Double = unitInputPort.get(partIndex).toDouble()
 
@@ -39,14 +51,10 @@ class AudioInputJack(
     // value to the KSyn port and syncs it to any polyPatch background voices below.
 
     override fun receive(msg: Message) {
-        super.receive(msg)
         if (msg is Message.FloatValue) {
             unitInputPort.set(partIndex, msg.value.toFloat())
-            val polyPatch = module.parentPatch as? com.syntona.dataflow.modules.PolyPatchModule
-            if (polyPatch != null) {
-                polyPatch.syncInputJackValue(this, msg.value)
-            }
         }
+        super.receive(msg)
     }
 }
 
