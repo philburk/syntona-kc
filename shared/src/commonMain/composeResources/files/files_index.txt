@@ -32,7 +32,9 @@ help/ksyn/data/sampler.json
 help/music/compose/scale.json
 help/music/input/keyboard13.json
 help/music/input/pianoRoll.json
+instruments/sawBasic.json
 instruments/sawLowPass.json
+instruments/twoOpFM.json
 tutorials/01_tour/01_sawtooth_modulation.json
 tutorials/01_tour/02_envelope_editor.json
 tutorials/02_editing/01_connections.json

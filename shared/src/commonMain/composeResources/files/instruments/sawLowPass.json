@@ -28,8 +28,8 @@
         "id": 3,
         "type": "core.input",
         "name": "amplitude",
-        "x": 50,
-        "y": 270
+        "x": 53,
+        "y": 278
       },
       {
         "id": 4,
@@ -344,7 +344,7 @@
             "add": false
           },
           "inputb": {
-            "v": 3.6847870349884033,
+            "v": 4.602346420288086,
             "min": 0,
             "max": 10,
             "kickable": false,
