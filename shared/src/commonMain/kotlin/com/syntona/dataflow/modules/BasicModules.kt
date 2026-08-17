@@ -21,6 +21,29 @@ class CounterModule() : Module("counter") {
     }
 }
 
+/**
+ * Divides an incoming clock value by N and outputs the result if the remainder is zero.
+ */
+class ClockDividerModule : Module("ckDiv") {
+    val input = addInput("in", isKickable = true)
+    val divisor = addInput("N").also {
+        it.min = 1.0
+        it.max = 128.0
+        it.setValue(2.0)
+    }
+    val output = addOutput("out")
+
+    override fun execute(triggerMessage: Message) {
+        val clockVal = input.getDoubleValue()
+        val n = divisor.getDoubleValue(2.0).toLong().coerceAtLeast(1L)
+        val c = kotlin.math.round(clockVal).toLong()
+        if (kotlin.math.abs(clockVal - c) < 1e-6 && c % n == 0L) {
+            val result = (c / n).toDouble()
+            output.send(Message.FloatValue(triggerMessage.time, result))
+        }
+    }
+}
+
 open class SequenceModule(val numOutputs: Int) : Module("seq" + numOutputs) {
     val reset = addInput("reset", isKickable = true)
     val increment = addInput("in", isKickable = true)

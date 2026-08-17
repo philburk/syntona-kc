@@ -40,25 +40,7 @@ using "input", "aInput", "output", or "aOutput" modules as needed.
 
 Add theremin (XY) input module.
 
-Add ksyn/instruments with a combination of polyPatches and maybe the built-in KSyn instruments.
-Load them from the ComposeResources/files/instruments. Auto-populate.
-Some basic instruments could include:
-sawLowPass
-basicFM , 2 op FM
 Also add a "sounds" folder for drum sounds, sound effects, non-melodic instruments.
-
-Replace these with new instruments:
-shared/src/commonMain/composeResources/files/examples/etude_001.json:265:                  "name": "gate",
-shared/src/commonMain/composeResources/files/examples/etude_001.json:849:                  "name": "gate",
-shared/src/commonMain/composeResources/files/examples/pianoRoll.json:195:            "name": "gate",
-shared/src/commonMain/composeResources/files/examples/poly_patch.json:259:            "name": "gate",
-shared/src/commonMain/composeResources/files/examples/keyNotes.json:149:            "name": "gate",
-shared/src/commonMain/composeResources/files/examples/recSeq.json:214:            "name": "gate",
-shared/src/commonMain/composeResources/files/examples/vibrato.json:189:            "name": "gate",
-shared/src/commonMain/composeResources/files/help/music/input/pianoRoll.json:195:            "name": "gate",
-shared/src/commonMain/composeResources/files/help/music/input/keyboard13.json:195:            "name": "gate",
-shared/src/commonMain/composeResources/files/help/music/compose/scale.json:195:            "name": "gate",
-
 
 Add patch inputs for start/stop/etc that are commands with buttons.
 Maybe automatically make a button for "start", "on", "rewind"
