@@ -81,3 +81,17 @@ The module header also contains a widget or icon to enable the Loop mode.
 
 When playing, if loop mode is enabled, and the cursor reaches the end of a loop then it will
 jump back to the beginning of the loop.
+
+## audio capture
+```
+I would like to be able to record the audio output of a performance made using Syntona.
+Please add a UI that looks like the attached screenshot, except use the label "KSyn" instead of "JSyn".
+The "Capture..." button should allow the user to select a file on disk.
+It then starts a recording coroutine job that will write the audio to disk.
+The audio is harvested in KSynAudioBridge.onAudioTask() and is then written to a com.softsynth.ksyn.io.AudioFifo.
+The new recording coroutine will periodically read from the AudioFifo and write to the file in 24-bit WAV file format.
+As the data is written to disk, the equivalent recording duration time in minutes:seconds.millis.
+A menu left the user select the maximum recording time as 1,2,3,5,10,20,60 minutes.
+If the stop button is pressed, or the maximum recording time is reached then the recording process should be stopped.
+```
+
