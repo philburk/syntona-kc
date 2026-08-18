@@ -48,7 +48,7 @@ open class PatchModule(name: String = "patch", type: String = "patch") : Module(
             return if (path == null) {
                 "$name$suffix"
             } else {
-                val isResource = path.startsWith("examples/") || path.startsWith("tutorials/") || path.startsWith("help/") || path.startsWith("instruments/")
+                val isResource = path.startsWith("examples/") || path.startsWith("tutorials/") || path.startsWith("help/") || path.startsWith("instruments/") || path.startsWith("sounds/")
                 if (isResource) {
                     "$name$suffix"
                 } else {

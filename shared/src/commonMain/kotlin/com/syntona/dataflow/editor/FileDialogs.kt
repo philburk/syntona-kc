@@ -19,4 +19,7 @@ expect fun chooseWavRecordFile(defaultName: String, onSelected: (path: String) -
 /** Read content from [path] without showing a dialog. Returns null if error or unsupported. */
 expect fun readFileDirect(path: String): String?
 
+/** Read content from bundled resource [relativePath]. Returns null if error or unsupported. */
+expect fun readResourceFileDirect(relativePath: String): String?
+
 

@@ -233,3 +233,21 @@ actual fun readFileDirect(path: String): String? {
         null
     }
 }
+
+actual fun readResourceFileDirect(relativePath: String): String? {
+    val candidates = listOfNotNull(
+        resourceRootDirectory?.let { File(it, relativePath) },
+        lastResourceDirectory?.let { File(it, relativePath) },
+        File("src/commonMain/composeResources/files/$relativePath"),
+        File("shared/src/commonMain/composeResources/files/$relativePath"),
+        File("../shared/src/commonMain/composeResources/files/$relativePath")
+    )
+    for (file in candidates) {
+        if (file.exists() && file.isFile) {
+            return try { file.readText() } catch (_: Exception) { null }
+        }
+    }
+    val stem = relativePath.substringAfterLast('/').substringBeforeLast(".json").substringBeforeLast(SYNTONA_FILE_SUFFIX)
+    return com.syntona.dataflow.registry.InstrumentRegistry.instrumentJsonCache[stem]
+        ?: com.syntona.dataflow.registry.SoundRegistry.soundJsonCache[stem]
+}

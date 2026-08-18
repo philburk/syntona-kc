@@ -32,7 +32,47 @@ class AudioInputModule : Module("aInput") {
         }
 
     internal var patch: PatchModule? = null
-    internal var patchJack: AudioInputJack? = null
+    var patchJack: AudioInputJack? = null
+        set(value) {
+            field = value
+            if (value != null) {
+                value.min = defaultMin
+                value.max = defaultMax
+                if (hasValue) {
+                    value.setValue(defaultValue)
+                }
+                value.isKickable = defaultIsKickable
+                value.isValueAdded = defaultAdd
+            }
+        }
+
+    var defaultMin: Double = 0.0
+        set(value) {
+            field = value
+            patchJack?.min = value
+        }
+    var defaultMax: Double = 1.0
+        set(value) {
+            field = value
+            patchJack?.max = value
+        }
+    var defaultValue: Double = 0.0
+        set(value) {
+            field = value
+            hasValue = true
+            patchJack?.setValue(value)
+        }
+    var hasValue: Boolean = false
+    var defaultIsKickable: Boolean = false
+        set(value) {
+            field = value
+            patchJack?.isKickable = value
+        }
+    var defaultAdd: Boolean = false
+        set(value) {
+            field = value
+            patchJack?.isValueAdded = value
+        }
 
     init {
         SynthKSyn.synth.add(passThrough)

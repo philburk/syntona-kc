@@ -47,6 +47,15 @@ Maybe automatically make a button for "start", "on", "rewind"
 and other commands.
 Or would it be more transparent if we have a command module that can be placed within a patch.
 
+
+Exception in thread "AWT-EventQueue-0" java.lang.IllegalArgumentException: Cannot coerce value to an empty range: maximum 100.0 is less than minimum 300.0.
+	at kotlin.ranges.RangesKt___RangesKt.coerceIn(_Ranges.kt:1491)
+	at com.syntona.dataflow.editor.ModuleEditorKt.JackEditorRow$lambda$3$0$0$1$0(ModuleEditor.kt:227)
+	at com.syntona.dataflow.editor.NumberFieldKt.NumberField$commit(NumberField.kt:44)
+	at com.syntona.dataflow.editor.NumberFieldKt.access$NumberField$commit(NumberField.kt:1)
+	at com.syntona.dataflow.editor.NumberFieldKt$NumberField$3$1.invoke-ZmokQxo(NumberField.kt:64)
+	at com.syntona.dataflow.editor.NumberFieldKt$NumberField$3$1.invoke(NumberField.kt:62)
+
 # ----------------------------------------------- MEDIUM PRIORITY
 
 Need order4

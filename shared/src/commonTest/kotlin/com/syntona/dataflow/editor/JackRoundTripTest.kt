@@ -73,4 +73,60 @@ class JackRoundTripTest {
         val inJack = GraphSerializer.minifyJson(json).substringAfter("\"in\":{").substringBefore("}")
         assertEquals(false, inJack.contains("\"v\""), "unexpected value in: $inJack")
     }
+
+    @Test
+    fun inputModuleJackPropertiesSurvivePatchSerialization() {
+        val patch = com.syntona.dataflow.modules.PatchModule("myPatch")
+        val inMod = com.syntona.dataflow.modules.InputModule()
+        inMod.name = "mcRatio"
+        patch.graphState.addModule(inMod, Offset(10f, 20f))
+
+        val patchJack = inMod.patchJack
+        kotlin.test.assertNotNull(patchJack)
+        patchJack.setValue(2.0)
+        patchJack.min = 0.0
+        patchJack.max = 10.0
+
+        val serialized = GraphSerializer.serializePatch(patch)
+        val loadedPatch = com.syntona.dataflow.modules.PatchModule("loaded")
+        GraphSerializer.deserialize(loadedPatch.graphState, serialized)
+
+        val loadedInMod = loadedPatch.graphState.modules.filterIsInstance<com.syntona.dataflow.modules.InputModule>().firstOrNull()
+        kotlin.test.assertNotNull(loadedInMod)
+        assertEquals("mcRatio", loadedInMod.name)
+        val loadedJack = loadedInMod.patchJack
+        kotlin.test.assertNotNull(loadedJack)
+        assertEquals(2.0, loadedJack.getValue())
+        assertEquals(0.0, loadedJack.min)
+        assertEquals(10.0, loadedJack.max)
+    }
+
+    @Test
+    fun audioInputModuleJackPropertiesSurvivePatchSerialization() {
+        val patch = com.syntona.dataflow.modules.PatchModule("myPatch")
+        val aInMod = com.syntona.dataflow.modules.AudioInputModule()
+        aInMod.name = "audioMod"
+        patch.graphState.addModule(aInMod, Offset(10f, 20f))
+
+        val patchJack = aInMod.patchJack
+        kotlin.test.assertNotNull(patchJack)
+        patchJack.setValue(0.75)
+        patchJack.min = 0.1
+        patchJack.max = 0.9
+        patchJack.isValueAdded = true
+
+        val serialized = GraphSerializer.serializePatch(patch)
+        val loadedPatch = com.syntona.dataflow.modules.PatchModule("loaded")
+        GraphSerializer.deserialize(loadedPatch.graphState, serialized)
+
+        val loadedAInMod = loadedPatch.graphState.modules.filterIsInstance<com.syntona.dataflow.modules.AudioInputModule>().firstOrNull()
+        kotlin.test.assertNotNull(loadedAInMod)
+        assertEquals("audioMod", loadedAInMod.name)
+        val loadedJack = loadedAInMod.patchJack
+        kotlin.test.assertNotNull(loadedJack)
+        assertEquals(0.75, loadedJack.getValue(), 1e-4)
+        assertEquals(0.1, loadedJack.min, 1e-4)
+        assertEquals(0.9, loadedJack.max, 1e-4)
+        assertEquals(true, loadedJack.isValueAdded)
+    }
 }

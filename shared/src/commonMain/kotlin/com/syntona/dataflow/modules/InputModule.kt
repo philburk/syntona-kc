@@ -20,7 +20,41 @@ class InputModule : Module("input") {
 
     // Set by the parent PatchModule when this module is added to its graphState
     internal var patch: PatchModule? = null
-    internal var patchJack: InputJack? = null
+    var patchJack: InputJack? = null
+        set(value) {
+            field = value
+            if (value != null) {
+                value.min = defaultMin
+                value.max = defaultMax
+                if (hasValue) {
+                    value.setValue(defaultValue)
+                }
+                value.isKickable = defaultIsKickable
+            }
+        }
+
+    var defaultMin: Double = 0.0
+        set(value) {
+            field = value
+            patchJack?.min = value
+        }
+    var defaultMax: Double = 100.0
+        set(value) {
+            field = value
+            patchJack?.max = value
+        }
+    var defaultValue: Double = 0.0
+        set(value) {
+            field = value
+            hasValue = true
+            patchJack?.setValue(value)
+        }
+    var hasValue: Boolean = false
+    var defaultIsKickable: Boolean = false
+        set(value) {
+            field = value
+            patchJack?.isKickable = value
+        }
 
     fun receive(msg: Message) {
         output.send(msg)

@@ -72,6 +72,7 @@ fun main() {
         LaunchedEffect(Unit) {
             com.syntona.dataflow.registry.HelpRegistry.loadHelpFilesIndex()
             com.syntona.dataflow.registry.InstrumentRegistry.loadInstrumentsIndex()
+            com.syntona.dataflow.registry.SoundRegistry.loadSoundsIndex()
         }
 
         LaunchedEffect(mdiState, scope) {

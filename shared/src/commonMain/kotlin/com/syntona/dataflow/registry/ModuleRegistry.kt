@@ -115,6 +115,7 @@ object ModuleRegistry {
         compose.modules.add(ModuleEntry("recSeq") { RecSeqModule() })
 
         val instruments = getOrCreateBundle(music, "instruments")
+        val sounds = getOrCreateBundle(music, "sounds")
 
         val ksyn = getOrCreateBundle(root, "ksyn")
         addKSynModule(ksyn, "lineIn", ::LineIn)

@@ -364,6 +364,7 @@ fun App(
             syntonaModel.start()
             com.syntona.dataflow.registry.HelpRegistry.loadHelpFilesIndex()
             com.syntona.dataflow.registry.InstrumentRegistry.loadInstrumentsIndex()
+            com.syntona.dataflow.registry.SoundRegistry.loadSoundsIndex()
             val activeDoc = FileState.activeDocument ?: FileState.documents.firstOrNull()
             if (activeDoc != null) {
                 loadPatchFromUrl(mdiState, activeDoc, appDensity)

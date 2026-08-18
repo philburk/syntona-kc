@@ -12,6 +12,8 @@ import com.syntona.dataflow.modules.KeyboardModule
 import com.syntona.dataflow.modules.ScopeModule
 import com.syntona.dataflow.modules.PatchModule
 import com.syntona.dataflow.modules.PolyPatchModule
+import com.syntona.dataflow.modules.InputModule
+import com.syntona.dataflow.modules.AudioInputModule
 import com.syntona.dataflow.modules.SegmentedEnvelopeModule
 import com.syntona.dataflow.modules.LinkModule
 import com.syntona.dataflow.modules.KeyMatchModule
@@ -147,30 +149,51 @@ object GraphSerializer {
             // constructors, and a missing field on load means "keep the module's own default",
             // so anything omitted that does not match is silently lost. Redundant fields cost
             // almost nothing once the file is compressed for sharing.
-            val valueJacks = module.inputs.filter { it !is CommandJack }
-            if (valueJacks.isNotEmpty()) {
-                append(",\"jacks\":{")
-                valueJacks.forEachIndexed { j, jack ->
-                    if (j > 0) append(",")
-                    append("\"${jack.name.jsonEscape}\":{")
-                    val fields = mutableListOf<String>()
-                    // "v" is restored by delivering a message, which fires execute() on a kickable
-                    // jack. Only jacks that actually hold a value get one, so loading a patch does
-                    // not trigger modules that were merely sitting there.
-                    val holdsValue = jack.lastMessage is Message.FloatValue ||
-                        jack is AudioInputJack ||
-                        ((module is KnobModule || module is FaderModule) && jack.name == "in") ||
-                        (module is SequenceModule && jack.name.startsWith("in") &&
-                            jack.name.substring(2).toIntOrNull() != null)
-                    if (holdsValue) fields.add("\"v\":${jack.getValue()}")
-                    fields.add("\"min\":${jack.min}")
-                    fields.add("\"max\":${jack.max}")
-                    fields.add("\"kickable\":${jack.isKickable}")
-                    if (jack is AudioInputJack) fields.add("\"add\":${jack.isValueAdded}")
-                    append(fields.joinToString(","))
+            if (module is InputModule) {
+                val jackName = module.name
+                val v = module.patchJack?.getValue() ?: if (module.hasValue) module.defaultValue else 0.0
+                val min = module.patchJack?.min ?: module.defaultMin
+                val max = module.patchJack?.max ?: module.defaultMax
+                val kickable = module.patchJack?.isKickable ?: module.defaultIsKickable
+                append(",\"jacks\":{\"${jackName.jsonEscape}\":{")
+                append("\"v\":$v,\"min\":$min,\"max\":$max,\"kickable\":$kickable")
+                append("}}")
+            } else if (module is AudioInputModule) {
+                val jackName = module.name
+                val v = module.patchJack?.getValue() ?: if (module.hasValue) module.defaultValue else 0.0
+                val min = module.patchJack?.min ?: module.defaultMin
+                val max = module.patchJack?.max ?: module.defaultMax
+                val kickable = module.patchJack?.isKickable ?: module.defaultIsKickable
+                val add = module.patchJack?.isValueAdded ?: module.defaultAdd
+                append(",\"jacks\":{\"${jackName.jsonEscape}\":{")
+                append("\"v\":$v,\"min\":$min,\"max\":$max,\"kickable\":$kickable,\"add\":$add")
+                append("}}")
+            } else {
+                val valueJacks = module.inputs.filter { it !is CommandJack }
+                if (valueJacks.isNotEmpty()) {
+                    append(",\"jacks\":{")
+                    valueJacks.forEachIndexed { j, jack ->
+                        if (j > 0) append(",")
+                        append("\"${jack.name.jsonEscape}\":{")
+                        val fields = mutableListOf<String>()
+                        // "v" is restored by delivering a message, which fires execute() on a kickable
+                        // jack. Only jacks that actually hold a value get one, so loading a patch does
+                        // not trigger modules that were merely sitting there.
+                        val holdsValue = jack.lastMessage is Message.FloatValue ||
+                            jack is AudioInputJack ||
+                            ((module is KnobModule || module is FaderModule) && jack.name == "in") ||
+                            (module is SequenceModule && jack.name.startsWith("in") &&
+                                jack.name.substring(2).toIntOrNull() != null)
+                        if (holdsValue) fields.add("\"v\":${jack.getValue()}")
+                        fields.add("\"min\":${jack.min}")
+                        fields.add("\"max\":${jack.max}")
+                        fields.add("\"kickable\":${jack.isKickable}")
+                        if (jack is AudioInputJack) fields.add("\"add\":${jack.isValueAdded}")
+                        append(fields.joinToString(","))
+                        append("}")
+                    }
                     append("}")
                 }
-                append("}")
             }
             if (module is CommentModule) {
                 append(",\"text\":\"${module.text.jsonEscape}\"")
@@ -471,6 +494,70 @@ object GraphSerializer {
             // x/y are stored as dp; store directly in GraphState
             graphState.addModule(module, Offset(x + offset.x, y + offset.y))
             jacks?.map?.forEach { (jackName, jackValue) ->
+                if (module is InputModule) {
+                    when (jackValue) {
+                        is JsonValue.Num -> {
+                            module.defaultValue = jackValue.value
+                            module.hasValue = true
+                            module.patchJack?.setValue(jackValue.value)
+                        }
+                        is JsonValue.Obj -> {
+                            (jackValue.map["min"] as? JsonValue.Num)?.value?.let {
+                                module.defaultMin = it
+                                module.patchJack?.min = it
+                            }
+                            (jackValue.map["max"] as? JsonValue.Num)?.value?.let {
+                                module.defaultMax = it
+                                module.patchJack?.max = it
+                            }
+                            (jackValue.map["v"] as? JsonValue.Num)?.value?.let {
+                                module.defaultValue = it
+                                module.hasValue = true
+                                module.patchJack?.setValue(it)
+                            }
+                            (jackValue.map["kickable"] as? JsonValue.Bool)?.value?.let {
+                                module.defaultIsKickable = it
+                                module.patchJack?.isKickable = it
+                            }
+                        }
+                        else -> {}
+                    }
+                    return@forEach
+                }
+                if (module is AudioInputModule) {
+                    when (jackValue) {
+                        is JsonValue.Num -> {
+                            module.defaultValue = jackValue.value
+                            module.hasValue = true
+                            module.patchJack?.setValue(jackValue.value)
+                        }
+                        is JsonValue.Obj -> {
+                            (jackValue.map["min"] as? JsonValue.Num)?.value?.let {
+                                module.defaultMin = it
+                                module.patchJack?.min = it
+                            }
+                            (jackValue.map["max"] as? JsonValue.Num)?.value?.let {
+                                module.defaultMax = it
+                                module.patchJack?.max = it
+                            }
+                            (jackValue.map["v"] as? JsonValue.Num)?.value?.let {
+                                module.defaultValue = it
+                                module.hasValue = true
+                                module.patchJack?.setValue(it)
+                            }
+                            (jackValue.map["kickable"] as? JsonValue.Bool)?.value?.let {
+                                module.defaultIsKickable = it
+                                module.patchJack?.isKickable = it
+                            }
+                            (jackValue.map["add"] as? JsonValue.Bool)?.value?.let {
+                                module.defaultAdd = it
+                                module.patchJack?.isValueAdded = it
+                            }
+                        }
+                        else -> {}
+                    }
+                    return@forEach
+                }
                 val inputJack = module.inputs.find { it.name == jackName } as? InputJack ?: return@forEach
                 if (module is RecorderModule && (jackName == "latencyMs" || jackName == "latency")) {
                     val measuredFrames = AudioSettings.measuredLatencyForActiveDevices()
@@ -536,6 +623,29 @@ object GraphSerializer {
                             }
                         } finally {
                             module.graphState.isDeserializing = false
+                        }
+                    } else {
+                        val fileContent = (rawFilePath?.let { readFileDirect(it) })
+                            ?: readResourceFileDirect(resolvedResourcePath)
+                        if (fileContent != null) {
+                            val childRootVal = try { JsonParser(fileContent).parse() as? JsonValue.Obj } catch (_: Exception) { null }
+                            if (childRootVal != null) {
+                                module.graphState.isDeserializing = true
+                                try {
+                                    module.graphState.removeModulesDirectly(module.graphState.modules.toList())
+                                    val innerPatchObj = childRootVal.map["patch"] as? JsonValue.Obj
+                                    if (innerPatchObj != null) {
+                                        deserializeObj(module.graphState, innerPatchObj, Offset.Zero, density, problems)
+                                    } else {
+                                        deserializeObj(module.graphState, childRootVal, Offset.Zero, density, problems)
+                                    }
+                                    if (module is PolyPatchModule) {
+                                        module.ensureDefaultModulesExist()
+                                    }
+                                } finally {
+                                    module.graphState.isDeserializing = false
+                                }
+                            }
                         }
                     }
                     module.isModified = false
