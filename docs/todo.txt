@@ -5,8 +5,7 @@ MAKE SOME MUSIC!
 
 DAHDSR decay needs higher range in KSyn.
 
-When opening a new patch window over an existing window, offset the new window down and right a bit
-so the old window is slightly visible. Otherwise it looks like we replaced the old window.
+envAD needs a trigger input for drum sounds
 
 segEnv should not have to end on y==0, may want to queue an upward ramp of frequency.
 BUG: EnvelopeEditor, points at end or added to the end cannot be moved up or deleted. See midi_driven.sntn.
@@ -27,6 +26,22 @@ Or pass as a parameter to the module display node???
 More Help patches
 
 More tutorials. Audio, timeline, pianoroll, Help
+Key skills:
+* How to use provided instruments.
+* Drive a mod8 using a clock, base on drum_rhythm, use a canned sound.
+* Segmented envelopes and monoRdr
+* Use a mixer.
+Core
+* How to use functions, steal from examples.
+* How to make a patch. Add inputs and outputs.
+* Use keys, keyMatch, keyNotes
+Music
+MIDI
+
+Guided Tutorial
+Show a kick, sawOsc, envAd lineOut
+Show them with the
+
 
 Need more ways to indicate Done. monoRdr could have an "empty" output jack.
 Ties in with the hierarchy editor.

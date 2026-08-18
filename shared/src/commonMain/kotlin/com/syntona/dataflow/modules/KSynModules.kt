@@ -23,8 +23,15 @@ open class UnitGeneratorModule(name: String, val unit: UnitGenerator) : Module(n
     override val isAllowedInPolyPatch: Boolean
         get() = unit !is com.softsynth.ksyn.unitgen.LineIn && unit !is com.softsynth.ksyn.unitgen.LineOut
 
+    val triggerJack: com.syntona.dataflow.model.CommandJack?
+
     init {
         SynthKSyn.synth.add(unit)
+        if (unit is com.softsynth.ksyn.unitgen.UnitGate) {
+            triggerJack = addCommandInput("trigger")
+        } else {
+            triggerJack = null
+        }
         for (port in unit.getPorts()) {
             val baseName = port.name.lowercase()
             when (port) {
@@ -52,7 +59,9 @@ open class UnitGeneratorModule(name: String, val unit: UnitGenerator) : Module(n
     }
 
     override fun execute(triggerMessage: Message) {
-        // Audio is driven by the KSyn engine, nothing to do here.
+        if (triggerJack != null && triggerJack.isKicked) {
+            (unit as? com.softsynth.ksyn.unitgen.UnitGate)?.input?.trigger()
+        }
     }
 
     override fun teardown() {
