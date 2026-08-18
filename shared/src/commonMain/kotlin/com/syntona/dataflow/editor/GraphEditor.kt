@@ -1051,15 +1051,20 @@ fun CommandJackView(jack: CommandJack, state: GraphState, isLeft: Boolean) {
         // learning a controller. Tinting the button is what makes that state visible; without
         // it, setting isHighlighted on a CommandJack has no effect at all.
         Button(
-            onClick = {
-                val e = state.engine
-                if (e != null) {
-                    e.post(KickJackCommand(jack, ScoreClock.now()))
-                } else {
-                    jack.receive(com.syntona.dataflow.model.Message.FloatValue(ScoreTime.Zero, 0.0))
-                }
-            },
-            modifier = Modifier.height(24.dp),
+            onClick = {},
+            modifier = Modifier
+                .height(24.dp)
+                .pointerInput(jack) {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false)
+                        val e = state.engine
+                        if (e != null) {
+                            e.post(KickJackCommand(jack, ScoreClock.now()))
+                        } else {
+                            jack.receive(com.syntona.dataflow.model.Message.FloatValue(ScoreTime.Zero, 0.0))
+                        }
+                    }
+                },
             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
             colors = if (jack.isHighlighted) {
                 ButtonDefaults.buttonColors(
@@ -1135,16 +1140,21 @@ fun CommandOutputJackView(jack: CommandOutputJack, state: GraphState, isLeft: Bo
             Spacer(modifier = Modifier.width(4.dp))
         }
         Button(
-            onClick = {
-                val e = state.engine
-                val time = ScoreClock.now()
-                if (e != null) {
-                    e.post(SendOutputCommand(jack, Message.FloatValue(time, 0.0)))
-                } else {
-                    jack.send(Message.FloatValue(time, 0.0))
-                }
-            },
-            modifier = Modifier.height(20.dp),
+            onClick = {},
+            modifier = Modifier
+                .height(20.dp)
+                .pointerInput(jack) {
+                    awaitEachGesture {
+                        awaitFirstDown(requireUnconsumed = false)
+                        val e = state.engine
+                        val time = ScoreClock.now()
+                        if (e != null) {
+                            e.post(SendOutputCommand(jack, Message.FloatValue(time, 0.0)))
+                        } else {
+                            jack.send(Message.FloatValue(time, 0.0))
+                        }
+                    }
+                },
             contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
         ) {
             Text("Kick", fontSize = 10.sp)
@@ -2757,11 +2767,17 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                         modifier = Modifier.padding(end = 4.dp)
                     ) {
                         Button(
-                            onClick = {
-                                module.addTrigger(module.seekTime)
-                                FileState.markDirty()
-                            },
-                            modifier = Modifier.height(18.dp).width(28.dp),
+                            onClick = {},
+                            modifier = Modifier
+                                .height(18.dp)
+                                .width(28.dp)
+                                .pointerInput(module) {
+                                    awaitEachGesture {
+                                        awaitFirstDown(requireUnconsumed = false)
+                                        module.addTrigger(module.seekTime)
+                                        FileState.markDirty()
+                                    }
+                                },
                             contentPadding = PaddingValues(0.dp)
                         ) {
                             Text("+", fontSize = 10.sp, fontWeight = FontWeight.Bold)
