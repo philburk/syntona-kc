@@ -5,7 +5,8 @@ MAKE SOME MUSIC!
 
 DAHDSR decay needs higher range in KSyn.
 
-In Help menu, two items "Join Syntona Discord Channel" and "Discuss Syntona on Discord"
+When opening a new patch window over an existing window, offset the new window down and right a bit
+so the old window is slightly visible. Otherwise it looks like we replaced the old window.
 
 segEnv should not have to end on y==0, may want to queue an upward ramp of frequency.
 BUG: EnvelopeEditor, points at end or added to the end cannot be moved up or deleted. See midi_driven.sntn.

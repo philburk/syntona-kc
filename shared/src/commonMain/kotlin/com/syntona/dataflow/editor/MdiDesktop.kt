@@ -34,6 +34,8 @@ fun MdiDesktop(
     modifier: Modifier = Modifier,
     background: @Composable () -> Unit = {}
 ) {
+    val density = LocalDensity.current
+    mdiState.density = density.density
     Box(
         modifier = modifier
             .fillMaxSize()

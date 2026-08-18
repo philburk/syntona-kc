@@ -259,4 +259,21 @@ class WindowMenuTest {
         assertEquals(2, entries.size)
         assertTrue(entries.any { it.window === standalone && it.label == "Piano Roll" })
     }
+
+    @Test
+    fun testNewWindowOverExistingWindowIsOffsetDownAndRight() {
+        val mdi = MdiState()
+        mdi.density = 1f
+        val win1 = MdiWindowInfo(id = "p1", title = "P1", position = Offset(100f, 100f), content = {})
+        val win2 = MdiWindowInfo(id = "p2", title = "P2", position = Offset(100f, 100f), content = {})
+
+        mdi.open(win1)
+        assertEquals(Offset(100f, 100f), win1.position)
+
+        mdi.open(win2)
+        // win2 should be offset down and right from win1
+        assertTrue(win2.position.x > win1.position.x)
+        assertTrue(win2.position.y > win1.position.y)
+        assertEquals(Offset(128f, 128f), win2.position)
+    }
 }

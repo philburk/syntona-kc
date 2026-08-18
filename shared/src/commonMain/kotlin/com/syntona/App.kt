@@ -81,6 +81,7 @@ fun restoreRootWindowGeometry(
     }
     geometry.width?.let { rootWindow.width = it.dp }
     geometry.height?.let { rootWindow.height = it.dp }
+    mdiState.cascadeIfOverlapping(rootWindow)
     rootWindow.onGeometryChanged?.invoke()
 }
 

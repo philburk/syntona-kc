@@ -480,4 +480,47 @@ class MultiDocumentTest {
         assertEquals(1, mdi.windows.size, "deleting a module with an open window should close that window")
         assertSame(rootWindow, mdi.windows.first())
     }
+
+    @Test
+    fun testRestoreRootWindowGeometryCascadesWhenOverlapping() {
+        val mdi = MdiState()
+        mdi.density = 1f
+        val doc1 = newDocument("doc1")
+        val rootWindow1 = MdiWindowInfo(
+            id = doc1.rootPatch,
+            title = "doc1",
+            position = Offset(10f, 10f),
+            graphState = doc1.rootPatch.graphState,
+            content = {}
+        )
+        mdi.open(rootWindow1)
+
+        val doc2 = newDocument("doc2")
+        val rootWindow2 = MdiWindowInfo(
+            id = doc2.rootPatch,
+            title = "doc2",
+            position = Offset(10f, 10f),
+            graphState = doc2.rootPatch.graphState,
+            content = {}
+        )
+        mdi.open(rootWindow2)
+
+        val contentWithSameCoords = """
+            {
+                "windowX": 10.0,
+                "windowY": 10.0,
+                "windowWidth": 800.0,
+                "windowHeight": 500.0,
+                "modules": []
+            }
+        """.trimIndent()
+
+        com.syntona.restoreRootWindowGeometry(mdi, doc2.rootPatch, contentWithSameCoords, density = 1f)
+
+        // rootWindow2 should be cascaded down and right from rootWindow1 at (10, 10)
+        assertEquals(Offset(10f, 10f), rootWindow1.position)
+        assertTrue(rootWindow2.position.x > rootWindow1.position.x)
+        assertTrue(rootWindow2.position.y > rootWindow1.position.y)
+        assertEquals(Offset(38f, 38f), rootWindow2.position)
+    }
 }

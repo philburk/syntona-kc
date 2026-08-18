@@ -109,6 +109,7 @@ class MdiState {
     var containerWidth by mutableStateOf(0f)
     var containerHeight by mutableStateOf(0f)
     var desktopOffset by mutableStateOf(Offset.Zero)
+    var density by mutableStateOf(1f)
 
     // Position of the outermost App Box in screen coordinates, set by App
     var appRootOffset by mutableStateOf(Offset.Zero)
@@ -147,6 +148,34 @@ class MdiState {
         }?.graphState
     }
 
+    /**
+     * If [window] sits directly over (or close to) any other existing visible window,
+     * offset it down and right so the underlying window remains slightly visible.
+     */
+    fun cascadeIfOverlapping(window: MdiWindowInfo) {
+        val d = if (density > 0f) density else 1f
+        val step = 28f * d
+        val threshold = 20f * d
+        var currentPos = window.position
+        var changed = false
+        var iterations = 0
+        while (iterations < 20 && windows.any { it !== window && !it.minimized && kotlin.math.abs(currentPos.x - it.position.x) < threshold && kotlin.math.abs(currentPos.y - it.position.y) < threshold }) {
+            currentPos = Offset(currentPos.x + step, currentPos.y + step)
+            if (containerWidth > 0f && currentPos.x + 100f > containerWidth) {
+                currentPos = Offset(10f * d, currentPos.y)
+            }
+            if (containerHeight > 0f && currentPos.y + 50f > containerHeight) {
+                currentPos = Offset(currentPos.x, 10f * d)
+            }
+            changed = true
+            iterations++
+        }
+        if (changed) {
+            window.position = currentPos
+            window.onGeometryChanged?.invoke()
+        }
+    }
+
     fun open(window: MdiWindowInfo) {
         (window.id as? PatchModule)?.isWindowOpen = true
         val existing = windows.find { it.id == window.id }
@@ -154,6 +183,7 @@ class MdiState {
             if (existing.minimized) existing.minimized = false
             bringToFront(existing)
         } else {
+            cascadeIfOverlapping(window)
             windows.add(window)
             window.graphState?.let { focusGraph(it) }
         }

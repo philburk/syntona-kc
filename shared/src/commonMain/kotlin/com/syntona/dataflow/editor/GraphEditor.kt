@@ -1348,11 +1348,16 @@ fun PatchModuleNode(module: PatchModule, state: GraphState) {
                     val restoredPosition = if (savedX != null && savedY != null) {
                         Offset(savedX * density.density, savedY * density.density)
                     } else {
-                        val pos = state.modulePositions[module] ?: Offset(100f, 100f)
-                        Offset(
-                            (pos.x + 20f) * density.density,
-                            (pos.y + 30f) * density.density
-                        )
+                        val parentWin = mdiState.windows.find { it.graphState === state }
+                        if (parentWin != null) {
+                            Offset(parentWin.position.x + 28f * density.density, parentWin.position.y + 28f * density.density)
+                        } else {
+                            val pos = state.modulePositions[module] ?: Offset(100f, 100f)
+                            Offset(
+                                (pos.x + 20f) * density.density,
+                                (pos.y + 30f) * density.density
+                            )
+                        }
                     }
                     val window = MdiWindowInfo(
                         id = module,
