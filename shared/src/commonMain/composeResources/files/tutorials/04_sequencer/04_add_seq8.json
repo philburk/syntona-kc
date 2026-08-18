@@ -192,6 +192,15 @@
           "kickable": true
         }
       }
+    },
+    {
+      "id": 7,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 311.9,
+      "y": 533,
+      "filePath": "tutorials/04_sequencer/05_make_patch.json",
+      "buttonText": ">> Next, make a patch"
     }
   ],
   "connections": [

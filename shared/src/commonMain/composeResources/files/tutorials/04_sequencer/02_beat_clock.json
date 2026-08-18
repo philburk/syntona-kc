@@ -128,7 +128,16 @@
           "kickable": false
         }
       },
-      "division": "3/8"
+      "division": "1/1"
+    },
+    {
+      "id": 6,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 172.9,
+      "y": 533.9,
+      "filePath": "tutorials/04_sequencer/03_pitch_to_freq.json",
+      "buttonText": ">> Next , pitch to frequency"
     }
   ],
   "connections": [

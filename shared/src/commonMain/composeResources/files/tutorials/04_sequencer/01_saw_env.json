@@ -112,6 +112,15 @@
       "text": "Let's build a sequencer, step-by-step. We can use a sawtooth oscillator to generate a tone. The sound level is controlled by an attack/decay envelope. The oscillator's output is connected to the envelope's amplitude jack so that they will be multiplied.\n\nThe lineOut connects the sound to the speakers.\n\nTo Do:\n* Click the \"trigger\" button to make the envelope go up then down in volume.\n* Click on the knob and drag up and down to change the oscillator frequency. \n* Click the \"trigger\" again to hear the new frequency.\n",
       "w": 544.875,
       "h": 227
+    },
+    {
+      "id": 5,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 131.9,
+      "y": 511,
+      "filePath": "tutorials/04_sequencer/02_beat_clock.json",
+      "buttonText": ">> Next , beat clock"
     }
   ],
   "connections": [

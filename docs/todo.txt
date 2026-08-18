@@ -36,14 +36,6 @@ Core
 * Use keys, keyMatch, keyNotes
 * How to use functions, steal from examples.
 
-Sequencer
-* knob, kick, saw - envAD - lineOut, play with knob and trigger
-* add p2f
-* add a clock and a seq8, single message to pitch and trigger
-* make a patch from the middle modules
-* add a chuff sound and drive it on some the odd beats
-* add a flash module for visual feedback
-
 Polyphonic Patches
 * simple polyPatch with p2f and sawOsc driven by keyNotes
 * add envAD and connect to input

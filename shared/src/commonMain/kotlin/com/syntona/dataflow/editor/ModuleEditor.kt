@@ -334,7 +334,9 @@ private fun LinkModuleEditor(module: LinkModule) {
     var buttonTextVal by remember(module) { mutableStateOf(module.buttonText) }
     var expanded by remember { mutableStateOf(false) }
     val files by produceState<List<String>>(emptyList()) {
-        value = com.syntona.SharedResources.getFilesIndex().filter { it.endsWith(com.syntona.SYNTONA_FILE_SUFFIX) }
+        value = com.syntona.SharedResources.getFilesIndex()
+            .filter { it.endsWith(".json") || it.endsWith(com.syntona.SYNTONA_FILE_SUFFIX) }
+            .sorted()
     }
 
     Column(
@@ -402,11 +404,12 @@ private fun LinkModuleEditor(module: LinkModule) {
                     }
                     androidx.compose.material3.DropdownMenu(
                         expanded = expanded,
-                        onDismissRequest = { expanded = false }
+                        onDismissRequest = { expanded = false },
+                        modifier = Modifier.widthIn(min = 380.dp, max = 520.dp).heightIn(max = 400.dp)
                     ) {
                         files.forEach { path ->
                             CompactDropdownMenuItem(
-                                text = { Text(path, fontSize = 12.sp) },
+                                text = { Text(path, fontSize = 12.sp, maxLines = 1) },
                                 onClick = {
                                     filePathText = path
                                     module.filePath = path

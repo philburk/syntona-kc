@@ -49,3 +49,6 @@ tutorials/04_sequencer/02_beat_clock.json
 tutorials/04_sequencer/03_pitch_to_freq.json
 tutorials/04_sequencer/04_add_seq8.json
 tutorials/04_sequencer/05_make_patch.json
+tutorials/04_sequencer/06_add_drum.json
+tutorials/04_sequencer/07_add_mixer.json
+tutorials/04_sequencer/08_add_flash.json

@@ -144,6 +144,15 @@
           "kickable": true
         }
       }
+    },
+    {
+      "id": 7,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 207.9,
+      "y": 530.1,
+      "filePath": "tutorials/04_sequencer/04_add_seq8.json",
+      "buttonText": ">> Next , add seq8"
     }
   ],
   "connections": [

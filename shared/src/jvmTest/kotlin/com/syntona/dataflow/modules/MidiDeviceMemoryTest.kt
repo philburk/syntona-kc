@@ -176,7 +176,10 @@ class MidiDeviceMemoryTest {
 
         val module = MidiInModule()
         module.loadDevice("MIDI")
-        kotlinx.coroutines.delay(150)
+        for (i in 0..50) {
+            if (module.deviceName == "Loopback Out") break
+            kotlinx.coroutines.delay(20)
+        }
 
         assertEquals("Loopback Out", module.deviceName)
     }
