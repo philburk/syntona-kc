@@ -953,8 +953,10 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
                                 valueDragAccumX += dragAmount.x
                                 val range = inputJack.max - inputJack.min
                                 val sensitivity = range / 400.0 * 10.0.pow(-valueDragAccumX / 200.0)
+                                val low = minOf(inputJack.min, inputJack.max)
+                                val high = maxOf(inputJack.min, inputJack.max)
                                 val newValue = (valueDragCurrentValue - dragAmount.y * sensitivity)
-                                    .coerceIn(inputJack.min, inputJack.max)
+                                    .coerceIn(low, high)
                                 valueDragCurrentValue = newValue
                                 val e = state.engine
                                 if (e != null) e.post(SetValueCommand(inputJack, newValue, ScoreClock.now()))

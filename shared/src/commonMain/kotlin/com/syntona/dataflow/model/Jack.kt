@@ -89,10 +89,14 @@ open class InputJack(
     }
 
     fun getClippedIntValue(): Int {
-        return getDoubleValue().toInt().coerceIn(min.toInt(), max.toInt())
+        val low = minOf(min.toInt(), max.toInt())
+        val high = maxOf(min.toInt(), max.toInt())
+        return getDoubleValue().toInt().coerceIn(low, high)
     }
     fun getClippedDoubleValue(): Double {
-        return getDoubleValue().coerceIn(min, max)
+        val low = minOf(min, max)
+        val high = maxOf(min, max)
+        return getDoubleValue().coerceIn(low, high)
     }
 }
 

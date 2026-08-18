@@ -129,4 +129,18 @@ class JackRoundTripTest {
         assertEquals(0.9, loadedJack.max, 1e-4)
         assertEquals(true, loadedJack.isValueAdded)
     }
+
+    @Test
+    fun testMinGreaterThanMaxHandling() {
+        val add = com.syntona.dataflow.modules.AddModule()
+        val jackA = add.inputA
+        jackA.min = 300.0
+        jackA.max = 100.0
+        jackA.setValue(200.0)
+
+        // getClippedDoubleValue and getClippedIntValue should not throw IllegalArgumentException
+        val clipped = jackA.getClippedDoubleValue()
+        assertEquals(200.0, clipped)
+        assertEquals(200, jackA.getClippedIntValue())
+    }
 }

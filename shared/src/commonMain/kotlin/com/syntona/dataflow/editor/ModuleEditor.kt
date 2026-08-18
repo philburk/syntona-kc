@@ -216,7 +216,17 @@ private fun JackEditorRow(jack: InputJack) {
                 Text("Min:", fontSize = 11.sp, color = LABEL_COLOR, modifier = Modifier.width(28.dp))
                 NumberField(
                     value = jack.min,
-                    onCommit = { jack.min = it },
+                    onCommit = { newMin ->
+                        jack.min = newMin
+                        if (jack.max < newMin + 1.0) {
+                            jack.max = newMin + 1.0
+                        }
+                        val clamped = jack.getValue().coerceIn(jack.min, jack.max)
+                        if (jack.getValue() != clamped) {
+                            jack.setValue(clamped)
+                            currentValue = clamped
+                        }
+                    },
                     modifier = Modifier.width(80.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
@@ -224,7 +234,9 @@ private fun JackEditorRow(jack: InputJack) {
                 NumberField(
                     value = currentValue,
                     onCommit = { newValue ->
-                        val clamped = newValue.coerceIn(jack.min, jack.max)
+                        val low = minOf(jack.min, jack.max)
+                        val high = maxOf(jack.min, jack.max)
+                        val clamped = newValue.coerceIn(low, high)
                         jack.setValue(clamped)
                         currentValue = clamped
                     },
@@ -234,7 +246,17 @@ private fun JackEditorRow(jack: InputJack) {
                 Text("Max:", fontSize = 11.sp, color = LABEL_COLOR, modifier = Modifier.width(28.dp))
                 NumberField(
                     value = jack.max,
-                    onCommit = { jack.max = it },
+                    onCommit = { newMax ->
+                        jack.max = newMax
+                        if (jack.min > newMax - 1.0) {
+                            jack.min = newMax - 1.0
+                        }
+                        val clamped = jack.getValue().coerceIn(jack.min, jack.max)
+                        if (jack.getValue() != clamped) {
+                            jack.setValue(clamped)
+                            currentValue = clamped
+                        }
+                    },
                     modifier = Modifier.width(80.dp)
                 )
 
