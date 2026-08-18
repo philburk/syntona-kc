@@ -1,5 +1,7 @@
 package com.syntona.dataflow.editor
 
+import com.syntona.SYNTONA_FILE_SUFFIX
+
 actual fun showOpenFileDialog(onResult: (path: String, content: String) -> Unit) {}
 
 actual fun showSaveFileDialog(content: String, defaultName: String, onSaved: (path: String) -> Unit) {}

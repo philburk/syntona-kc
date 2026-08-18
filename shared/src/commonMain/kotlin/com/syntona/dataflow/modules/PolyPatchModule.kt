@@ -508,7 +508,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                 }
             }
             is ScaleModule -> {
-                ScaleModule(templateModule.name, templateModule.isEditable, templateModule.scaleDegrees.clone())
+                ScaleModule(templateModule.name, templateModule.isEditable, templateModule.scaleDegrees.copyOf())
             }
             is UnitGeneratorModule -> {
                 val factory = ModuleRegistry.ksynFactories[templateModule.type]

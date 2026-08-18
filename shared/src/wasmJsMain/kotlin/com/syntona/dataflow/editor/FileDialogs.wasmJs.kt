@@ -2,6 +2,8 @@
 
 package com.syntona.dataflow.editor
 
+import com.syntona.SYNTONA_FILE_SUFFIX
+
 @JsFun("""(callback) => {
     var input = document.createElement('input');
     input.type = 'file';
