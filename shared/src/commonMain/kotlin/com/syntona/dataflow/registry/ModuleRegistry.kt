@@ -64,6 +64,7 @@ object ModuleRegistry {
         math.modules.add(ModuleEntry("f(x)") { EquationModule("f(x)") })
         math.modules.add(ModuleEntry("f(x,y)") { EquationModule("f(x,y)") })
         math.modules.add(ModuleEntry("f(x,y,z)") { EquationModule("f(x,y,z)") })
+        math.modules.add(ModuleEntry("p2f") { PitchToFrequencyModule() })
 
         val input = getOrCreateBundle(core, "input")
         input.modules.add(ModuleEntry("number") { NumberModule() })
@@ -151,7 +152,6 @@ object ModuleRegistry {
         addKSynModule(control, "envAD", ::EnvelopeAttackDecay)
         addKSynModule(control, "latch", ::Latch)
         addKSynModule(control, "latchZC", ::LatchZeroCrossing)
-        addKSynModule(control, "p2f", ::PitchToFrequency)
         addKSynModule(control, "rampLin", ::LinearRamp)
         addKSynModule(control, "rampCon", ::ContinuousRamp)
         addKSynModule(control, "rampAsym", ::AsymptoticRamp)
@@ -166,6 +166,7 @@ object ModuleRegistry {
         addKSynModule(amath, "a*+", ::MultiplyAdd)
         addKSynModule(amath, "a/", ::Divide)
         addKSynModule(amath, "a>", ::Compare)
+        addKSynModule(amath, "ap2f", ::PitchToFrequency)
         addKSynModule(amath, "aPower2", ::PowerOfTwo)
         addKSynModule(amath, "aMin", ::Minimum)
         addKSynModule(amath, "aMax", ::Maximum)

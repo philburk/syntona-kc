@@ -23,9 +23,9 @@ to a single-threaded dispatcher if you want that airtight.
 Toolbar toggle that sets a global that tells all the modules to show their jack values instead of their jack names.
 Or pass as a parameter to the module display node???
 
-Create a "p2f" regular math module.
-Change name of ksyn ksyn.control.p2f to ksyn.math.ap2f
-Use in sequencer tutorial for single entry value.
+Change the name of the ksyn.control.p2f module to ksyn.math.ap2f
+Update all the examples, tutorials, help patches and tests to use the new module name.
+Create a core.math.p2f module that does regular event-type math.
 
 More Help patches
 

@@ -18,7 +18,7 @@
       "y": 410.1,
       "jacks": {
         "frequency": {
-          "v": 344.9938659667969,
+          "v": 261.6255798339844,
           "min": 40,
           "max": 8000,
           "kickable": false,
@@ -101,7 +101,7 @@
       "y": 339,
       "jacks": {
         "kick": {
-          "v": 513,
+          "v": 118,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -109,7 +109,7 @@
         "in": {
           "v": 60,
           "min": 0,
-          "max": 127,
+          "max": 100,
           "kickable": false
         }
       }
@@ -132,17 +132,16 @@
     },
     {
       "id": 6,
-      "type": "ksyn.control.p2f",
+      "type": "core.math.p2f",
       "name": "p2f",
-      "x": 288,
-      "y": 413.9,
+      "x": 296.9,
+      "y": 332,
       "jacks": {
-        "input": {
+        "in": {
           "v": 60,
           "min": 0,
-          "max": 127,
-          "kickable": false,
-          "add": false
+          "max": 100,
+          "kickable": true
         }
       }
     }
@@ -175,20 +174,20 @@
     {
       "from": 4,
       "fromJack": "out",
-      "to": 2,
-      "toJack": "trigger"
-    },
-    {
-      "from": 4,
-      "fromJack": "out",
       "to": 6,
-      "toJack": "input"
+      "toJack": "in"
     },
     {
       "from": 6,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 1,
       "toJack": "frequency"
+    },
+    {
+      "from": 6,
+      "fromJack": "out",
+      "to": 2,
+      "toJack": "trigger"
     }
   ],
   "windowX": 10,

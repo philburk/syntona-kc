@@ -296,8 +296,8 @@
           },
           {
             "id": 9,
-            "type": "ksyn.control.p2f",
-            "name": "p2f",
+            "type": "ksyn.math.ap2f",
+            "name": "ap2f",
             "x": 278.9,
             "y": 143.1,
             "jacks": {

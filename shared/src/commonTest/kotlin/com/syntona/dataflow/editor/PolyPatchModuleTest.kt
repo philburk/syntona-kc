@@ -853,38 +853,38 @@ class PolyPatchModuleTest {
         val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
         engine.generateNextBuffer()
 
-        // 1. Add p2f and triOsc inside polyPatch
-        val p2f = UnitGeneratorModule("p2f", com.softsynth.ksyn.unitgen.PitchToFrequency())
+        // 1. Add ap2f and triOsc inside polyPatch
+        val ap2f = UnitGeneratorModule("ap2f", com.softsynth.ksyn.unitgen.PitchToFrequency())
         val triOsc = UnitGeneratorModule("triOsc", com.softsynth.ksyn.unitgen.TriangleOscillator())
-        polyPatch.graphState.addModule(p2f, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(ap2f, androidx.compose.ui.geometry.Offset.Zero)
         polyPatch.graphState.addModule(triOsc, androidx.compose.ui.geometry.Offset.Zero)
 
-        val p2fInJack = p2f.inputs.find { it.name == "input" } as AudioInputJack
+        val ap2fInJack = ap2f.inputs.find { it.name == "input" } as AudioInputJack
         val triOutJack = triOsc.outputs.find { it.name == "output" }!!
         val pitchMod = polyPatch.graphState.modules.find { it.name == "pitch" }!!
         val pitchOutJack = pitchMod.outputs.find { it.name == "output" }!!
 
-        // Wire pitch -> p2f.input and triOsc -> p2f.input
-        polyPatch.graphState.connect(pitchOutJack, p2fInJack)
-        polyPatch.graphState.connect(triOutJack, p2fInJack)
+        // Wire pitch -> ap2f.input and triOsc -> ap2f.input
+        polyPatch.graphState.connect(pitchOutJack, ap2fInJack)
+        polyPatch.graphState.connect(triOutJack, ap2fInJack)
 
         val voice0 = polyPatch.voices[0]
         val voice1 = polyPatch.voices[1]
-        val voiceP2F0 = voice0.templateToVoiceMap[p2f] as UnitGeneratorModule
-        val voiceP2F1 = voice1.templateToVoiceMap[p2f] as UnitGeneratorModule
-        val voiceP2FInJack0 = voiceP2F0.inputs.find { it.name == "input" } as AudioInputJack
-        val voiceP2FInJack1 = voiceP2F1.inputs.find { it.name == "input" } as AudioInputJack
+        val voiceAP2F0 = voice0.templateToVoiceMap[ap2f] as UnitGeneratorModule
+        val voiceAP2F1 = voice1.templateToVoiceMap[ap2f] as UnitGeneratorModule
+        val voiceAP2FInJack0 = voiceAP2F0.inputs.find { it.name == "input" } as AudioInputJack
+        val voiceAP2FInJack1 = voiceAP2F1.inputs.find { it.name == "input" } as AudioInputJack
 
         // 2. Initially isValueAdded is false
-        assertEquals(false, voiceP2FInJack0.isValueAdded)
-        assertEquals(false, voiceP2FInJack1.isValueAdded)
+        assertEquals(false, voiceAP2FInJack0.isValueAdded)
+        assertEquals(false, voiceAP2FInJack1.isValueAdded)
 
         // 3. Set isValueAdded = true on the template jack
-        p2fInJack.isValueAdded = true
+        ap2fInJack.isValueAdded = true
 
         // Verify it synced to both hidden voice jacks
-        assertEquals(true, voiceP2FInJack0.isValueAdded)
-        assertEquals(true, voiceP2FInJack1.isValueAdded)
+        assertEquals(true, voiceAP2FInJack0.isValueAdded)
+        assertEquals(true, voiceAP2FInJack1.isValueAdded)
 
         // 4. Send NoteOn with pitch = 60.0 (Concert Middle C, ~261.63 Hz)
         polyPatch.voiceInputJack.receive(
@@ -898,11 +898,11 @@ class PolyPatchModuleTest {
         )
         engine.generateNextBuffer()
 
-        // Verify that the p2f unit outputs frequencies in the ~261 Hz range (pitch 60 + vibrato modulation)
-        val p2fUnit0 = voiceP2F0.unit as com.softsynth.ksyn.unitgen.PitchToFrequency
-        p2fUnit0.pullData(engine.frameCount)
-        val outFreqs = p2fUnit0.output.getValues()
-        assertTrue(outFreqs.all { it > 200.0f && it < 350.0f }, "p2f output frequencies should be in the ~261 Hz range with pitch 60 added to triOsc")
+        // Verify that the ap2f unit outputs frequencies in the ~261 Hz range (pitch 60 + vibrato modulation)
+        val ap2fUnit0 = voiceAP2F0.unit as com.softsynth.ksyn.unitgen.PitchToFrequency
+        ap2fUnit0.pullData(engine.frameCount)
+        val outFreqs = ap2fUnit0.output.getValues()
+        assertTrue(outFreqs.all { it > 200.0f && it < 350.0f }, "ap2f output frequencies should be in the ~261 Hz range with pitch 60 added to triOsc")
     }
 }
 

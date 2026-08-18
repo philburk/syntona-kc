@@ -111,22 +111,6 @@
     },
     {
       "id": 5,
-      "type": "ksyn.control.p2f",
-      "name": "p2f",
-      "x": 380,
-      "y": 368.9,
-      "jacks": {
-        "input": {
-          "v": 67.0199966430664,
-          "min": 0,
-          "max": 127,
-          "kickable": false,
-          "add": false
-        }
-      }
-    },
-    {
-      "id": 6,
       "type": "core.basic.seq8",
       "name": "seq8",
       "x": 162,
@@ -193,6 +177,21 @@
         }
       },
       "stepValues": ["60.0", "63.0", "67.02", "63.0", "69.0", "48.0", "60.0", "67.02"]
+    },
+    {
+      "id": 6,
+      "type": "core.math.p2f",
+      "name": "p2f",
+      "x": 385.9,
+      "y": 336,
+      "jacks": {
+        "in": {
+          "v": 60,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
     }
   ],
   "connections": [
@@ -215,26 +214,26 @@
       "toJack": "input0"
     },
     {
-      "from": 5,
-      "fromJack": "output",
-      "to": 1,
-      "toJack": "frequency"
-    },
-    {
       "from": 4,
       "fromJack": "output",
+      "to": 5,
+      "toJack": "in"
+    },
+    {
+      "from": 5,
+      "fromJack": "all",
       "to": 6,
       "toJack": "in"
     },
     {
       "from": 6,
-      "fromJack": "all",
-      "to": 5,
-      "toJack": "input"
+      "fromJack": "out",
+      "to": 1,
+      "toJack": "frequency"
     },
     {
       "from": 6,
-      "fromJack": "all",
+      "fromJack": "out",
       "to": 2,
       "toJack": "trigger"
     }

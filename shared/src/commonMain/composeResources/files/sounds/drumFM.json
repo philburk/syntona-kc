@@ -10,7 +10,7 @@
         "y": 20,
         "jacks": {
           "trigger": {
-            "v": 1,
+            "v": 4,
             "min": 0,
             "max": 100,
             "kickable": false
@@ -25,7 +25,7 @@
         "y": 99,
         "jacks": {
           "pitch": {
-            "v": 38.362750081185,
+            "v": 38.51342116993387,
             "min": 10,
             "max": 100,
             "kickable": false
@@ -40,7 +40,7 @@
         "y": 171.9,
         "jacks": {
           "mcRatio": {
-            "v": 2,
+            "v": 2.024423649796471,
             "min": 0.1,
             "max": 10,
             "kickable": false
@@ -111,7 +111,7 @@
         "y": 107,
         "jacks": {
           "frequency": {
-            "v": 68.07205200195312,
+            "v": 153.0134735107422,
             "min": 40,
             "max": 8000,
             "kickable": false,
@@ -134,7 +134,7 @@
         "y": 5,
         "jacks": {
           "frequency": {
-            "v": 31.396791458129883,
+            "v": 75.62605285644531,
             "min": 40,
             "max": 8000,
             "kickable": false,
@@ -198,45 +198,6 @@
       },
       {
         "id": 10,
-        "type": "ksyn.control.p2f",
-        "name": "p2f",
-        "x": 208.1,
-        "y": 184,
-        "jacks": {
-          "input": {
-            "v": 38.36275100708008,
-            "min": 0,
-            "max": 127,
-            "kickable": false,
-            "add": false
-          }
-        }
-      },
-      {
-        "id": 11,
-        "type": "ksyn.math.a*",
-        "name": "a*",
-        "x": 307.9,
-        "y": 237,
-        "jacks": {
-          "inputa": {
-            "v": 0,
-            "min": 0,
-            "max": 1,
-            "kickable": false,
-            "add": false
-          },
-          "inputb": {
-            "v": 2,
-            "min": 0,
-            "max": 1,
-            "kickable": false,
-            "add": false
-          }
-        }
-      },
-      {
-        "id": 12,
         "type": "core.input",
         "name": "depth",
         "x": 35.9,
@@ -246,6 +207,42 @@
             "v": 1,
             "min": 0,
             "max": 10,
+            "kickable": false
+          }
+        }
+      },
+      {
+        "id": 11,
+        "type": "core.math.p2f",
+        "name": "p2f",
+        "x": 194.9,
+        "y": 180,
+        "jacks": {
+          "in": {
+            "v": 38.51342116993387,
+            "min": 0,
+            "max": 100,
+            "kickable": true
+          }
+        }
+      },
+      {
+        "id": 12,
+        "type": "core.math.*",
+        "name": "*",
+        "x": 299,
+        "y": 269.1,
+        "jacks": {
+          "A": {
+            "v": 75.62605602073597,
+            "min": 0,
+            "max": 100,
+            "kickable": true
+          },
+          "B": {
+            "v": 2.024423649796471,
+            "min": 0,
+            "max": 100,
             "kickable": false
           }
         }
@@ -277,36 +274,6 @@
         "toJack": "data"
       },
       {
-        "from": 1,
-        "fromJack": "output",
-        "to": 10,
-        "toJack": "input"
-      },
-      {
-        "from": 10,
-        "fromJack": "output",
-        "to": 7,
-        "toJack": "frequency"
-      },
-      {
-        "from": 10,
-        "fromJack": "output",
-        "to": 11,
-        "toJack": "inputa"
-      },
-      {
-        "from": 11,
-        "fromJack": "output",
-        "to": 6,
-        "toJack": "frequency"
-      },
-      {
-        "from": 2,
-        "fromJack": "output",
-        "to": 11,
-        "toJack": "inputb"
-      },
-      {
         "from": 0,
         "fromJack": "output",
         "to": 5,
@@ -331,10 +298,40 @@
         "toJack": "amplitude"
       },
       {
-        "from": 12,
+        "from": 10,
         "fromJack": "output",
         "to": 9,
         "toJack": "amplitude"
+      },
+      {
+        "from": 1,
+        "fromJack": "output",
+        "to": 11,
+        "toJack": "in"
+      },
+      {
+        "from": 11,
+        "fromJack": "out",
+        "to": 7,
+        "toJack": "frequency"
+      },
+      {
+        "from": 11,
+        "fromJack": "out",
+        "to": 12,
+        "toJack": "A"
+      },
+      {
+        "from": 2,
+        "fromJack": "output",
+        "to": 12,
+        "toJack": "B"
+      },
+      {
+        "from": 12,
+        "fromJack": "out",
+        "to": 6,
+        "toJack": "frequency"
       }
     ]
   }

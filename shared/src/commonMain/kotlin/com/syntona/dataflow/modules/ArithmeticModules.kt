@@ -114,3 +114,13 @@ class ModModule : BinaryOperatorModule("mod") {
         }
     }
 }
+
+class PitchToFrequencyModule : UnaryOperatorModule("p2f") {
+    init {
+        input.setValue(60.0)
+    }
+    override fun execute(triggerMessage: Message) {
+        val result = com.softsynth.math.AudioMath.pitchToFrequency(input.getDoubleValue())
+        output.send(Message.FloatValue(triggerMessage.time, result))
+    }
+}
