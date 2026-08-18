@@ -441,8 +441,11 @@ fun main() {
                     Menu("Load Tutorial") {
                         RenderMenuNode(tutorialsTree, gs, state, scope)
                     }
-                    Item("Discuss on Discord...") {
+                    Item("Join Syntona Server on Discord...") {
                         com.syntona.openUrlInBrowser("https://discord.gg/Q5tAD5bqw")
+                    }
+                    Item("Discuss Syntona on Discord...") {
+                        com.syntona.openUrlInBrowser("https://discord.com/channels/1532908817677942846/1532924422321864855")
                     }
                 }
             }

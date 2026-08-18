@@ -1065,10 +1065,17 @@ fun App(
                                                  }
                                              }
                                              CompactDropdownMenuItem(
-                                                 text = { Text("Discuss on Discord...") },
+                                                 text = { Text("Join Syntona Server on Discord...") },
                                                  onClick = {
                                                      helpExpanded = false
                                                      openUrlInBrowser("https://discord.gg/Q5tAD5bqw")
+                                                 }
+                                             )
+                                             CompactDropdownMenuItem(
+                                                 text = { Text("Discuss Syntona on Discord...") },
+                                                 onClick = {
+                                                     helpExpanded = false
+                                                     openUrlInBrowser("https://discord.com/channels/1532908817677942846/1532924422321864855")
                                                  }
                                              )
                                          }
