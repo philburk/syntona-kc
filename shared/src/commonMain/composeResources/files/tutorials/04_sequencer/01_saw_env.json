@@ -4,11 +4,11 @@
       "id": 0,
       "type": "ksyn.sources.sawOscDPW",
       "name": "sawOscDPW",
-      "x": 155,
-      "y": 117.1,
+      "x": 239,
+      "y": 316.1,
       "jacks": {
         "frequency": {
-          "v": 440,
+          "v": 305.4730224609375,
           "min": 40,
           "max": 8000,
           "kickable": false,
@@ -27,8 +27,8 @@
       "id": 1,
       "type": "ksyn.control.envAD",
       "name": "envAD",
-      "x": 314.9,
-      "y": 117,
+      "x": 392.9,
+      "y": 310,
       "jacks": {
         "input": {
           "v": 0,
@@ -38,14 +38,14 @@
           "add": false
         },
         "attack": {
-          "v": 0.05000000074505806,
+          "v": 0.02099750004708767,
           "min": 0.0010000000474974513,
           "max": 8,
           "kickable": false,
           "add": false
         },
         "decay": {
-          "v": 0.20000000298023224,
+          "v": 1.0478034019470215,
           "min": 0.0010000000474974513,
           "max": 8,
           "kickable": false,
@@ -64,8 +64,8 @@
       "id": 2,
       "type": "ksyn.lineOut",
       "name": "lineOut",
-      "x": 479.9,
-      "y": 154,
+      "x": 541.9,
+      "y": 402,
       "jacks": {
         "input0": {
           "v": 0,
@@ -82,6 +82,36 @@
           "add": false
         }
       }
+    },
+    {
+      "id": 3,
+      "type": "core.input.knob",
+      "name": "knob",
+      "x": 69.9,
+      "y": 306,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 305.4730224609375,
+          "min": 40,
+          "max": 8000,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 49.9,
+      "y": 28,
+      "text": "Let's build a sequencer, step-by-step. We can use a sawtooth oscillator to generate a tone. The sound level is controlled by an attack/decay envelope. The oscillator's output is connected to the envelope's amplitude jack so that they will be multiplied.\n\nThe lineOut connects the sound to the speakers.\n\nTo Do:\n* Click the \"trigger\" button to make the envelope go up then down in volume.\n* Click on the knob and drag up and down to change the oscillator frequency. \n* Click the \"trigger\" again to hear the new frequency.\n",
+      "w": 544.875,
+      "h": 227
     }
   ],
   "connections": [
@@ -96,10 +126,22 @@
       "fromJack": "output",
       "to": 2,
       "toJack": "input1"
+    },
+    {
+      "from": 3,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "frequency"
+    },
+    {
+      "from": 1,
+      "fromJack": "output",
+      "to": 2,
+      "toJack": "input0"
     }
   ],
   "windowX": 10,
   "windowY": 10,
-  "windowWidth": 800,
-  "windowHeight": 500
+  "windowWidth": 1034.89599609375,
+  "windowHeight": 718.9306640625
 }

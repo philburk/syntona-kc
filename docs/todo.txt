@@ -23,25 +23,63 @@ to a single-threaded dispatcher if you want that airtight.
 Toolbar toggle that sets a global that tells all the modules to show their jack values instead of their jack names.
 Or pass as a parameter to the module display node???
 
+Create a "p2f" regular math module.
+Change name of ksyn ksyn.control.p2f to ksyn.math.ap2f
+Use in sequencer tutorial for single entry value.
+
 More Help patches
 
 More tutorials. Audio, timeline, pianoroll, Help
-Key skills:
-* How to use provided instruments.
-* Drive a mod8 using a clock, base on drum_rhythm, use a canned sound.
-* Segmented envelopes and monoRdr
-* Use a mixer.
+
 Core
-* How to use functions, steal from examples.
 * How to make a patch. Add inputs and outputs.
 * Use keys, keyMatch, keyNotes
-Music
+* How to use functions, steal from examples.
+
+Sequencer
+* knob, kick, saw - envAD - lineOut, play with knob and trigger
+* add p2f
+* add a clock and a seq8, single message to pitch and trigger
+* make a patch from the middle modules
+* add a chuff sound and drive it on some the odd beats
+* add a flash module for visual feedback
+
+Polyphonic Patches
+* simple polyPatch with p2f and sawOsc driven by keyNotes
+* add envAD and connect to input
+* use packBend and a fader to bend the notes
+* add internal vibrato
+* use DAHDSR to delay the vibrato
+
 MIDI
+* midiIn to a polyPatch
+* add a matchControl on ModWheel to control vibrato depth
+* connect a drum pad on channel10 to some sounds
+* recSeq driving a midiOut, connect to Gervill
+* connect to Logic Pro
 
-Guided Tutorial
-Show a kick, sawOsc, envAd lineOut
-Show them with the
+Audio Input Processing
+* lineIn - delay - lineOut
+* measure latency
+* use a recorder, save audio to a file
+* trigger multiple recordings
+* track input pitch
 
+Composing
+* beatClock
+* ckDiv
+* pianoRoll
+* timeline
+* beatLine
+* hierarchy editor
+* multiTrack
+
+KSyn Sources, oscillators, noise
+KSyn Control, ramps, envelopes
+KSyn Filters, low pass, high pass, four pole
+KSyn Effects
+KSyn Envelopes
+KSyn Samples
 
 Need more ways to indicate Done. monoRdr could have an "empty" output jack.
 Ties in with the hierarchy editor.

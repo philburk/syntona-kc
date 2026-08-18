@@ -1,0 +1,198 @@
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 49.9,
+      "y": 28,
+      "text": "Specifying frequencies is not very intuitive. So let's specify the pitch instead.\n\nPitch is a value in semitones where Middle C is 60 and Concert A is 69.\nWe added a p2f module between the knob and the oscillator that will convert pitches to frequency.\n\nTo Do:\n* Click the \"start\" button to start the beatClock.\n* Click on the knob and drag up and down to change the oscillator pitch.\n* Note that pitches may be fractions, so you can create microtonal music.\n\n",
+      "w": 544.875,
+      "h": 227
+    },
+    {
+      "id": 1,
+      "type": "ksyn.sources.sawOscDPW",
+      "name": "sawOscDPW",
+      "x": 373,
+      "y": 410.1,
+      "jacks": {
+        "frequency": {
+          "v": 344.9938659667969,
+          "min": 40,
+          "max": 8000,
+          "kickable": false,
+          "add": false
+        },
+        "amplitude": {
+          "v": 1,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "ksyn.control.envAD",
+      "name": "envAD",
+      "x": 496.9,
+      "y": 320,
+      "jacks": {
+        "input": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "attack": {
+          "v": 0.02099750004708767,
+          "min": 0.0010000000474974513,
+          "max": 8,
+          "kickable": false,
+          "add": false
+        },
+        "decay": {
+          "v": 1.0478034019470215,
+          "min": 0.0010000000474974513,
+          "max": 8,
+          "kickable": false,
+          "add": false
+        },
+        "amplitude": {
+          "v": 1,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "ksyn.lineOut",
+      "name": "lineOut",
+      "x": 645.9,
+      "y": 412,
+      "jacks": {
+        "input0": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "input1": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "core.input.knob",
+      "name": "knob",
+      "x": 169.9,
+      "y": 339,
+      "jacks": {
+        "kick": {
+          "v": 513,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 60,
+          "min": 0,
+          "max": 127,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "music.compose.beatClock",
+      "name": "beatClock",
+      "x": 54.9,
+      "y": 319,
+      "jacks": {
+        "tempo": {
+          "v": 120.57981144577352,
+          "min": 20,
+          "max": 300,
+          "kickable": false
+        }
+      },
+      "division": "3/8"
+    },
+    {
+      "id": 6,
+      "type": "ksyn.control.p2f",
+      "name": "p2f",
+      "x": 288,
+      "y": 413.9,
+      "jacks": {
+        "input": {
+          "v": 60,
+          "min": 0,
+          "max": 127,
+          "kickable": false,
+          "add": false
+        }
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": 1,
+      "fromJack": "output",
+      "to": 2,
+      "toJack": "amplitude"
+    },
+    {
+      "from": 2,
+      "fromJack": "output",
+      "to": 3,
+      "toJack": "input1"
+    },
+    {
+      "from": 2,
+      "fromJack": "output",
+      "to": 3,
+      "toJack": "input0"
+    },
+    {
+      "from": 5,
+      "fromJack": "output",
+      "to": 4,
+      "toJack": "kick"
+    },
+    {
+      "from": 4,
+      "fromJack": "out",
+      "to": 2,
+      "toJack": "trigger"
+    },
+    {
+      "from": 4,
+      "fromJack": "out",
+      "to": 6,
+      "toJack": "input"
+    },
+    {
+      "from": 6,
+      "fromJack": "output",
+      "to": 1,
+      "toJack": "frequency"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 1034.89599609375,
+  "windowHeight": 718.9306640625
+}
