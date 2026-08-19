@@ -19,7 +19,9 @@ import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Jack
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.model.OutputJack
+import com.syntona.dataflow.modules.AudioInputModule
 import com.syntona.dataflow.modules.FaderModule
+import com.syntona.dataflow.modules.InputModule
 import com.syntona.dataflow.modules.KnobModule
 import com.syntona.core.model.ScoreClock
 import com.syntona.dataflow.engine.SendOutputCommand
@@ -459,15 +461,64 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
 
     private fun syncRangeFromConnections(output: OutputJack) {
         if (isDeserializing) return
-        val valueIn = when (val m = output.module) {
-            is FaderModule -> m.valueIn
-            is KnobModule -> m.valueIn
-            else -> return
-        }
         val connected = connections.filter { it.output === output }
         if (connected.isEmpty()) return
-        valueIn.min = connected.minOf { it.input.min }
-        valueIn.max = connected.maxOf { it.input.max }
+
+        when (val m = output.module) {
+            is FaderModule -> {
+                if (connected.size == 1) {
+                    val target = connected.first().input
+                    m.valueIn.min = target.min
+                    m.valueIn.max = target.max
+                    val low = minOf(target.min, target.max)
+                    val high = maxOf(target.min, target.max)
+                    m.setValue(target.getValue().coerceIn(low, high))
+                } else {
+                    m.valueIn.min = connected.minOf { it.input.min }
+                    m.valueIn.max = connected.maxOf { it.input.max }
+                }
+            }
+            is KnobModule -> {
+                if (connected.size == 1) {
+                    val target = connected.first().input
+                    m.valueIn.min = target.min
+                    m.valueIn.max = target.max
+                    val low = minOf(target.min, target.max)
+                    val high = maxOf(target.min, target.max)
+                    m.setValue(target.getValue().coerceIn(low, high))
+                } else {
+                    m.valueIn.min = connected.minOf { it.input.min }
+                    m.valueIn.max = connected.maxOf { it.input.max }
+                }
+            }
+            is InputModule -> {
+                if (connected.size == 1) {
+                    val target = connected.first().input
+                    m.defaultMin = target.min
+                    m.defaultMax = target.max
+                    val low = minOf(target.min, target.max)
+                    val high = maxOf(target.min, target.max)
+                    m.defaultValue = target.getValue().coerceIn(low, high)
+                } else {
+                    m.defaultMin = connected.minOf { it.input.min }
+                    m.defaultMax = connected.maxOf { it.input.max }
+                }
+            }
+            is AudioInputModule -> {
+                if (connected.size == 1) {
+                    val target = connected.first().input
+                    m.defaultMin = target.min
+                    m.defaultMax = target.max
+                    val low = minOf(target.min, target.max)
+                    val high = maxOf(target.min, target.max)
+                    m.defaultValue = target.getValue().coerceIn(low, high)
+                } else {
+                    m.defaultMin = connected.minOf { it.input.min }
+                    m.defaultMax = connected.maxOf { it.input.max }
+                }
+            }
+            else -> return
+        }
     }
 
     fun deleteConnection(connection: UIConnection) {
