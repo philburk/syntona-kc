@@ -5,5 +5,5 @@ object SyntonaVersion {
     val minor = 1
     val revision = 5
     val code = (major shl 24) + (minor shl 16) + revision
-    override fun toString(): String = "$major.$minor.$revision"
+    override fun toString(): String = "$major.$minor.$revision beta"
 }

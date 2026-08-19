@@ -1,0 +1,254 @@
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "core.math.f(x)",
+      "name": "f(x)",
+      "x": 275,
+      "y": 230.1,
+      "jacks": {
+        "x": {
+          "v": 32.71220397949219,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      },
+      "equation": "x*x+log(x)"
+    },
+    {
+      "id": 1,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 524.9,
+      "y": 196.9,
+      "jacks": {
+        "in": {
+          "v": 1073.576037414564,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "core.input.knob",
+      "name": "knob_X",
+      "x": 43,
+      "y": 209.1,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 32.71220397949219,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "core.math.f(x,y)",
+      "name": "f(x,y)",
+      "x": 274,
+      "y": 306.1,
+      "jacks": {
+        "x": {
+          "v": 32.71220397949219,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "y": {
+          "v": 0,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        }
+      },
+      "equation": "x*sin(y)"
+    },
+    {
+      "id": 4,
+      "type": "core.input.knob",
+      "name": "knob_Y",
+      "x": 151,
+      "y": 308.1,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 0,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 531.9,
+      "y": 321.9,
+      "jacks": {
+        "in": {
+          "v": 0,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "core.math.f(x,y,z)",
+      "name": "f(x,y,z)",
+      "x": 272.9,
+      "y": 412,
+      "jacks": {
+        "x": {
+          "v": 32.71220397949219,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "y": {
+          "v": 0,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        },
+        "z": {
+          "v": 2.169419050216675,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        }
+      },
+      "equation": "x*y + z^3"
+    },
+    {
+      "id": 7,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 532.9,
+      "y": 430,
+      "jacks": {
+        "in": {
+          "v": 10.210108293642085,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "core.input.knob",
+      "name": "knob_Z",
+      "x": 47.9,
+      "y": 409,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 2.169419050216675,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 43,
+      "y": 7.1,
+      "text": "You can use equations in your patches. The text background will turn red while editing. Press ENTER or RETURN to compile the equation.\nIf the compilation succeeds then the background will turn white.\nIf the compilation fails then it will turn orange.\n\nTo Do:\n* Move the top left knob for X and watch all the functions get executed.\n* Move the Y and Z knobs then move X again.",
+      "w": 580.75,
+      "h": 152
+    },
+    {
+      "id": 10,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 111.9,
+      "y": 551,
+      "filePath": "tutorials/03_core/07_send_receive.json",
+      "buttonText": ">> Next, send and receive"
+    }
+  ],
+  "connections": [
+    {
+      "from": 2,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "x"
+    },
+    {
+      "from": 0,
+      "fromJack": "out",
+      "to": 1,
+      "toJack": "in"
+    },
+    {
+      "from": 4,
+      "fromJack": "out",
+      "to": 3,
+      "toJack": "y"
+    },
+    {
+      "from": 2,
+      "fromJack": "out",
+      "to": 3,
+      "toJack": "x"
+    },
+    {
+      "from": 3,
+      "fromJack": "out",
+      "to": 5,
+      "toJack": "in"
+    },
+    {
+      "from": 4,
+      "fromJack": "out",
+      "to": 6,
+      "toJack": "y"
+    },
+    {
+      "from": 2,
+      "fromJack": "out",
+      "to": 6,
+      "toJack": "x"
+    },
+    {
+      "from": 8,
+      "fromJack": "out",
+      "to": 6,
+      "toJack": "z"
+    },
+    {
+      "from": 6,
+      "fromJack": "out",
+      "to": 7,
+      "toJack": "in"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 968.875,
+  "windowHeight": 712.875
+}

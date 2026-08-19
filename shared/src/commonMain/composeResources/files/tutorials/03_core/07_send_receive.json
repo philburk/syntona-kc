@@ -1,0 +1,223 @@
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "core.basic.send",
+      "name": "global",
+      "x": 705,
+      "y": 44.9,
+      "jacks": {
+        "in": {
+          "v": 44.36161804199219,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 1,
+      "type": "core.basic.receive",
+      "name": "global",
+      "x": 475.9,
+      "y": 214
+    },
+    {
+      "id": 2,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 570.9,
+      "y": 217,
+      "jacks": {
+        "in": {
+          "v": 44.36161804199219,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "core.input.knob",
+      "name": "knob",
+      "x": 486.9,
+      "y": 60,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 44.36161804199219,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "core.basic.receive",
+      "name": "global",
+      "x": 676.9,
+      "y": 225
+    },
+    {
+      "id": 5,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 789,
+      "y": 232.9,
+      "jacks": {
+        "in": {
+          "v": 44.36161804199219,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "core.basic.send",
+      "name": "gTempo",
+      "x": 298,
+      "y": 315.9,
+      "jacks": {
+        "in": {
+          "v": 88.79027557373047,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "core.basic.receive",
+      "name": "gTempo",
+      "x": 45.9,
+      "y": 469
+    },
+    {
+      "id": 8,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 180.9,
+      "y": 478,
+      "jacks": {
+        "in": {
+          "v": 88.79027557373047,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "core.input.knob",
+      "name": "knob",
+      "x": 116.9,
+      "y": 317,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 88.79027557373047,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "core.basic.receive",
+      "name": "gTempo",
+      "x": 282.9,
+      "y": 479
+    },
+    {
+      "id": 11,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 395,
+      "y": 476.9,
+      "jacks": {
+        "in": {
+          "v": 88.79027557373047,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 50.9,
+      "y": 19,
+      "text": "You can  use the \"send\" module to send values to a named global variable.\n\nUse the \"receive\" module to receive updates from that named variable.\n\nMove the knobs to see it in action.\n\nThis can save you having to pass common variables like tempo in or out of your patches.",
+      "w": 377.91162,
+      "h": 196.91162
+    },
+    {
+      "id": 13,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 125.9,
+      "y": 592,
+      "filePath": "tutorials/04_sequencer/01_saw_env.json",
+      "buttonText": ">> Next, build a sequencer"
+    }
+  ],
+  "connections": [
+    {
+      "from": 1,
+      "fromJack": "out",
+      "to": 2,
+      "toJack": "in"
+    },
+    {
+      "from": 3,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "in"
+    },
+    {
+      "from": 4,
+      "fromJack": "out",
+      "to": 5,
+      "toJack": "in"
+    },
+    {
+      "from": 7,
+      "fromJack": "out",
+      "to": 8,
+      "toJack": "in"
+    },
+    {
+      "from": 9,
+      "fromJack": "out",
+      "to": 6,
+      "toJack": "in"
+    },
+    {
+      "from": 10,
+      "fromJack": "out",
+      "to": 11,
+      "toJack": "in"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 974.875,
+  "windowHeight": 811
+}

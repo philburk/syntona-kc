@@ -18,7 +18,7 @@
       "y": 267,
       "jacks": {
         "in": {
-          "v": 0,
+          "v": 57,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -46,6 +46,15 @@
       "name": "loadKick",
       "x": 86,
       "y": 224.1
+    },
+    {
+      "id": 4,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 166.9,
+      "y": 413,
+      "filePath": "tutorials/03_core/03_add_patch.json",
+      "buttonText": ">> Next, add patch"
     }
   ],
   "connections": [

@@ -23,13 +23,16 @@ to a single-threaded dispatcher if you want that airtight.
 Toolbar toggle that sets a global that tells all the modules to show their jack values instead of their jack names.
 Or pass as a parameter to the module display node???
 
-Change the name of the ksyn.control.p2f module to ksyn.math.ap2f
-Update all the examples, tutorials, help patches and tests to use the new module name.
-Create a core.math.p2f module that does regular event-type math.
+For functions, add rand() and p2f() f2p()
 
 More Help patches
-
 For help, allow help to point to a tutorial or example page resourcePath, default to help/{package}
+
+Website softsynth.com/syntona
+* user guide, just to get started and into the tutorial
+* archive old Syntona
+* link to the app(?) or let people ask for permission on Discord
+* Overview, screen shots, recordings
 
 More tutorials. Audio, timeline, pianoroll, Help
 

@@ -39,6 +39,15 @@
           "kickable": false
         }
       }
+    },
+    {
+      "id": 3,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 174.9,
+      "y": 467,
+      "filePath": "tutorials/03_core/02_load_kick.json",
+      "buttonText": ">> Next, loadKick"
     }
   ],
   "connections": [

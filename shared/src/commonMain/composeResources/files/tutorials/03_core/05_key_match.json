@@ -395,7 +395,7 @@
       "y": 247.1,
       "jacks": {
         "in": {
-          "v": 88,
+          "v": 90,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -410,7 +410,7 @@
       "y": 409,
       "jacks": {
         "in": {
-          "v": 88,
+          "v": 90,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -834,7 +834,7 @@
       "y": 433,
       "jacks": {
         "flash": {
-          "v": 88,
+          "v": 90,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -849,12 +849,21 @@
       "y": 261.9,
       "jacks": {
         "flash": {
-          "v": 88,
+          "v": 90,
           "min": 0,
           "max": 100,
           "kickable": true
         }
       }
+    },
+    {
+      "id": 11,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 152.9,
+      "y": 514.9,
+      "filePath": "tutorials/03_core/06_functions.json",
+      "buttonText": ">> Next, functions"
     }
   ],
   "connections": [

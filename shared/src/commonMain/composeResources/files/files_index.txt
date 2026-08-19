@@ -2,7 +2,6 @@ examples/add_freq.json
 examples/basic_sequence.json
 examples/drum_rhythm.json
 examples/etude_001.json
-examples/functions.json
 examples/glow_flash.json
 examples/keyNotes.json
 examples/key_control.json
@@ -23,7 +22,6 @@ examples/recSeqMidi.json
 examples/record_latency.json
 examples/recorder.json
 examples/saw_noise.json
-examples/send_receive.json
 examples/timeline.json
 examples/vibrato.json
 examples/wavey_square.json
@@ -49,6 +47,8 @@ tutorials/03_core/02_load_kick.json
 tutorials/03_core/03_add_patch.json
 tutorials/03_core/04_easy_patch.json
 tutorials/03_core/05_key_match.json
+tutorials/03_core/06_functions.json
+tutorials/03_core/07_send_receive.json
 tutorials/04_sequencer/01_saw_env.json
 tutorials/04_sequencer/02_beat_clock.json
 tutorials/04_sequencer/03_pitch_to_freq.json

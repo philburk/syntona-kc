@@ -2,105 +2,131 @@
   "modules": [
     {
       "id": 0,
-      "type": "sineOsc",
+      "type": "ksyn.sources.sineOsc",
       "name": "sineOsc",
-      "x": 340.91162,
-      "y": 207.91162,
+      "x": 340.9,
+      "y": 207.9,
       "jacks": {
         "frequency": {
-          "v": 681.9468383789062,
+          "v": 379.390869140625,
           "min": 40,
           "max": 8000,
+          "kickable": false,
           "add": true
         },
         "amplitude": {
-          "v": 0,
+          "v": 0.19263790547847748,
           "min": 0,
           "max": 1,
+          "kickable": false,
           "add": false
         }
       }
     },
     {
       "id": 1,
-      "type": "lineOut",
+      "type": "ksyn.lineOut",
       "name": "lineOut",
-      "x": 487.9441,
-      "y": 261.11182,
+      "x": 487.9,
+      "y": 261.1,
       "jacks": {
         "input0": {
           "v": 0,
           "min": 0,
           "max": 1,
+          "kickable": false,
           "add": false
         },
         "input1": {
           "v": 0,
           "min": 0,
           "max": 1,
+          "kickable": false,
           "add": false
         }
       }
     },
     {
       "id": 2,
-      "type": "triOsc",
+      "type": "ksyn.sources.triOsc",
       "name": "triOsc",
-      "x": 234.896,
-      "y": 295.06934,
+      "x": 141.9,
+      "y": 139.1,
       "jacks": {
         "frequency": {
           "v": 3.597822427749634,
           "min": 0.10000000149011612,
           "max": 10,
+          "kickable": false,
           "add": false
         },
         "amplitude": {
-          "v": 262.5420837402344,
+          "v": 185.42027282714844,
           "min": 0,
           "max": 500,
+          "kickable": false,
           "add": false
         }
       }
     },
     {
       "id": 3,
-      "type": "knob",
+      "type": "core.input.knob",
       "name": "frequency",
-      "x": 48.875,
-      "y": 263,
+      "x": 32.9,
+      "y": 218,
       "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
         "in": {
-          "v": 681.9468383789062,
+          "v": 379.390869140625,
           "min": 40,
-          "max": 4000
+          "max": 4000,
+          "kickable": false
         }
       }
     },
     {
       "id": 4,
-      "type": "comment",
+      "type": "core.input.comment",
       "name": "comment",
-      "x": 56.88141,
-      "y": 23.03952,
-      "jacks": {},
-      "text": "Double click on the \"sineOsc\" header to see the module editor. You can see that the \"Add?\" checkbox is set.  This allows the value from the knob to be added to the modulation value from the triOsc.\n",
-      "w": 464.66162,
-      "h": 92.08839
+      "x": 56.9,
+      "y": 23,
+      "text": "Double click on the \"sineOsc\" header to see the module editor. You can see that the \"Add?\" checkbox is set.  This allows the value from the frequency knob to be added to the modulation value from the triOsc.\n",
+      "w": 476.91162,
+      "h": 83.96339
     },
     {
       "id": 5,
-      "type": "knob",
+      "type": "core.input.knob",
       "name": "amplitude",
-      "x": 144,
-      "y": 142.125,
+      "x": 202,
+      "y": 286.1,
       "jacks": {
-        "in": {
-          "v": 0,
+        "kick": {
           "min": 0,
-          "max": 1
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 0.19263790547847748,
+          "min": 0,
+          "max": 1,
+          "kickable": false
         }
       }
+    },
+    {
+      "id": 6,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 371.9,
+      "y": 352,
+      "filePath": "tutorials/03_core/01_clock.json",
+      "buttonText": ">> Next, core modules"
     }
   ],
   "connections": [

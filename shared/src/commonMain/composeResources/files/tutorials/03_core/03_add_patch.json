@@ -6,9 +6,9 @@
       "name": "comment",
       "x": 42.9,
       "y": 17,
-      "text": "You can add sub-patches to your patches. These are like subroutines and can have inputs and outputs\n\nTo Do:\n* Add a \"patch\" module between the fader and the lineOut. (Use the Filter box if needed.)\n* Double click on the patch header to open the patch editor. Move the window out of the way so you can see this comment.\n\n* Add a core \"input\" module on the left side of the patch.\n* Add a ksyn \"aOutput\" module on the left side of the patch.\n* Note that the top level \"patch\" module now has jacks with the same names.\n* Add a sineOsc in the middle of the patch.\n\n* Connect the in1 to the sineOsc frequency.\n* Connect the sineOsc output to the aOut1 input.\n* Turn the volume down on your audio system.\n* Connect the fader and the lineOut to your new patch.\n* Turn up the volume and move the fader.",
-      "w": 404.7998,
-      "h": 397.9807
+      "text": "You can add sub-patches to your patches. These are like subroutines and can have inputs and outputs\n\nTo Do:\n* Add a \"patch\" module between the fader and the lineOut. (Use the Filter box if needed.)\n* Double click on the patch header to open the patch editor. Move the window out of the way so you can see this comment.\n\n* Add a core \"input\" module on the left side of the patch.\n* Add a ksyn \"aOutput\" module on the left side of the patch.\n* Note that the top level \"patch\" module now has jacks with the same names.\n* Add a sineOsc in the middle of the patch.\n\n* Connect the in1 to the sineOsc frequency.\n* Connect the sineOsc output to the aOut1 input.\n* Turn the volume down on your audio system.\n* In the top root patch, connect the fader and the lineOut to your new patch.\n* Turn up the volume and move the fader.",
+      "w": 418.7998,
+      "h": 404.8557
     },
     {
       "id": 1,
@@ -52,6 +52,15 @@
           "kickable": false
         }
       }
+    },
+    {
+      "id": 3,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 169.9,
+      "y": 466,
+      "filePath": "tutorials/03_core/04_easy_patch.json",
+      "buttonText": ">> Next, easy patch creation"
     }
   ],
   "connections": [],

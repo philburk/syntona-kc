@@ -6,7 +6,7 @@
       "name": "comment",
       "x": 42.9,
       "y": 17,
-      "text": "Now that you know how patches work, here is an easier way to create a patch.\n\nTo Do:\n* Click in the background and drag a box around the group of modules in the middle: random to sawOscDPW.\n* In the Edit menu, select \"Make a Patch\"",
+      "text": "Now that you know how patches work, here is an easier way to create a patch.\n\nTo Do:\n* Click in the background and drag a box around the group of modules in the middle: random to sawOscDPW.\n* Note that they are highlighted with an orange border.\n* In the Edit menu, select \"Make a Patch\"",
       "w": 576.7998,
       "h": 140.23071
     },
@@ -41,7 +41,7 @@
       "y": 308.9,
       "jacks": {
         "kick": {
-          "v": 860,
+          "v": 369,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -56,7 +56,7 @@
       "y": 286.1,
       "jacks": {
         "A": {
-          "v": 0.9287651210515568,
+          "v": 0.6258220442554733,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -77,7 +77,7 @@
       "y": 274.9,
       "jacks": {
         "A": {
-          "v": 628.6469926398006,
+          "v": 423.5959524443169,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -98,14 +98,14 @@
       "y": 287,
       "jacks": {
         "frequency": {
-          "v": 717.7159423828125,
+          "v": 512.6649169921875,
           "min": 40,
           "max": 8000,
           "kickable": false,
           "add": false
         },
         "amplitude": {
-          "v": 0.36795109510421753,
+          "v": 0.21545560657978058,
           "min": 0,
           "max": 1,
           "kickable": false,
@@ -134,6 +134,15 @@
       "name": "loadKick",
       "x": 21.9,
       "y": 248
+    },
+    {
+      "id": 8,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 127.9,
+      "y": 446,
+      "filePath": "tutorials/03_core/05_key_match.json",
+      "buttonText": ">> Next, keyMatch"
     }
   ],
   "connections": [
