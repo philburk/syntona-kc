@@ -1,0 +1,62 @@
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 42.9,
+      "y": 17,
+      "text": "You can add sub-patches to your patches. These are like subroutines and can have inputs and outputs\n\nTo Do:\n* Add a \"patch\" module between the fader and the lineOut. (Use the Filter box if needed.)\n* Double click on the patch header to open the patch editor. Move the window out of the way so you can see this comment.\n\n* Add a core \"input\" module on the left side of the patch.\n* Add a ksyn \"aOutput\" module on the left side of the patch.\n* Note that the top level \"patch\" module now has jacks with the same names.\n* Add a sineOsc in the middle of the patch.\n\n* Connect the in1 to the sineOsc frequency.\n* Connect the sineOsc output to the aOut1 input.\n* Turn the volume down on your audio system.\n* Connect the fader and the lineOut to your new patch.\n* Turn up the volume and move the fader.",
+      "w": 404.7998,
+      "h": 397.9807
+    },
+    {
+      "id": 1,
+      "type": "ksyn.lineOut",
+      "name": "lineOut",
+      "x": 781,
+      "y": 175.1,
+      "jacks": {
+        "input0": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "input1": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "core.input.fader",
+      "name": "fader",
+      "x": 479.9,
+      "y": 125.9,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 0,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        }
+      }
+    }
+  ],
+  "connections": [],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 1002,
+  "windowHeight": 694.75
+}

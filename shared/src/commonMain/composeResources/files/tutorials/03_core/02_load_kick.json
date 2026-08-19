@@ -1,0 +1,69 @@
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 42.9,
+      "y": 17,
+      "text": "If you want the clock to start automatically use a \"loadKick\" module.\nIt will fire when the patch is loaded.\n\nTo Do:\n* Nothing. The clock is already started.",
+      "w": 475.78662,
+      "h": 131.0884
+    },
+    {
+      "id": 1,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 373.9,
+      "y": 267,
+      "jacks": {
+        "in": {
+          "v": 0,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "core.basic.clock",
+      "name": "clock",
+      "x": 229.9,
+      "y": 219,
+      "jacks": {
+        "rate(hz)": {
+          "v": 2,
+          "min": 0.1,
+          "max": 100,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "core.input.loadKick",
+      "name": "loadKick",
+      "x": 86,
+      "y": 224.1
+    }
+  ],
+  "connections": [
+    {
+      "from": 2,
+      "fromJack": "output",
+      "to": 1,
+      "toJack": "in"
+    },
+    {
+      "from": 3,
+      "fromJack": "kick",
+      "to": 2,
+      "toJack": "start"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 1002,
+  "windowHeight": 694.75
+}

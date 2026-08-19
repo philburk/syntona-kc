@@ -33,6 +33,7 @@ More tutorials. Audio, timeline, pianoroll, Help
 
 Core
 * Clock module
+* loadKick
 * How to make a patch. Add inputs and outputs.
 * Use "Make a Patch" feature
 * Use keys, keyMatch
