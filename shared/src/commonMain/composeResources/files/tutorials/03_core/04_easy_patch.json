@@ -1,0 +1,187 @@
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 42.9,
+      "y": 17,
+      "text": "Now that you know how patches work, here is an easier way to create a patch.\n\nTo Do:\n* Click in the background and drag a box around the group of modules in the middle: random to sawOscDPW.\n* In the Edit menu, select \"Make a Patch\"",
+      "w": 576.7998,
+      "h": 140.23071
+    },
+    {
+      "id": 1,
+      "type": "ksyn.lineOut",
+      "name": "lineOut",
+      "x": 787,
+      "y": 304.1,
+      "jacks": {
+        "input0": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "input1": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "core.math.random",
+      "name": "random",
+      "x": 308.9,
+      "y": 308.9,
+      "jacks": {
+        "kick": {
+          "v": 860,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "core.math.*",
+      "name": "*",
+      "x": 394,
+      "y": 286.1,
+      "jacks": {
+        "A": {
+          "v": 0.9287651210515568,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "B": {
+          "v": 676.8632654163847,
+          "min": 100,
+          "max": 2000,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "core.math.+",
+      "name": "+",
+      "x": 453.9,
+      "y": 274.9,
+      "jacks": {
+        "A": {
+          "v": 628.6469926398006,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "B": {
+          "v": 89.06896333410769,
+          "min": 80,
+          "max": 1000,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "ksyn.sources.sawOscDPW",
+      "name": "sawOscDPW",
+      "x": 502.9,
+      "y": 287,
+      "jacks": {
+        "frequency": {
+          "v": 717.7159423828125,
+          "min": 40,
+          "max": 8000,
+          "kickable": false,
+          "add": false
+        },
+        "amplitude": {
+          "v": 0.36795109510421753,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "core.basic.clock",
+      "name": "clock",
+      "x": 118.9,
+      "y": 257,
+      "jacks": {
+        "rate(hz)": {
+          "v": 6.788897817641575,
+          "min": 0.1,
+          "max": 100,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "core.input.loadKick",
+      "name": "loadKick",
+      "x": 21.9,
+      "y": 248
+    }
+  ],
+  "connections": [
+    {
+      "from": 2,
+      "fromJack": "value",
+      "to": 3,
+      "toJack": "A"
+    },
+    {
+      "from": 3,
+      "fromJack": "out",
+      "to": 4,
+      "toJack": "A"
+    },
+    {
+      "from": 4,
+      "fromJack": "out",
+      "to": 5,
+      "toJack": "frequency"
+    },
+    {
+      "from": 5,
+      "fromJack": "output",
+      "to": 1,
+      "toJack": "input0"
+    },
+    {
+      "from": 5,
+      "fromJack": "output",
+      "to": 1,
+      "toJack": "input1"
+    },
+    {
+      "from": 7,
+      "fromJack": "kick",
+      "to": 6,
+      "toJack": "start"
+    },
+    {
+      "from": 6,
+      "fromJack": "output",
+      "to": 2,
+      "toJack": "kick"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 1002,
+  "windowHeight": 694.75
+}

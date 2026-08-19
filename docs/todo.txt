@@ -29,16 +29,13 @@ Create a core.math.p2f module that does regular event-type math.
 
 More Help patches
 
+For help, allow help to point to a tutorial or example page resourcePath, default to help/{package}
+
 More tutorials. Audio, timeline, pianoroll, Help
 
 Core
-* Clock module
-* loadKick
-* How to make a patch. Add inputs and outputs.
-* Use "Make a Patch" feature
-* Use keys, keyMatch
 * How to use functions, steal from examples.
-* send and receive globals
+* send and receive globals, move from examples
 
 Polyphonic Patches
 * simple polyPatch with p2f and sawOsc driven by keyNotes

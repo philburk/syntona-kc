@@ -47,6 +47,8 @@ tutorials/02_editing/06_add_knob_audio.json
 tutorials/03_core/01_clock.json
 tutorials/03_core/02_load_kick.json
 tutorials/03_core/03_add_patch.json
+tutorials/03_core/04_easy_patch.json
+tutorials/03_core/05_key_match.json
 tutorials/04_sequencer/01_saw_env.json
 tutorials/04_sequencer/02_beat_clock.json
 tutorials/04_sequencer/03_pitch_to_freq.json
