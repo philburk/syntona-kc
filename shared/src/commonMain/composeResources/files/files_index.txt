@@ -44,6 +44,7 @@ tutorials/02_editing/03_edit_jacks.json
 tutorials/02_editing/04_precise_values.json
 tutorials/02_editing/05_edit_module.json
 tutorials/02_editing/06_add_knob_audio.json
+tutorials/03_core/01_clock.json
 tutorials/04_sequencer/01_saw_env.json
 tutorials/04_sequencer/02_beat_clock.json
 tutorials/04_sequencer/03_pitch_to_freq.json

@@ -1,0 +1,56 @@
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 42.9,
+      "y": 17,
+      "text": "The clock module will deliver an increasing value at a steady rate.\n\nTo Do:\n* Click the clocks \"start\" button to START the clock.\n* Note the number in the show module is increasing.\n* Click and drag up slowly on the \"rate(hz)\" jack.\n* Click the clocks \"stop\" button to STOP the clock.\n* Click the clocks \"reset\" button to set the clock value back to zero.",
+      "w": 474.875,
+      "h": 195
+    },
+    {
+      "id": 1,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 280.9,
+      "y": 326,
+      "jacks": {
+        "in": {
+          "v": 9,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "core.basic.clock",
+      "name": "clock",
+      "x": 130.9,
+      "y": 278,
+      "jacks": {
+        "rate(hz)": {
+          "v": 2,
+          "min": 0.1,
+          "max": 100,
+          "kickable": false
+        }
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": 2,
+      "fromJack": "output",
+      "to": 1,
+      "toJack": "in"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 1002,
+  "windowHeight": 694.75
+}

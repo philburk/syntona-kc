@@ -12,9 +12,10 @@ class ClockModule : Module("clock"), EngineAware {
     val start = addCommandInput("start")
     val stop = addCommandInput("stop")
     val reset = addCommandInput("reset")
-    val periodMs = addInput("period(ms)").also {
-        it.min = 1.0
-        it.max = 10_000.0
+    val rateHz = addInput("rate(hz)").also {
+        it.min = 0.1
+        it.max = 100.0
+        it.setValue(2.0)
     }
     val countOut = addOutput("output")
 
@@ -38,7 +39,7 @@ class ClockModule : Module("clock"), EngineAware {
             start.isKicked -> {
                 if (!running) {
                     running = true
-                    val delayNs = periodToNanos()
+                    val delayNs = rateToNanos()
                     scheduleNext(ScoreClock.now() + ScoreTime(delayNs))
                 }
             }
@@ -54,8 +55,11 @@ class ClockModule : Module("clock"), EngineAware {
         }
     }
 
-    private fun periodToNanos(): Long =
-        (periodMs.getDoubleValue(500.0) * 1_000_000.0).toLong().coerceAtLeast(1_000_000L)
+    private fun rateToNanos(): Long {
+        val rate = rateHz.getDoubleValue(2.0)
+        val safeRate = if (rate > 0.0) rate else 2.0
+        return (1_000_000_000.0 / safeRate).toLong().coerceAtLeast(1_000_000L)
+    }
 
     private fun scheduleNext(fireTime: ScoreTime) {
         val e = engine ?: return
@@ -66,6 +70,6 @@ class ClockModule : Module("clock"), EngineAware {
         if (!running) return
         count++
         countOut.send(Message.FloatValue(fireTime, count.toDouble()))
-        scheduleNext(fireTime + ScoreTime(periodToNanos()))
+        scheduleNext(fireTime + ScoreTime(rateToNanos()))
     }
 }

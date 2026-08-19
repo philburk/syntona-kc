@@ -32,9 +32,12 @@ More Help patches
 More tutorials. Audio, timeline, pianoroll, Help
 
 Core
+* Clock module
 * How to make a patch. Add inputs and outputs.
-* Use keys, keyMatch, keyNotes
+* Use "Make a Patch" feature
+* Use keys, keyMatch
 * How to use functions, steal from examples.
+* send and receive globals
 
 Polyphonic Patches
 * simple polyPatch with p2f and sawOsc driven by keyNotes

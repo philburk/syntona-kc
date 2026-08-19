@@ -184,7 +184,7 @@
             "y": 118.1,
             "jacks": {
               "frequency": {
-                "v": 75,
+                "v": 23.5,
                 "min": 0.009999999776482582,
                 "max": 5,
                 "kickable": false,
@@ -234,7 +234,16 @@
             "type": "ksyn.aInput",
             "name": "aIn1",
             "x": 19,
-            "y": 81.9
+            "y": 81.9,
+            "jacks": {
+              "aIn1": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            }
           },
           {
             "id": 7,
@@ -375,9 +384,10 @@
             "x": 54.9,
             "y": 229,
             "jacks": {
-              "period(ms)": {
-                "min": 1,
-                "max": 10000,
+              "rate(hz)": {
+                "v": 2,
+                "min": 0.01,
+                "max": 1000,
                 "kickable": false
               }
             }
@@ -402,7 +412,7 @@
                 "kickable": true
               },
               "in": {
-                "v": 214,
+                "v": 106,
                 "min": 0,
                 "max": 100,
                 "kickable": true
@@ -642,7 +652,16 @@
             "type": "ksyn.aInput",
             "name": "aIn1",
             "x": 16.9,
-            "y": 15.1
+            "y": 15.1,
+            "jacks": {
+              "aIn1": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            }
           },
           {
             "id": 1,
@@ -806,7 +825,16 @@
             "type": "ksyn.aInput",
             "name": "aIn1",
             "x": 16.9,
-            "y": 15.1
+            "y": 15.1,
+            "jacks": {
+              "aIn1": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            }
           },
           {
             "id": 1,
@@ -877,10 +905,10 @@
             "x": 289.9,
             "y": 168,
             "jacks": {
-              "period(ms)": {
-                "v": 26.26123828127901,
-                "min": 1,
-                "max": 10000,
+              "rate(hz)": {
+                "v": 38.078935,
+                "min": 0.01,
+                "max": 1000,
                 "kickable": false
               }
             }
@@ -1160,7 +1188,7 @@
       "name": "comment",
       "x": 61.9,
       "y": 13.1,
-      "text": "Use \"Settings...\" in the File menu to select audio input and output devices.\n\nThen play an instrument or sing into a microphone.\n\nTHe redDelay patch is using redNoise to modulate a delay, which changes its pitch.\n\nThe tracker is following the input and playing a sawtooth a fifth above.",
+      "text": "Use \"Settings...\" in the File menu to select audio input and output devices.\n\nThen play an instrument or sing into a microphone.\n\nThe redDelay patch is using redNoise to modulate a delay, which changes its pitch.\n\nThe tracker is following the input and playing a sawtooth a fifth above.",
       "w": 523.875,
       "h": 136
     }

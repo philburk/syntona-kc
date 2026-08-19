@@ -7,10 +7,10 @@
       "x": 16.9,
       "y": 239,
       "jacks": {
-        "period(ms)": {
-          "v": 141.30149128858378,
-          "min": 1,
-          "max": 10000,
+        "rate(hz)": {
+          "v": 7.077066,
+          "min": 0.01,
+          "max": 1000,
           "kickable": false
         }
       }
@@ -40,7 +40,7 @@
       "y": 178,
       "jacks": {
         "in1": {
-          "v": 5,
+          "v": 2,
           "min": 0,
           "max": 100,
           "kickable": false
@@ -61,7 +61,7 @@
             "y": 29,
             "jacks": {
               "in1": {
-                "v": 5,
+                "v": 2,
                 "min": 0,
                 "max": 100,
                 "kickable": false
@@ -213,7 +213,7 @@
       "y": 414,
       "jacks": {
         "in1": {
-          "v": 4,
+          "v": 0,
           "min": 0,
           "max": 100,
           "kickable": false
@@ -234,7 +234,7 @@
             "y": 25,
             "jacks": {
               "in1": {
-                "v": 4,
+                "v": 0,
                 "min": 0,
                 "max": 100,
                 "kickable": false
@@ -563,7 +563,7 @@
           "add": false
         },
         "gain0": {
-          "v": 0,
+          "v": 0.5205007791519165,
           "min": 0,
           "max": 1,
           "kickable": false,
@@ -577,7 +577,7 @@
           "add": false
         },
         "gain2": {
-          "v": 0,
+          "v": 0.3336568772792816,
           "min": 0,
           "max": 1,
           "kickable": false,
@@ -683,7 +683,7 @@
           "kickable": true
         },
         "in": {
-          "v": 1093,
+          "v": 147,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -703,7 +703,7 @@
           "kickable": true
         },
         "in": {
-          "v": 546,
+          "v": 73,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -718,7 +718,7 @@
       "y": 454,
       "jacks": {
         "in": {
-          "v": 1093,
+          "v": 147,
           "min": 0,
           "max": 100,
           "kickable": true
