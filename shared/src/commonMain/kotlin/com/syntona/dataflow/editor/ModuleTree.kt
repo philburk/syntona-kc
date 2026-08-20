@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -32,7 +33,7 @@ import com.syntona.ui.SearchIcon
 fun ModuleTree(state: GraphState) {
     var filterText by remember { mutableStateOf("") }
 
-    Column(modifier = Modifier.fillMaxHeight().width(180.dp).padding(8.dp)) {
+    Column(modifier = Modifier.fillMaxHeight().width(180.dp).padding(8.dp).onKeyEvent { true }) {
         Text("Syntona v" + SyntonaVersion, fontSize = 16.sp, color = Color.LightGray)
         Spacer(modifier = Modifier.height(6.dp))
 
@@ -66,7 +67,7 @@ fun ModuleTree(state: GraphState) {
                     singleLine = true,
                     textStyle = TextStyle(color = Color.White, fontSize = 12.sp),
                     cursorBrush = SolidColor(Color.Cyan),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().onKeyEvent { true }
                 )
             }
         }

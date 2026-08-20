@@ -1376,7 +1376,8 @@ fun App(
                                             .fillMaxWidth()
                                             .border(1.dp, Color.Gray, RoundedCornerShape(4.dp))
                                             .background(Color.White)
-                                            .padding(8.dp),
+                                            .padding(8.dp)
+                                            .onKeyEvent { true },
                                         textStyle = androidx.compose.ui.text.TextStyle(color = Color.Black)
                                     )
                                 }
