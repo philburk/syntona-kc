@@ -419,9 +419,26 @@ class MatchControlModule : MatchVoiceModule(
     payloadName = "value",
     opcode = Message.VoiceOpcode.CONTROL_CHANGE
 ) {
+    /**
+     * Mirrors the output payload as Compose state so the graphic display on the node
+     * repaints smoothly when controller values stream in.
+     */
+    var currentValue by mutableStateOf(0.0)
+        private set
+
     override fun identifierOf(msg: Message.VoiceMessage): Double = msg.extra
 
     override fun payloadOf(msg: Message.VoiceMessage): Double = msg.value
+
+    override fun execute(triggerMessage: Message) {
+        super.execute(triggerMessage)
+        val msg = triggerMessage as? Message.VoiceMessage ?: return
+        if (msg.opcode != Message.VoiceOpcode.CONTROL_CHANGE) return
+        val incoming = round(identifierOf(msg)).toInt()
+        if (incoming == matchNumber) {
+            currentValue = payloadOf(msg)
+        }
+    }
 }
 
 /**

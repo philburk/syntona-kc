@@ -176,4 +176,24 @@ class MatchControlModuleTest {
         assertFalse(loaded.isArmed, "a saved patch should not re-learn on load")
         assertFalse(loaded.learn.isHighlighted)
     }
+
+    @Test
+    fun currentValueTracksIncomingControlValues() {
+        val module = MatchControlModule()
+        assertEquals(0.0, module.currentValue)
+
+        // Learn CC 1 (ModWheel) at value 0.3
+        module.input.receive(controlChange(index = 1.0, value = 0.3))
+        assertEquals(0.3, module.currentValue)
+        assertEquals(0.3, module.output.getValue())
+
+        // Move to 0.8
+        module.input.receive(controlChange(index = 1.0, value = 0.8))
+        assertEquals(0.8, module.currentValue)
+        assertEquals(0.8, module.output.getValue())
+
+        // Different controller ignored
+        module.input.receive(controlChange(index = 7.0, value = 0.1))
+        assertEquals(0.8, module.currentValue)
+    }
 }

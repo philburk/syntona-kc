@@ -111,6 +111,7 @@ import com.syntona.dataflow.modules.ModuloSelectModule
 import com.syntona.dataflow.modules.SegmentedEnvelopeModule
 import com.syntona.dataflow.modules.LinkModule
 import com.syntona.dataflow.modules.KeyMatchModule
+import com.syntona.dataflow.modules.MatchControlModule
 import com.syntona.dataflow.modules.BeatClockModule
 import com.syntona.dataflow.modules.TimelineModule
 import com.syntona.dataflow.modules.TimelineTrigger
@@ -291,6 +292,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                     is SegmentedEnvelopeModule -> SegmentedEnvelopeModuleNode(module, state)
                     is PianoRollModule -> PianoRollModuleNode(module, state)
                     is KeyMatchModule -> KeyMatchModuleNode(module, state)
+                    is MatchControlModule -> MatchControlModuleNode(module, state)
                     is GlowModule -> GlowModuleNode(module, state)
                     is FlashModule -> FlashModuleNode(module, state)
                     is SendModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
@@ -682,6 +684,98 @@ fun KeyMatchModuleNode(module: KeyMatchModule, state: GraphState) {
                 ) {
                     JackView(module.on, state, isLeft = false)
                     JackView(module.off, state, isLeft = false)
+                }
+            }
+        }
+    }
+}
+
+/**
+ * A compact horizontal value indicator showing a value between 0.0 and 1.0
+ * as a simple horizontal line with a vertical thumb moving from left to right.
+ */
+@Composable
+fun HorizontalValueIndicator(
+    value: Float,
+    modifier: Modifier = Modifier,
+    lineColor: Color = Color.Gray,
+    thumbColor: Color = Color.White
+) {
+    Canvas(modifier = modifier) {
+        val strokePx = 1.5.dp.toPx()
+        val thumbWidthPx = 2.dp.toPx()
+        val thumbHeightPx = 10.dp.toPx()
+        val halfThumbWidth = thumbWidthPx / 2f
+        val centerY = size.height / 2f
+
+        val startX = halfThumbWidth
+        val endX = size.width - halfThumbWidth
+        val usableWidth = (endX - startX).coerceAtLeast(0f)
+
+        // Draw horizontal line
+        drawLine(
+            color = lineColor,
+            start = Offset(startX, centerY),
+            end = Offset(endX, centerY),
+            strokeWidth = strokePx
+        )
+
+        // Calculate thumb X position (0.0 = startX, 1.0 = endX)
+        val fraction = value.coerceIn(0f, 1f)
+        val thumbX = startX + fraction * usableWidth
+
+        // Draw vertical thumb
+        drawLine(
+            color = thumbColor,
+            start = Offset(thumbX, centerY - thumbHeightPx / 2f),
+            end = Offset(thumbX, centerY + thumbHeightPx / 2f),
+            strokeWidth = thumbWidthPx
+        )
+    }
+}
+
+@Composable
+fun MatchControlModuleNode(module: MatchControlModule, state: GraphState) {
+    val colors = LocalGraphColors.current
+    val position = state.modulePositions[module] ?: Offset.Zero
+    val isSelected = state.selectedModules.contains(module)
+    val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
+    val borderWidth = if (isSelected) 2.dp else 1.dp
+
+    Surface(
+        modifier = Modifier
+            .offset { IntOffset((position.x * density).roundToInt(), (position.y * density).roundToInt()) }
+            .width(IntrinsicSize.Max)
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
+            .onSizeChanged { size ->
+                state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
+            },
+        shape = RoundedCornerShape(4.dp),
+        color = colors.moduleBackground
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            ModuleHeader(module = module, state = state, headerColor = colors.headerDefault)
+
+            // Inputs: "in", "learn", "index"
+            module.inputs.forEach { JackView(it, state, isLeft = true) }
+
+            HorizontalDivider(color = Color.Black, thickness = 1.dp)
+
+            // Output row with graphic display to the left of the "value" output jack
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                HorizontalValueIndicator(
+                    value = module.currentValue.toFloat(),
+                    modifier = Modifier
+                        .padding(start = 6.dp, end = 2.dp)
+                        .width(40.dp)
+                        .height(16.dp)
+                )
+
+                Box(modifier = Modifier.weight(1f)) {
+                    JackView(module.output, state, isLeft = false)
                 }
             }
         }

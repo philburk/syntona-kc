@@ -64,7 +64,7 @@ class MidiDeviceServiceTest {
         MidiDeviceService.rememberDevice(MidiDirection.SOURCE, "My Saved Keyboard")
         assertEquals("My Saved Keyboard", MidiDeviceService.lastUsedDevice(MidiDirection.SOURCE))
 
-        MidiDeviceService.endpoints.add(
+        MidiDeviceService.endpoints = listOf(
             com.softsynth.midibridge.MidiEndpoint(id = "1", name = "My Saved Keyboard", direction = MidiDirection.SOURCE)
         )
 

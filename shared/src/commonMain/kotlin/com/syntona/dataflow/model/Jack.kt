@@ -132,7 +132,7 @@ open class OutputJack(
     override var name by mutableStateOf(name)
     private val connections = mutableListOf<InputJack>()
 
-    private var lastSentValue: Double = 0.0
+    private var lastSentValue: Double by mutableStateOf(0.0)
 
     override fun getValue(): Double = lastSentValue
 

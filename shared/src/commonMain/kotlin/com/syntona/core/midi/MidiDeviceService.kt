@@ -17,10 +17,8 @@
 package com.syntona.core.midi
 
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshots.Snapshot
 import com.softsynth.midibridge.MidiBridge
 import com.softsynth.midibridge.MidiDestination
 import com.softsynth.midibridge.MidiDirection
@@ -145,14 +143,8 @@ object MidiDeviceService {
     private val openDestinations = mutableMapOf<String, SharedDestination>()
 
     /** Endpoints currently visible, updated as devices are plugged in and unplugged. */
-    val endpoints = mutableStateListOf<MidiEndpoint>()
-
-    /**
-     * The same endpoints as an ordinary immutable list, for code that is not in a composition.
-     * The menus read [endpoints] so they follow hotplug; everything else reads this, because a
-     * snapshot state list cannot safely be iterated while another coroutine is replacing it.
-     */
-    private var plainEndpoints: List<MidiEndpoint> = emptyList()
+    var endpoints: List<MidiEndpoint> by mutableStateOf(emptyList())
+        internal set
 
     /** Why MIDI is unavailable, for the device menus to show. Null while all is well. */
     var errorMessage: String? by mutableStateOf(null)
@@ -417,10 +409,8 @@ object MidiDeviceService {
     }
 
     private fun findEndpoint(deviceName: String, direction: MidiDirection): MidiEndpoint? {
-        plainEndpoints.firstOrNull { it.name == deviceName && it.direction == direction }
+        endpoints.firstOrNull { it.name == deviceName && it.direction == direction }
             ?.let { return it }
-        // Deliberately not the snapshot state list: iterating it here throws
-        // ConcurrentModificationException when a hotplug update lands mid-search.
         return bridge?.endpointsNow()?.firstOrNull { it.name == deviceName && it.direction == direction }
     }
 
@@ -428,20 +418,11 @@ object MidiDeviceService {
      * Replaces the visible endpoint list.
      *
      * Serialized, because opening the bridge and the hotplug collector both publish and they run
-     * on different coroutines: two mutable snapshots touching the same state list at once throw
-     * SnapshotApplyConflictException, which inside the collector would silently end hotplug
-     * updates for the rest of the session. The snapshot is still needed because the collector
-     * runs off the UI thread.
+     * on different coroutines.
      */
     private suspend fun publish(list: List<MidiEndpoint>) {
         publishMutex.withLock {
-            // The plain copy is swapped as one reference, so a reader outside a composition
-            // always sees a whole list rather than one being rebuilt underneath it.
-            plainEndpoints = list
-            Snapshot.withMutableSnapshot {
-                endpoints.clear()
-                endpoints.addAll(list)
-            }
+            endpoints = list
         }
     }
 }
