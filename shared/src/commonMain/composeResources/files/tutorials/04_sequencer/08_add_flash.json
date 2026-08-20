@@ -769,6 +769,15 @@
           "add": false
         }
       }
+    },
+    {
+      "id": 7,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 112.9,
+      "y": 569.9,
+      "filePath": "tutorials/05_polyphony/01_polyPatch.json",
+      "buttonText": ">> Next, polyPatch"
     }
   ],
   "connections": [

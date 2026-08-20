@@ -5,7 +5,12 @@ MAKE SOME MUSIC!
 
 DAHDSR decay needs higher range in KSyn.
 
-envAD needs a trigger input for drum sounds
+BUG: Save menu does not work for tutorial resources, no error message, * still on.
+
+BUG: Why does envAD not hold after the attack until off()?
+Maybe we do need an envAR that holds?
+
+BUG: when keyNotes active, typing qwert in the Module Tree triggers notes!
 
 segEnv should not have to end on y==0, may want to queue an upward ramp of frequency.
 BUG: EnvelopeEditor, points at end or added to the end cannot be moved up or deleted. See midi_driven.sntn.
@@ -23,7 +28,7 @@ to a single-threaded dispatcher if you want that airtight.
 Toolbar toggle that sets a global that tells all the modules to show their jack values instead of their jack names.
 Or pass as a parameter to the module display node???
 
-For functions, add rand() and p2f() f2p()
+For functions, add rand() and p2f(x),  f2p(x), floor(x), round(x)
 
 More Help patches
 For help, allow help to point to a tutorial or example page resourcePath, default to help/{package}
@@ -41,11 +46,11 @@ Core
 * send and receive globals, move from examples
 
 Polyphonic Patches
-* simple polyPatch with p2f and sawOsc driven by keyNotes
-* add envAD and connect to input
-* use packBend and a fader to bend the notes
-* add internal vibrato
-* use DAHDSR to delay the vibrato
+* 01 simple polyPatch with p2f and sawOsc driven by keyNotes
+* 02 use packBend and a fader to bend the notes
+* 03 add internal vibrato
+* 04 use DAHDSR to delay the vibrato
+* 05 use packNote and a random note generator
 
 MIDI
 * midiIn to a polyPatch

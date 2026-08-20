@@ -1,0 +1,365 @@
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 46.9,
+      "y": 13,
+      "text": "\"Polyphony\" means you can plays several notes on the same instrument at the same time. Syntona has a polyPatch that creates multiple voices based on your design.\n\nTo Do:\n* Press multiple keys, eg. Q, E, T. Hear a major chord.\n* Open the polyPatch. This is a minimal polyPatch.\n* The \"[8]\" in the patch header means it can play up to 8 voices.",
+      "w": 429.8191,
+      "h": 182.76318
+    },
+    {
+      "id": 1,
+      "type": "music.input.keyNotes",
+      "name": "keyNotes",
+      "x": 72.9,
+      "y": 251,
+      "jacks": {
+        "amplitude": {
+          "v": 0.771926614580221,
+          "min": 0,
+          "max": 1,
+          "kickable": false
+        },
+        "octave": {
+          "v": 4,
+          "min": 2,
+          "max": 8,
+          "kickable": false
+        }
+      },
+      "bottomOctaveKeys": "zsxdcvgbhnjm,",
+      "topOctaveKeys": "q2w3er5t6y7ui9o0p"
+    },
+    {
+      "id": 2,
+      "type": "core.polyPatch",
+      "name": "polyPatch",
+      "x": 233.9,
+      "y": 265,
+      "jacks": {
+        "input": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      },
+      "maxVoices": 8,
+      "windowX": 422.875,
+      "windowY": 272,
+      "windowWidth": 715,
+      "windowHeight": 564.875,
+      "windowOpen": false,
+      "patch": {
+        "modules": [
+          {
+            "id": 0,
+            "type": "core.input",
+            "name": "on",
+            "x": 50,
+            "y": 145,
+            "jacks": {
+              "on": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false
+              }
+            }
+          },
+          {
+            "id": 1,
+            "type": "core.input",
+            "name": "off",
+            "x": 50,
+            "y": 215,
+            "jacks": {
+              "off": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false
+              }
+            }
+          },
+          {
+            "id": 2,
+            "type": "core.input",
+            "name": "pitch",
+            "x": 50,
+            "y": 285,
+            "jacks": {
+              "pitch": {
+                "v": 60,
+                "min": 0,
+                "max": 100,
+                "kickable": false
+              }
+            }
+          },
+          {
+            "id": 3,
+            "type": "core.input",
+            "name": "amplitude",
+            "x": 50,
+            "y": 355,
+            "jacks": {
+              "amplitude": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "kickable": false
+              }
+            }
+          },
+          {
+            "id": 4,
+            "type": "core.input",
+            "name": "pressure",
+            "x": 50,
+            "y": 425,
+            "jacks": {
+              "pressure": {
+                "v": 0,
+                "min": 0,
+                "max": 100,
+                "kickable": false
+              }
+            }
+          },
+          {
+            "id": 5,
+            "type": "ksyn.aOutput",
+            "name": "output",
+            "x": 539,
+            "y": 304,
+            "jacks": {
+              "input": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 6,
+            "type": "ksyn.sources.sawOscDPW",
+            "name": "sawOscDPW",
+            "x": 245.9,
+            "y": 309.9,
+            "jacks": {
+              "frequency": {
+                "v": 440,
+                "min": 40,
+                "max": 8000,
+                "kickable": false,
+                "add": false
+              },
+              "amplitude": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 7,
+            "type": "core.math.p2f",
+            "name": "p2f",
+            "x": 151.9,
+            "y": 274,
+            "jacks": {
+              "in": {
+                "v": 60,
+                "min": 0,
+                "max": 100,
+                "kickable": true
+              }
+            }
+          },
+          {
+            "id": 8,
+            "type": "ksyn.control.DAHDSR",
+            "name": "DAHDSR",
+            "x": 413.9,
+            "y": 175,
+            "jacks": {
+              "input": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "delay": {
+                "v": 0,
+                "min": 0,
+                "max": 2,
+                "kickable": false,
+                "add": false
+              },
+              "attack": {
+                "v": 0.009999999776482582,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "hold": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "decay": {
+                "v": 0.20000000298023224,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "sustain": {
+                "v": 0.5,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "release": {
+                "v": 2.365713357925415,
+                "min": 0,
+                "max": 15,
+                "kickable": false,
+                "add": false
+              },
+              "amplitude": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 9,
+            "type": "core.input.comment",
+            "name": "comment",
+            "x": 53.9,
+            "y": 10.1,
+            "text": "The incoming pitch is connected to the p2f (pitch to frequency module).\nThe incoming amplitude is connected to the oscillator amplitude.\nThe DAHDSR envelope shapes the volume of the note.\nThe incoming on/off inputs are connected to the DAHDSR envelope to turn it on and off.",
+            "w": 627.75,
+            "h": 98
+          }
+        ],
+        "connections": [
+          {
+            "from": 2,
+            "fromJack": "output",
+            "to": 7,
+            "toJack": "in"
+          },
+          {
+            "from": 7,
+            "fromJack": "out",
+            "to": 6,
+            "toJack": "frequency"
+          },
+          {
+            "from": 3,
+            "fromJack": "output",
+            "to": 6,
+            "toJack": "amplitude"
+          },
+          {
+            "from": 0,
+            "fromJack": "output",
+            "to": 8,
+            "toJack": "input"
+          },
+          {
+            "from": 1,
+            "fromJack": "output",
+            "to": 8,
+            "toJack": "input"
+          },
+          {
+            "from": 8,
+            "fromJack": "output",
+            "to": 5,
+            "toJack": "input"
+          },
+          {
+            "from": 6,
+            "fromJack": "output",
+            "to": 8,
+            "toJack": "amplitude"
+          }
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "type": "ksyn.lineOut",
+      "name": "lineOut",
+      "x": 438.9,
+      "y": 257,
+      "jacks": {
+        "input0": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "input1": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 193.9,
+      "y": 351,
+      "filePath": "tutorials/05_polyphony/02_packBend.json",
+      "buttonText": ">> Next, packBend"
+    }
+  ],
+  "connections": [
+    {
+      "from": 1,
+      "fromJack": "out",
+      "to": 2,
+      "toJack": "input"
+    },
+    {
+      "from": 2,
+      "fromJack": "output",
+      "to": 3,
+      "toJack": "input0"
+    },
+    {
+      "from": 2,
+      "fromJack": "output",
+      "to": 3,
+      "toJack": "input1"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 800,
+  "windowHeight": 500
+}

@@ -1,0 +1,586 @@
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 46.9,
+      "y": 13,
+      "text": "Many instruments, like violins, have a delayed vibrato that is only heard on longer notes.\n\nTo Do:\n* Play a few short notes and then play a very long note.\n* Note that the longer note eventually has vibrato.\n* Double click to open the polyPatch to learn how it works.",
+      "w": 493.6941,
+      "h": 150.63818
+    },
+    {
+      "id": 1,
+      "type": "music.input.keyNotes",
+      "name": "keyNotes",
+      "x": 125.9,
+      "y": 237,
+      "jacks": {
+        "amplitude": {
+          "v": 0.771926614580221,
+          "min": 0,
+          "max": 1,
+          "kickable": false
+        },
+        "octave": {
+          "v": 4,
+          "min": 2,
+          "max": 8,
+          "kickable": false
+        }
+      },
+      "bottomOctaveKeys": "zsxdcvgbhnjm,",
+      "topOctaveKeys": "q2w3er5t6y7ui9o0p"
+    },
+    {
+      "id": 2,
+      "type": "core.polyPatch",
+      "name": "polyPatch",
+      "x": 402.9,
+      "y": 258,
+      "jacks": {
+        "input": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "vibrato": {
+          "v": 1,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      },
+      "maxVoices": 8,
+      "windowX": 422,
+      "windowY": 272,
+      "windowWidth": 761.896,
+      "windowHeight": 654.80566,
+      "windowOpen": false,
+      "patch": {
+        "modules": [
+          {
+            "id": 0,
+            "type": "core.input",
+            "name": "on",
+            "x": 50,
+            "y": 145,
+            "jacks": {
+              "on": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false
+              }
+            }
+          },
+          {
+            "id": 1,
+            "type": "core.input",
+            "name": "off",
+            "x": 50,
+            "y": 215,
+            "jacks": {
+              "off": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false
+              }
+            }
+          },
+          {
+            "id": 2,
+            "type": "core.input",
+            "name": "pitch",
+            "x": 50,
+            "y": 285,
+            "jacks": {
+              "pitch": {
+                "v": 60,
+                "min": 0,
+                "max": 127,
+                "kickable": false
+              }
+            }
+          },
+          {
+            "id": 3,
+            "type": "core.input",
+            "name": "amplitude",
+            "x": 50,
+            "y": 355,
+            "jacks": {
+              "amplitude": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "kickable": false
+              }
+            }
+          },
+          {
+            "id": 4,
+            "type": "core.input",
+            "name": "pressure",
+            "x": 50,
+            "y": 425,
+            "jacks": {
+              "pressure": {
+                "v": 0,
+                "min": 0,
+                "max": 100,
+                "kickable": false
+              }
+            }
+          },
+          {
+            "id": 5,
+            "type": "ksyn.aOutput",
+            "name": "output",
+            "x": 665,
+            "y": 289,
+            "jacks": {
+              "input": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 6,
+            "type": "ksyn.sources.sawOscDPW",
+            "name": "sawOscDPW",
+            "x": 414.9,
+            "y": 298.9,
+            "jacks": {
+              "frequency": {
+                "v": 440,
+                "min": 40,
+                "max": 8000,
+                "kickable": false,
+                "add": false
+              },
+              "amplitude": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 7,
+            "type": "ksyn.control.DAHDSR",
+            "name": "DAHDSR",
+            "x": 539.9,
+            "y": 160,
+            "jacks": {
+              "input": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "delay": {
+                "v": 0,
+                "min": 0,
+                "max": 2,
+                "kickable": false,
+                "add": false
+              },
+              "attack": {
+                "v": 0.009999999776482582,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "hold": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "decay": {
+                "v": 0.20000000298023224,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "sustain": {
+                "v": 0.5,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "release": {
+                "v": 2.365713357925415,
+                "min": 0,
+                "max": 15,
+                "kickable": false,
+                "add": false
+              },
+              "amplitude": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 8,
+            "type": "core.input.comment",
+            "name": "comment",
+            "x": 53.9,
+            "y": 10.1,
+            "text": "We added another DAHDSR and set the delay value to around 0.5 seconds and the attack to around 0.7 seconds. Then we set the sustain to 1.0 so the vibrato stays on.\nWe then multiplied this DAHDSR times the vibrato using the amplitude jack.\n",
+            "w": 626.8384,
+            "h": 79.08839
+          },
+          {
+            "id": 9,
+            "type": "ksyn.math.ap2f",
+            "name": "ap2f",
+            "x": 335.9,
+            "y": 268,
+            "jacks": {
+              "input": {
+                "v": 60,
+                "min": 0,
+                "max": 127,
+                "kickable": false,
+                "add": true
+              }
+            }
+          },
+          {
+            "id": 10,
+            "type": "ksyn.aInput",
+            "name": "vibrato",
+            "x": 53.9,
+            "y": 487,
+            "jacks": {
+              "vibrato": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 11,
+            "type": "ksyn.control.DAHDSR",
+            "name": "DAHDSR",
+            "x": 198.9,
+            "y": 224.9,
+            "jacks": {
+              "input": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "delay": {
+                "v": 0.5868512392044067,
+                "min": 0,
+                "max": 2,
+                "kickable": false,
+                "add": false
+              },
+              "attack": {
+                "v": 0.7442813515663147,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "hold": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "decay": {
+                "v": 0.20000000298023224,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "sustain": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "release": {
+                "v": 11.552759170532227,
+                "min": 0,
+                "max": 15,
+                "kickable": false,
+                "add": false
+              },
+              "amplitude": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            }
+          }
+        ],
+        "connections": [
+          {
+            "from": 3,
+            "fromJack": "output",
+            "to": 6,
+            "toJack": "amplitude"
+          },
+          {
+            "from": 0,
+            "fromJack": "output",
+            "to": 7,
+            "toJack": "input"
+          },
+          {
+            "from": 1,
+            "fromJack": "output",
+            "to": 7,
+            "toJack": "input"
+          },
+          {
+            "from": 7,
+            "fromJack": "output",
+            "to": 5,
+            "toJack": "input"
+          },
+          {
+            "from": 6,
+            "fromJack": "output",
+            "to": 7,
+            "toJack": "amplitude"
+          },
+          {
+            "from": 2,
+            "fromJack": "output",
+            "to": 9,
+            "toJack": "input"
+          },
+          {
+            "from": 9,
+            "fromJack": "output",
+            "to": 6,
+            "toJack": "frequency"
+          },
+          {
+            "from": 10,
+            "fromJack": "output",
+            "to": 11,
+            "toJack": "amplitude"
+          },
+          {
+            "from": 11,
+            "fromJack": "output",
+            "to": 9,
+            "toJack": "input"
+          },
+          {
+            "from": 0,
+            "fromJack": "output",
+            "to": 11,
+            "toJack": "input"
+          },
+          {
+            "from": 1,
+            "fromJack": "output",
+            "to": 11,
+            "toJack": "input"
+          }
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "type": "ksyn.lineOut",
+      "name": "lineOut",
+      "x": 581.9,
+      "y": 252,
+      "jacks": {
+        "input0": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "input1": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "core.input.knob",
+      "name": "knob",
+      "x": 42,
+      "y": 363.1,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 0,
+          "min": -2,
+          "max": 2,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "music.voices.packBend",
+      "name": "packBend",
+      "x": 166.9,
+      "y": 382.9,
+      "jacks": {
+        "bend": {
+          "v": 0,
+          "min": -2,
+          "max": 2,
+          "kickable": true
+        },
+        "tag": {
+          "v": -1,
+          "min": -1,
+          "max": 127,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "core.view.showMany",
+      "name": "showMany",
+      "x": 483.9,
+      "y": 368,
+      "jacks": {
+        "in": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "ksyn.sources.sineOsc",
+      "name": "sineOsc",
+      "x": 268.9,
+      "y": 233,
+      "jacks": {
+        "frequency": {
+          "v": 2.903507709503174,
+          "min": 0.10000000149011612,
+          "max": 8,
+          "kickable": false,
+          "add": false
+        },
+        "amplitude": {
+          "v": 0.1970534324645996,
+          "min": 0,
+          "max": 2,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 105.1,
+      "y": 497,
+      "filePath": "tutorials/05_polyphony/05_packNotes.json",
+      "buttonText": ">> Next, packNotes"
+    }
+  ],
+  "connections": [
+    {
+      "from": 1,
+      "fromJack": "out",
+      "to": 2,
+      "toJack": "input"
+    },
+    {
+      "from": 2,
+      "fromJack": "output",
+      "to": 3,
+      "toJack": "input0"
+    },
+    {
+      "from": 2,
+      "fromJack": "output",
+      "to": 3,
+      "toJack": "input1"
+    },
+    {
+      "from": 4,
+      "fromJack": "out",
+      "to": 5,
+      "toJack": "bend"
+    },
+    {
+      "from": 5,
+      "fromJack": "out",
+      "to": 2,
+      "toJack": "input"
+    },
+    {
+      "from": 1,
+      "fromJack": "out",
+      "to": 6,
+      "toJack": "in"
+    },
+    {
+      "from": 5,
+      "fromJack": "out",
+      "to": 6,
+      "toJack": "in"
+    },
+    {
+      "from": 7,
+      "fromJack": "output",
+      "to": 2,
+      "toJack": "vibrato"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 887.875,
+  "windowHeight": 638.125
+}

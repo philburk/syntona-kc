@@ -1,0 +1,644 @@
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 46.9,
+      "y": 13,
+      "text": "We can convert regular numbers into NOTE_ON messages using the packNotes module. This allows us to do algorithmic composition\n\nHow it works:\nThe clocks drives the random number generator. The random numbers are between 0.0 and 1.0. So we scale them up to a reasonable pitch range.  Then we convert those numbers into NOTE_ONs using the packNote and play them on the polyPatch.",
+      "w": 493.6941,
+      "h": 150.63818
+    },
+    {
+      "id": 1,
+      "type": "core.polyPatch",
+      "name": "polyPatch",
+      "x": 503.9,
+      "y": 248,
+      "jacks": {
+        "input": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "vibrato": {
+          "v": 1,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      },
+      "maxVoices": 8,
+      "windowX": 422,
+      "windowY": 272,
+      "windowWidth": 761.896,
+      "windowHeight": 654.80566,
+      "windowOpen": false,
+      "patch": {
+        "modules": [
+          {
+            "id": 0,
+            "type": "core.input",
+            "name": "on",
+            "x": 50,
+            "y": 145,
+            "jacks": {
+              "on": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false
+              }
+            }
+          },
+          {
+            "id": 1,
+            "type": "core.input",
+            "name": "off",
+            "x": 50,
+            "y": 215,
+            "jacks": {
+              "off": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false
+              }
+            }
+          },
+          {
+            "id": 2,
+            "type": "core.input",
+            "name": "pitch",
+            "x": 50,
+            "y": 285,
+            "jacks": {
+              "pitch": {
+                "v": 60,
+                "min": 0,
+                "max": 127,
+                "kickable": false
+              }
+            }
+          },
+          {
+            "id": 3,
+            "type": "core.input",
+            "name": "amplitude",
+            "x": 50,
+            "y": 355,
+            "jacks": {
+              "amplitude": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "kickable": false
+              }
+            }
+          },
+          {
+            "id": 4,
+            "type": "core.input",
+            "name": "pressure",
+            "x": 50,
+            "y": 425,
+            "jacks": {
+              "pressure": {
+                "v": 0,
+                "min": 0,
+                "max": 100,
+                "kickable": false
+              }
+            }
+          },
+          {
+            "id": 5,
+            "type": "ksyn.aOutput",
+            "name": "output",
+            "x": 665,
+            "y": 289,
+            "jacks": {
+              "input": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 6,
+            "type": "ksyn.sources.sawOscDPW",
+            "name": "sawOscDPW",
+            "x": 414.9,
+            "y": 298.9,
+            "jacks": {
+              "frequency": {
+                "v": 440,
+                "min": 40,
+                "max": 8000,
+                "kickable": false,
+                "add": false
+              },
+              "amplitude": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 7,
+            "type": "ksyn.control.DAHDSR",
+            "name": "DAHDSR",
+            "x": 539.9,
+            "y": 160,
+            "jacks": {
+              "input": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "delay": {
+                "v": 0,
+                "min": 0,
+                "max": 2,
+                "kickable": false,
+                "add": false
+              },
+              "attack": {
+                "v": 0.009999999776482582,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "hold": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "decay": {
+                "v": 0.20000000298023224,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "sustain": {
+                "v": 0.5,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "release": {
+                "v": 2.365713357925415,
+                "min": 0,
+                "max": 15,
+                "kickable": false,
+                "add": false
+              },
+              "amplitude": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 8,
+            "type": "core.input.comment",
+            "name": "comment",
+            "x": 53.9,
+            "y": 10.1,
+            "text": "We added another DAHDSR and set the delay value to around 0.5 seconds and the attack to around 0.7 seconds. Then we set the sustain to 1.0 so the vibrato stays on.\nWe then multiplied this DAHDSR times the vibrato using the amplitude jack.\n",
+            "w": 626.8384,
+            "h": 79.08839
+          },
+          {
+            "id": 9,
+            "type": "ksyn.math.ap2f",
+            "name": "ap2f",
+            "x": 335.9,
+            "y": 268,
+            "jacks": {
+              "input": {
+                "v": 60,
+                "min": 0,
+                "max": 127,
+                "kickable": false,
+                "add": true
+              }
+            }
+          },
+          {
+            "id": 10,
+            "type": "ksyn.aInput",
+            "name": "vibrato",
+            "x": 53.9,
+            "y": 487,
+            "jacks": {
+              "vibrato": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 11,
+            "type": "ksyn.control.DAHDSR",
+            "name": "DAHDSR",
+            "x": 198.9,
+            "y": 224.9,
+            "jacks": {
+              "input": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "delay": {
+                "v": 0.5868512392044067,
+                "min": 0,
+                "max": 2,
+                "kickable": false,
+                "add": false
+              },
+              "attack": {
+                "v": 0.7442813515663147,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "hold": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "decay": {
+                "v": 0.20000000298023224,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "sustain": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "release": {
+                "v": 11.552759170532227,
+                "min": 0,
+                "max": 15,
+                "kickable": false,
+                "add": false
+              },
+              "amplitude": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            }
+          }
+        ],
+        "connections": [
+          {
+            "from": 3,
+            "fromJack": "output",
+            "to": 6,
+            "toJack": "amplitude"
+          },
+          {
+            "from": 0,
+            "fromJack": "output",
+            "to": 7,
+            "toJack": "input"
+          },
+          {
+            "from": 1,
+            "fromJack": "output",
+            "to": 7,
+            "toJack": "input"
+          },
+          {
+            "from": 7,
+            "fromJack": "output",
+            "to": 5,
+            "toJack": "input"
+          },
+          {
+            "from": 6,
+            "fromJack": "output",
+            "to": 7,
+            "toJack": "amplitude"
+          },
+          {
+            "from": 2,
+            "fromJack": "output",
+            "to": 9,
+            "toJack": "input"
+          },
+          {
+            "from": 9,
+            "fromJack": "output",
+            "to": 6,
+            "toJack": "frequency"
+          },
+          {
+            "from": 10,
+            "fromJack": "output",
+            "to": 11,
+            "toJack": "amplitude"
+          },
+          {
+            "from": 11,
+            "fromJack": "output",
+            "to": 9,
+            "toJack": "input"
+          },
+          {
+            "from": 0,
+            "fromJack": "output",
+            "to": 11,
+            "toJack": "input"
+          },
+          {
+            "from": 1,
+            "fromJack": "output",
+            "to": 11,
+            "toJack": "input"
+          }
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "type": "ksyn.lineOut",
+      "name": "lineOut",
+      "x": 666.9,
+      "y": 238,
+      "jacks": {
+        "input0": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "input1": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "core.view.showMany",
+      "name": "showMany",
+      "x": 503.9,
+      "y": 366,
+      "jacks": {
+        "in": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "ksyn.sources.sineOsc",
+      "name": "sineOsc",
+      "x": 363.9,
+      "y": 394,
+      "jacks": {
+        "frequency": {
+          "v": 2.903507709503174,
+          "min": 0.10000000149011612,
+          "max": 8,
+          "kickable": false,
+          "add": false
+        },
+        "amplitude": {
+          "v": 0.1970534324645996,
+          "min": 0,
+          "max": 2,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "music.compose.beatClock",
+      "name": "beatClock",
+      "x": 41.9,
+      "y": 301,
+      "jacks": {
+        "tempo": {
+          "v": 120,
+          "min": 20,
+          "max": 300,
+          "kickable": false
+        }
+      },
+      "division": "1/2"
+    },
+    {
+      "id": 6,
+      "type": "core.math.random",
+      "name": "random",
+      "x": 151.9,
+      "y": 225,
+      "jacks": {
+        "kick": {
+          "v": 1441,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "core.input.loadKick",
+      "name": "loadKick",
+      "x": 12,
+      "y": 234.1
+    },
+    {
+      "id": 8,
+      "type": "core.math.*",
+      "name": "*",
+      "x": 246.9,
+      "y": 207,
+      "jacks": {
+        "A": {
+          "v": 0.5026417265304739,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "B": {
+          "v": 33.092850557371676,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "core.math.+",
+      "name": "+",
+      "x": 307,
+      "y": 210.9,
+      "jacks": {
+        "A": {
+          "v": 16.633847539972255,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "B": {
+          "v": 43.527716272588926,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "music.voices.packNote",
+      "name": "packNote",
+      "x": 367.9,
+      "y": 198.9,
+      "jacks": {
+        "pitch": {
+          "v": 60.161563812561184,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "tag": {
+          "v": 1441,
+          "min": -1,
+          "max": 127,
+          "kickable": false
+        },
+        "amplitude": {
+          "v": 0.2,
+          "min": 0,
+          "max": 2,
+          "kickable": false
+        },
+        "duration": {
+          "v": 20,
+          "min": 0,
+          "max": 1000,
+          "kickable": false
+        }
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": 1,
+      "fromJack": "output",
+      "to": 2,
+      "toJack": "input0"
+    },
+    {
+      "from": 1,
+      "fromJack": "output",
+      "to": 2,
+      "toJack": "input1"
+    },
+    {
+      "from": 4,
+      "fromJack": "output",
+      "to": 1,
+      "toJack": "vibrato"
+    },
+    {
+      "from": 7,
+      "fromJack": "kick",
+      "to": 5,
+      "toJack": "start"
+    },
+    {
+      "from": 5,
+      "fromJack": "output",
+      "to": 6,
+      "toJack": "kick"
+    },
+    {
+      "from": 6,
+      "fromJack": "value",
+      "to": 8,
+      "toJack": "A"
+    },
+    {
+      "from": 8,
+      "fromJack": "out",
+      "to": 9,
+      "toJack": "A"
+    },
+    {
+      "from": 9,
+      "fromJack": "out",
+      "to": 10,
+      "toJack": "pitch"
+    },
+    {
+      "from": 10,
+      "fromJack": "out",
+      "to": 1,
+      "toJack": "input"
+    },
+    {
+      "from": 10,
+      "fromJack": "out",
+      "to": 3,
+      "toJack": "in"
+    },
+    {
+      "from": 5,
+      "fromJack": "output",
+      "to": 10,
+      "toJack": "tag"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 887.875,
+  "windowHeight": 638.125
+}

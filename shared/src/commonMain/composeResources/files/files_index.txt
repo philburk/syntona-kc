@@ -57,3 +57,8 @@ tutorials/04_sequencer/05_make_patch.json
 tutorials/04_sequencer/06_add_drum.json
 tutorials/04_sequencer/07_add_mixer.json
 tutorials/04_sequencer/08_add_flash.json
+tutorials/05_polyphony/01_polyPatch.json
+tutorials/05_polyphony/02_packBend.json
+tutorials/05_polyphony/03_vibrato.json
+tutorials/05_polyphony/04_delayed_vibrato.json
+tutorials/05_polyphony/05_packNotes.json
