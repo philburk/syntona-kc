@@ -49,7 +49,7 @@
     },
     {
       "id": 3,
-      "type": "music.voices.midiIn",
+      "type": "music.midi.midiIn",
       "name": "midiIn",
       "x": 52,
       "y": 205.9,
@@ -87,7 +87,7 @@
     },
     {
       "id": 5,
-      "type": "music.voices.unpackControl",
+      "type": "music.midi.unpackControl",
       "name": "unpackControl",
       "x": 181.9,
       "y": 252,

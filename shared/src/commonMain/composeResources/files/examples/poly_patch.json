@@ -136,7 +136,7 @@
     },
     {
       "id": 5,
-      "type": "music.voices.packNote",
+      "type": "music.midi.packNote",
       "name": "packNote",
       "x": 418.9,
       "y": 160,
@@ -169,7 +169,7 @@
     },
     {
       "id": 6,
-      "type": "music.voices.packBend",
+      "type": "music.midi.packBend",
       "name": "packBend",
       "x": 418.9,
       "y": 387,

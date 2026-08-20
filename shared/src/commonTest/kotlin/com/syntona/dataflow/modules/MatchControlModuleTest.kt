@@ -45,7 +45,7 @@ class MatchControlModuleTest {
         val creator = ModuleRegistry.findCreator("matchControl")
         assertNotNull(creator, "matchControl should be registered")
         assertTrue(creator() is MatchControlModule)
-        assertEquals("music.voices.matchControl", ModuleRegistry.getBundlePath("matchControl"))
+        assertEquals("music.midi.matchControl", ModuleRegistry.getBundlePath("matchControl"))
     }
 
     @Test

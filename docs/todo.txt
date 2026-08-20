@@ -10,13 +10,16 @@ BUG: Save menu does not work for tutorial resources, no error message, * still o
 BUG: Why does envAD not hold after the attack until off()?
 Maybe we do need an envAR that holds?
 
-BUG: when keyNotes active, typing qwert in the Module Tree triggers notes!
-
 segEnv should not have to end on y==0, may want to queue an upward ramp of frequency.
 BUG: EnvelopeEditor, points at end or added to the end cannot be moved up or deleted. See midi_driven.sntn.
 EnvelopeEditor needs axis labels, time extend at right edge (KSyn)
 
 add *= or a ranger module for easy scaling of knobs to frequency.
+
+MIDI Device menu should combine the name and the manufacturer into one string "{name}, {manufacturer}".
+An example might be "keyLab49, Arturia".
+Show that name in the menu for selecting MIDI devices.
+Also save that compound string for the device field in the JSON file and in Settings Storage.
 
 Claude says:
 unsubscribe, subscribeJob, and subscriptionGeneration are plain fields written from both the

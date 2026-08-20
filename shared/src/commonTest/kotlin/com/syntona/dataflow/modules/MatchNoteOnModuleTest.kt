@@ -43,11 +43,11 @@ class MatchNoteOnModuleTest {
     }
 
     @Test
-    fun isRegisteredInTheVoicesBundle() {
+    fun isRegisteredInTheMidiBundle() {
         val creator = ModuleRegistry.findCreator("matchNoteOn")
         assertNotNull(creator, "matchNoteOn should be registered")
         assertTrue(creator() is MatchNoteOnModule)
-        assertEquals("music.voices.matchNoteOn", ModuleRegistry.getBundlePath("matchNoteOn"))
+        assertEquals("music.midi.matchNoteOn", ModuleRegistry.getBundlePath("matchNoteOn"))
     }
 
     @Test

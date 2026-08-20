@@ -480,7 +480,7 @@
     },
     {
       "id": 7,
-      "type": "music.voices.packNote",
+      "type": "music.midi.packNote",
       "name": "packNote",
       "x": 365.9,
       "y": 216.9,

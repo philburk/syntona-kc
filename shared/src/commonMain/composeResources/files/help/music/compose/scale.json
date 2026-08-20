@@ -47,7 +47,7 @@
       },
       {
         "id": 2,
-        "type": "music.voices.packBend",
+        "type": "music.midi.packBend",
         "name": "packBend",
         "x": 416.9,
         "y": 470,
@@ -150,7 +150,7 @@
       },
       {
         "id": 8,
-        "type": "music.voices.packNote",
+        "type": "music.midi.packNote",
         "name": "packNote",
         "x": 480.9,
         "y": 191,

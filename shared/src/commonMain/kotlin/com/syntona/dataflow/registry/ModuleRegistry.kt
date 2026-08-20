@@ -89,21 +89,21 @@ object ModuleRegistry {
         musicInput.modules.add(ModuleEntry("keyboard25") { Keyboard25Module() })
         musicInput.modules.add(ModuleEntry("keyNotes") { KeyNotesModule() })
         musicInput.modules.add(ModuleEntry("pianoRoll") { PianoRollModule() })
-        val voices = getOrCreateBundle(music, "voices")
-        voices.modules.add(ModuleEntry("packVoice") { PackVoiceModule() })
-        voices.modules.add(ModuleEntry("packBend") { PackBendModule() })
-        voices.modules.add(ModuleEntry("packControl") { PackControlModule() })
-        voices.modules.add(ModuleEntry("packNote") { PackNoteModule() })
-        voices.modules.add(ModuleEntry("packProgram") { PackProgramModule() })
-        voices.modules.add(ModuleEntry("unpackNoteOn") { UnpackNoteOnModule() })
-        voices.modules.add(ModuleEntry("unpackNoteOff") { UnpackNoteOffModule() })
-        voices.modules.add(ModuleEntry("unpackControl") { UnpackControlModule() })
-        voices.modules.add(ModuleEntry("matchControl") { MatchControlModule() })
-        voices.modules.add(ModuleEntry("matchNoteOn") { MatchNoteOnModule() })
-        voices.modules.add(ModuleEntry("unpackBend") { UnpackBendModule() })
-        voices.modules.add(ModuleEntry("unpackProgram") { UnpackProgramModule() })
-        voices.modules.add(ModuleEntry("midiIn") { MidiInModule() })
-        voices.modules.add(ModuleEntry("midiOut") { MidiOutModule() })
+        val midi = getOrCreateBundle(music, "midi")
+        midi.modules.add(ModuleEntry("packVoice") { PackVoiceModule() })
+        midi.modules.add(ModuleEntry("packBend") { PackBendModule() })
+        midi.modules.add(ModuleEntry("packControl") { PackControlModule() })
+        midi.modules.add(ModuleEntry("packNote") { PackNoteModule() })
+        midi.modules.add(ModuleEntry("packProgram") { PackProgramModule() })
+        midi.modules.add(ModuleEntry("unpackNoteOn") { UnpackNoteOnModule() })
+        midi.modules.add(ModuleEntry("unpackNoteOff") { UnpackNoteOffModule() })
+        midi.modules.add(ModuleEntry("unpackControl") { UnpackControlModule() })
+        midi.modules.add(ModuleEntry("matchControl") { MatchControlModule() })
+        midi.modules.add(ModuleEntry("matchNoteOn") { MatchNoteOnModule() })
+        midi.modules.add(ModuleEntry("unpackBend") { UnpackBendModule() })
+        midi.modules.add(ModuleEntry("unpackProgram") { UnpackProgramModule() })
+        midi.modules.add(ModuleEntry("midiIn") { MidiInModule() })
+        midi.modules.add(ModuleEntry("midiOut") { MidiOutModule() })
 
         val compose = getOrCreateBundle(music, "compose")
         compose.modules.add(ModuleEntry("beatClock") { BeatClockModule() })
@@ -267,9 +267,10 @@ object ModuleRegistry {
     }
 
     fun findCreator(typeName: String): (() -> Module)? {
-        val resolvedTypeName = when (typeName) {
-            "showVoice" -> "showMany"
-            "double" -> "number"
+        val resolvedTypeName = when {
+            typeName == "showVoice" -> "showMany"
+            typeName == "double" -> "number"
+            typeName.startsWith("music.voices.") -> typeName.replace("music.voices.", "music.midi.")
             else -> typeName
         }
 

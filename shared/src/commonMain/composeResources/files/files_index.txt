@@ -62,3 +62,4 @@ tutorials/05_polyphony/02_packBend.json
 tutorials/05_polyphony/03_vibrato.json
 tutorials/05_polyphony/04_delayed_vibrato.json
 tutorials/05_polyphony/05_packNotes.json
+tutorials/06_midi/00_midi_intro.json

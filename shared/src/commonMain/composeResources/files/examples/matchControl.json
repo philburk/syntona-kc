@@ -2,7 +2,7 @@
   "modules": [
     {
       "id": 0,
-      "type": "music.voices.midiIn",
+      "type": "music.midi.midiIn",
       "name": "midiIn",
       "x": 29.9,
       "y": 172,
@@ -11,7 +11,7 @@
     },
     {
       "id": 1,
-      "type": "music.voices.matchControl",
+      "type": "music.midi.matchControl",
       "name": "matchControl",
       "x": 412.9,
       "y": 152,
@@ -51,7 +51,7 @@
     },
     {
       "id": 3,
-      "type": "music.voices.matchControl",
+      "type": "music.midi.matchControl",
       "name": "matchControl",
       "x": 411.9,
       "y": 306,

@@ -380,7 +380,7 @@
     },
     {
       "id": 5,
-      "type": "music.voices.packBend",
+      "type": "music.midi.packBend",
       "name": "packBend",
       "x": 166.9,
       "y": 382.9,

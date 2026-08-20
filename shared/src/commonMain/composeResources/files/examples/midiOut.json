@@ -12,7 +12,7 @@
     },
     {
       "id": 1,
-      "type": "music.voices.midiOut",
+      "type": "music.midi.midiOut",
       "name": "midiOut",
       "x": 929,
       "y": 357.9,
@@ -94,7 +94,7 @@
     },
     {
       "id": 5,
-      "type": "music.voices.packProgram",
+      "type": "music.midi.packProgram",
       "name": "packProgram",
       "x": 700.9,
       "y": 504,
