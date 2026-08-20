@@ -28,8 +28,6 @@ to a single-threaded dispatcher if you want that airtight.
 Toolbar toggle that sets a global that tells all the modules to show their jack values instead of their jack names.
 Or pass as a parameter to the module display node???
 
-For functions, add rand() and p2f(x),  f2p(x), floor(x), round(x)
-
 More Help patches
 For help, allow help to point to a tutorial or example page resourcePath, default to help/{package}
 
@@ -40,17 +38,6 @@ Website softsynth.com/syntona
 * Overview, screen shots, recordings
 
 More tutorials. Audio, timeline, pianoroll, Help
-
-Core
-* How to use functions, steal from examples.
-* send and receive globals, move from examples
-
-Polyphonic Patches
-* 01 simple polyPatch with p2f and sawOsc driven by keyNotes
-* 02 use packBend and a fader to bend the notes
-* 03 add internal vibrato
-* 04 use DAHDSR to delay the vibrato
-* 05 use packNote and a random note generator
 
 MIDI
 * midiIn to a polyPatch

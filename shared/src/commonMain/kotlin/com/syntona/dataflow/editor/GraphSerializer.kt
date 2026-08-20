@@ -201,6 +201,7 @@ object GraphSerializer {
             }
             if (module is EquationModule) {
                 append(",\"equation\":\"${module.equation.jsonEscape}\"")
+                append(",\"w\":${module.width},\"h\":${module.height}")
             }
             if (module is ScaleModule) {
                 append(",\"scale\":\"${module.scaleString.jsonEscape}\"")
@@ -399,6 +400,8 @@ object GraphSerializer {
             }
             if (module is EquationModule) {
                 (obj?.map?.get("equation") as? JsonValue.Str)?.value?.let { module.compile(it) }
+                (obj?.map?.get("w") as? JsonValue.Num)?.value?.let { module.width = it.toFloat() }
+                (obj?.map?.get("h") as? JsonValue.Num)?.value?.let { module.height = it.toFloat() }
             }
             if (module is ScaleModule) {
                 (obj?.map?.get("scale") as? JsonValue.Str)?.value?.let { module.updateScale(it) }

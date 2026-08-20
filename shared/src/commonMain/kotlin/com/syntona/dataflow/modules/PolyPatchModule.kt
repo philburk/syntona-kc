@@ -497,6 +497,8 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
             is EquationModule -> {
                 EquationModule(templateModule.name).apply {
                     equation = templateModule.equation
+                    width = templateModule.width
+                    height = templateModule.height
                 }
             }
             is SequenceModule -> {

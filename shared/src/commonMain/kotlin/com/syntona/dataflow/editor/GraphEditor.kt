@@ -2302,62 +2302,55 @@ fun MixerModuleNode(module: MixerModule, state: GraphState) {
 @Composable
 fun EquationModuleNode(module: EquationModule, state: GraphState) {
     val colors = LocalGraphColors.current
-    val position = state.modulePositions[module] ?: Offset.Zero
-    val isSelected = state.selectedModules.contains(module)
-    val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
-    val borderWidth = if (isSelected) 2.dp else 1.dp
-
-    Surface(
-        modifier = Modifier
-            .offset { IntOffset((position.x * density).roundToInt(), (position.y * density).roundToInt()) }
-            .width(180.dp)
-            .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
-            .onSizeChanged { size ->
-                state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
-            },
-        shape = RoundedCornerShape(4.dp),
-        color = colors.moduleBackground
-    ) {
-        Column {
-            ModuleHeader(module = module, state = state, headerColor = colors.headerDefault)
-
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(4.dp),
-                verticalAlignment = Alignment.CenterVertically
+    ResizableModuleBox(
+        module = module,
+        state = state,
+        headerColor = colors.headerDefault,
+        initialWidth = module.width.dp,
+        initialHeight = module.height.dp,
+        minWidth = 140.dp,
+        minHeight = 36.dp,
+        onResize = { w, h ->
+            module.width = w.value
+            module.height = h.value
+        }
+    ) { _, _ ->
+        Row(
+            modifier = Modifier.fillMaxSize().padding(start = 4.dp, top = 4.dp, bottom = 4.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Inputs on the left
+            Column(
+                modifier = Modifier.width(26.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                // Inputs on the left
-                Column(
-                    modifier = Modifier.width(26.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    module.inputs.forEach { JackView(it, state, isLeft = true) }
-                }
+                module.inputs.forEach { JackView(it, state, isLeft = true) }
+            }
 
-                Spacer(modifier = Modifier.width(2.dp))
+            Spacer(modifier = Modifier.width(2.dp))
 
-                // Text field and Output on the right
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    EquationField(
-                        value = module.equation,
-                        errorMessage = module.errorMessage,
-                        onCommit = { eq ->
-                            val success = module.compile(eq)
-                            if (success) {
-                                state.markChanged()
-                                FileState.markDirty()
-                            }
-                        },
-                        modifier = Modifier.weight(1f)
-                    )
+            // Text field and Output on the right
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.End
+            ) {
+                EquationField(
+                    value = module.equation,
+                    errorMessage = module.errorMessage,
+                    onCommit = { eq ->
+                        val success = module.compile(eq)
+                        if (success) {
+                            state.markChanged()
+                            FileState.markDirty()
+                        }
+                    },
+                    modifier = Modifier.weight(1f)
+                )
 
-                    Spacer(modifier = Modifier.width(4.dp))
+                Spacer(modifier = Modifier.width(4.dp))
 
-                    CompactJackConnector(module.output, state, isLeft = false)
-                }
+                CompactJackConnector(module.output, state, isLeft = false)
             }
         }
     }

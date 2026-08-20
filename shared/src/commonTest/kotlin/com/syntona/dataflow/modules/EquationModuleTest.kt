@@ -116,4 +116,99 @@ class EquationModuleTest {
         assertNotNull(module.errorMessage, "errorMessage should be populated when compilation fails")
         assertTrue(module.errorMessage!!.contains("Unexpected character") || module.errorMessage!!.contains("Unexpected characters") || module.errorMessage!!.isNotEmpty())
     }
+
+    private fun evaluateFormula(formula: String, x: Double = 0.0, y: Double = 0.0, z: Double = 0.0): Double {
+        val module = EquationModule("f(x,y,z)")
+        val compiled = module.compile(formula)
+        assertTrue(compiled, "Failed to compile formula '$formula': ${module.errorMessage}")
+
+        var result: Double? = null
+        val receiver = object : com.syntona.dataflow.model.Module("receiver") {
+            val input = addInput("in", isKickable = true)
+            override fun execute(triggerMessage: Message) {
+                if (triggerMessage is Message.FloatValue) {
+                    result = triggerMessage.value
+                }
+            }
+        }
+        val graph = GraphState()
+        graph.addModule(module, androidx.compose.ui.geometry.Offset.Zero)
+        graph.addModule(receiver, androidx.compose.ui.geometry.Offset.Zero)
+        graph.connect(module.output, receiver.input)
+
+        module.inputX.setValue(x)
+        module.inputY?.setValue(y)
+        module.inputZ?.setValue(z)
+        module.onMessageReceived(module.inputX, Message.FloatValue(ScoreClock.now(), x))
+
+        assertNotNull(result, "Result should not be null for formula '$formula'")
+        return result!!
+    }
+
+    @Test
+    fun testUnaryOperatorsFloorAndRound() {
+        assertEquals(3.0, evaluateFormula("floor(x)", x = 3.8))
+        assertEquals(3.0, evaluateFormula("floor(x)", x = 3.0))
+        assertEquals(-3.0, evaluateFormula("floor(x)", x = -2.3))
+
+        assertEquals(3.0, evaluateFormula("round(x)", x = 3.2))
+        assertEquals(4.0, evaluateFormula("round(x)", x = 3.7))
+        assertEquals(-3.0, evaluateFormula("round(x)", x = -2.8))
+    }
+
+    @Test
+    fun testPitchFrequencyConversionOperators() {
+        // Pitch to frequency: Concert A (69.0) -> 440.0 Hz
+        assertEquals(440.0, evaluateFormula("p2f(x)", x = 69.0), 1e-4)
+
+        // Frequency to pitch: 440.0 Hz -> Concert A (69.0)
+        assertEquals(69.0, evaluateFormula("f2p(x)", x = 440.0), 1e-4)
+
+        // Roundtrip: f2p(p2f(x)) == x
+        assertEquals(60.0, evaluateFormula("f2p(p2f(x))", x = 60.0), 1e-4)
+        assertEquals(72.5, evaluateFormula("f2p(p2f(x))", x = 72.5), 1e-4)
+
+        // Compound expression with floor and p2f
+        assertEquals(440.0, evaluateFormula("p2f(floor(x))", x = 69.8), 1e-4)
+    }
+
+    @Test
+    fun testRandVoidFunction() {
+        // Test multiple evaluations of rand()
+        for (i in 0 until 20) {
+            val v = evaluateFormula("rand()")
+            assertTrue(v >= 0.0 && v < 1.0, "rand() value $v should be in [0.0, 1.0)")
+        }
+
+        // Test rand() in compound expression: round(rand() * 10)
+        for (i in 0 until 20) {
+            val v = evaluateFormula("round(rand() * 10)")
+            assertTrue(v >= 0.0 && v <= 10.0, "round(rand() * 10) value $v should be in [0.0, 10.0]")
+            assertEquals(kotlin.math.round(v), v, "Value should be an integer")
+        }
+    }
+
+    @Test
+    fun testResizableSizeSerializationAndDeserialization() {
+        val graphState = GraphState()
+        val module = EquationModule("f(x,y)")
+        module.compile("p2f(x) + rand()")
+        module.width = 280f
+        module.height = 75f
+        graphState.addModule(module, androidx.compose.ui.geometry.Offset.Zero)
+
+        // Serialize
+        val jsonStr = GraphSerializer.serialize(graphState, graphState.modules)
+        assertTrue(jsonStr.contains("\"w\":280") || jsonStr.contains("\"w\": 280"), "Serialized JSON should contain width")
+        assertTrue(jsonStr.contains("\"h\":75") || jsonStr.contains("\"h\": 75"), "Serialized JSON should contain height")
+
+        // Deserialize
+        val newGraphState = GraphState()
+        GraphSerializer.deserialize(newGraphState, jsonStr)
+        val deserialized = newGraphState.modules.find { it.name == "f(x,y)" } as? EquationModule
+        assertNotNull(deserialized)
+        assertEquals("p2f(x) + rand()", deserialized.equation)
+        assertEquals(280f, deserialized.width)
+        assertEquals(75f, deserialized.height)
+    }
 }

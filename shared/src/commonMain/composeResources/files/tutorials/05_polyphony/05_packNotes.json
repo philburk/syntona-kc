@@ -6,7 +6,7 @@
       "name": "comment",
       "x": 46.9,
       "y": 13,
-      "text": "We can convert regular numbers into NOTE_ON messages using the packNotes module. This allows us to do algorithmic composition\n\nHow it works:\nThe clocks drives the random number generator. The random numbers are between 0.0 and 1.0. So we scale them up to a reasonable pitch range.  Then we convert those numbers into NOTE_ONs using the packNote and play them on the polyPatch.",
+      "text": "We can convert regular numbers into NOTE_ON messages using the packNotes module. This allows us to do algorithmic composition\n\nHow it works:\nThe clocks drives the rand() function. The random numbers are between 0.0 and 1.0. So we scale them up to a reasonable pitch range.  Then we convert those numbers into notes using the packNote and play them on the polyPatch.",
       "w": 493.6941,
       "h": 150.63818
     },
@@ -436,8 +436,8 @@
       "id": 4,
       "type": "ksyn.sources.sineOsc",
       "name": "sineOsc",
-      "x": 363.9,
-      "y": 394,
+      "x": 368.9,
+      "y": 401,
       "jacks": {
         "frequency": {
           "v": 2.903507709503174,
@@ -459,8 +459,8 @@
       "id": 5,
       "type": "music.compose.beatClock",
       "name": "beatClock",
-      "x": 41.9,
-      "y": 301,
+      "x": 55.9,
+      "y": 299,
       "jacks": {
         "tempo": {
           "v": 120,
@@ -473,83 +473,26 @@
     },
     {
       "id": 6,
-      "type": "core.math.random",
-      "name": "random",
-      "x": 151.9,
-      "y": 225,
-      "jacks": {
-        "kick": {
-          "v": 1441,
-          "min": 0,
-          "max": 100,
-          "kickable": true
-        }
-      }
+      "type": "core.input.loadKick",
+      "name": "loadKick",
+      "x": 19,
+      "y": 217.1
     },
     {
       "id": 7,
-      "type": "core.input.loadKick",
-      "name": "loadKick",
-      "x": 12,
-      "y": 234.1
-    },
-    {
-      "id": 8,
-      "type": "core.math.*",
-      "name": "*",
-      "x": 246.9,
-      "y": 207,
-      "jacks": {
-        "A": {
-          "v": 0.5026417265304739,
-          "min": 0,
-          "max": 100,
-          "kickable": true
-        },
-        "B": {
-          "v": 33.092850557371676,
-          "min": 0,
-          "max": 100,
-          "kickable": false
-        }
-      }
-    },
-    {
-      "id": 9,
-      "type": "core.math.+",
-      "name": "+",
-      "x": 307,
-      "y": 210.9,
-      "jacks": {
-        "A": {
-          "v": 16.633847539972255,
-          "min": 0,
-          "max": 100,
-          "kickable": true
-        },
-        "B": {
-          "v": 43.527716272588926,
-          "min": 0,
-          "max": 100,
-          "kickable": false
-        }
-      }
-    },
-    {
-      "id": 10,
       "type": "music.voices.packNote",
       "name": "packNote",
-      "x": 367.9,
-      "y": 198.9,
+      "x": 365.9,
+      "y": 216.9,
       "jacks": {
         "pitch": {
-          "v": 60.161563812561184,
+          "v": 58,
           "min": 0,
           "max": 100,
           "kickable": true
         },
         "tag": {
-          "v": 1441,
+          "v": 1013,
           "min": -1,
           "max": 127,
           "kickable": false
@@ -567,6 +510,24 @@
           "kickable": false
         }
       }
+    },
+    {
+      "id": 8,
+      "type": "core.math.f(x)",
+      "name": "f(x)",
+      "x": 160.9,
+      "y": 332,
+      "jacks": {
+        "x": {
+          "v": 1013,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      },
+      "equation": "floor(36+rand()*25)",
+      "w": 189.125,
+      "h": 36.875
     }
   ],
   "connections": [
@@ -589,43 +550,19 @@
       "toJack": "vibrato"
     },
     {
-      "from": 7,
+      "from": 6,
       "fromJack": "kick",
       "to": 5,
       "toJack": "start"
     },
     {
-      "from": 5,
-      "fromJack": "output",
-      "to": 6,
-      "toJack": "kick"
-    },
-    {
-      "from": 6,
-      "fromJack": "value",
-      "to": 8,
-      "toJack": "A"
-    },
-    {
-      "from": 8,
-      "fromJack": "out",
-      "to": 9,
-      "toJack": "A"
-    },
-    {
-      "from": 9,
-      "fromJack": "out",
-      "to": 10,
-      "toJack": "pitch"
-    },
-    {
-      "from": 10,
+      "from": 7,
       "fromJack": "out",
       "to": 1,
       "toJack": "input"
     },
     {
-      "from": 10,
+      "from": 7,
       "fromJack": "out",
       "to": 3,
       "toJack": "in"
@@ -633,8 +570,20 @@
     {
       "from": 5,
       "fromJack": "output",
-      "to": 10,
+      "to": 7,
       "toJack": "tag"
+    },
+    {
+      "from": 5,
+      "fromJack": "output",
+      "to": 8,
+      "toJack": "x"
+    },
+    {
+      "from": 8,
+      "fromJack": "out",
+      "to": 7,
+      "toJack": "pitch"
     }
   ],
   "windowX": 10,

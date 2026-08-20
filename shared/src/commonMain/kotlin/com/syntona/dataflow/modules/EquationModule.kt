@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
 import kotlin.math.pow
+import kotlin.random.Random
 
 class EquationModule(type: String) : Module(type) {
     private var _equation by mutableStateOf("x")
@@ -15,6 +16,9 @@ class EquationModule(type: String) : Module(type) {
             _equation = value
             compile(value)
         }
+
+    var width by mutableStateOf(180f)
+    var height by mutableStateOf(if (type == "f(x,y,z)") 72f else if (type == "f(x,y)") 52f else 40f)
 
     var errorMessage by mutableStateOf<String?>(null)
     private var parsedAst: ExpressionNode? = null
@@ -82,8 +86,14 @@ class EquationModule(type: String) : Module(type) {
                     throw IllegalArgumentException("Variable '${node.name}' not allowed in $name module")
                 }
             }
+            is NullaryNode -> {
+                val allowed = listOf("rand")
+                if (node.operation !in allowed) {
+                    throw IllegalArgumentException("Unknown function: ${node.operation}()")
+                }
+            }
             is UnaryNode -> {
-                val allowed = listOf("+", "-", "sin", "cos", "tan", "ln", "log", "exp", "sqrt", "abs")
+                val allowed = listOf("+", "-", "sin", "cos", "tan", "ln", "log", "exp", "sqrt", "abs", "floor", "round", "p2f", "f2p")
                 if (node.operation !in allowed) {
                     throw IllegalArgumentException("Unknown function: ${node.operation}")
                 }
@@ -111,6 +121,12 @@ class EquationModule(type: String) : Module(type) {
                     else -> 0.0
                 }
             }
+            is NullaryNode -> {
+                when (node.operation) {
+                    "rand" -> Random.nextDouble()
+                    else -> throw IllegalArgumentException("Unknown function: ${node.operation}()")
+                }
+            }
             is UnaryNode -> {
                 val arg = evaluateAst(node.arg, x, y, z)
                 when (node.operation) {
@@ -123,6 +139,10 @@ class EquationModule(type: String) : Module(type) {
                     "exp" -> kotlin.math.exp(arg)
                     "sqrt" -> kotlin.math.sqrt(arg)
                     "abs" -> kotlin.math.abs(arg)
+                    "floor" -> kotlin.math.floor(arg)
+                    "round" -> kotlin.math.round(arg)
+                    "p2f" -> com.softsynth.math.AudioMath.pitchToFrequency(arg)
+                    "f2p" -> com.softsynth.math.AudioMath.frequencyToPitch(arg)
                     else -> throw IllegalArgumentException("Unknown unary operation: ${node.operation}")
                 }
             }
@@ -146,6 +166,7 @@ class EquationModule(type: String) : Module(type) {
 sealed interface ExpressionNode
 data class NumericNode(val value: Double) : ExpressionNode
 data class VariableNode(val name: String) : ExpressionNode
+data class NullaryNode(val operation: String) : ExpressionNode
 data class UnaryNode(val operation: String, val arg: ExpressionNode) : ExpressionNode
 data class BinaryNode(val operation: String, val left: ExpressionNode, val right: ExpressionNode) : ExpressionNode
 
@@ -257,6 +278,11 @@ class SimpleExpressionParser(val input: String) {
         if (pos < input.length && input[pos] == '(') {
             // Function call
             pos++ // consume '('
+            skipWhitespace()
+            if (pos < input.length && input[pos] == ')') {
+                pos++ // consume ')'
+                return NullaryNode(name)
+            }
             val arg = parseExpression()
             skipWhitespace()
             if (pos >= input.length || input[pos] != ')') {
