@@ -5,6 +5,11 @@ MAKE SOME MUSIC!
 
 DAHDSR decay needs higher range in KSyn.
 
+BUG: the "a*" module in twoOpFm is just "a".
+
+BUG: saving and loading twoOpFM loses values for the knobs. I have to tweak the knobs to apply the
+displayed value. Need simpler example.
+
 BUG: Save menu does not work for tutorial resources, no error message, * still on.
 
 BUG: Why does envAD not hold after the attack until off()?

@@ -33,6 +33,9 @@ help/music/input/pianoRoll.json
 instruments/sawBasic.json
 instruments/sawLowPass.json
 instruments/twoOpFM.json
+instruments/twoOpFM_2.json
+instruments/twoOpFM_3.json
+instruments/twoOpFM_old.json
 sounds/drumFM.json
 tutorials/01_tour/01_sawtooth_modulation.json
 tutorials/01_tour/02_envelope_editor.json
@@ -63,3 +66,4 @@ tutorials/05_polyphony/03_vibrato.json
 tutorials/05_polyphony/04_delayed_vibrato.json
 tutorials/05_polyphony/05_packNotes.json
 tutorials/06_midi/00_midi_intro.json
+tutorials/06_midi/01_midi_input.json

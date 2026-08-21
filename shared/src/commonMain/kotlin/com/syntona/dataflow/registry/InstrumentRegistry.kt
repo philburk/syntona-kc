@@ -96,6 +96,9 @@ object InstrumentRegistry {
         newPatch.graphState.isDeserializing = true
         try {
             newPatch.graphState.removeModulesDirectly(newPatch.graphState.modules.toList())
+            if (newPatch is PolyPatchModule) {
+                newPatch.clearVoices()
+            }
             GraphSerializer.deserialize(newPatch.graphState, jsonContent, Offset.Zero, 1.0f)
             if (newPatch is PolyPatchModule) {
                 newPatch.ensureDefaultModulesExist()

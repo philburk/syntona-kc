@@ -251,18 +251,27 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
         }
     }
 
+    fun clearVoices() {
+        for (voice in voices) {
+            voice.templateToVoiceMap.clear()
+            voice.voiceToTemplateMap.clear()
+            voice.graphState.removeModulesDirectly(voice.graphState.modules.toList())
+            voice.graphState.connections.clear()
+        }
+        for (mixer in auxMixers.values) {
+            if (mixer.isStartRequired) mixer.stop()
+            SynthKSyn.synth.remove(mixer)
+        }
+        auxMixers.clear()
+    }
+
     fun syncInputJackValue(jack: InputJack, value: Double) {
         if (!isInitialized) return
         val visibleModule = jack.module
         for (voice in voices) {
             val voiceMod = voice.templateToVoiceMap[visibleModule] ?: continue
             val voiceJack = findMatchingInputJack(voiceMod, jack) ?: continue
-            if (voiceJack is AudioInputJack) {
-                val ts = TimeStamp(SynthKSyn.synth.currentTime)
-                voiceJack.unitInputPort.set(voiceJack.partIndex, value.toFloat(), ts)
-            } else {
-                voiceJack.setValue(value)
-            }
+            voiceJack.setValue(value)
         }
     }
 
@@ -471,7 +480,32 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
     private fun createVoiceModule(templateModule: Module): Module {
         val voiceModule = when (templateModule) {
             is InputModule -> {
-                InputModule().apply { name = templateModule.name }
+                InputModule().apply {
+                    name = templateModule.name
+                    defaultMin = templateModule.defaultMin
+                    defaultMax = templateModule.defaultMax
+                    defaultValue = templateModule.defaultValue
+                    hasValue = templateModule.hasValue
+                    defaultIsKickable = templateModule.defaultIsKickable
+                }
+            }
+            is KnobModule -> {
+                KnobModule().apply {
+                    name = templateModule.name
+                    value = templateModule.value
+                }
+            }
+            is FaderModule -> {
+                FaderModule().apply {
+                    name = templateModule.name
+                    value = templateModule.value
+                }
+            }
+            is NumberModule -> {
+                NumberModule().apply {
+                    name = templateModule.name
+                    value = templateModule.value
+                }
             }
             is AudioInputModule -> {
                 AudioInputModule().apply { name = templateModule.name }

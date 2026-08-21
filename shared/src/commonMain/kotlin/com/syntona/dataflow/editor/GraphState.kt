@@ -133,6 +133,18 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
         if (connections.none { it.output == output && it.input == input }) {
             connections.add(UIConnection(output, input))
         }
+        if (output !is AudioOutputJack) {
+            val currentValue = when (val m = output.module) {
+                is com.syntona.dataflow.modules.KnobModule -> m.value
+                is com.syntona.dataflow.modules.FaderModule -> m.value
+                is com.syntona.dataflow.modules.NumberModule -> m.value
+                is com.syntona.dataflow.modules.InputModule -> if (m.hasValue) m.defaultValue else null
+                else -> if (output.getValue() != 0.0) output.getValue() else null
+            }
+            if (currentValue != null) {
+                input.receive(Message.FloatValue(com.syntona.core.model.ScoreTime.Zero, currentValue))
+            }
+        }
         syncRangeFromConnections(output)
         onConnectionAddedCallback?.invoke(output, input)
     }

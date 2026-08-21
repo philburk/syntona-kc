@@ -620,6 +620,9 @@ object GraphSerializer {
                         module.graphState.isDeserializing = true
                         try {
                             module.graphState.removeModulesDirectly(module.graphState.modules.toList())
+                            if (module is PolyPatchModule) {
+                                module.clearVoices()
+                            }
                             deserializeObj(module.graphState, patchObj, Offset.Zero, density, problems)
                             if (module is PolyPatchModule) {
                                 module.ensureDefaultModulesExist()
@@ -636,6 +639,9 @@ object GraphSerializer {
                                 module.graphState.isDeserializing = true
                                 try {
                                     module.graphState.removeModulesDirectly(module.graphState.modules.toList())
+                                    if (module is PolyPatchModule) {
+                                        module.clearVoices()
+                                    }
                                     val innerPatchObj = childRootVal.map["patch"] as? JsonValue.Obj
                                     if (innerPatchObj != null) {
                                         deserializeObj(module.graphState, innerPatchObj, Offset.Zero, density, problems)
@@ -662,6 +668,9 @@ object GraphSerializer {
                             module.graphState.isDeserializing = true
                             try {
                                 module.graphState.removeModulesDirectly(module.graphState.modules.toList())
+                                if (module is PolyPatchModule) {
+                                    module.clearVoices()
+                                }
                                 val innerPatchObj = childRootVal.map["patch"] as? JsonValue.Obj
                                 if (innerPatchObj != null) {
                                     deserializeObj(module.graphState, innerPatchObj, Offset.Zero, density, problems)
@@ -681,6 +690,9 @@ object GraphSerializer {
                             module.graphState.isDeserializing = true
                             try {
                                 module.graphState.removeModulesDirectly(module.graphState.modules.toList())
+                                if (module is PolyPatchModule) {
+                                    module.clearVoices()
+                                }
                                 deserializeObj(module.graphState, patchObj, Offset.Zero, density, problems)
                                 if (module is PolyPatchModule) {
                                     module.ensureDefaultModulesExist()
@@ -697,6 +709,9 @@ object GraphSerializer {
                         module.graphState.isDeserializing = true
                         try {
                             module.graphState.removeModulesDirectly(module.graphState.modules.toList())
+                            if (module is PolyPatchModule) {
+                                module.clearVoices()
+                            }
                             deserializeObj(module.graphState, patchObj, Offset.Zero, density, problems)
                             if (module is PolyPatchModule) {
                                 module.ensureDefaultModulesExist()

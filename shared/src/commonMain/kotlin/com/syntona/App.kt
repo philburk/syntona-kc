@@ -645,6 +645,9 @@ fun App(
                                                                    newPatch.graphState.isDeserializing = true
                                                                    try {
                                                                        newPatch.graphState.removeModulesDirectly(newPatch.graphState.modules.toList())
+                                                                       if (newPatch is PolyPatchModule) {
+                                                                           newPatch.clearVoices()
+                                                                       }
                                                                        GraphSerializer.deserialize(newPatch.graphState, content, Offset.Zero, appDensity)
                                                                        if (newPatch is PolyPatchModule) {
                                                                            newPatch.ensureDefaultModulesExist()

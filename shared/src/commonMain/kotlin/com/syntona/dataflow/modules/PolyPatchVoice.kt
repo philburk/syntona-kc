@@ -130,6 +130,11 @@ class PolyPatchVoice(
 
     fun findVoiceSpecialInput(name: String): Module? {
         val lower = name.lowercase()
+        val templateMod = parentPolyPatch.graphState.modules.find { it.name.lowercase() == lower }
+        if (templateMod != null) {
+            val mapped = templateToVoiceMap[templateMod]
+            if (mapped != null) return mapped
+        }
         return graphState.modules.find { it.name.lowercase() == lower }
     }
 

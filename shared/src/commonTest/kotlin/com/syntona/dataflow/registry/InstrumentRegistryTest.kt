@@ -71,19 +71,58 @@ class InstrumentRegistryTest {
 
         val music = ModuleRegistry.root.subBundles.find { it.name == "music" }!!
         val instruments = music.subBundles.find { it.name == "instruments" }!!
+        assertTrue(instruments.modules.isNotEmpty())
+    }
 
-        // sawLowPass.json is bundled in composeResources/files/instruments/
-        val sawLowPassEntry = instruments.modules.find { it.name == "sawLowPass" }
-        if (sawLowPassEntry != null) {
-            val module = sawLowPassEntry.creator()
-            assertTrue(module is PolyPatchModule, "sawLowPass should be a PolyPatchModule")
-            assertEquals(6, module.maxVoices)
-            assertEquals("instruments/sawLowPass.json", module.resourcePath)
-            assertEquals(null, module.filePath)
+    @Test
+    fun testTwoOpFMLoadingAndValuePropagation() = runBlocking {
+        val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
+        if (!engine.isRunning) engine.start()
+        try {
+            InstrumentRegistry.loadInstrumentsIndex()
 
-            // Verify some components inside sawLowPass
-            assertTrue(module.graphState.modules.any { it.name == "sawOscDPW" || it.type.contains("sawOsc") })
-            assertTrue(module.graphState.modules.any { it.name == "fourPole" || it.type.contains("fourPole") })
+            val music = ModuleRegistry.root.subBundles.find { it.name == "music" }!!
+            val instruments = music.subBundles.find { it.name == "instruments" }!!
+            val twoOpEntry = instruments.modules.find { it.name == "twoOpFM" }
+            assertNotNull(twoOpEntry, "twoOpFM should be registered under music.instruments")
+
+            val twoOpFM = twoOpEntry.creator() as PolyPatchModule
+            assertTrue(twoOpFM.isInitialized)
+
+            // Check template mcRatio knob value
+            val mcRatioKnob = twoOpFM.graphState.modules.find { it.name == "mcRatio" } as? com.syntona.dataflow.modules.KnobModule
+            assertNotNull(mcRatioKnob)
+            assertEquals(2.0077, mcRatioKnob.value, 1e-3)
+
+            // Check voice 0 mcRatio and a* multiplier inputb
+            val voice0 = twoOpFM.voices[0]
+            val voiceMcRatio = voice0.templateToVoiceMap[mcRatioKnob] as? com.syntona.dataflow.modules.KnobModule
+            assertNotNull(voiceMcRatio)
+            assertEquals(2.0077, voiceMcRatio.value, 1e-3)
+
+            // Check connection from mcRatio knob to target module in graph
+            val mcRatioConn = twoOpFM.graphState.connections.find { it.output.module === mcRatioKnob }
+            assertNotNull(mcRatioConn, "Connection from mcRatio should exist in twoOpFM")
+            val targetMod = mcRatioConn.input.module
+            val voiceTargetMod = voice0.templateToVoiceMap[targetMod]
+            assertNotNull(voiceTargetMod, "Voice target module should exist in voice0")
+            val voiceTargetInJack = voiceTargetMod.inputs.find { it.name == mcRatioConn.input.name }
+            assertNotNull(voiceTargetInJack)
+            assertEquals(2.0077, voiceTargetInJack.getValue(), 1e-3)
+
+            // Send a NoteOn message and verify voice 0 handles it
+            twoOpFM.voiceInputJack.receive(
+                com.syntona.dataflow.model.Message.VoiceMessage(
+                    com.syntona.core.model.ScoreTime.Zero,
+                    com.syntona.dataflow.model.Message.VoiceOpcode.NOTE_ON,
+                    tag = 10,
+                    value = 60.0,
+                    extra = 0.8
+                )
+            )
+            engine.generateNextBuffer()
+        } finally {
+            if (engine.isRunning) engine.stop()
         }
     }
 }

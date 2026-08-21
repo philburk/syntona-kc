@@ -48,10 +48,34 @@ class MidiEndpointListingTest {
     }
 
     @Test
+    fun compoundNameCombinesNameAndManufacturer() = withService {
+        val source = MidiDeviceService.endpointsFor(MidiDirection.SOURCE).single()
+        assertEquals("Loopback Out, kc-midi-bridge", source.compoundName())
+    }
+
+    @Test
     fun manufacturerIsResolvedFromASavedName() = withService {
         assertEquals(
             "kc-midi-bridge",
             MidiDeviceService.manufacturerOf("Loopback Out", MidiDirection.SOURCE)
+        )
+        assertEquals(
+            "kc-midi-bridge",
+            MidiDeviceService.manufacturerOf("Loopback Out, kc-midi-bridge", MidiDirection.SOURCE)
+        )
+    }
+
+    @Test
+    fun resolveLoadedDeviceReturnsCompoundName() = withService {
+        // Plain name resolves to compound name
+        assertEquals(
+            "Loopback Out, kc-midi-bridge",
+            MidiDeviceService.resolveLoadedDevice(MidiDirection.SOURCE, "Loopback Out")
+        )
+        // Compound name resolves to compound name
+        assertEquals(
+            "Loopback Out, kc-midi-bridge",
+            MidiDeviceService.resolveLoadedDevice(MidiDirection.SOURCE, "Loopback Out, kc-midi-bridge")
         )
     }
 
