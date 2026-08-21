@@ -1,0 +1,189 @@
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 46.9,
+      "y": 13,
+      "text": "We can use the midiOut module to control external synthesizers.\n\nTo Do:\n* Double click the midiOut module header to open the editor.\n* Select an external synthesizer from the \"Destination Device:\" menu.\n* Listen to the algorithmic composition.\n\nOn desktop the Gervill synth is a good choice.\n\nIf you have Logic Pro then select \"Logic Pro Virtual In\". Then in Logic Pro select that as the \"Track\" input. Make sure the channels match. Now you can use Logic's plugin instruments.",
+      "w": 702.62476,
+      "h": 232.53418
+    },
+    {
+      "id": 1,
+      "type": "music.compose.beatClock",
+      "name": "beatClock",
+      "x": 102.9,
+      "y": 333,
+      "jacks": {
+        "tempo": {
+          "v": 120,
+          "min": 20,
+          "max": 300,
+          "kickable": false
+        }
+      },
+      "division": "3/8"
+    },
+    {
+      "id": 2,
+      "type": "core.input.loadKick",
+      "name": "loadKick",
+      "x": 6,
+      "y": 348.1
+    },
+    {
+      "id": 3,
+      "type": "music.midi.packNote",
+      "name": "packNote",
+      "x": 597.9,
+      "y": 366.9,
+      "jacks": {
+        "pitch": {
+          "v": 45,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "tag": {
+          "v": 424,
+          "min": -1,
+          "max": 127,
+          "kickable": false
+        },
+        "amplitude": {
+          "v": 0.8316756055871894,
+          "min": 0,
+          "max": 2,
+          "kickable": false
+        },
+        "duration": {
+          "v": 20,
+          "min": 0,
+          "max": 1000,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "music.midi.midiOut",
+      "name": "midiOut",
+      "x": 707.9,
+      "y": 354.1,
+      "jacks": {
+        "in": {
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        },
+        "channel": {
+          "v": 1,
+          "min": 1,
+          "max": 16,
+          "kickable": false
+        }
+      },
+      "device": "Logic Pro Virtual In, Unknown vendor",
+      "channel": 1
+    },
+    {
+      "id": 5,
+      "type": "music.compose.recSeq",
+      "name": "recSeq",
+      "x": 214.9,
+      "y": 335,
+      "jacks": {
+        "step": {
+          "v": 4821,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "stepsPerCycle": {
+          "v": 8,
+          "min": 2,
+          "max": 32,
+          "kickable": false
+        },
+        "density": {
+          "v": 0.5,
+          "min": 0,
+          "max": 1,
+          "kickable": false
+        },
+        "limit": {
+          "v": 11,
+          "min": 2,
+          "max": 35,
+          "kickable": false
+        },
+        "maxJump": {
+          "v": 5,
+          "min": 2,
+          "max": 35,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "music.compose.scale",
+      "name": "scale",
+      "x": 335,
+      "y": 370.1,
+      "jacks": {
+        "in": {
+          "v": 4,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "offset": {
+          "v": 36,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        }
+      },
+      "scale": "0,2,4,7,9"
+    }
+  ],
+  "connections": [
+    {
+      "from": 2,
+      "fromJack": "kick",
+      "to": 1,
+      "toJack": "start"
+    },
+    {
+      "from": 3,
+      "fromJack": "out",
+      "to": 4,
+      "toJack": "in"
+    },
+    {
+      "from": 1,
+      "fromJack": "output",
+      "to": 5,
+      "toJack": "step"
+    },
+    {
+      "from": 5,
+      "fromJack": "output",
+      "to": 6,
+      "toJack": "in"
+    },
+    {
+      "from": 6,
+      "fromJack": "out",
+      "to": 3,
+      "toJack": "pitch"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 853,
+  "windowHeight": 675.9482421875
+}

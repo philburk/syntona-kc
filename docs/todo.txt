@@ -5,12 +5,7 @@ MAKE SOME MUSIC!
 
 DAHDSR decay needs higher range in KSyn.
 
-BUG: the "a*" module in twoOpFm is just "a".
-
-BUG: saving and loading twoOpFM loses values for the knobs. I have to tweak the knobs to apply the
-displayed value. Need simpler example.
-
-BUG: Save menu does not work for tutorial resources, no error message, * still on.
+BUG: deleting modules using BACKSPACE or DELETE key sometimes does not work. Edit menu Cut always works.
 
 BUG: Why does envAD not hold after the attack until off()?
 Maybe we do need an envAR that holds?
@@ -20,11 +15,6 @@ BUG: EnvelopeEditor, points at end or added to the end cannot be moved up or del
 EnvelopeEditor needs axis labels, time extend at right edge (KSyn)
 
 add *= or a ranger module for easy scaling of knobs to frequency.
-
-MIDI Device menu should combine the name and the manufacturer into one string "{name}, {manufacturer}".
-An example might be "keyLab49, Arturia".
-Show that name in the menu for selecting MIDI devices.
-Also save that compound string for the device field in the JSON file and in Settings Storage.
 
 Claude says:
 unsubscribe, subscribeJob, and subscriptionGeneration are plain fields written from both the
@@ -47,12 +37,6 @@ Website softsynth.com/syntona
 
 More tutorials. Audio, timeline, pianoroll, Help
 
-MIDI
-* midiIn to a polyPatch
-* add a matchControl on ModWheel to control vibrato depth
-* connect a drum pad on channel10 to some sounds
-* recSeq driving a midiOut, connect to Gervill
-* connect to Logic Pro
 
 Audio Input Processing
 * lineIn - delay - lineOut

@@ -486,13 +486,13 @@
       "y": 216.9,
       "jacks": {
         "pitch": {
-          "v": 58,
+          "v": 38,
           "min": 0,
           "max": 100,
           "kickable": true
         },
         "tag": {
-          "v": 1013,
+          "v": 152,
           "min": -1,
           "max": 127,
           "kickable": false
@@ -519,7 +519,7 @@
       "y": 332,
       "jacks": {
         "x": {
-          "v": 1013,
+          "v": 152,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -528,6 +528,15 @@
       "equation": "floor(36+rand()*25)",
       "w": 189.125,
       "h": 36.875
+    },
+    {
+      "id": 9,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 177.9,
+      "y": 492,
+      "filePath": "tutorials/06_midi/00_midi_intro.json",
+      "buttonText": ">> Next, MIDI introduction"
     }
   ],
   "connections": [

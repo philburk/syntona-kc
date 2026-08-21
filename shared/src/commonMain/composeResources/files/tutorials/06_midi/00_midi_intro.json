@@ -9,6 +9,15 @@
       "text": "In this section you will learn how to use MIDI to control Syntona using a keyboard. You can also use MIDI to control external synthesizers.\n\nYou will need a MIDI keyboard or drum pad.\nIdeally the keyboard should have some knobs.\n\nClick the link below to begin.\n",
       "w": 572.57324,
       "h": 179
+    },
+    {
+      "id": 1,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 175.9,
+      "y": 278,
+      "filePath": "tutorials/06_midi/01_midi_input.json",
+      "buttonText": ">> Next, MIDI input"
     }
   ],
   "connections": [],
