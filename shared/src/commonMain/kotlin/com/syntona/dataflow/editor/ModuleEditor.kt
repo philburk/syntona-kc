@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.input.key.onKeyEvent
 import com.syntona.dataflow.model.AudioInputJack
+import com.syntona.dataflow.model.CommandJack
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
@@ -141,7 +142,7 @@ fun ModuleEditor(module: Module, onDismiss: () -> Unit, modifier: Modifier = Mod
                 } else if (module is MidiOutModule) {
                     MidiOutModuleEditor(module)
                 } else if (module is InputModule) {
-                    module.patchJack?.let { jack ->
+                    module.patchJack?.takeIf { it !is CommandJack }?.let { jack ->
                         JackEditorRow(jack)
                     }
                 } else if (module is AudioInputModule) {
@@ -149,7 +150,7 @@ fun ModuleEditor(module: Module, onDismiss: () -> Unit, modifier: Modifier = Mod
                         JackEditorRow(jack)
                     }
                 } else {
-                    module.inputs.forEach { jack ->
+                    module.inputs.filter { it !is CommandJack }.forEach { jack ->
                         JackEditorRow(jack)
                     }
                 }
@@ -194,6 +195,7 @@ private fun JackFlagCheckbox(
 
 @Composable
 private fun JackEditorRow(jack: InputJack) {
+    if (jack is CommandJack) return
     var currentValue by remember(jack) { mutableStateOf(jack.getValue()) }
 
     // FieldSet-style box: border with a legend overlapping the top edge.
@@ -540,7 +542,7 @@ private fun PackVoiceModuleEditor(module: PackVoiceModule) {
 
         androidx.compose.material3.HorizontalDivider(color = BORDER_COLOR, thickness = 1.dp)
 
-        module.inputs.filter { it !== module.opcodeIn }.forEach { jack ->
+        module.inputs.filter { it !== module.opcodeIn && it !is CommandJack }.forEach { jack ->
             JackEditorRow(jack)
         }
     }
@@ -639,7 +641,7 @@ private fun KeyNotesModuleEditor(module: KeyNotesModule) {
 
         // The octave jack replaced the old "Starting Midi Note" field: the lowest key sounds
         // at 12 * octave.
-        module.inputs.forEach { jack ->
+        module.inputs.filter { it !is CommandJack }.forEach { jack ->
             JackEditorRow(jack)
         }
     }
@@ -738,7 +740,7 @@ private fun MidiOutModuleEditor(module: MidiOutModule) {
             }
         }
         androidx.compose.material3.HorizontalDivider(color = BORDER_COLOR, thickness = 1.dp)
-        module.inputs.filter { it !== module.channelIn }.forEach { jack ->
+        module.inputs.filter { it !== module.channelIn && it !is CommandJack }.forEach { jack ->
             JackEditorRow(jack)
         }
     }

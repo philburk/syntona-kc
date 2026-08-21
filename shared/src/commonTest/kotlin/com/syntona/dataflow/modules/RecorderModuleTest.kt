@@ -3,6 +3,7 @@ package com.syntona.dataflow.modules
 import com.syntona.core.model.ScoreTime
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.AudioOutputJack
+import com.syntona.dataflow.model.CommandJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.editor.GraphSerializer
 import com.syntona.dataflow.editor.GraphState
@@ -35,6 +36,10 @@ class RecorderModuleTest {
         assertEquals("rewind", module.inputs[6].name)
         assertTrue(module.inputs[0] is AudioInputJack, "in should carry audio")
         assertTrue(module.inputs[1] is AudioInputJack, "amplitude should carry audio")
+        assertTrue(module.inputs[3] is CommandJack, "record should be CommandJack")
+        assertTrue(module.inputs[4] is CommandJack, "play should be CommandJack")
+        assertTrue(module.inputs[5] is CommandJack, "pause should be CommandJack")
+        assertTrue(module.inputs[6] is CommandJack, "rewind should be CommandJack")
 
         val latencyJack = module.latencyMillis
         assertEquals(0.0, latencyJack.min)
@@ -43,6 +48,14 @@ class RecorderModuleTest {
         assertEquals(1, module.outputs.size)
         assertEquals("out", module.outputs[0].name)
         assertTrue(module.outputs[0] is AudioOutputJack, "out should carry audio")
+    }
+
+    @Test
+    fun testNonCommandInputsExcludeCommandJacks() {
+        val module = RecorderModule()
+        val nonCommandInputs = module.inputs.filter { it !is CommandJack }
+        assertEquals(3, nonCommandInputs.size)
+        assertEquals(listOf("in", "amplitude", "latencyMs"), nonCommandInputs.map { it.name })
     }
 
     @Test

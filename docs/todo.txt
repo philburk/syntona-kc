@@ -5,7 +5,18 @@ MAKE SOME MUSIC!
 
 DAHDSR decay needs higher range in KSyn.
 
+sample, needs a way to load from a WAV file, save filename in the JSON
+save to WAV, default to "audio" folder next to the project .sntn file
+load has option to copy the WAV file into the "audio" folder
+The "recorder"
+
+
 BUG: deleting modules using BACKSPACE or DELETE key sometimes does not work. Edit menu Cut always works.
+
+Do not show a jack editor for CommandJacks in the ModuleEditor.
+
+
+When selecting a new input output pair, suggest measuring latency.
 
 BUG: Why does envAD not hold after the attack until off()?
 Maybe we do need an envAR that holds?
@@ -39,6 +50,7 @@ More tutorials. Audio, timeline, pianoroll, Help
 
 
 Audio Input Processing
+* Audio settings
 * lineIn - delay - lineOut
 * measure latency
 * use a recorder, save audio to a file
@@ -76,10 +88,6 @@ Add theremin (XY) input module.
 
 Also add a "sounds" folder for drum sounds, sound effects, non-melodic instruments.
 
-Add patch inputs for start/stop/etc that are commands with buttons.
-Maybe automatically make a button for "start", "on", "rewind"
-and other commands.
-Or would it be more transparent if we have a command module that can be placed within a patch.
 
 # ----------------------------------------------- MEDIUM PRIORITY
 
