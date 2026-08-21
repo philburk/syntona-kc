@@ -252,8 +252,12 @@ object MidiDeviceService {
             return lastUsedDevice(direction)
         }
         val available = endpointsFor(direction)
-        if (available.isNotEmpty() && !isDeviceAvailable(direction, savedName)) {
-            return lastUsedDevice(direction)
+        if (available.isNotEmpty()) {
+            val endpoint = findEndpoint(savedName, direction)
+            if (endpoint == null) {
+                return lastUsedDevice(direction)
+            }
+            return endpoint.compoundName()
         }
         return savedName
     }
@@ -409,9 +413,14 @@ object MidiDeviceService {
     }
 
     private fun findEndpoint(deviceName: String, direction: MidiDirection): MidiEndpoint? {
-        endpoints.firstOrNull { it.name == deviceName && it.direction == direction }
-            ?.let { return it }
-        return bridge?.endpointsNow()?.firstOrNull { it.name == deviceName && it.direction == direction }
+        if (deviceName.isEmpty()) return null
+        val currentEndpoints = endpoints.filter { it.direction == direction }
+        currentEndpoints.firstOrNull { it.compoundName() == deviceName }?.let { return it }
+        currentEndpoints.firstOrNull { it.name == deviceName }?.let { return it }
+
+        val nowEndpoints = bridge?.endpointsNow()?.filter { it.direction == direction } ?: emptyList()
+        nowEndpoints.firstOrNull { it.compoundName() == deviceName }?.let { return it }
+        return nowEndpoints.firstOrNull { it.name == deviceName }
     }
 
     /**
@@ -426,3 +435,11 @@ object MidiDeviceService {
         }
     }
 }
+
+/**
+ * Combines the device name and manufacturer into "{name}, {manufacturer}".
+ * If manufacturer is empty, returns "{name}".
+ */
+fun MidiEndpoint.compoundName(): String =
+    if (manufacturer.isNotEmpty()) "$name, $manufacturer" else name
+

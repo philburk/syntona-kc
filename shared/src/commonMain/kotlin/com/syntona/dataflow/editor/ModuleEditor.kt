@@ -36,6 +36,7 @@ import com.syntona.dataflow.modules.MidiInModule
 import com.syntona.dataflow.modules.MidiOutModule
 import com.syntona.dataflow.modules.PackVoiceModule
 import com.syntona.core.midi.MidiDeviceService
+import com.syntona.core.midi.compoundName
 import com.softsynth.midibridge.MidiDirection
 import com.syntona.dataflow.editor.FileState
 
@@ -443,11 +444,6 @@ private fun MidiDeviceEditor(
     LaunchedEffect(Unit) { MidiDeviceService.open() }
     val devices = MidiDeviceService.endpointsFor(direction)
     val error = MidiDeviceService.errorMessage
-    // Only the name is stored in the patch, so the manufacturer for the current selection is
-    // looked up from the attached devices. Empty when the device is not plugged in right now.
-    val selectedMaker = if (selected.isEmpty()) "" else {
-        MidiDeviceService.manufacturerOf(selected, direction)
-    }
 
     Column(
         modifier = Modifier.padding(12.dp),
@@ -455,7 +451,7 @@ private fun MidiDeviceEditor(
     ) {
         Text(label, fontSize = 12.sp, color = LABEL_COLOR)
         Box {
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .border(1.dp, BORDER_COLOR, RoundedCornerShape(4.dp))
@@ -464,9 +460,6 @@ private fun MidiDeviceEditor(
                     .clickable { expanded = true }
             ) {
                 Text(if (selected.isEmpty()) "None" else selected, fontSize = 13.sp)
-                if (selectedMaker.isNotEmpty()) {
-                    Text(selectedMaker, fontSize = 11.sp, color = LABEL_COLOR)
-                }
             }
             androidx.compose.material3.DropdownMenu(
                 expanded = expanded,
@@ -481,29 +474,16 @@ private fun MidiDeviceEditor(
                     }
                 )
                 devices.forEach { endpoint ->
-                    val hasMaker = endpoint.manufacturer.isNotEmpty()
+                    val compound = endpoint.compoundName()
                     CompactDropdownMenuItem(
                         text = {
-                            // Name over manufacturer, matching the kc-midi-bridge demo. Several
-                            // devices report a name as vague as "MIDI", and the maker is what
-                            // tells them apart.
-                            Column {
-                                Text(endpoint.name, fontSize = 12.sp)
-                                if (hasMaker) {
-                                    Text(
-                                        endpoint.manufacturer,
-                                        fontSize = 10.sp,
-                                        color = LABEL_COLOR
-                                    )
-                                }
-                            }
+                            Text(compound, fontSize = 12.sp)
                         },
                         onClick = {
-                            onSelect(endpoint.name)
+                            onSelect(compound)
                             FileState.markDirty()
                             expanded = false
-                        },
-                        height = if (hasMaker) CompactMenuItemHeightTwoLine else CompactMenuItemHeight
+                        }
                     )
                 }
             }
