@@ -1,9 +1,15 @@
 package com.syntona.dataflow.modules
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.softsynth.ksyn.util.SampleLoader
 import com.syntona.core.audio.AudioSettings
 import com.syntona.core.audio.SynthKSyn
+import com.syntona.core.audio.writeWavFile
 import com.syntona.core.model.ScoreClock
 import com.syntona.core.model.ScoreTime
+import com.syntona.dataflow.editor.readBinaryFileDirect
 import com.syntona.dataflow.engine.DataFlowEngine
 import com.syntona.dataflow.engine.EngineAware
 import com.syntona.dataflow.engine.ScheduledEvent
@@ -37,6 +43,9 @@ class RecorderModule : Module("recorder"), EngineAware {
     val rewindIn: CommandJack
     val output: AudioOutputJack
 
+    var filePath: String? by mutableStateOf(null)
+    var isLoadedFromFile: Boolean by mutableStateOf(false)
+
     private var engine: DataFlowEngine? = null
     private var replenishEvent: ScheduledEvent? = null
     private var pendingStopEvent: ScheduledEvent? = null
@@ -45,7 +54,7 @@ class RecorderModule : Module("recorder"), EngineAware {
         get() = latencyMillis.getClippedDoubleValue() * 0.001
 
     val displayCursorSeconds: Double
-        get() = (unit.cursorSeconds - latencySeconds).coerceAtLeast(0.0)
+        get() = if (isLoadedFromFile) unit.cursorSeconds else (unit.cursorSeconds - latencySeconds).coerceAtLeast(0.0)
 
     init {
         SynthKSyn.synth.add(unit)
@@ -78,10 +87,10 @@ class RecorderModule : Module("recorder"), EngineAware {
         this.engine = engine
     }
 
-
     override fun execute(triggerMessage: Message) {
         when {
             recordIn.isKicked -> {
+                isLoadedFromFile = false
                 pendingStopEvent?.cancel()
                 pendingStopEvent = null
                 unit.seek(0)
@@ -91,7 +100,7 @@ class RecorderModule : Module("recorder"), EngineAware {
             playIn.isKicked -> {
                 pendingStopEvent?.cancel()
                 pendingStopEvent = null
-                val latencyFrames = (latencySeconds * unit.frameRate).toInt()
+                val latencyFrames = if (isLoadedFromFile) 0 else (latencySeconds * unit.frameRate).toInt()
                 if (unit.cursor >= unit.length || unit.cursor <= latencyFrames) {
                     unit.seek(latencyFrames)
                 }
@@ -100,7 +109,7 @@ class RecorderModule : Module("recorder"), EngineAware {
             pauseIn.isKicked -> {
                 pendingStopEvent?.cancel()
                 pendingStopEvent = null
-                val latencyNs = (latencySeconds * 1_000_000_000.0).toLong()
+                val latencyNs = if (isLoadedFromFile) 0L else (latencySeconds * 1_000_000_000.0).toLong()
                 val e = engine
                 if (unit.isRecording && latencyNs > 0L && e != null) {
                     val fireTime = triggerMessage.time + ScoreTime(latencyNs)
@@ -115,9 +124,67 @@ class RecorderModule : Module("recorder"), EngineAware {
             rewindIn.isKicked -> {
                 pendingStopEvent?.cancel()
                 pendingStopEvent = null
-                val latencyFrames = (latencySeconds * unit.frameRate).toInt()
+                val latencyFrames = if (isLoadedFromFile) 0 else (latencySeconds * unit.frameRate).toInt()
                 unit.seek(latencyFrames)
             }
+        }
+    }
+
+    fun loadWav(bytes: ByteArray, path: String? = null): Boolean {
+        return try {
+            val loaded = SampleLoader.loadFloatSample(bytes)
+            val frames = loaded.numFrames
+            val channels = loaded.channelsPerFrame
+            val data = FloatArray(frames)
+            if (channels == 1) {
+                loaded.read(0, data, 0, frames)
+            } else {
+                for (i in 0 until frames) {
+                    data[i] = loaded.readSample(i * channels)
+                }
+            }
+            unit.recording.clear()
+            var remaining = frames
+            while (remaining > 0) {
+                val chunk = minOf(remaining, unit.recording.segmentSize)
+                unit.recording.extend(chunk)
+                remaining -= chunk
+            }
+            unit.recording.write(0, data)
+            unit.seek(0)
+            isLoadedFromFile = true
+            if (path != null) filePath = path
+            true
+        } catch (e: Exception) {
+            println("Failed to load WAV into RecorderModule: ${e.message}")
+            false
+        }
+    }
+
+    fun loadWavFile(path: String): Boolean {
+        filePath = path
+        val bytes = readBinaryFileDirect(path)
+        if (bytes != null) {
+            return loadWav(bytes, path)
+        }
+        return false
+    }
+
+    fun saveWavFile(path: String): Boolean {
+        return try {
+            val startFrame = if (isLoadedFromFile) 0 else (latencySeconds * unit.frameRate).toInt().coerceIn(0, unit.length)
+            val count = unit.length - startFrame
+            val data = FloatArray(count)
+            if (count > 0) {
+                unit.recording.read(startFrame, data, 0, count)
+            }
+            val sampleRate = if (unit.frameRate > 0.0) unit.frameRate.toInt() else SynthKSyn.synth.frameRate
+            writeWavFile(path, data, sampleRate, 1)
+            filePath = path
+            true
+        } catch (e: Exception) {
+            println("Failed to save WAV from RecorderModule: ${e.message}")
+            false
         }
     }
 

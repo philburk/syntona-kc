@@ -37,6 +37,7 @@ import com.syntona.dataflow.modules.ScaleModule
 import com.syntona.dataflow.modules.BeatClockModule
 import com.syntona.dataflow.modules.TimelineModule
 import com.syntona.core.audio.AudioSettings
+import com.syntona.dataflow.modules.FloatSampleModule
 import com.syntona.dataflow.modules.RecorderModule
 import com.softsynth.ksyn.data.SegmentedEnvelope
 import com.syntona.dataflow.registry.ModuleRegistry
@@ -285,6 +286,12 @@ object GraphSerializer {
                 }
                 append("]")
             }
+            if (module is FloatSampleModule) {
+                module.filePath?.let { append(",\"filePath\":\"${it.jsonEscape}\"") }
+            }
+            if (module is RecorderModule) {
+                module.filePath?.let { append(",\"filePath\":\"${it.jsonEscape}\"") }
+            }
             // Recursively embed patch contents so jacks are restored on paste/load
             if (module is PatchModule) {
                 module.windowX?.let { append(",\"windowX\":$it") }
@@ -491,6 +498,18 @@ object GraphSerializer {
                     if (strVal != null && idx < module.numOutputs) {
                         module.values[idx] = strVal
                     }
+                }
+            }
+
+            if (module is FloatSampleModule) {
+                (obj?.map?.get("filePath") as? JsonValue.Str)?.value?.let { path ->
+                    module.loadWavFile(path)
+                }
+            }
+
+            if (module is RecorderModule) {
+                (obj?.map?.get("filePath") as? JsonValue.Str)?.value?.let { path ->
+                    module.loadWavFile(path)
                 }
             }
 

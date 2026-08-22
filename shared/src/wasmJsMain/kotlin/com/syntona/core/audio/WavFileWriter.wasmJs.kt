@@ -18,7 +18,11 @@ import org.khronos.webgl.set
 }""")
 private external fun jsDownloadWav(array: Int8Array, filename: String)
 
-actual class WavFileWriter actual constructor(private val filePath: String, private val sampleRate: Int) {
+actual class WavFileWriter actual constructor(
+    private val filePath: String,
+    private val sampleRate: Int,
+    private val numChannels: Int
+) {
     private val chunks = mutableListOf<ByteArray>()
     private var totalBytesWritten = 0
 
@@ -61,22 +65,28 @@ actual class WavFileWriter actual constructor(private val filePath: String, priv
             header[offset + 1] = ((value.toInt() shr 8) and 0xFF).toByte()
         }
 
+        val bytesPerSample = 3
+        val blockAlign = numChannels * bytesPerSample
+        val byteRate = sampleRate * blockAlign
+        val isOdd = (totalBytesWritten and 1) == 1
+        val paddedSize = totalBytesWritten + if (isOdd) 1 else 0
+
         writeAscii(0, "RIFF")
-        writeInt(4, totalBytesWritten + 36)
+        writeInt(4, paddedSize + 36)
         writeAscii(8, "WAVE")
         writeAscii(12, "fmt ")
         writeInt(16, 16) // Subchunk1Size
         writeShort(20, 1.toShort()) // AudioFormat = 1 (PCM)
-        writeShort(22, 2.toShort()) // NumChannels = 2
+        writeShort(22, numChannels.toShort()) // NumChannels
         writeInt(24, sampleRate)
-        writeInt(28, sampleRate * 6) // ByteRate
-        writeShort(32, 6.toShort()) // BlockAlign
+        writeInt(28, byteRate) // ByteRate
+        writeShort(32, blockAlign.toShort()) // BlockAlign
         writeShort(34, 24.toShort()) // BitsPerSample = 24
         writeAscii(36, "data")
         writeInt(40, totalBytesWritten)
 
         // Concatenate header and all chunks into one large JS Int8Array
-        val totalSize = 44 + totalBytesWritten
+        val totalSize = 44 + paddedSize
         val jsArray = Int8Array(totalSize)
 
         // Copy header
@@ -90,6 +100,9 @@ actual class WavFileWriter actual constructor(private val filePath: String, priv
             for (b in chunk) {
                 jsArray[writeIdx++] = b
             }
+        }
+        if (isOdd) {
+            jsArray[writeIdx] = 0
         }
 
         // Download the file!

@@ -16,10 +16,13 @@ expect fun saveResourceFileDirect(relativePath: String, content: String)
 
 expect fun chooseWavRecordFile(defaultName: String, onSelected: (path: String) -> Unit)
 
+expect fun chooseWavOpenFile(onSelected: (path: String) -> Unit)
+
 /** Read content from [path] without showing a dialog. Returns null if error or unsupported. */
 expect fun readFileDirect(path: String): String?
 
+/** Read binary content from [path] without showing a dialog. Returns null if error or unsupported. */
+expect fun readBinaryFileDirect(path: String): ByteArray?
+
 /** Read content from bundled resource [relativePath]. Returns null if error or unsupported. */
 expect fun readResourceFileDirect(relativePath: String): String?
-
-

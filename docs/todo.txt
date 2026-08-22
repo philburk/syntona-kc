@@ -5,11 +5,17 @@ MAKE SOME MUSIC!
 
 DAHDSR decay needs higher range in KSyn.
 
-sample, needs a way to load from a WAV file, save filename in the JSON
-save to WAV, default to "audio" folder next to the project .sntn file
-load has option to copy the WAV file into the "audio" folder
-The "recorder"
+Add the ability to load the contents of a sample or a recorder module from a WAV file.
+Save the filename in the JSON so the sample contents can be loaded automatically.
+Add a "Load from WAV File..." to the modules popup menu along with the "Help..." item.
 
+Look at the KSyn PlaySampleScreen.kt for an example of loading a WAV file.
+
+Add the ability to save the contents of a sample or a recorder module to a WAV file.
+Save the filename in the JSON so the sample contents can be loaded automatically.
+Add a "Save to WAV File..." to the modules popup menu along with the "Help..." item.
+
+Look at the "Capture..." button in the top toolbar for an example of saving a file.
 
 BUG: deleting modules using BACKSPACE or DELETE key sometimes does not work. Edit menu Cut always works.
 

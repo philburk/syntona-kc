@@ -4,8 +4,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.softsynth.ksyn.data.FloatSample
+import com.softsynth.ksyn.util.SampleLoader
 import com.syntona.core.audio.SynthKSyn
+import com.syntona.core.audio.writeWavFile
 import com.syntona.core.model.ScoreClock
+import com.syntona.dataflow.editor.readBinaryFileDirect
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
@@ -17,6 +20,7 @@ import com.syntona.dataflow.model.Module
  */
 class FloatSampleModule : Module("sample") {
     var sample: FloatSample by mutableStateOf(createSample())
+    var filePath: String? by mutableStateOf(null)
 
     private val queueOnIn = addCommandInput("queueOn")
     private val queueOffIn = addCommandInput("queueOff")
@@ -43,6 +47,43 @@ class FloatSampleModule : Module("sample") {
         val now = ScoreClock.now()
         rateOutput.send(Message.FloatValue(now, sample.frameRate))
         output.send(Message.DataQueueMessage(now, sample, opcode))
+    }
+
+    fun loadWav(bytes: ByteArray, path: String? = null): Boolean {
+        return try {
+            val loaded = SampleLoader.loadFloatSample(bytes)
+            sample = loaded
+            if (path != null) filePath = path
+            true
+        } catch (e: Exception) {
+            println("Failed to load WAV into FloatSampleModule: ${e.message}")
+            false
+        }
+    }
+
+    fun loadWavFile(path: String): Boolean {
+        filePath = path
+        val bytes = readBinaryFileDirect(path)
+        if (bytes != null) {
+            return loadWav(bytes, path)
+        }
+        return false
+    }
+
+    fun saveWavFile(path: String): Boolean {
+        return try {
+            val s = sample
+            val numSamples = s.numFrames * s.channelsPerFrame
+            val data = FloatArray(numSamples)
+            s.read(0, data, 0, s.numFrames)
+            val sampleRate = if (s.frameRate > 0.0) s.frameRate.toInt() else SynthKSyn.synth.frameRate
+            writeWavFile(path, data, sampleRate, s.channelsPerFrame)
+            filePath = path
+            true
+        } catch (e: Exception) {
+            println("Failed to save WAV from FloatSampleModule: ${e.message}")
+            false
+        }
     }
 
     override fun execute(triggerMessage: Message) {}

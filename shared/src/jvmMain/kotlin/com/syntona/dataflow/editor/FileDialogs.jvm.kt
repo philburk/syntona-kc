@@ -226,12 +226,44 @@ actual fun chooseWavRecordFile(defaultName: String, onSelected: (path: String) -
     }
 }
 
+actual fun chooseWavOpenFile(onSelected: (path: String) -> Unit) {
+    val chooser = JFileChooser().apply {
+        dialogTitle = "Open WAV File"
+        fileFilter = FileNameExtensionFilter("WAV files (*.wav)", "wav", "WAV")
+        if (!lastDocumentDirectory.exists()) lastDocumentDirectory.mkdirs()
+        currentDirectory = lastDocumentDirectory
+    }
+    if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+        val file = chooser.selectedFile
+        updateLastDocumentDirectory(file.parentFile)
+        onSelected(file.absolutePath)
+    }
+}
+
 actual fun readFileDirect(path: String): String? {
     return try {
         File(path).readText()
     } catch (e: Exception) {
         null
     }
+}
+
+actual fun readBinaryFileDirect(path: String): ByteArray? {
+    val candidates = listOfNotNull(
+        File(path),
+        FileState.currentFilePath?.let { File(File(it).parentFile, path) },
+        resourceRootDirectory?.let { File(it, path) },
+        lastResourceDirectory?.let { File(it, path) },
+        File("src/commonMain/composeResources/files/$path"),
+        File("shared/src/commonMain/composeResources/files/$path"),
+        File("../shared/src/commonMain/composeResources/files/$path")
+    )
+    for (file in candidates) {
+        if (file.exists() && file.isFile) {
+            return try { file.readBytes() } catch (_: Exception) { null }
+        }
+    }
+    return null
 }
 
 actual fun readResourceFileDirect(relativePath: String): String? {

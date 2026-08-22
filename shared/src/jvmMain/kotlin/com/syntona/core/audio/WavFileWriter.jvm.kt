@@ -1,13 +1,26 @@
 package com.syntona.core.audio
 
-import java.io.RandomAccessFile
 import java.io.File
+import java.io.RandomAccessFile
 
-actual class WavFileWriter actual constructor(filePath: String, sampleRate: Int) {
-    private val file = RandomAccessFile(filePath, "rw")
+actual class WavFileWriter actual constructor(
+    filePath: String,
+    sampleRate: Int,
+    private val numChannels: Int
+) {
+    private val file: RandomAccessFile
     private var totalBytesWritten = 0
 
     init {
+        val target = File(filePath)
+        target.parentFile?.mkdirs()
+        file = RandomAccessFile(target, "rw")
+        file.setLength(0)
+
+        val bytesPerSample = 3 // 24-bit PCM
+        val blockAlign = numChannels * bytesPerSample
+        val byteRate = sampleRate * blockAlign
+
         // Write standard 44-byte WAV header placeholders
         writeAscii("RIFF")
         file.writeInt(0) // ChunkSize placeholder (will backpatch)
@@ -15,10 +28,10 @@ actual class WavFileWriter actual constructor(filePath: String, sampleRate: Int)
         writeAscii("fmt ")
         file.writeInt(Integer.reverseBytes(16)) // Subchunk1Size
         file.writeShort(java.lang.Short.reverseBytes(1.toShort()).toInt()) // AudioFormat = 1 (PCM)
-        file.writeShort(java.lang.Short.reverseBytes(2.toShort()).toInt()) // NumChannels = 2
+        file.writeShort(java.lang.Short.reverseBytes(numChannels.toShort()).toInt()) // NumChannels
         file.writeInt(Integer.reverseBytes(sampleRate))
-        file.writeInt(Integer.reverseBytes(sampleRate * 6)) // ByteRate
-        file.writeShort(java.lang.Short.reverseBytes(6.toShort()).toInt()) // BlockAlign
+        file.writeInt(Integer.reverseBytes(byteRate)) // ByteRate
+        file.writeShort(java.lang.Short.reverseBytes(blockAlign.toShort()).toInt()) // BlockAlign
         file.writeShort(java.lang.Short.reverseBytes(24.toShort()).toInt()) // BitsPerSample = 24
         writeAscii("data")
         file.writeInt(0) // Subchunk2Size placeholder (will backpatch)
@@ -48,10 +61,16 @@ actual class WavFileWriter actual constructor(filePath: String, sampleRate: Int)
 
     actual fun close() {
         try {
+            // RIFF chunks must be padded to an even number of bytes
+            val isOdd = (totalBytesWritten and 1) == 1
+            if (isOdd) {
+                file.writeByte(0)
+            }
             // Backpatch header
-            // 1. ChunkSize at offset 4: totalBytesWritten + 36
+            // 1. ChunkSize at offset 4: (totalBytesWritten + pad) + 36
             file.seek(4)
-            file.writeInt(Integer.reverseBytes(totalBytesWritten + 36))
+            val paddedSize = totalBytesWritten + if (isOdd) 1 else 0
+            file.writeInt(Integer.reverseBytes(paddedSize + 36))
             // 2. Subchunk2Size at offset 40: totalBytesWritten
             file.seek(40)
             file.writeInt(Integer.reverseBytes(totalBytesWritten))

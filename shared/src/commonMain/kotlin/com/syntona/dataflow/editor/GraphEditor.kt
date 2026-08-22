@@ -91,6 +91,7 @@ import com.syntona.dataflow.modules.MixerModule
 import com.syntona.dataflow.modules.AudioInputModule
 import com.syntona.dataflow.modules.AudioOutputModule
 import com.syntona.dataflow.modules.CommandModule
+import com.syntona.dataflow.modules.FloatSampleModule
 import com.syntona.dataflow.modules.InputModule
 import com.syntona.dataflow.modules.KnobModule
 import com.syntona.dataflow.modules.OutputModule
@@ -2241,6 +2242,40 @@ fun ModuleHeader(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false }
                     ) {
+                        if (module is FloatSampleModule || module is RecorderModule) {
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text("Load from WAV File...", fontSize = 12.sp) },
+                                onClick = {
+                                    showMenu = false
+                                    chooseWavOpenFile { path ->
+                                        when (module) {
+                                            is FloatSampleModule -> module.loadWavFile(path)
+                                            is RecorderModule -> module.loadWavFile(path)
+                                        }
+                                        state.markChanged()
+                                        FileState.markDirty()
+                                    }
+                                },
+                                modifier = Modifier.height(28.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                            )
+                            androidx.compose.material3.DropdownMenuItem(
+                                text = { Text("Save to WAV File...", fontSize = 12.sp) },
+                                onClick = {
+                                    showMenu = false
+                                    chooseWavRecordFile(defaultName = "${module.name}.wav") { path ->
+                                        when (module) {
+                                            is FloatSampleModule -> module.saveWavFile(path)
+                                            is RecorderModule -> module.saveWavFile(path)
+                                        }
+                                        state.markChanged()
+                                        FileState.markDirty()
+                                    }
+                                },
+                                modifier = Modifier.height(28.dp),
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                            )
+                        }
                         androidx.compose.material3.DropdownMenuItem(
                             text = { Text("Help...", fontSize = 12.sp) },
                             enabled = hasHelp,

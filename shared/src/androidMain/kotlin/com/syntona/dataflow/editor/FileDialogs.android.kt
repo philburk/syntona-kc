@@ -16,7 +16,11 @@ actual fun saveResourceFileDirect(relativePath: String, content: String) {}
 
 actual fun chooseWavRecordFile(defaultName: String, onSelected: (path: String) -> Unit) {}
 
+actual fun chooseWavOpenFile(onSelected: (path: String) -> Unit) {}
+
 actual fun readFileDirect(path: String): String? = null
+
+actual fun readBinaryFileDirect(path: String): ByteArray? = null
 
 actual fun readResourceFileDirect(relativePath: String): String? {
     val stem = relativePath.substringAfterLast('/').substringBeforeLast(".json").substringBeforeLast(SYNTONA_FILE_SUFFIX)
