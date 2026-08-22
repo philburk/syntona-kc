@@ -146,7 +146,7 @@ open class OutputJack(
         connections.remove(inputJack)
     }
 
-    fun send(msg: Message) {
+    open fun send(msg: Message) {
         if (msg is Message.FloatValue) lastSentValue = msg.value
         connections.forEach { it.receive(msg) }
     }

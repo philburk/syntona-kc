@@ -870,8 +870,8 @@
           },
           {
             "id": 3,
-            "type": "ksyn.control.sampler",
-            "name": "sampler",
+            "type": "ksyn.control.grabAudio",
+            "name": "grabAudio",
             "x": 414,
             "y": 194.9,
             "jacks": {

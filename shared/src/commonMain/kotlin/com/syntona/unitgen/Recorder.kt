@@ -23,8 +23,8 @@ import kotlin.concurrent.Volatile
  * monitor it — and amplitude scales playback only.
  */
 class Recorder(
-    segmentSize: Int = SegmentedFloatArray.DEFAULT_SEGMENT_SIZE,
-    poolCapacity: Int = SegmentedFloatArray.DEFAULT_POOL_CAPACITY
+    val segmentSize: Int = SegmentedFloatArray.DEFAULT_SEGMENT_SIZE,
+    val poolCapacity: Int = SegmentedFloatArray.DEFAULT_POOL_CAPACITY
 ) : UnitFilter() {
 
     enum class Mode { PAUSED, RECORDING, PLAYING }
@@ -32,7 +32,8 @@ class Recorder(
     val amplitude = UnitInputPort(PORT_NAME_AMPLITUDE)
 
     /** The recorded audio. Grows while [Mode.RECORDING] is active. */
-    val recording = SegmentedFloatArray(segmentSize, poolCapacity)
+    @Volatile
+    var recording = SegmentedFloatArray(segmentSize, poolCapacity)
 
     /** Read and write position in frames, always within `0..recording.length`. */
     @Volatile
@@ -58,6 +59,7 @@ class Recorder(
     init {
         addPort(amplitude)
         amplitude.setup(0.0, 1.0, 2.0)
+        recording.replenish()
     }
 
     // Generate even when nothing downstream is pulling, so that recording works with the
@@ -66,13 +68,30 @@ class Recorder(
         get() = true
 
     /**
-     * Starts recording the input at the current [cursor], discarding anything already recorded
-     * after it. Recording is destructive, like a tape machine: rewinding and recording again
-     * replaces the old take rather than punching into the middle of it.
+     * Starts recording the input into a new [SegmentedFloatArray], ensuring any readers referencing
+     * a previous recording are not disturbed.
      */
-    fun record() = applyToAudioThread {
-        recording.truncate(cursor)
-        mode = Mode.RECORDING
+    fun record() {
+        val oldRecording = recording
+        val newRecording = SegmentedFloatArray(segmentSize, poolCapacity)
+        newRecording.replenish()
+        val copyCount = cursor.coerceIn(0, oldRecording.length)
+        if (copyCount > 0) {
+            var remaining = copyCount
+            while (remaining > 0) {
+                val chunk = minOf(remaining, newRecording.segmentSize)
+                newRecording.extend(chunk)
+                remaining -= chunk
+            }
+            val buf = FloatArray(copyCount)
+            oldRecording.read(0, buf, 0, copyCount)
+            newRecording.write(0, buf)
+            newRecording.replenish()
+        }
+        applyToAudioThread {
+            recording = newRecording
+            mode = Mode.RECORDING
+        }
     }
 
     /** Starts playing to the output from the current [cursor]. */

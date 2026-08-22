@@ -16,6 +16,7 @@ import com.syntona.dataflow.engine.ScheduledEvent
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.AudioOutputJack
 import com.syntona.dataflow.model.CommandJack
+import com.syntona.dataflow.model.DataQueueOutputJack
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
@@ -42,6 +43,7 @@ class RecorderModule : Module("recorder"), EngineAware {
     val pauseIn: CommandJack
     val rewindIn: CommandJack
     val output: AudioOutputJack
+    val dataOutput: DataQueueOutputJack
 
     var filePath: String? by mutableStateOf(null)
     var isLoadedFromFile: Boolean by mutableStateOf(false)
@@ -78,9 +80,15 @@ class RecorderModule : Module("recorder"), EngineAware {
         pauseIn = addCommandInput("pause")
         rewindIn = addCommandInput("rewind")
         output = addAudioOutput("out", unit.output, 0)
+        dataOutput = addDataQueueOutput("data")
 
         // Fill the pool up front so the first record does not have to allocate.
         unit.replenish()
+        sendData()
+    }
+
+    fun sendData() {
+        dataOutput.send(Message.DataQueueMessage(ScoreClock.now(), unit.recording, Message.DataQueueOpcode.QUEUE))
     }
 
     override fun setEngine(engine: DataFlowEngine) {
@@ -116,9 +124,12 @@ class RecorderModule : Module("recorder"), EngineAware {
                     pendingStopEvent = e.schedule(fireTime) {
                         pendingStopEvent = null
                         unit.pause()
+                        sendData()
                     }
                 } else {
+                    val wasRecording = unit.isRecording
                     unit.pause()
+                    if (wasRecording) sendData()
                 }
             }
             rewindIn.isKicked -> {
@@ -132,28 +143,23 @@ class RecorderModule : Module("recorder"), EngineAware {
 
     fun loadWav(bytes: ByteArray, path: String? = null): Boolean {
         return try {
-            val loaded = SampleLoader.loadFloatSample(bytes)
+            val loaded = SampleLoader.loadFloatSample(bytes).toMono()
             val frames = loaded.numFrames
-            val channels = loaded.channelsPerFrame
             val data = FloatArray(frames)
-            if (channels == 1) {
-                loaded.read(0, data, 0, frames)
-            } else {
-                for (i in 0 until frames) {
-                    data[i] = loaded.readSample(i * channels)
-                }
-            }
-            unit.recording.clear()
+            loaded.read(0, data, 0, frames)
+            val newRecording = com.syntona.util.SegmentedFloatArray(unit.segmentSize, unit.poolCapacity)
             var remaining = frames
             while (remaining > 0) {
-                val chunk = minOf(remaining, unit.recording.segmentSize)
-                unit.recording.extend(chunk)
+                val chunk = minOf(remaining, newRecording.segmentSize)
+                newRecording.extend(chunk)
                 remaining -= chunk
             }
-            unit.recording.write(0, data)
+            newRecording.write(0, data)
+            unit.recording = newRecording
             unit.seek(0)
             isLoadedFromFile = true
             if (path != null) filePath = path
+            sendData()
             true
         } catch (e: Exception) {
             println("Failed to load WAV into RecorderModule: ${e.message}")

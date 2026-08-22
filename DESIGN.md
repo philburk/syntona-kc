@@ -180,6 +180,45 @@ Could add midiSplit to route incoming voice messages by opcode.
 
 Useful but maybe mentally constraining
 
+## Sample Record and Playback
+
+Rename the "sampler" module to "grabAudio".
+
+1. samplePlayer (The Simple 1-Module Sampler)
+* Description: Self-contained WAV sample player.
+  In a polyPatch, this will automatically share the FLoatSample among the voices.
+* UI Controls: "Load from WAV" menu items.
+* Jacks:
+   * on (Command Input): starts playback by calling queueOn
+   * off (Command Input): calls queueOff, finishes loop
+   * loop (Command Input): loops from current position
+   * stop - stop playback (command jack)
+   * rate (Audio Input, default 1.0): Playback rate multiplier.
+   * amplitude (Audio Input, default 1.0): Volume.
+   * output (Audio Output): Audio stream.
+
+2. sample (The Shared Buffer)
+* Description: Holds audio in memory.
+       In a polyPatch, this will automatically be shared among the voices.
+* UI Controls: "Load from WAV" menu item.
+* Jacks:
+  * send - (command jack) sends the object reference out the data jack
+  * data (Data Output): Emits the SequentialData reference for readers/writers.
+
+3. sampleReader (The Slicing Reader)
+* Description: Plays a slice or loop of a connected sample buffer.
+       This can be used to implement granular synthesis instruments.
+* Jacks:
+   * data (Data Input): Connection from sample.data or recorder.data
+   * start (Command Input): Trigger playback.
+   * stop (Command Input): immediate stop
+   * offset (Input, default 0.0): Start point (normalized 0..1).
+   * length (Input, default 1.0 = all): Duration to play (normalized 0..1).
+   * rate (Audio Input, default 1.0): Playback rate multiplier.
+   * loop (Toggle / Input): Loop toggle. (checkbox?)
+   * amplitude (Audio Input, default 1.0): Volume.
+   * output (Audio Output): Audio stream.
+
 ### Audio Waveform Editor
 
 Like Audacity with elements from ListenUp

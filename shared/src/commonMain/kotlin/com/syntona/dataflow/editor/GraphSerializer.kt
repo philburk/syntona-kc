@@ -38,9 +38,12 @@ import com.syntona.dataflow.modules.BeatClockModule
 import com.syntona.dataflow.modules.TimelineModule
 import com.syntona.core.audio.AudioSettings
 import com.syntona.dataflow.modules.FloatSampleModule
+import com.syntona.dataflow.modules.SamplePlayerModule
 import com.syntona.dataflow.modules.RecorderModule
 import com.softsynth.ksyn.data.SegmentedEnvelope
 import com.syntona.dataflow.registry.ModuleRegistry
+import com.syntona.util.relativizePath
+import com.syntona.util.resolvePath
 
 /** Position/size (in dp) of the root patch's own MDI window, which has no module entry of its own. */
 data class RootWindowGeometry(val x: Float?, val y: Float?, val width: Float?, val height: Float?)
@@ -54,9 +57,10 @@ object GraphSerializer {
         rootWindowX: Float? = null,
         rootWindowY: Float? = null,
         rootWindowWidth: Float? = null,
-        rootWindowHeight: Float? = null
+        rootWindowHeight: Float? = null,
+        basePath: String? = null
     ): String {
-        val raw = buildRawJson(graphState, modules, density)
+        val raw = buildRawJson(graphState, modules, density, basePath)
         if (rootWindowX == null && rootWindowY == null && rootWindowWidth == null && rootWindowHeight == null) {
             return prettyPrintJson(raw)
         }
@@ -113,8 +117,9 @@ object GraphSerializer {
 
 
 
-    fun serializePatch(patch: PatchModule, density: Float = 1f): String {
-        val raw = buildRawJson(patch.graphState, patch.graphState.modules.toList(), density)
+    fun serializePatch(patch: PatchModule, density: Float = 1f, basePath: String? = null): String {
+        val effectiveBasePath = basePath ?: patch.filePath ?: FileState.currentFilePath
+        val raw = buildRawJson(patch.graphState, patch.graphState.modules.toList(), density, effectiveBasePath)
         val parsed = try { JsonParser(raw).parse() as? JsonValue.Obj } catch (_: Exception) { null }
             ?: return raw
         val merged = LinkedHashMap<String, JsonValue>()
@@ -129,7 +134,13 @@ object GraphSerializer {
 
     // Builds compact JSON. Recursive PatchModule calls stay on this raw path so only the
     // outermost serialize() call pays for the parse+pretty-print pass.
-    private fun buildRawJson(graphState: GraphState, modules: List<Module>, density: Float): String = buildString {
+    private fun buildRawJson(
+        graphState: GraphState,
+        modules: List<Module>,
+        density: Float,
+        basePath: String? = null
+    ): String = buildString {
+        val effectiveBasePath = basePath ?: graphState.parentPatch?.filePath ?: FileState.currentFilePath
         val internalConns = graphState.connections.filter { conn ->
             modules.any { it === conn.output.module } &&
             modules.any { it === conn.input.module }
@@ -214,7 +225,7 @@ object GraphSerializer {
                 append(",\"w\":${module.width},\"h\":${module.height}")
             }
             if (module is LinkModule) {
-                append(",\"filePath\":\"${module.filePath.jsonEscape}\"")
+                append(",\"filePath\":\"${relativizePath(module.filePath, effectiveBasePath).jsonEscape}\"")
                 append(",\"buttonText\":\"${module.buttonText.jsonEscape}\"")
             }
             if (module is KeyMatchModule) {
@@ -287,10 +298,13 @@ object GraphSerializer {
                 append("]")
             }
             if (module is FloatSampleModule) {
-                module.filePath?.let { append(",\"filePath\":\"${it.jsonEscape}\"") }
+                module.filePath?.let { append(",\"filePath\":\"${relativizePath(it, effectiveBasePath).jsonEscape}\"") }
+            }
+            if (module is SamplePlayerModule) {
+                module.filePath?.let { append(",\"filePath\":\"${relativizePath(it, effectiveBasePath).jsonEscape}\"") }
             }
             if (module is RecorderModule) {
-                module.filePath?.let { append(",\"filePath\":\"${it.jsonEscape}\"") }
+                module.filePath?.let { append(",\"filePath\":\"${relativizePath(it, effectiveBasePath).jsonEscape}\"") }
             }
             // Recursively embed patch contents so jacks are restored on paste/load
             if (module is PatchModule) {
@@ -305,13 +319,13 @@ object GraphSerializer {
                     append(",\"resourcePath\":\"${rPath.jsonEscape}\"")
                 }
                 if (fPath != null) {
-                    append(",\"filePath\":\"${fPath.jsonEscape}\"")
+                    append(",\"filePath\":\"${relativizePath(fPath, effectiveBasePath).jsonEscape}\"")
                 }
                 if (fPath != null && !module.isModified) {
                     // referenced external file
                 } else {
                     append(",\"patch\":")
-                    append(buildRawJson(module.graphState, module.graphState.modules.toList(), density))
+                    append(buildRawJson(module.graphState, module.graphState.modules.toList(), density, module.filePath ?: effectiveBasePath))
                 }
             }
             append("}")
@@ -337,7 +351,8 @@ object GraphSerializer {
         json: String,
         offset: Offset = Offset.Zero,
         density: Float = 1f,
-        problems: MutableList<String>? = null
+        problems: MutableList<String>? = null,
+        basePath: String? = null
     ): List<Module> {
         val problemsList = problems ?: mutableListOf()
         val rootVal = try {
@@ -351,12 +366,12 @@ object GraphSerializer {
         val result = if (finalType == "patch" || finalType == "polyPatch") {
             val innerPatchObj = rootVal.map["patch"] as? JsonValue.Obj
             if (innerPatchObj != null) {
-                deserializeObj(graphState, innerPatchObj, offset, density, problemsList)
+                deserializeObj(graphState, innerPatchObj, offset, density, problemsList, basePath)
             } else {
-                deserializeObj(graphState, rootVal, offset, density, problemsList)
+                deserializeObj(graphState, rootVal, offset, density, problemsList, basePath)
             }
         } else {
-            deserializeObj(graphState, rootVal, offset, density, problemsList)
+            deserializeObj(graphState, rootVal, offset, density, problemsList, basePath)
         }
         if (problemsList.isNotEmpty()) {
             FileState.loadingProblemsReport = problemsList.joinToString("\n")
@@ -369,8 +384,10 @@ object GraphSerializer {
         rootObj: JsonValue.Obj,
         offset: Offset,
         density: Float = 1f,
-        problems: MutableList<String>
+        problems: MutableList<String>,
+        basePath: String? = null
     ): List<Module> {
+        val effectiveBasePath = basePath ?: graphState.parentPatch?.filePath ?: FileState.currentFilePath
         graphState.isDeserializing = true
         try {
             val modulesArr = (rootObj.map["modules"] as? JsonValue.Arr)?.items ?: return emptyList()
@@ -503,13 +520,22 @@ object GraphSerializer {
 
             if (module is FloatSampleModule) {
                 (obj?.map?.get("filePath") as? JsonValue.Str)?.value?.let { path ->
-                    module.loadWavFile(path)
+                    val resolved = resolvePath(path, effectiveBasePath)
+                    module.loadWavFile(resolved)
+                }
+            }
+
+            if (module is SamplePlayerModule) {
+                (obj?.map?.get("filePath") as? JsonValue.Str)?.value?.let { path ->
+                    val resolved = resolvePath(path, effectiveBasePath)
+                    module.loadWavFile(resolved)
                 }
             }
 
             if (module is RecorderModule) {
                 (obj?.map?.get("filePath") as? JsonValue.Str)?.value?.let { path ->
-                    module.loadWavFile(path)
+                    val resolved = resolvePath(path, effectiveBasePath)
+                    module.loadWavFile(resolved)
                 }
             }
 
@@ -630,6 +656,7 @@ object GraphSerializer {
                 val resourcePath = (obj?.map?.get("resourcePath") as? JsonValue.Str)?.value
                 val rawFilePath = (obj?.map?.get("filePath") as? JsonValue.Str)?.value
                 val resolvedResourcePath = resourcePath ?: resourceRelativePath(rawFilePath)
+                val resolvedFilePath = rawFilePath?.let { resolvePath(it, effectiveBasePath) }
 
                 if (resolvedResourcePath != null) {
                     module.resourcePath = resolvedResourcePath
@@ -642,7 +669,7 @@ object GraphSerializer {
                             if (module is PolyPatchModule) {
                                 module.clearVoices()
                             }
-                            deserializeObj(module.graphState, patchObj, Offset.Zero, density, problems)
+                            deserializeObj(module.graphState, patchObj, Offset.Zero, density, problems, resolvedFilePath ?: effectiveBasePath)
                             if (module is PolyPatchModule) {
                                 module.ensureDefaultModulesExist()
                             }
@@ -650,7 +677,7 @@ object GraphSerializer {
                             module.graphState.isDeserializing = false
                         }
                     } else {
-                        val fileContent = (rawFilePath?.let { readFileDirect(it) })
+                        val fileContent = (resolvedFilePath?.let { readFileDirect(it) })
                             ?: readResourceFileDirect(resolvedResourcePath)
                         if (fileContent != null) {
                             val childRootVal = try { JsonParser(fileContent).parse() as? JsonValue.Obj } catch (_: Exception) { null }
@@ -663,9 +690,9 @@ object GraphSerializer {
                                     }
                                     val innerPatchObj = childRootVal.map["patch"] as? JsonValue.Obj
                                     if (innerPatchObj != null) {
-                                        deserializeObj(module.graphState, innerPatchObj, Offset.Zero, density, problems)
+                                        deserializeObj(module.graphState, innerPatchObj, Offset.Zero, density, problems, resolvedFilePath ?: effectiveBasePath)
                                     } else {
-                                        deserializeObj(module.graphState, childRootVal, Offset.Zero, density, problems)
+                                        deserializeObj(module.graphState, childRootVal, Offset.Zero, density, problems, resolvedFilePath ?: effectiveBasePath)
                                     }
                                     if (module is PolyPatchModule) {
                                         module.ensureDefaultModulesExist()
@@ -677,10 +704,10 @@ object GraphSerializer {
                         }
                     }
                     module.isModified = false
-                } else if (rawFilePath != null) {
-                    module.filePath = rawFilePath
+                } else if (resolvedFilePath != null) {
+                    module.filePath = resolvedFilePath
                     module.resourcePath = null
-                    val fileContent = readFileDirect(rawFilePath)
+                    val fileContent = readFileDirect(resolvedFilePath)
                     if (fileContent != null) {
                         val childRootVal = try { JsonParser(fileContent).parse() as? JsonValue.Obj } catch (_: Exception) { null }
                         if (childRootVal != null) {
@@ -692,9 +719,9 @@ object GraphSerializer {
                                 }
                                 val innerPatchObj = childRootVal.map["patch"] as? JsonValue.Obj
                                 if (innerPatchObj != null) {
-                                    deserializeObj(module.graphState, innerPatchObj, Offset.Zero, density, problems)
+                                    deserializeObj(module.graphState, innerPatchObj, Offset.Zero, density, problems, resolvedFilePath)
                                 } else {
-                                    deserializeObj(module.graphState, childRootVal, Offset.Zero, density, problems)
+                                    deserializeObj(module.graphState, childRootVal, Offset.Zero, density, problems, resolvedFilePath)
                                 }
                                 if (module is PolyPatchModule) {
                                     module.ensureDefaultModulesExist()
@@ -712,7 +739,7 @@ object GraphSerializer {
                                 if (module is PolyPatchModule) {
                                     module.clearVoices()
                                 }
-                                deserializeObj(module.graphState, patchObj, Offset.Zero, density, problems)
+                                deserializeObj(module.graphState, patchObj, Offset.Zero, density, problems, resolvedFilePath)
                                 if (module is PolyPatchModule) {
                                     module.ensureDefaultModulesExist()
                                 }
@@ -731,7 +758,7 @@ object GraphSerializer {
                             if (module is PolyPatchModule) {
                                 module.clearVoices()
                             }
-                            deserializeObj(module.graphState, patchObj, Offset.Zero, density, problems)
+                            deserializeObj(module.graphState, patchObj, Offset.Zero, density, problems, effectiveBasePath)
                             if (module is PolyPatchModule) {
                                 module.ensureDefaultModulesExist()
                             }
@@ -836,6 +863,13 @@ object GraphSerializer {
                 continue
             }
             graphState.connect(output, input)
+        }
+        for (module in created) {
+            if (module is FloatSampleModule) {
+                module.sendSample()
+            } else if (module is RecorderModule) {
+                module.sendData()
+            }
         }
         return succeeded
         } finally {

@@ -1,5 +1,7 @@
 package com.syntona.util
 
+import com.softsynth.ksyn.AudioSample
+import com.softsynth.ksyn.data.SequentialData
 import kotlin.concurrent.Volatile
 
 /**
@@ -43,7 +45,7 @@ class SegmentedFloatArray(
     val segmentSize: Int = DEFAULT_SEGMENT_SIZE,
     val poolCapacity: Int = DEFAULT_POOL_CAPACITY,
     initialSegmentCapacity: Int = 0
-) {
+) : SequentialData {
     init {
         require(segmentSize > 0) { "segmentSize must be positive, was $segmentSize" }
         require(poolCapacity >= 0) { "poolCapacity must not be negative, was $poolCapacity" }
@@ -287,6 +289,41 @@ class SegmentedFloatArray(
         segmentCount = 0
         length = 0
     }
+
+    override fun readSample(index: Int): AudioSample {
+        if (index < 0 || index >= length) return 0f
+        return segments[segmentOf(index)]?.get(offsetOf(index)) ?: 0f
+    }
+
+    override fun writeSample(index: Int, value: AudioSample) = set(index, value)
+
+    override fun readDouble(index: Int): Double {
+        if (index < 0 || index >= length) return 0.0
+        return (segments[segmentOf(index)]?.get(offsetOf(index)) ?: 0f).toDouble()
+    }
+
+    override fun writeDouble(index: Int, value: Double) = set(index, value.toFloat())
+
+    override val numFrames: Int
+        get() = length
+
+    override val channelsPerFrame: Int
+        get() = 1
+
+    override val sustainBegin: Int
+        get() = -1
+
+    override val sustainEnd: Int
+        get() = -1
+
+    override val releaseBegin: Int
+        get() = -1
+
+    override val releaseEnd: Int
+        get() = -1
+
+    override fun getRateScaler(index: Int, synthesisPeriod: Double): Double = 1.0 / synthesisPeriod
+
 
     private fun checkIndex(index: Int) {
         if (index < 0 || index >= length) {

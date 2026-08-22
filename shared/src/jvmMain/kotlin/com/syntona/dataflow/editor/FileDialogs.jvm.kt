@@ -241,11 +241,21 @@ actual fun chooseWavOpenFile(onSelected: (path: String) -> Unit) {
 }
 
 actual fun readFileDirect(path: String): String? {
-    return try {
-        File(path).readText()
-    } catch (e: Exception) {
-        null
+    val candidates = listOfNotNull(
+        File(path),
+        FileState.currentFilePath?.let { File(File(it).parentFile, path) },
+        resourceRootDirectory?.let { File(it, path) },
+        lastResourceDirectory?.let { File(it, path) },
+        File("src/commonMain/composeResources/files/$path"),
+        File("shared/src/commonMain/composeResources/files/$path"),
+        File("../shared/src/commonMain/composeResources/files/$path")
+    )
+    for (file in candidates) {
+        if (file.exists() && file.isFile) {
+            return try { file.readText() } catch (_: Exception) { null }
+        }
     }
+    return null
 }
 
 actual fun readBinaryFileDirect(path: String): ByteArray? {

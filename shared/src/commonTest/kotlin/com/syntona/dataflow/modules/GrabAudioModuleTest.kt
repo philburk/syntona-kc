@@ -11,12 +11,12 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-class SamplerModuleTest {
+class GrabAudioModuleTest {
 
     @Test
     fun testModuleCreationAndPorts() {
-        val module = SamplerModule()
-        assertEquals("sampler", module.name)
+        val module = GrabAudioModule()
+        assertEquals("grabAudio", module.name)
 
         // Assert input jack order: kick should be above input
         assertEquals(2, module.inputs.size)
@@ -30,25 +30,25 @@ class SamplerModuleTest {
         assertTrue(audioInput is AudioInputJack, "input jack should be an AudioInputJack")
 
         val regularOutput = module.outputs.find { it.name == "output" }
-        assertNotNull(regularOutput, "SamplerModule should have an output named 'output'")
+        assertNotNull(regularOutput, "GrabAudioModule should have an output named 'output'")
         assertTrue(regularOutput is OutputJack, "output jack should be a regular OutputJack")
     }
 
     @Test
     fun testModuleRegistryCreator() {
-        val creator = ModuleRegistry.findCreator("sampler")
-        assertNotNull(creator, "SamplerModule creator should be registered in ModuleRegistry under 'sampler'")
+        val creator = ModuleRegistry.findCreator("grabAudio")
+        assertNotNull(creator, "GrabAudioModule creator should be registered in ModuleRegistry under 'grabAudio'")
         val module = creator()
-        assertTrue(module is SamplerModule, "Created module should be an instance of SamplerModule")
+        assertTrue(module is GrabAudioModule, "Created module should be an instance of GrabAudioModule")
     }
 
     @Test
-    fun testSamplerExecution() {
+    fun testGrabAudioExecution() {
         val graphState = GraphState()
-        val sampler = SamplerModule()
-        graphState.addModule(sampler, androidx.compose.ui.geometry.Offset.Zero)
+        val grabAudio = GrabAudioModule()
+        graphState.addModule(grabAudio, androidx.compose.ui.geometry.Offset.Zero)
 
-        // Capture output sent from the sampler output jack
+        // Capture output sent from the grabAudio output jack
         var messageReceived: Message? = null
         val receiverInput = object : com.syntona.dataflow.model.Module("testReceiver") {
             val input = addInput("in", isKickable = true)
@@ -57,17 +57,17 @@ class SamplerModuleTest {
             }
         }
         graphState.addModule(receiverInput, androidx.compose.ui.geometry.Offset.Zero)
-        graphState.connect(sampler.output, receiverInput.input)
+        graphState.connect(grabAudio.output, receiverInput.input)
 
         // Verify no message yet
         assertEquals(null, messageReceived)
 
-        // Set value on sampler audio input
-        val audioInput = sampler.inputs.first { it.name == "input" }
+        // Set value on grabAudio audio input
+        val audioInput = grabAudio.inputs.first { it.name == "input" }
         audioInput.setValue(12.34)
 
-        // Trigger sampler kick
-        val kickInput = sampler.inputs.first { it.name == "kick" }
+        // Trigger grabAudio kick
+        val kickInput = grabAudio.inputs.first { it.name == "kick" }
         kickInput.receive(Message.FloatValue(ScoreTime.Zero, 0.0))
 
         // Verify sampled value received

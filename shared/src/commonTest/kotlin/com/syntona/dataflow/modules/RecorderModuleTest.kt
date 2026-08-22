@@ -4,6 +4,7 @@ import com.syntona.core.model.ScoreTime
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.AudioOutputJack
 import com.syntona.dataflow.model.CommandJack
+import com.syntona.dataflow.model.DataQueueOutputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.editor.GraphSerializer
 import com.syntona.dataflow.editor.GraphState
@@ -45,9 +46,11 @@ class RecorderModuleTest {
         assertEquals(0.0, latencyJack.min)
         assertEquals(1000.0, latencyJack.max)
 
-        assertEquals(1, module.outputs.size)
+        assertEquals(2, module.outputs.size)
         assertEquals("out", module.outputs[0].name)
         assertTrue(module.outputs[0] is AudioOutputJack, "out should carry audio")
+        assertEquals("data", module.outputs[1].name)
+        assertTrue(module.outputs[1] is DataQueueOutputJack, "data should carry DataQueue")
     }
 
     @Test
@@ -213,5 +216,56 @@ class RecorderModuleTest {
         val creator = ModuleRegistry.findCreator("recorder")
         assertNotNull(creator, "recorder should be registered")
         assertTrue(creator() is RecorderModule)
+    }
+
+    @Test
+    fun testRecordingWhileReaderIsLoopingDoesNotCrash() {
+        val recorder = RecorderModule()
+        val reader = SampleReaderModule()
+        val graph = GraphState()
+        graph.addModule(recorder, androidx.compose.ui.geometry.Offset.Zero)
+        graph.addModule(reader, androidx.compose.ui.geometry.Offset.Zero)
+        graph.connect(recorder.dataOutput, reader.dataInput)
+
+        // Record some audio into recorder
+        kick(recorder, "record")
+        repeat(50) {
+            recorder.unit.replenish()
+            recorder.unit.generate()
+        }
+        kick(recorder, "pause")
+
+        val firstRecording = recorder.unit.recording
+        assertEquals(firstRecording, reader.dataInput.currentData)
+        assertTrue(firstRecording.length > 0)
+
+        // Start looping on the reader
+        reader.loopInput.setValue(1.0)
+        reader.startIn.receive(Message.FloatValue(ScoreTime.Zero, 0.0))
+
+        // While reader is looping, start a new recording take on recorder
+        kick(recorder, "record")
+
+        // Old recording held by reader should not be truncated or mutated
+        assertEquals(firstRecording, reader.dataInput.currentData)
+        // Reader can still safely read samples from the old recording without IndexOutOfBoundsException
+        reader.unit.generate()
+
+        // Generate some new recording frames
+        repeat(20) {
+            recorder.unit.replenish()
+            recorder.unit.generate()
+        }
+
+        // Stop new recording
+        kick(recorder, "pause")
+
+        // New recording should now be published to reader
+        val secondRecording = recorder.unit.recording
+        assertTrue(secondRecording !== firstRecording)
+        assertEquals(secondRecording, reader.dataInput.currentData)
+
+        recorder.teardown()
+        reader.teardown()
     }
 }

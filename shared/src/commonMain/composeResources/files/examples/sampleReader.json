@@ -1,0 +1,201 @@
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "ksyn.lineIn",
+      "name": "lineIn",
+      "x": 55.9,
+      "y": 239.1
+    },
+    {
+      "id": 1,
+      "type": "ksyn.data.recorder",
+      "name": "recorder",
+      "x": 164.9,
+      "y": 198.1,
+      "jacks": {
+        "in": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "amplitude": {
+          "v": 1,
+          "min": 0,
+          "max": 2,
+          "kickable": false,
+          "add": false
+        },
+        "latencyMs": {
+          "v": 82,
+          "min": 0,
+          "max": 1000,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "ksyn.lineOut",
+      "name": "lineOut",
+      "x": 809.9,
+      "y": 125,
+      "jacks": {
+        "input0": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "input1": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "ksyn.data.sampleReader",
+      "name": "sampleReader",
+      "x": 634,
+      "y": 306.1,
+      "jacks": {
+        "data": {
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        },
+        "offset": {
+          "v": 0.08052155375480652,
+          "min": 0,
+          "max": 1,
+          "kickable": false
+        },
+        "durationMs": {
+          "v": 1850.8914794921875,
+          "min": 0,
+          "max": 10000,
+          "kickable": false
+        },
+        "loop": {
+          "v": 0.871808748888619,
+          "min": 0,
+          "max": 1,
+          "kickable": false
+        },
+        "rate": {
+          "v": 0.797296404838562,
+          "min": 0,
+          "max": 8,
+          "kickable": false,
+          "add": false
+        },
+        "amplitude": {
+          "v": 0.5604075193405151,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "core.input.knob",
+      "name": "knob",
+      "x": 408.9,
+      "y": 403.9,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 0.08052155375480652,
+          "min": 0,
+          "max": 1,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "core.input.knob",
+      "name": "knob",
+      "x": 511.9,
+      "y": 507,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 1850.8914794921875,
+          "min": 0,
+          "max": 10000,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 41.9,
+      "y": 14.1,
+      "text": "The sampleReader can read arbitrary parts of a sample.\n\nToDo:\n* Press \"record\" on the recorder and immediately start talking for 5-10 seconds.\n* Press \"pause\" immediately when you are done.\n* Press \"start\" on the sampleReader.\n* Move the knobs to loop over parts of your recording.",
+      "w": 711.125,
+      "h": 140
+    }
+  ],
+  "connections": [
+    {
+      "from": 0,
+      "fromJack": "output0",
+      "to": 1,
+      "toJack": "in"
+    },
+    {
+      "from": 1,
+      "fromJack": "out",
+      "to": 2,
+      "toJack": "input0"
+    },
+    {
+      "from": 1,
+      "fromJack": "data",
+      "to": 3,
+      "toJack": "data"
+    },
+    {
+      "from": 3,
+      "fromJack": "output",
+      "to": 2,
+      "toJack": "input1"
+    },
+    {
+      "from": 4,
+      "fromJack": "out",
+      "to": 3,
+      "toJack": "offset"
+    },
+    {
+      "from": 5,
+      "fromJack": "out",
+      "to": 3,
+      "toJack": "durationMs"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 1146.9697265625,
+  "windowHeight": 764.8787231445312
+}

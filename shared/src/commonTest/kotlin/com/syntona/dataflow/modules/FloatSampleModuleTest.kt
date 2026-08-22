@@ -2,6 +2,7 @@ package com.syntona.dataflow.modules
 
 import com.syntona.core.audio.SynthKSyn
 import com.syntona.core.model.ScoreTime
+import com.syntona.dataflow.model.CommandJack
 import com.syntona.dataflow.model.DataQueueOutputJack
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
@@ -19,16 +20,14 @@ class FloatSampleModuleTest {
         val module = FloatSampleModule()
         assertEquals("sample", module.name)
 
-        assertEquals(4, module.inputs.size)
-        assertEquals("queueOn", module.inputs[0].name)
-        assertEquals("queueOff", module.inputs[1].name)
-        assertEquals("queue", module.inputs[2].name)
-        assertEquals("queueLoop", module.inputs[3].name)
+        assertEquals(1, module.inputs.size)
+        assertEquals("send", module.inputs[0].name)
+        assertTrue(module.inputs[0] is CommandJack)
 
         assertEquals(2, module.outputs.size)
-        assertEquals("output", module.outputs[0].name)
+        assertEquals("data", module.outputs[0].name)
         assertTrue(module.outputs[0] is DataQueueOutputJack)
-        assertEquals("rate", module.outputs[1].name)
+        assertEquals("durationMs", module.outputs[1].name)
     }
 
     @Test
@@ -43,13 +42,11 @@ class FloatSampleModuleTest {
     @Test
     fun testSampleFrameRateMatchesAllocation() {
         val module = FloatSampleModule()
-        // The sample must report the rate its buffer was actually sized for, not
-        // FloatSample's 44100.0 default.
         assertEquals(SynthKSyn.synth.frameRate.toDouble(), module.sample.frameRate)
     }
 
     @Test
-    fun testQueueInputsSendSampleWithMatchingOpcode() {
+    fun testSendJackEmitsSampleReference() {
         val module = FloatSampleModule()
         val received = mutableListOf<Message.DataQueueMessage>()
 
@@ -60,53 +57,33 @@ class FloatSampleModuleTest {
             }
             override fun execute(triggerMessage: Message) {}
         }
-        module.outputs[0].connect(collector.sink)
+        module.dataOutput.connect(collector.sink)
 
-        // Kicking each command input in declared order should emit the matching opcode.
-        module.inputs.forEach { it.receive(Message.FloatValue(ScoreTime.Zero, 0.0)) }
+        // Trigger send input
+        module.sendIn.receive(Message.FloatValue(ScoreTime.Zero, 0.0))
 
-        assertEquals(
-            listOf(
-                Message.DataQueueOpcode.QUEUE_ON,
-                Message.DataQueueOpcode.QUEUE_OFF,
-                Message.DataQueueOpcode.QUEUE,
-                Message.DataQueueOpcode.QUEUE_LOOP
-            ),
-            received.map { it.opcode }
-        )
-        received.forEach { assertTrue(it.data === module.sample, "should queue this module's own sample") }
+        assertEquals(1, received.size)
+        assertTrue(received[0].data === module.sample, "should emit this module's own sample")
     }
 
     @Test
-    fun testRateIsSentBeforeEachQueueCommand() {
+    fun testSendJackEmitsDurationMs() {
         val module = FloatSampleModule()
-        // Record both jacks into one list so relative ordering is observable.
-        val log = mutableListOf<Pair<String, Message>>()
+        var receivedDuration: Double? = null
 
-        fun collectorFor(label: String) = object : Module("collector") {
+        val collector = object : Module("collector") {
             val sink = addInput("sink")
             override fun onMessageReceived(jack: InputJack, msg: Message) {
-                log.add(label to msg)
+                if (msg is Message.FloatValue) receivedDuration = msg.value
             }
             override fun execute(triggerMessage: Message) {}
         }
+        module.durationOutput.connect(collector.sink)
 
-        val queueCollector = collectorFor("queue")
-        val rateCollector = collectorFor("rate")
-        module.outputs[0].connect(queueCollector.sink)
-        module.outputs[1].connect(rateCollector.sink)
+        // Trigger send input
+        module.sendIn.receive(Message.FloatValue(ScoreTime.Zero, 0.0))
 
-        module.inputs.forEach { it.receive(Message.FloatValue(ScoreTime.Zero, 0.0)) }
-
-        // Each of the 4 command inputs should produce a rate message then a queue message.
-        assertEquals(
-            List(4) { listOf("rate", "queue") }.flatten(),
-            log.map { it.first }
-        )
-        log.filter { it.first == "rate" }.forEach { (_, msg) ->
-            assertTrue(msg is Message.FloatValue)
-            assertEquals(module.sample.frameRate, msg.value)
-        }
+        assertEquals(8000.0, receivedDuration)
     }
 
     @Test

@@ -195,7 +195,8 @@ fun loadIntoDocument(
     graphState.clearAllModules()
     graphState.engine?.clearHistory()
     mdiState.closeSubWindows(document)
-    GraphSerializer.deserialize(graphState, content, density = density)
+    document.rootPatch.filePath = path
+    GraphSerializer.deserialize(graphState, content, density = density, basePath = path)
     restoreWindowStates(mdiState, graphState, density)
     restoreRootWindowGeometry(mdiState, document.rootPatch, content, density)
     document.markSaved(path)
@@ -648,7 +649,7 @@ fun App(
                                                                        if (newPatch is PolyPatchModule) {
                                                                            newPatch.clearVoices()
                                                                        }
-                                                                       GraphSerializer.deserialize(newPatch.graphState, content, Offset.Zero, appDensity)
+                                                                       GraphSerializer.deserialize(newPatch.graphState, content, Offset.Zero, appDensity, basePath = path)
                                                                        if (newPatch is PolyPatchModule) {
                                                                            newPatch.ensureDefaultModulesExist()
                                                                        }
@@ -675,14 +676,15 @@ fun App(
                                                           FileState.patchesToConfirmSave.clear()
                                                           FileState.patchesToConfirmSave.addAll(modifiedChildren)
                                                           FileState.postConfirmationSaveAction = {
+                                                              val path = FileState.currentFilePath
                                                               val json = GraphSerializer.serialize(
                                                                   gs, gs.modules.toList(), appDensity,
                                                                   rootWindowX = docRoot.windowX,
                                                                   rootWindowY = docRoot.windowY,
                                                                   rootWindowWidth = docRoot.windowWidth,
-                                                                  rootWindowHeight = docRoot.windowHeight
+                                                                  rootWindowHeight = docRoot.windowHeight,
+                                                                  basePath = path
                                                               )
-                                                              val path = FileState.currentFilePath
                                                               if (path != null) {
                                                                   saveFileDirect(path, json)
                                                                   docRoot.filePath = path
@@ -690,6 +692,15 @@ fun App(
                                                                   FileState.markSaved(path)
                                                               } else {
                                                                   showSaveFileDialog(json, DEFAULT_PATCH_FILENAME) { savedPath ->
+                                                                      val finalJson = GraphSerializer.serialize(
+                                                                          gs, gs.modules.toList(), appDensity,
+                                                                          rootWindowX = docRoot.windowX,
+                                                                          rootWindowY = docRoot.windowY,
+                                                                          rootWindowWidth = docRoot.windowWidth,
+                                                                          rootWindowHeight = docRoot.windowHeight,
+                                                                          basePath = savedPath
+                                                                      )
+                                                                      saveFileDirect(savedPath, finalJson)
                                                                       docRoot.filePath = savedPath
                                                                       docRoot.clearModifiedRecursively()
                                                                       FileState.markSaved(savedPath)
@@ -697,14 +708,15 @@ fun App(
                                                               }
                                                           }
                                                       } else {
+                                                          val path = FileState.currentFilePath
                                                           val json = GraphSerializer.serialize(
                                                               gs, gs.modules.toList(), appDensity,
                                                               rootWindowX = docRoot.windowX,
                                                               rootWindowY = docRoot.windowY,
                                                               rootWindowWidth = docRoot.windowWidth,
-                                                              rootWindowHeight = docRoot.windowHeight
+                                                              rootWindowHeight = docRoot.windowHeight,
+                                                              basePath = path
                                                           )
-                                                          val path = FileState.currentFilePath
                                                           if (path != null) {
                                                               saveFileDirect(path, json)
                                                               docRoot.filePath = path
@@ -712,6 +724,15 @@ fun App(
                                                               FileState.markSaved(path)
                                                           } else {
                                                               showSaveFileDialog(json, DEFAULT_PATCH_FILENAME) { savedPath ->
+                                                                  val finalJson = GraphSerializer.serialize(
+                                                                      gs, gs.modules.toList(), appDensity,
+                                                                      rootWindowX = docRoot.windowX,
+                                                                      rootWindowY = docRoot.windowY,
+                                                                      rootWindowWidth = docRoot.windowWidth,
+                                                                      rootWindowHeight = docRoot.windowHeight,
+                                                                      basePath = savedPath
+                                                                  )
+                                                                  saveFileDirect(savedPath, finalJson)
                                                                   docRoot.filePath = savedPath
                                                                   docRoot.clearModifiedRecursively()
                                                                   FileState.markSaved(savedPath)
@@ -740,6 +761,15 @@ fun App(
                                                                    ),
                                                                    FileState.currentFileName ?: DEFAULT_PATCH_FILENAME
                                                                ) { savedPath ->
+                                                                   val finalJson = GraphSerializer.serialize(
+                                                                       gs, gs.modules.toList(), appDensity,
+                                                                       rootWindowX = docRoot.windowX,
+                                                                       rootWindowY = docRoot.windowY,
+                                                                       rootWindowWidth = docRoot.windowWidth,
+                                                                       rootWindowHeight = docRoot.windowHeight,
+                                                                       basePath = savedPath
+                                                                   )
+                                                                   saveFileDirect(savedPath, finalJson)
                                                                    docRoot.filePath = savedPath
                                                                    docRoot.clearModifiedRecursively()
                                                                    FileState.markSaved(savedPath)
@@ -756,6 +786,15 @@ fun App(
                                                                ),
                                                                FileState.currentFileName ?: DEFAULT_PATCH_FILENAME
                                                            ) { savedPath ->
+                                                               val finalJson = GraphSerializer.serialize(
+                                                                   gs, gs.modules.toList(), appDensity,
+                                                                   rootWindowX = docRoot.windowX,
+                                                                   rootWindowY = docRoot.windowY,
+                                                                   rootWindowWidth = docRoot.windowWidth,
+                                                                   rootWindowHeight = docRoot.windowHeight,
+                                                                   basePath = savedPath
+                                                               )
+                                                               saveFileDirect(savedPath, finalJson)
                                                                docRoot.filePath = savedPath
                                                                docRoot.clearModifiedRecursively()
                                                                FileState.markSaved(savedPath)
@@ -783,6 +822,15 @@ fun App(
                                                                        ),
                                                                        FileState.currentFileName ?: DEFAULT_PATCH_FILENAME
                                                                    ) { savedPath ->
+                                                                       val finalJson = GraphSerializer.serialize(
+                                                                           gs, gs.modules.toList(), appDensity,
+                                                                           rootWindowX = docRoot.windowX,
+                                                                           rootWindowY = docRoot.windowY,
+                                                                           rootWindowWidth = docRoot.windowWidth,
+                                                                           rootWindowHeight = docRoot.windowHeight,
+                                                                           basePath = savedPath
+                                                                       )
+                                                                       saveFileDirect(savedPath, finalJson)
                                                                        docRoot.filePath = savedPath
                                                                        docRoot.clearModifiedRecursively()
                                                                        FileState.markSaved(savedPath)
@@ -802,6 +850,15 @@ fun App(
                                                                    ),
                                                                    FileState.currentFileName ?: DEFAULT_PATCH_FILENAME
                                                                ) { savedPath ->
+                                                                   val finalJson = GraphSerializer.serialize(
+                                                                       gs, gs.modules.toList(), appDensity,
+                                                                       rootWindowX = docRoot.windowX,
+                                                                       rootWindowY = docRoot.windowY,
+                                                                       rootWindowWidth = docRoot.windowWidth,
+                                                                       rootWindowHeight = docRoot.windowHeight,
+                                                                       basePath = savedPath
+                                                                   )
+                                                                   saveFileDirect(savedPath, finalJson)
                                                                    docRoot.filePath = savedPath
                                                                    docRoot.clearModifiedRecursively()
                                                                    FileState.markSaved(savedPath)
@@ -819,11 +876,13 @@ fun App(
                                                       fileExpanded = false
                                                       val target = mdiState.activeGraphState?.parentPatch
                                                       if (target != null) {
-                                                          val json = GraphSerializer.serializePatch(target, appDensity)
+                                                          val json = GraphSerializer.serializePatch(target, appDensity, target.filePath)
                                                           val defaultName = target.filePath?.let { p ->
                                                               p.substringAfterLast('/').substringAfterLast('\\').ifEmpty { p }
                                                           } ?: "${target.name}$SYNTONA_FILE_SUFFIX"
                                                           showSaveFileDialog(json, defaultName) { path ->
+                                                              val finalJson = GraphSerializer.serializePatch(target, appDensity, path)
+                                                              saveFileDirect(path, finalJson)
                                                               target.filePath = path
                                                               target.clearModifiedRecursively()
                                                               if (target === docRoot) {
@@ -840,11 +899,13 @@ fun App(
                                                           fileExpanded = false
                                                           val target = mdiState.activeGraphState?.parentPatch
                                                           if (target != null) {
-                                                              val json = GraphSerializer.serializePatch(target, appDensity)
+                                                              val json = GraphSerializer.serializePatch(target, appDensity, target.filePath)
                                                               val defaultName = target.filePath?.let { p ->
                                                                   p.substringAfterLast('/').substringAfterLast('\\').ifEmpty { p }
                                                               } ?: "${target.name}$SYNTONA_FILE_SUFFIX"
                                                               showSaveAsResourceFileDialog(json, defaultName) { path ->
+                                                                  val finalJson = GraphSerializer.serializePatch(target, appDensity, path)
+                                                                  saveFileDirect(path, finalJson)
                                                                   target.filePath = path
                                                                   target.clearModifiedRecursively()
                                                                   if (target === docRoot) {
@@ -1269,9 +1330,9 @@ fun App(
                             confirmButton = {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     Button(onClick = {
-                                        val childJson = GraphSerializer.serializePatch(patchToConfirm, appDensity)
                                         val rPath = patchToConfirm.resourcePath
                                         val fPath = patchToConfirm.filePath
+                                        val childJson = GraphSerializer.serializePatch(patchToConfirm, appDensity, fPath)
                                         if (rPath != null) {
                                             saveResourceFileDirect(rPath, childJson)
                                         } else if (fPath != null) {

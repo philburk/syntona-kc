@@ -158,7 +158,7 @@ object ModuleRegistry {
         addKSynModule(control, "rampAsym", ::AsymptoticRamp)
         addKSynModule(control, "rampExp", ::ExponentialRamp)
         addKSynModule(control, "select", ::Select)
-        control.modules.add(ModuleEntry("sampler") { SamplerModule() })
+        control.modules.add(ModuleEntry("grabAudio") { GrabAudioModule() })
 
         val amath = getOrCreateBundle(ksyn, "math")
         addKSynModule(amath, "a+", ::Add)
@@ -209,7 +209,9 @@ object ModuleRegistry {
         addKSynModule(data, "monoRdr", ::VariableRateMonoReader)
         addKSynModule(data, "monoWtr", ::FixedRateMonoWriter)
         data.modules.add(ModuleEntry("segEnv") { SegmentedEnvelopeModule() })
+        data.modules.add(ModuleEntry("samplePlayer") { SamplePlayerModule() })
         data.modules.add(ModuleEntry("sample") { FloatSampleModule() })
+        data.modules.add(ModuleEntry("sampleReader") { SampleReaderModule() })
         data.modules.add(ModuleEntry("recorder") { RecorderModule() })
     }
 

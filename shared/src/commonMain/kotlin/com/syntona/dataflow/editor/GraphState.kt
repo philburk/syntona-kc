@@ -78,6 +78,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
 
     var onConnectionAddedCallback: ((OutputJack, InputJack) -> Unit)? = null
     var onConnectionRemovedCallback: ((OutputJack, InputJack) -> Unit)? = null
+    var requestFocus: (() -> Unit)? = null
 
     private fun notifyChanged() { onChange?.invoke() }
 

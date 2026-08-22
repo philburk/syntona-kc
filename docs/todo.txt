@@ -5,19 +5,42 @@ MAKE SOME MUSIC!
 
 BUG: Patch Name at the root is stale and unnecessary. Do not show the patch name for root patches.
 
+
+
+More Help patches
+For help, allow help to point to a tutorial or example page resourcePath, default to help/{package}
+
+More tutorials. Audio, timeline, pianoroll, Help
+
+
+Audio Input Processing
+* Audio settings
+* lineIn - delay - lineOut
+* measure latency
+* use a recorder, save audio to a file
+* trigger multiple recordings
+* track input pitch
+
+Composing
+* beatClock
+* ckDiv
+* pianoRoll
+* timeline
+* beatLine
+* hierarchy editor
+* multiTrack
+
+
+# ----------------------------------------------- MEDIUM PRIORITY
+
 DAHDSR decay needs higher range in KSyn.
 
-Add the ability to load the contents of a sample or a recorder module from a WAV file.
-Save the filename in the JSON so the sample contents can be loaded automatically.
-Add a "Load from WAV File..." to the modules popup menu along with the "Help..." item.
+Add a File menu "Open Recent" item that can load one of the 8 most recently saved or opened files that are not resources.
+Save that most recent list in Settings storage.
 
-Look at the KSyn PlaySampleScreen.kt for an example of loading a WAV file.
+AudioJacks do not need to store the kickable value in the JSON because it is ignored.
 
-Add the ability to save the contents of a sample or a recorder module to a WAV file.
-Save the filename in the JSON so the sample contents can be loaded automatically.
-Add a "Save to WAV File..." to the modules popup menu along with the "Help..." item.
-
-Look at the "Capture..." button in the top toolbar for an example of saving a file.
+When saving WAV files, try to use paths relative to the .SNTN file if at or below the SNTN path.
 
 BUG: deleting modules using BACKSPACE or DELETE key sometimes does not work. Edit menu Cut always works.
 
@@ -42,34 +65,12 @@ to a single-threaded dispatcher if you want that airtight.
 Toolbar toggle that sets a global that tells all the modules to show their jack values instead of their jack names.
 Or pass as a parameter to the module display node???
 
-More Help patches
-For help, allow help to point to a tutorial or example page resourcePath, default to help/{package}
-
 Website softsynth.com/syntona
 * user guide, just to get started and into the tutorial
 * archive old Syntona
 * link to the app(?) or let people ask for permission on Discord
 * Overview, screen shots, recordings
 
-More tutorials. Audio, timeline, pianoroll, Help
-
-
-Audio Input Processing
-* Audio settings
-* lineIn - delay - lineOut
-* measure latency
-* use a recorder, save audio to a file
-* trigger multiple recordings
-* track input pitch
-
-Composing
-* beatClock
-* ckDiv
-* pianoRoll
-* timeline
-* beatLine
-* hierarchy editor
-* multiTrack
 
 KSyn Sources, oscillators, noise
 KSyn Control, ramps, envelopes
@@ -81,20 +82,10 @@ KSyn Samples
 Need more ways to indicate Done. monoRdr could have an "empty" output jack.
 Ties in with the hierarchy editor.
 
-Add an "Edit" menu item to extract selected modules into a sub patch with named inputs.
-Call it "Make a Patch".
-To use it, the user would select a group of modules in a patch and select "Make a Patch".
-Those modules would be replaced with a patch containing the same modules.
-Any original connections outside that group would be replicated
-using "input", "aInput", "output", or "aOutput" modules as needed.
-
-
 Add theremin (XY) input module.
 
 Also add a "sounds" folder for drum sounds, sound effects, non-melodic instruments.
 
-
-# ----------------------------------------------- MEDIUM PRIORITY
 
 Need order4
 

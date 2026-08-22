@@ -2,105 +2,100 @@
   "modules": [
     {
       "id": 0,
-      "type": "ksyn.lineIn",
-      "name": "lineIn",
-      "x": 57,
-      "y": 428.125,
+      "type": "ksyn.data.sample",
+      "name": "sample",
+      "x": 120.0,
+      "y": 200.0,
       "jacks": {}
     },
     {
       "id": 1,
-      "type": "ksyn.data.monoWtr",
-      "name": "monoWtr",
-      "x": 380,
-      "y": 390.875,
+      "type": "ksyn.data.sampleReader",
+      "name": "sampleReader",
+      "x": 300.0,
+      "y": 200.0,
       "jacks": {
-        "input": {
-          "v": 0,
-          "min": 0,
-          "max": 1,
+        "amplitude": {
+          "v": 1.0,
+          "min": 0.0,
+          "max": 1.0,
+          "add": false
+        },
+        "rate": {
+          "v": 1.0,
+          "min": 0.0,
+          "max": 8.0,
+          "add": false
+        },
+        "offset": {
+          "v": 0.0,
+          "min": 0.0,
+          "max": 1.0,
+          "add": false
+        },
+        "durationMs": {
+          "v": 0.0,
+          "min": 0.0,
+          "max": 10000.0,
+          "add": false
+        },
+        "loop": {
+          "v": 0.0,
+          "min": 0.0,
+          "max": 1.0,
           "add": false
         }
       }
     },
     {
       "id": 2,
-      "type": "ksyn.data.sample",
-      "name": "sample",
-      "x": 120.94409,
-      "y": 203.11182,
-      "jacks": {}
-    },
-    {
-      "id": 3,
-      "type": "ksyn.data.monoRdr",
-      "name": "monoRdr",
-      "x": 294,
-      "y": 219.125,
-      "jacks": {
-        "amplitude": {
-          "v": 1,
-          "min": 0,
-          "max": 1,
-          "add": false
-        },
-        "rate": {
-          "v": 48000,
-          "min": 0,
-          "max": 44100,
-          "add": false
-        }
-      }
-    },
-    {
-      "id": 4,
       "type": "ksyn.lineOut",
       "name": "lineOut",
-      "x": 573,
-      "y": 458.125,
+      "x": 550.0,
+      "y": 200.0,
       "jacks": {
         "input0": {
-          "v": 0,
-          "min": 0,
-          "max": 1,
+          "v": 0.0,
+          "min": 0.0,
+          "max": 1.0,
           "add": false
         },
         "input1": {
-          "v": 0,
-          "min": 0,
-          "max": 1,
+          "v": 0.0,
+          "min": 0.0,
+          "max": 1.0,
           "add": false
         }
       }
     },
     {
-      "id": 5,
+      "id": 3,
       "type": "core.input.comment",
       "name": "comment",
-      "x": 68.94409,
-      "y": 33.111816,
+      "x": 68.0,
+      "y": 33.0,
       "jacks": {},
-      "text": "A sample can be used to store audio data.\nTo RECORD audio, connect the output of the sample to the monoWtr data jack.\nThen hit \"queueOn\" and say something into a mic.\nTo PLAY audio, move the output of the sample to the monoRdr data jack.\nThen hit \"queue\" and listen to it play.\n",
+      "text": "A 'sample' module holds audio data in memory.\nConnect 'sample.data' to 'sampleReader.data'.\nHit 'start' on sampleReader to play the slice or loop.\nAdjust offset and durationMs (0 = full sample) to play grains or regions.\n",
       "w": 572,
       "h": 122
     },
     {
-      "id": 6,
+      "id": 4,
       "type": "ksyn.view.scope",
       "name": "scope",
-      "x": 585.9116,
-      "y": 212.08838,
+      "x": 550.0,
+      "y": 360.0,
       "jacks": {
         "in0": {
-          "v": 0,
-          "min": 0,
-          "max": 1,
+          "v": 0.0,
+          "min": 0.0,
+          "max": 1.0,
           "add": false
         },
         "in1": {
-          "v": 0,
-          "min": 0,
-          "max": 1,
+          "v": 0.0,
+          "min": 0.0,
+          "max": 1.0,
           "add": false
         }
       },
@@ -111,49 +106,31 @@
   "connections": [
     {
       "from": 0,
-      "fromJack": "output0",
+      "fromJack": "data",
       "to": 1,
-      "toJack": "input"
+      "toJack": "data"
     },
     {
-      "from": 0,
-      "fromJack": "output1",
-      "to": 4,
-      "toJack": "input1"
-    },
-    {
-      "from": 3,
+      "from": 1,
       "fromJack": "output",
-      "to": 4,
+      "to": 2,
       "toJack": "input0"
     },
     {
-      "from": 2,
-      "fromJack": "rate",
-      "to": 3,
-      "toJack": "rate"
-    },
-    {
-      "from": 3,
+      "from": 1,
       "fromJack": "output",
-      "to": 6,
-      "toJack": "in1"
+      "to": 2,
+      "toJack": "input1"
     },
     {
-      "from": 0,
-      "fromJack": "output0",
-      "to": 6,
+      "from": 1,
+      "fromJack": "output",
+      "to": 4,
       "toJack": "in0"
-    },
-    {
-      "from": 2,
-      "fromJack": "output",
-      "to": 3,
-      "toJack": "data"
     }
   ],
   "windowX": 10,
   "windowY": 10,
-  "windowWidth": 1063.88330078125,
-  "windowHeight": 600.955322265625
+  "windowWidth": 950.0,
+  "windowHeight": 620.0
 }

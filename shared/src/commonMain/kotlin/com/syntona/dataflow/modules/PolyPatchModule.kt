@@ -545,6 +545,20 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                 FloatSampleModule().apply {
                     name = templateModule.name
                     sample = templateModule.sample // Share by reference!
+                    filePath = templateModule.filePath
+                }
+            }
+            is SamplePlayerModule -> {
+                SamplePlayerModule().apply {
+                    name = templateModule.name
+                    sample = templateModule.sample // Share by reference!
+                    filePath = templateModule.filePath
+                }
+            }
+            is SampleReaderModule -> {
+                SampleReaderModule().apply {
+                    name = templateModule.name
+                    isLooping = templateModule.isLooping
                 }
             }
             is EquationModule -> {
@@ -573,8 +587,8 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                     ModuleRegistry.findCreator(templateModule.type)?.invoke() ?: templateModule
                 }
             }
-            is SamplerModule -> {
-                SamplerModule().apply { name = templateModule.name }
+            is GrabAudioModule -> {
+                GrabAudioModule().apply { name = templateModule.name }
             }
             else -> {
                 ModuleRegistry.findCreator(templateModule.type)?.invoke() ?: templateModule

@@ -92,6 +92,7 @@ import com.syntona.dataflow.modules.AudioInputModule
 import com.syntona.dataflow.modules.AudioOutputModule
 import com.syntona.dataflow.modules.CommandModule
 import com.syntona.dataflow.modules.FloatSampleModule
+import com.syntona.dataflow.modules.SamplePlayerModule
 import com.syntona.dataflow.modules.InputModule
 import com.syntona.dataflow.modules.KnobModule
 import com.syntona.dataflow.modules.OutputModule
@@ -138,6 +139,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
     val colors = LocalGraphColors.current
     val mdiState = LocalMdiState.current
     val focusRequester = remember { FocusRequester() }
+    state.requestFocus = { focusRequester.requestFocus() }
     val editingModule = state.editingModule
     LaunchedEffect(editingModule) {
         if (editingModule == null) {
@@ -2209,6 +2211,7 @@ fun ModuleHeader(
                 .headerGestures(
                     state = state,
                     module = module,
+                    mdiState = mdiState,
                     onRightClick = { showMenu = true },
                     onDoubleTap = onDoubleTap
                 )
@@ -2242,7 +2245,7 @@ fun ModuleHeader(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false }
                     ) {
-                        if (module is FloatSampleModule || module is RecorderModule) {
+                        if (module is FloatSampleModule || module is SamplePlayerModule || module is RecorderModule) {
                             androidx.compose.material3.DropdownMenuItem(
                                 text = { Text("Load from WAV File...", fontSize = 12.sp) },
                                 onClick = {
@@ -2250,6 +2253,7 @@ fun ModuleHeader(
                                     chooseWavOpenFile { path ->
                                         when (module) {
                                             is FloatSampleModule -> module.loadWavFile(path)
+                                            is SamplePlayerModule -> module.loadWavFile(path)
                                             is RecorderModule -> module.loadWavFile(path)
                                         }
                                         state.markChanged()
@@ -2266,6 +2270,7 @@ fun ModuleHeader(
                                     chooseWavRecordFile(defaultName = "${module.name}.wav") { path ->
                                         when (module) {
                                             is FloatSampleModule -> module.saveWavFile(path)
+                                            is SamplePlayerModule -> module.saveWavFile(path)
                                             is RecorderModule -> module.saveWavFile(path)
                                         }
                                         state.markChanged()
@@ -2296,6 +2301,7 @@ fun ModuleHeader(
 fun Modifier.headerGestures(
     state: GraphState,
     module: Module,
+    mdiState: MdiState? = null,
     onRightClick: (() -> Unit)? = null,
     onDoubleTap: () -> Unit
 ): Modifier = this.pointerInput(module, state) {
@@ -2308,6 +2314,10 @@ fun Modifier.headerGestures(
             return@awaitEachGesture
         }
         down.consume()
+        state.requestFocus?.invoke()
+        if (mdiState != null) {
+            mdiState.activeGraphState = state
+        }
         if (!state.selectedModules.contains(module)) {
             state.clearSelection()
             state.selectModule(module)

@@ -8,52 +8,51 @@ import com.softsynth.ksyn.util.SampleLoader
 import com.syntona.core.audio.SynthKSyn
 import com.syntona.core.audio.writeWavFile
 import com.syntona.core.model.ScoreClock
+import com.syntona.core.model.ScoreTime
 import com.syntona.dataflow.editor.readBinaryFileDirect
+import com.syntona.dataflow.model.CommandJack
+import com.syntona.dataflow.model.DataQueueOutputJack
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
+import com.syntona.dataflow.model.OutputJack
 
 /**
- * Holds a mono [FloatSample] that can be queued onto a KSyn data queue port, such as the
- * "monoRdr" reader. This mirrors [SegmentedEnvelopeModule] but carries audio sample data
- * instead of an envelope.
+ * Holds a mono [FloatSample] in memory that can be shared across readers (like [SampleReaderModule]).
+ * In a polyPatch, the underlying sample is shared among all voices.
  */
 class FloatSampleModule : Module("sample") {
     var sample: FloatSample by mutableStateOf(createSample())
     var filePath: String? by mutableStateOf(null)
 
-    private val queueOnIn = addCommandInput("queueOn")
-    private val queueOffIn = addCommandInput("queueOff")
-    private val queueIn = addCommandInput("queue")
-    private val queueLoopIn = addCommandInput("queueLoop")
-    private val output = addDataQueueOutput("output")
-    private val rateOutput = addOutput("rate")
+    val sendIn: CommandJack = addCommandInput("send")
+    val dataOutput: DataQueueOutputJack = addDataQueueOutput("data")
+    val durationOutput: OutputJack = addOutput("durationMs")
+
+    init {
+        sendSample()
+    }
 
     override fun onMessageReceived(jack: InputJack, msg: Message) {
         super.onMessageReceived(jack, msg)
-        when (jack) {
-            queueOnIn -> queueSample(Message.DataQueueOpcode.QUEUE_ON)
-            queueOffIn -> queueSample(Message.DataQueueOpcode.QUEUE_OFF)
-            queueIn -> queueSample(Message.DataQueueOpcode.QUEUE)
-            queueLoopIn -> queueSample(Message.DataQueueOpcode.QUEUE_LOOP)
+        if (jack === sendIn) {
+            sendSample()
         }
     }
 
-    /**
-     * Emits the sample's native frame rate on [rateOutput] first, so a reader's rate port is
-     * already set by the time the queue command arrives, then queues the sample itself.
-     */
-    private fun queueSample(opcode: Message.DataQueueOpcode) {
-        val now = ScoreClock.now()
-        rateOutput.send(Message.FloatValue(now, sample.frameRate))
-        output.send(Message.DataQueueMessage(now, sample, opcode))
+    fun sendSample() {
+        dataOutput.send(Message.DataQueueMessage(ScoreClock.now(), sample, Message.DataQueueOpcode.QUEUE))
+        val rate = if (sample.frameRate > 0.0) sample.frameRate else SynthKSyn.synth.frameRate.toDouble()
+        val durationMs = if (rate > 0.0) (sample.numFrames * 1000.0 / rate) else 0.0
+        durationOutput.send(Message.FloatValue(ScoreTime.Zero, durationMs))
     }
 
     fun loadWav(bytes: ByteArray, path: String? = null): Boolean {
         return try {
-            val loaded = SampleLoader.loadFloatSample(bytes)
+            val loaded = SampleLoader.loadFloatSample(bytes).toMono()
             sample = loaded
             if (path != null) filePath = path
+            sendSample()
             true
         } catch (e: Exception) {
             println("Failed to load WAV into FloatSampleModule: ${e.message}")
@@ -94,9 +93,7 @@ class FloatSampleModule : Module("sample") {
 
         /**
          * Allocates a silent mono sample holding [DURATION_SECONDS] of audio at the synth's
-         * frame rate. FloatSample's constructor leaves [FloatSample.frameRate] at its 44100.0
-         * default, so it is set explicitly here to match the buffer that was actually
-         * allocated — otherwise the "rate" output would misreport at any other synth rate.
+         * frame rate.
          */
         private fun createSample(): FloatSample {
             val frameRate = SynthKSyn.synth.frameRate

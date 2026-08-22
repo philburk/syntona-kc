@@ -5,10 +5,9 @@ import com.softsynth.ksyn.unitgen.UnitGenerator
 import com.syntona.core.audio.SynthKSyn
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.CommandJack
-import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 
-class SamplerUnit : UnitGenerator() {
+class GrabAudioUnit : UnitGenerator() {
     val input = UnitInputPort("input")
 
     init {
@@ -23,8 +22,8 @@ class SamplerUnit : UnitGenerator() {
     }
 }
 
-class SamplerModule : com.syntona.dataflow.model.Module("sampler") {
-    val unit = SamplerUnit()
+class GrabAudioModule : com.syntona.dataflow.model.Module("grabAudio") {
+    val unit = GrabAudioUnit()
 
     val kick: CommandJack
     val input: AudioInputJack
