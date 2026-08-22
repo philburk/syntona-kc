@@ -22,6 +22,7 @@ open class PatchModule(name: String = "patch", type: String = "patch") : Module(
 
     // Maps jacks on this PatchModule to the I/O modules inside the patch
     protected val inputLinks = mutableMapOf<InputJack, InputModule>()
+    protected val commandLinks = mutableMapOf<InputJack, CommandModule>()
     protected val outputLinks = mutableMapOf<OutputJack, OutputModule>()
     protected val audioInputLinks = mutableMapOf<AudioInputJack, AudioInputModule>()
     protected val audioOutputLinks = mutableMapOf<AudioOutputJack, AudioOutputModule>()
@@ -128,6 +129,14 @@ open class PatchModule(name: String = "patch", type: String = "patch") : Module(
                 module.patchJack = jack
                 module.name = proposedName
             }
+            is CommandModule -> {
+                val proposedName = if (module.name == "command") "cmd${commandLinks.size + 1}" else module.name
+                val jack = addCommandInput(proposedName)
+                commandLinks[jack] = module
+                module.patch = this
+                module.patchJack = jack
+                module.name = proposedName
+            }
             is OutputModule -> {
                 val proposedName = if (module.name == "output") "out${outputLinks.size + 1}" else module.name
                 val jack = addOutput(proposedName)
@@ -168,6 +177,19 @@ open class PatchModule(name: String = "patch", type: String = "patch") : Module(
                     }
                     removeInput(jack)
                     inputLinks.remove(jack)
+                }
+            }
+            is CommandModule -> {
+                val jack = module.patchJack
+                if (jack != null) {
+                    parentPatch?.graphState?.let { parentGs ->
+                        parentGs.jackOffsets.remove(jack)
+                        parentGs.jackBounds.remove(jack)
+                        val conns = parentGs.connections.filter { it.input === jack }
+                        conns.forEach { parentGs.disconnect(it.output, it.input) }
+                    }
+                    removeInput(jack)
+                    commandLinks.remove(jack)
                 }
             }
             is OutputModule -> {
@@ -213,8 +235,9 @@ open class PatchModule(name: String = "patch", type: String = "patch") : Module(
     }
 
     override fun onMessageReceived(jack: InputJack, msg: Message) {
-        // Forward incoming messages to the matching InputModule inside the patch
+        // Forward incoming messages to the matching InputModule or CommandModule inside the patch
         inputLinks[jack]?.receive(msg)
+        commandLinks[jack]?.receive(msg)
         super.onMessageReceived(jack, msg)
     }
 

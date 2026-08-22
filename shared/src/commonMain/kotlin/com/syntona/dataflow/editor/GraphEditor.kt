@@ -90,6 +90,7 @@ import com.syntona.dataflow.modules.FaderModule
 import com.syntona.dataflow.modules.MixerModule
 import com.syntona.dataflow.modules.AudioInputModule
 import com.syntona.dataflow.modules.AudioOutputModule
+import com.syntona.dataflow.modules.CommandModule
 import com.syntona.dataflow.modules.InputModule
 import com.syntona.dataflow.modules.KnobModule
 import com.syntona.dataflow.modules.OutputModule
@@ -283,6 +284,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                     is MixerModule -> MixerModuleNode(module, state)
                     is ModuloSelectModule -> ModuleNode(module, state, headerColor = colors.headerSequence)
                     is InputModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
+                    is CommandModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
                     is OutputModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
                     is AudioInputModule -> ModuleNode(module, state, headerColor = colors.headerAudio, label = module.name)
                     is AudioOutputModule -> ModuleNode(module, state, headerColor = colors.headerAudio, label = module.name)
@@ -1159,7 +1161,7 @@ fun CommandJackView(jack: CommandJack, state: GraphState, isLeft: Boolean) {
                         }
                     }
                 },
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
             colors = if (jack.isHighlighted) {
                 ButtonDefaults.buttonColors(
                     containerColor = colors.buttonBgArmed,
@@ -1169,7 +1171,12 @@ fun CommandJackView(jack: CommandJack, state: GraphState, isLeft: Boolean) {
                 ButtonDefaults.buttonColors()
             }
         ) {
-            Text(jack.name, fontSize = 10.sp)
+            Text(
+                jack.name,
+                fontSize = 10.sp,
+                maxLines = 1,
+                softWrap = false
+            )
         }
         (jack.module as? CommandJackBadge)?.badgeFor(jack)?.let { badge ->
             Spacer(modifier = Modifier.width(4.dp))
@@ -1430,7 +1437,8 @@ fun PatchModuleNode(module: PatchModule, state: GraphState) {
     Surface(
         modifier = Modifier
             .offset { IntOffset((position.x * density.density).roundToInt(), (position.y * density.density).roundToInt()) }
-            .width(120.dp)
+            .width(IntrinsicSize.Max)
+            .widthIn(min = 100.dp)
             .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
             .onSizeChanged { size ->
                 state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
@@ -1438,7 +1446,7 @@ fun PatchModuleNode(module: PatchModule, state: GraphState) {
         shape = RoundedCornerShape(4.dp),
         color = colors.modulePatchBackground
     ) {
-        Column {
+        Column(modifier = Modifier.width(IntrinsicSize.Max)) {
             val suffix = if (module.isModified) "*" else ""
             val displayName = if (module is PolyPatchModule) "${module.name}$suffix[${module.maxVoices}]" else "${module.name}$suffix"
             ModuleHeader(
@@ -1510,12 +1518,36 @@ fun PatchModuleNode(module: PatchModule, state: GraphState) {
                     }
                 }
             )
-            Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
-                    module.inputs.forEach { JackView(it, state, isLeft = true) }
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                horizontalArrangement = if (module.inputs.isNotEmpty() && module.outputs.isNotEmpty()) {
+                    Arrangement.SpaceBetween
+                } else if (module.inputs.isNotEmpty()) {
+                    Arrangement.Start
+                } else {
+                    Arrangement.End
                 }
-                Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
-                    module.outputs.forEach { JackView(it, state, isLeft = false) }
+            ) {
+                if (module.inputs.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier.width(IntrinsicSize.Max),
+                        horizontalAlignment = Alignment.Start
+                    ) {
+                        module.inputs.forEach { JackView(it, state, isLeft = true) }
+                    }
+                }
+                if (module.inputs.isNotEmpty() && module.outputs.isNotEmpty()) {
+                    Spacer(modifier = Modifier.width(16.dp))
+                }
+                if (module.outputs.isNotEmpty()) {
+                    Column(
+                        modifier = Modifier.width(IntrinsicSize.Max),
+                        horizontalAlignment = Alignment.End
+                    ) {
+                        module.outputs.forEach { JackView(it, state, isLeft = false) }
+                    }
                 }
             }
         }

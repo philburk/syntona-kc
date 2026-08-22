@@ -109,6 +109,12 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                 return
             }
         }
+        if (module is CommandModule) {
+            module.patch = this
+            if (isSpecialVoiceInput(module.name)) {
+                return
+            }
+        }
         super.onChildModuleAdded(module)
     }
 
@@ -219,6 +225,14 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                 for (voice in voices) {
                     val voiceInMod = voice.templateToVoiceMap[inputMod] as? InputModule
                     voiceInMod?.receive(msg)
+                }
+            }
+            val cmdMod = commandLinks[jack]
+            if (cmdMod != null) {
+                cmdMod.receive(msg)
+                for (voice in voices) {
+                    val voiceCmdMod = voice.templateToVoiceMap[cmdMod] as? CommandModule
+                    voiceCmdMod?.receive(msg)
                 }
             }
         }
@@ -487,6 +501,11 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                     defaultValue = templateModule.defaultValue
                     hasValue = templateModule.hasValue
                     defaultIsKickable = templateModule.defaultIsKickable
+                }
+            }
+            is CommandModule -> {
+                CommandModule().apply {
+                    name = templateModule.name
                 }
             }
             is KnobModule -> {

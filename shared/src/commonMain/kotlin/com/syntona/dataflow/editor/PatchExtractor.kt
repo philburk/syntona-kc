@@ -3,11 +3,13 @@ package com.syntona.dataflow.editor
 import androidx.compose.ui.geometry.Offset
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.AudioOutputJack
+import com.syntona.dataflow.model.CommandJack
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.model.OutputJack
 import com.syntona.dataflow.modules.AudioInputModule
 import com.syntona.dataflow.modules.AudioOutputModule
+import com.syntona.dataflow.modules.CommandModule
 import com.syntona.dataflow.modules.InputModule
 import com.syntona.dataflow.modules.OutputModule
 import com.syntona.dataflow.modules.PatchModule
@@ -98,6 +100,17 @@ object PatchExtractor {
                 patch.graphState.addModule(aInMod, inModPos)
                 patch.graphState.connect(aInMod.output, newTargetJack)
                 val patchJack = aInMod.patchJack
+                if (patchJack != null) {
+                    for (conn in conns) {
+                        graphState.connect(conn.output, patchJack)
+                    }
+                }
+            } else if (newTargetJack is CommandJack) {
+                val cmdMod = CommandModule()
+                cmdMod.name = finalName
+                patch.graphState.addModule(cmdMod, inModPos)
+                patch.graphState.connect(cmdMod.output, newTargetJack)
+                val patchJack = cmdMod.patchJack
                 if (patchJack != null) {
                     for (conn in conns) {
                         graphState.connect(conn.output, patchJack)

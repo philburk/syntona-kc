@@ -33,6 +33,7 @@ help/music/input/pianoRoll.json
 instruments/sawBasic.json
 instruments/sawLowPass.json
 instruments/twoOpFM.json
+sounds/chuff.json
 sounds/drumFM.json
 tutorials/01_tour/01_sawtooth_modulation.json
 tutorials/01_tour/02_envelope_editor.json

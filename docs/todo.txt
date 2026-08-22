@@ -13,9 +13,6 @@ The "recorder"
 
 BUG: deleting modules using BACKSPACE or DELETE key sometimes does not work. Edit menu Cut always works.
 
-Do not show a jack editor for CommandJacks in the ModuleEditor.
-
-
 When selecting a new input output pair, suggest measuring latency.
 
 BUG: Why does envAD not hold after the attack until off()?

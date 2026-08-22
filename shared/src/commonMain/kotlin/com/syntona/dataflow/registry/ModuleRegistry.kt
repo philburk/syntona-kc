@@ -29,6 +29,7 @@ object ModuleRegistry {
         core.modules.add(ModuleEntry("patch") { PatchModule() })
         core.modules.add(ModuleEntry("polyPatch") { PolyPatchModule() })
         core.modules.add(ModuleEntry("input") { InputModule() })
+        core.modules.add(ModuleEntry("command") { CommandModule() })
         core.modules.add(ModuleEntry("output") { OutputModule() })
 
         val basic = getOrCreateBundle(core, "basic")

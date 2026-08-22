@@ -1,0 +1,149 @@
+{
+  "type": "core.patch",
+  "patch": {
+    "modules": [
+      {
+        "id": 0,
+        "type": "ksyn.aOutput",
+        "name": "aOut1",
+        "x": 471.9,
+        "y": 164,
+        "jacks": {
+          "input": {
+            "v": 0,
+            "min": 0,
+            "max": 1,
+            "kickable": false,
+            "add": false
+          }
+        }
+      },
+      {
+        "id": 1,
+        "type": "ksyn.sources.redNoise",
+        "name": "redNoise",
+        "x": 243.9,
+        "y": 172,
+        "jacks": {
+          "frequency": {
+            "v": 3868.1484375,
+            "min": 40,
+            "max": 8000,
+            "kickable": false,
+            "add": false
+          },
+          "amplitude": {
+            "v": 1,
+            "min": 0,
+            "max": 1,
+            "kickable": false,
+            "add": false
+          }
+        }
+      },
+      {
+        "id": 2,
+        "type": "ksyn.sources.sineOsc",
+        "name": "sineOsc",
+        "x": 362.9,
+        "y": 161,
+        "jacks": {
+          "frequency": {
+            "v": 2030.347900390625,
+            "min": 40,
+            "max": 8000,
+            "kickable": false,
+            "add": false
+          },
+          "amplitude": {
+            "v": 1,
+            "min": 0,
+            "max": 1,
+            "kickable": false,
+            "add": false
+          }
+        }
+      },
+      {
+        "id": 3,
+        "type": "core.command",
+        "name": "trigger",
+        "x": 25.9,
+        "y": 190
+      },
+      {
+        "id": 4,
+        "type": "ksyn.control.envAD",
+        "name": "envAD",
+        "x": 140.1,
+        "y": 154.1,
+        "jacks": {
+          "input": {
+            "v": 0,
+            "min": 0,
+            "max": 1,
+            "kickable": false,
+            "add": false
+          },
+          "attack": {
+            "v": 0.001457819016650319,
+            "min": 0.0010000000474974513,
+            "max": 8,
+            "kickable": false,
+            "add": false
+          },
+          "decay": {
+            "v": 0.36065641045570374,
+            "min": 0.0010000000474974513,
+            "max": 8,
+            "kickable": false,
+            "add": false
+          },
+          "amplitude": {
+            "v": 1,
+            "min": 0,
+            "max": 1,
+            "kickable": false,
+            "add": false
+          }
+        }
+      },
+      {
+        "id": 5,
+        "type": "core.input.comment",
+        "name": "comment",
+        "x": 48.9,
+        "y": 19,
+        "text": "Multiple a sine wave by noise to get a nicely shaped \"chuff\".",
+        "w": 437.78662,
+        "h": 77.08839
+      }
+    ],
+    "connections": [
+      {
+        "from": 1,
+        "fromJack": "output",
+        "to": 2,
+        "toJack": "amplitude"
+      },
+      {
+        "from": 2,
+        "fromJack": "output",
+        "to": 0,
+        "toJack": "input"
+      },
+      {
+        "from": 3,
+        "fromJack": "output",
+        "to": 4,
+        "toJack": "trigger"
+      },
+      {
+        "from": 4,
+        "fromJack": "output",
+        "to": 1,
+        "toJack": "amplitude"
+      }
+    ]
+  }
+}
