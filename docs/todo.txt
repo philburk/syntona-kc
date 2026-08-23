@@ -3,6 +3,8 @@
 
 MAKE SOME MUSIC!
 
+BUG: Patch Name at the root is stale and unnecessary. Do not show the patch name for root patches.
+
 DAHDSR decay needs higher range in KSyn.
 
 Add the ability to load the contents of a sample or a recorder module from a WAV file.

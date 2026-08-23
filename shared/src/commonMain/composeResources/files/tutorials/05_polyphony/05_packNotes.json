@@ -486,19 +486,19 @@
       "y": 216.9,
       "jacks": {
         "pitch": {
-          "v": 38,
+          "v": 43,
           "min": 0,
           "max": 100,
           "kickable": true
         },
         "tag": {
-          "v": 152,
+          "v": 128,
           "min": -1,
           "max": 127,
           "kickable": false
         },
         "amplitude": {
-          "v": 0.2,
+          "v": 0.5437211769728869,
           "min": 0,
           "max": 2,
           "kickable": false
@@ -519,7 +519,7 @@
       "y": 332,
       "jacks": {
         "x": {
-          "v": 152,
+          "v": 128,
           "min": 0,
           "max": 100,
           "kickable": true

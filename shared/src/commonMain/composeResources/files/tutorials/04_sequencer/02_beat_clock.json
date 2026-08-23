@@ -110,7 +110,7 @@
       "name": "comment",
       "x": 49.9,
       "y": 28,
-      "text": "You may be tired of clicking the \"trigger\" button. So I added a beatClock that will do it for us.\n\nThe beatClock grabs the value of the knob, which gets sent to both the oscillator and the envelope.\n\nTo Do:\n* Click the \"start\" button on the beatClock.\n* Click on the beatClock's \"tempo\" jack and drag up and down.\n* Click on the knob and drag up and down to change the oscillator frequency.\n* Use on the beatClock's menu to change the pulse period in beats to 3/8.\n\n",
+      "text": "You may be tired of clicking the \"trigger\" button. So I added a beatClock that will do it for us.\n\nThe beatClock tells the knob to send its value to both the oscillator and the envelope.\n\nTo Do:\n* Click the \"start\" button on the beatClock.\n* Click on the beatClock's \"tempo\" jack and drag up and down.\n* Click on the knob and drag up and down to change the oscillator frequency.\n* Use on the beatClock's menu to change the pulse period in beats to 3/8.\n\n",
       "w": 544.875,
       "h": 227
     },

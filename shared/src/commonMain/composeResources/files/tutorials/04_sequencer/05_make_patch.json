@@ -197,8 +197,8 @@
       "id": 7,
       "type": "core.basic.link",
       "name": "link",
-      "x": 352,
-      "y": 535.9,
+      "x": 104,
+      "y": 568.9,
       "filePath": "tutorials/04_sequencer/06_add_drum.json",
       "buttonText": ">> Next, add drumFM"
     }

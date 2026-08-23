@@ -6,7 +6,7 @@
       "name": "comment",
       "x": 49.9,
       "y": 28,
-      "text": "Sometimes it helps to have a visual indicator of what is being triggered.\n\nTo Do:\n* Click the \"start\" button to start the beatClock.\n*Note the flashing yellow light on the drumFM.\n* Double click the drumFM module header.\n* Note the \"flash\" module connected to the \"trigger\".",
+      "text": "Sometimes it helps to have a visual indicator of what is being triggered.\n\nTo Do:\n* Click the \"start\" button to start the beatClock.\n* Note the flashing yellow light on the drumFM.\n* Double click the drumFM module header.\n* Note the \"flash\" module connected to the \"trigger\".",
       "w": 544.875,
       "h": 227
     },
@@ -62,7 +62,7 @@
           "kickable": true
         },
         "in": {
-          "v": 3029,
+          "v": 92,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -126,7 +126,7 @@
       "y": 323,
       "jacks": {
         "in": {
-          "v": 60,
+          "v": 48,
           "min": 0,
           "max": 100,
           "kickable": false
@@ -143,7 +143,7 @@
             "y": 170.1,
             "jacks": {
               "frequency": {
-                "v": 261.6255798339844,
+                "v": 130.8127899169922,
                 "min": 40,
                 "max": 8000,
                 "kickable": false,
@@ -203,7 +203,7 @@
             "y": 93,
             "jacks": {
               "in": {
-                "v": 60,
+                "v": 48,
                 "min": 0,
                 "max": 100,
                 "kickable": true
@@ -218,7 +218,7 @@
             "y": 93,
             "jacks": {
               "in": {
-                "v": 60,
+                "v": 48,
                 "min": 0,
                 "max": 100,
                 "kickable": false
@@ -284,7 +284,7 @@
       "y": 429.9,
       "jacks": {
         "trigger": {
-          "v": 60,
+          "v": 69,
           "min": 0,
           "max": 100,
           "kickable": false
@@ -323,7 +323,7 @@
             "y": 20,
             "jacks": {
               "trigger": {
-                "v": 60,
+                "v": 69,
                 "min": 0,
                 "max": 100,
                 "kickable": false
@@ -568,7 +568,7 @@
             "y": 303,
             "jacks": {
               "flash": {
-                "v": 60,
+                "v": 69,
                 "min": 0,
                 "max": 100,
                 "kickable": true
@@ -720,14 +720,14 @@
           "add": false
         },
         "gain2": {
-          "v": 1,
+          "v": 0,
           "min": 0,
           "max": 1,
           "kickable": false,
           "add": false
         },
         "gain3": {
-          "v": 1,
+          "v": 0,
           "min": 0,
           "max": 1,
           "kickable": false,

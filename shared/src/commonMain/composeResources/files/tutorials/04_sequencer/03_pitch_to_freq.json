@@ -97,11 +97,11 @@
       "id": 4,
       "type": "core.input.knob",
       "name": "knob",
-      "x": 169.9,
-      "y": 339,
+      "x": 178.9,
+      "y": 384,
       "jacks": {
         "kick": {
-          "v": 118,
+          "v": 442,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -134,8 +134,8 @@
       "id": 6,
       "type": "core.math.p2f",
       "name": "p2f",
-      "x": 296.9,
-      "y": 332,
+      "x": 299.9,
+      "y": 386,
       "jacks": {
         "in": {
           "v": 60,
@@ -193,8 +193,8 @@
       "toJack": "frequency"
     },
     {
-      "from": 6,
-      "fromJack": "out",
+      "from": 5,
+      "fromJack": "output",
       "to": 2,
       "toJack": "trigger"
     }
