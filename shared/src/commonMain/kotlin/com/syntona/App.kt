@@ -212,6 +212,31 @@ fun loadIntoDocument(
 }
 
 /**
+ * Loads a recent patch from [path] into the active document (or opens a new document window).
+ */
+fun openRecentPatch(
+    path: String,
+    mdiState: MdiState,
+    engine: com.syntona.dataflow.engine.DataFlowEngine?,
+    density: Float
+) {
+    val content = com.syntona.dataflow.editor.readFileDirect(path) ?: return
+    val current = FileState.activeDocument
+    fun openInto(into: DocumentState) {
+        loadIntoDocument(mdiState, into, path, content, density)
+    }
+    FileState.requestIfDirty(
+        openInNewWindow = {
+            if (engine != null) {
+                openInto(openNewDocument(mdiState, engine, density))
+            }
+        }
+    ) {
+        if (current != null) openInto(current)
+    }
+}
+
+/**
  * Loads whatever patch the current URL names into [document].
  *
  * That is either a patch encoded in the fragment by "Share Piece as URL...", or a bundled example
@@ -621,6 +646,60 @@ fun App(
                                                       }
                                                   }
                                               )
+                                               var recentExpanded by remember { mutableStateOf(false) }
+                                               val recents = com.syntona.storage.RecentPatchesStore.recentPatches
+                                               var recentItemWidth by remember { mutableStateOf(0) }
+                                               val localDensity = androidx.compose.ui.platform.LocalDensity.current
+                                               val recentItemWidthDp = remember(recentItemWidth, localDensity) {
+                                                   with(localDensity) { recentItemWidth.toDp() }
+                                               }
+                                               Box(modifier = Modifier.onGloballyPositioned { coordinates ->
+                                                   recentItemWidth = coordinates.size.width
+                                               }) {
+                                                   CompactDropdownMenuItem(
+                                                       text = { Text("Recent Patches") },
+                                                       trailingIcon = { Text("›", fontSize = 16.sp) },
+                                                       enabled = recents.isNotEmpty(),
+                                                       onClick = { recentExpanded = true },
+                                                       modifier = Modifier.pointerInput(Unit) {
+                                                           awaitPointerEventScope {
+                                                               while (true) {
+                                                                   val event = awaitPointerEvent()
+                                                                   if (event.type == androidx.compose.ui.input.pointer.PointerEventType.Enter) {
+                                                                       if (recents.isNotEmpty()) {
+                                                                           recentExpanded = true
+                                                                       }
+                                                                   }
+                                                               }
+                                                           }
+                                                       }
+                                                   )
+                                                   if (recents.isNotEmpty()) {
+                                                       DropdownMenu(
+                                                           expanded = recentExpanded,
+                                                           onDismissRequest = { recentExpanded = false },
+                                                           offset = androidx.compose.ui.unit.DpOffset(x = recentItemWidthDp, y = (-48).dp)
+                                                       ) {
+                                                           recents.forEach { path ->
+                                                               val fileName = path.substringAfterLast('/').substringAfterLast('\\').ifEmpty { path }
+                                                               CompactDropdownMenuItem(
+                                                                   text = {
+                                                                       Text(
+                                                                           text = fileName,
+                                                                           maxLines = 1,
+                                                                           overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                                                       )
+                                                                   },
+                                                                   onClick = {
+                                                                       recentExpanded = false
+                                                                       fileExpanded = false
+                                                                       openRecentPatch(path, mdiState, engine, appDensity)
+                                                                   }
+                                                               )
+                                                           }
+                                                       }
+                                                   }
+                                               }
                                               CompactDropdownMenuItem(
                                                    text = { Text("Add Patch from File...") },
                                                    onClick = {

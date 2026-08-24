@@ -97,6 +97,9 @@ class DocumentState(val rootPatch: PatchModule) {
         currentFilePath = path
         isDirty = false
         rootPatch.filePath = path
+        if (!isResource && !path.startsWith("shared_piece")) {
+            com.syntona.storage.RecentPatchesStore.addRecentPatch(path)
+        }
     }
 
     fun markNew() {

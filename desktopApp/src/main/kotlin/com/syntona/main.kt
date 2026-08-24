@@ -147,6 +147,19 @@ fun main() {
                             if (current != null) openInto(current)
                         }
                     }
+                    Menu("Recent Patches") {
+                        val recents = com.syntona.storage.RecentPatchesStore.recentPatches
+                        if (recents.isEmpty()) {
+                            Item("No Recent Patches", enabled = false) {}
+                        } else {
+                            recents.forEach { path ->
+                                val fileName = path.substringAfterLast('/').substringAfterLast('\\').ifEmpty { path }
+                                Item(fileName) {
+                                    com.syntona.openRecentPatch(path, state, engine, density)
+                                }
+                            }
+                        }
+                    }
                     Item("Add Patch from File...") {
                         val activeGs = state.activeGraphState
                         if (activeGs != null) {

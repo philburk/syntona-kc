@@ -161,5 +161,8 @@ class SettingsStore(
         /** Keys for the MIDI devices last chosen, so a patch with none can pick them up. */
         const val KEY_LAST_MIDI_SOURCE = "lastMidiSourceUsed"
         const val KEY_LAST_MIDI_DESTINATION = "lastMidiDestinationUsed"
+
+        /** Key for the most recently saved or opened patch files. */
+        const val KEY_RECENT_PATCHES = "recentPatches"
     }
 }

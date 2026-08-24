@@ -1,23 +1,14 @@
 
 # ----------------------------------------------- HIGH PRIORITY
 
-MAKE SOME MUSIC!
+Bump Syntona to v0.6.0
 
-More Help patches
+Tag a new minor version of KSyn and use that in Syntona.
 
-We have a help system for modules that looks for a JSON file with a path matching the module package and name.
-Also provide a way to a tutorial or example page resourcePath so we can reuse those patches for module help.
-We can specify these in the ModuleRegistry.
+Store Syntona version number in the saved JSON files.
 
-For example:
-examples/matchControl.json => music.midi.matchControl
-examples/pianoRoll.json => music.compose.pianoRoll
-examples/recSeq.json => music.compose.recSeq
-tutorials/03_core/05_key_match.json => core.input.keyMatch
-tutorials/04_sequencer/03_pitch_to_freq.json => core.math.p2f
-tutorials/06_midi/04_midiOut.json => music.midi.midiOut
-tutorials/06_midi/01_midi_input.json => music.midi.midiIn
-tutorials/07_audio_input/05_sampleReader.json => ksyn.data.sampleReader
+
+# ----------------------------------------------- MEDIUM PRIORITY
 
 Composing
 * beatClock
@@ -28,12 +19,9 @@ Composing
 * hierarchy editor ?
 * multiTrack ?
 
-
-# ----------------------------------------------- MEDIUM PRIORITY
-
 DAHDSR decay needs higher range in KSyn.
 
-Add a File menu "Open Recent" item that can load one of the 8 most recently saved or opened files that are not resources.
+Add a File menu item called "Recent Patches" item that can load one of the 8 most recently saved or opened files that are not resources.
 Save that most recent list in Settings storage.
 
 AudioJacks do not need to store the kickable value in the JSON because it is ignored.
