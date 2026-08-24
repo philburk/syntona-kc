@@ -1,5 +1,6 @@
 package com.syntona.dataflow.editor
 
+import com.syntona.SyntonaVersion
 import com.syntona.dataflow.editor.FileState
 import androidx.compose.ui.geometry.Offset
 import com.syntona.dataflow.model.AudioInputJack
@@ -61,12 +62,12 @@ object GraphSerializer {
         basePath: String? = null
     ): String {
         val raw = buildRawJson(graphState, modules, density, basePath)
-        if (rootWindowX == null && rootWindowY == null && rootWindowWidth == null && rootWindowHeight == null) {
-            return prettyPrintJson(raw)
-        }
         val parsedRoot = try { JsonParser(raw).parse() as? JsonValue.Obj } catch (_: Exception) { null }
             ?: return prettyPrintJson(raw)
-        val merged = LinkedHashMap(parsedRoot.map)
+        val merged = LinkedHashMap<String, JsonValue>()
+        merged["version"] = JsonValue.Str(SyntonaVersion.toString())
+        merged["versionCode"] = JsonValue.Num(SyntonaVersion.code.toDouble())
+        merged.putAll(parsedRoot.map)
         rootWindowX?.let { merged["windowX"] = JsonValue.Num(it.toDouble()) }
         rootWindowY?.let { merged["windowY"] = JsonValue.Num(it.toDouble()) }
         rootWindowWidth?.let { merged["windowWidth"] = JsonValue.Num(it.toDouble()) }
@@ -123,6 +124,8 @@ object GraphSerializer {
         val parsed = try { JsonParser(raw).parse() as? JsonValue.Obj } catch (_: Exception) { null }
             ?: return raw
         val merged = LinkedHashMap<String, JsonValue>()
+        merged["version"] = JsonValue.Str(SyntonaVersion.toString())
+        merged["versionCode"] = JsonValue.Num(SyntonaVersion.code.toDouble())
         val resolvedType = ModuleRegistry.getBundlePath(patch.type) ?: patch.type
         merged["type"] = JsonValue.Str(resolvedType)
         if (patch is PolyPatchModule) {

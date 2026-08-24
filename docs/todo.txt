@@ -1,8 +1,6 @@
 
 # ----------------------------------------------- HIGH PRIORITY
 
-Bump Syntona to v0.6.0
-
 Tag a new minor version of KSyn and use that in Syntona.
 
 Store Syntona version number in the saved JSON files.

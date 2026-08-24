@@ -143,4 +143,28 @@ class JackRoundTripTest {
         assertEquals(200.0, clipped)
         assertEquals(200, jackA.getClippedIntValue())
     }
+
+    @Test
+    fun testSerializationIncludesVersionAndVersionCode() {
+        val state = GraphState()
+        state.addModule(com.syntona.dataflow.modules.ClockModule(), Offset.Zero)
+
+        val json = GraphSerializer.serialize(state, state.modules.toList())
+        val parsed = JsonParser(json).parse() as JsonValue.Obj
+
+        val version = (parsed.map["version"] as? JsonValue.Str)?.value
+        val versionCode = (parsed.map["versionCode"] as? JsonValue.Num)?.value?.toInt()
+
+        assertEquals(com.syntona.SyntonaVersion.toString(), version)
+        assertEquals(com.syntona.SyntonaVersion.code, versionCode)
+
+        val patch = com.syntona.dataflow.modules.PatchModule("testPatch")
+        patch.graphState.addModule(com.syntona.dataflow.modules.CounterModule(), Offset.Zero)
+        val patchJson = GraphSerializer.serializePatch(patch)
+        val parsedPatch = JsonParser(patchJson).parse() as JsonValue.Obj
+
+        assertEquals(com.syntona.SyntonaVersion.toString(), (parsedPatch.map["version"] as? JsonValue.Str)?.value)
+        assertEquals(com.syntona.SyntonaVersion.code, (parsedPatch.map["versionCode"] as? JsonValue.Num)?.value?.toInt())
+    }
 }
+
