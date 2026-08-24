@@ -1,0 +1,106 @@
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 71.9,
+      "y": 38,
+      "text": "The \"recorder\" module can be used to record and playback audio.\nYou can record from a microphone or you can record any audio signals in Syntona.\n\n(Note that if you want to capture all the audio from Ayntona then use the \"Capture...\" button up top.)\n\nTo Do:\n* Click the \"record\" button on the recorder.\n* Talk into the microphone.\n* Click the \"play\" button and hear your voice played back.\n* Click the three-dot icon in the recorder module header to get the popup menu.\n* Select \"Save to WAV...\" and save your recording on disk, if you want.\n\n\n",
+      "w": 751.7866,
+      "h": 220.08838
+    },
+    {
+      "id": 1,
+      "type": "ksyn.lineIn",
+      "name": "lineIn",
+      "x": 247,
+      "y": 332.1
+    },
+    {
+      "id": 2,
+      "type": "ksyn.data.recorder",
+      "name": "recorder",
+      "x": 395,
+      "y": 301.9,
+      "jacks": {
+        "in": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "amplitude": {
+          "v": 1,
+          "min": 0,
+          "max": 2,
+          "kickable": false,
+          "add": false
+        },
+        "latencyMs": {
+          "v": 82,
+          "min": 0,
+          "max": 1000,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "ksyn.lineOut",
+      "name": "lineOut",
+      "x": 632.9,
+      "y": 347.1,
+      "jacks": {
+        "input0": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "input1": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 125.9,
+      "y": 456,
+      "filePath": "tutorials/07_audio_input/05_sampleReader.json",
+      "buttonText": ">> Next, sample reader"
+    }
+  ],
+  "connections": [
+    {
+      "from": 1,
+      "fromJack": "output0",
+      "to": 2,
+      "toJack": "in"
+    },
+    {
+      "from": 2,
+      "fromJack": "out",
+      "to": 3,
+      "toJack": "input0"
+    },
+    {
+      "from": 2,
+      "fromJack": "out",
+      "to": 3,
+      "toJack": "input1"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 1146.9697265625,
+  "windowHeight": 764.8787231445312
+}

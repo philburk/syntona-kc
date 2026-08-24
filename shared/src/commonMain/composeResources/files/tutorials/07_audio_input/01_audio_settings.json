@@ -1,0 +1,28 @@
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 71.9,
+      "y": 38,
+      "text": "Audio input and output devices are chosen in the Audio Settings.\n\nTo Do:\n* From the File menu, open the \"Settings...\" and select your input and output devices.\n\nYour selection is saved for next time.\n",
+      "w": 784.7866,
+      "h": 148.21338
+    },
+    {
+      "id": 1,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 147.9,
+      "y": 267,
+      "filePath": "tutorials/07_audio_input/02_lineIn.json",
+      "buttonText": ">> Next, audio input"
+    }
+  ],
+  "connections": [],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 1146.9697265625,
+  "windowHeight": 764.8787231445312
+}

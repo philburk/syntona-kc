@@ -1,0 +1,28 @@
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 71.9,
+      "y": 38,
+      "text": "When recording audio tracks, we have to account for any delays in the system so that the tracks remain synchronized.\n\nSo we added a round-trip latency measurement feature to Syntona.\n\nTo Do:\n* Open the \"Settings...\" from the File menu.\n* Click the \"Latency\" tab.\n* Click the \"Measure\" or \"Measure Again\" button.\n\nYou should hear some short noise bursts. If there is a microphone active then Syntona can measure the round-trip latency.\n\nIf you are using an external USB audio interface then you may need to connect loopback cables.\nConnect a 1/4\" cable (guitar cord) between the output #1 and input #1 on your USB interface.\nThen run the Latency Measurement again.\n\nThe latency measurement will be stored for that combination of audio input and output device.\n\n\n\n",
+      "w": 793.9116,
+      "h": 323.08838
+    },
+    {
+      "id": 1,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 155,
+      "y": 424.9,
+      "filePath": "tutorials/07_audio_input/04_record_audio.json",
+      "buttonText": ">> Next, record audio"
+    }
+  ],
+  "connections": [],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 1146.9697265625,
+  "windowHeight": 764.8787231445312
+}

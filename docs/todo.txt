@@ -5,30 +5,19 @@ MAKE SOME MUSIC!
 
 BUG: Patch Name at the root is stale and unnecessary. Do not show the patch name for root patches.
 
-
-
 More Help patches
 For help, allow help to point to a tutorial or example page resourcePath, default to help/{package}
 
 More tutorials. Audio, timeline, pianoroll, Help
-
-
-Audio Input Processing
-* Audio settings
-* lineIn - delay - lineOut
-* measure latency
-* use a recorder, save audio to a file
-* trigger multiple recordings
-* track input pitch
 
 Composing
 * beatClock
 * ckDiv
 * pianoRoll
 * timeline
-* beatLine
-* hierarchy editor
-* multiTrack
+* beatLine ?
+* hierarchy editor ?
+* multiTrack ?
 
 
 # ----------------------------------------------- MEDIUM PRIORITY

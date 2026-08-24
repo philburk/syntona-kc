@@ -41,7 +41,7 @@
       "y": 366.9,
       "jacks": {
         "pitch": {
-          "v": 45,
+          "v": 40,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -96,7 +96,7 @@
       "y": 335,
       "jacks": {
         "step": {
-          "v": 4821,
+          "v": 224,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -135,7 +135,7 @@
       "y": 370.1,
       "jacks": {
         "in": {
-          "v": 4,
+          "v": 2,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -148,6 +148,15 @@
         }
       },
       "scale": "0,2,4,7,9"
+    },
+    {
+      "id": 7,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 345.9,
+      "y": 517,
+      "filePath": "tutorials/07_audio_input/01_audio_settings.json",
+      "buttonText": ">> Next, audio settings"
     }
   ],
   "connections": [

@@ -1,0 +1,296 @@
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "ksyn.lineIn",
+      "name": "lineIn",
+      "x": 39.9,
+      "y": 295.1
+    },
+    {
+      "id": 1,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 41.9,
+      "y": 14.1,
+      "text": "The sampleReader can read arbitrary parts of a sample. It can process the audio from the recorder.\n\nWe want to avoid feedback. So put on headphones so the audio output does not go into the microphone.\nOr use a guitar as input.\n\nToDo\n* Sing steady tones into the microphone. Or play guitar slowly.\n* Note that the oscillator matches the incoming pitch.\n\nThe amplitude calculation is designed to silence the audio when the confidence is low.",
+      "w": 756,
+      "h": 217.875
+    },
+    {
+      "id": 2,
+      "type": "ksyn.analysis.pitchDetector",
+      "name": "pitchDetector",
+      "x": 181.9,
+      "y": 293,
+      "jacks": {
+        "input": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "ksyn.sources.sawOscDPW",
+      "name": "sawOscDPW",
+      "x": 738.9,
+      "y": 418.9,
+      "jacks": {
+        "frequency": {
+          "v": 440,
+          "min": 40,
+          "max": 8000,
+          "kickable": false,
+          "add": false
+        },
+        "amplitude": {
+          "v": 0.665693461894989,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "ksyn.lineOut",
+      "name": "lineOut",
+      "x": 872,
+      "y": 461.1,
+      "jacks": {
+        "input0": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "input1": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "ksyn.math.aMax",
+      "name": "aMax",
+      "x": 420,
+      "y": 403.9,
+      "jacks": {
+        "inputa": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "inputb": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "ksyn.math.a-",
+      "name": "a-",
+      "x": 329,
+      "y": 430.1,
+      "jacks": {
+        "inputa": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "inputb": {
+          "v": 0.6739307641983032,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "ksyn.analysis.peakFollower",
+      "name": "peakFollower",
+      "x": 134.9,
+      "y": 482,
+      "jacks": {
+        "input": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "halflife": {
+          "v": 0.10000000149011612,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "ksyn.math.a*",
+      "name": "a*",
+      "x": 500.9,
+      "y": 462,
+      "jacks": {
+        "inputa": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "inputb": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "ksyn.math.a*",
+      "name": "a*",
+      "x": 576.9,
+      "y": 526,
+      "jacks": {
+        "inputa": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "inputb": {
+          "v": 2.6516757011413574,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "core.input.knob",
+      "name": "knob",
+      "x": 368,
+      "y": 555.9,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 2.6516757011413574,
+          "min": 0,
+          "max": 4,
+          "kickable": false
+        }
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": 2,
+      "fromJack": "frequency",
+      "to": 3,
+      "toJack": "frequency"
+    },
+    {
+      "from": 0,
+      "fromJack": "output0",
+      "to": 2,
+      "toJack": "input"
+    },
+    {
+      "from": 3,
+      "fromJack": "output",
+      "to": 4,
+      "toJack": "input0"
+    },
+    {
+      "from": 3,
+      "fromJack": "output",
+      "to": 4,
+      "toJack": "input1"
+    },
+    {
+      "from": 2,
+      "fromJack": "confidence",
+      "to": 6,
+      "toJack": "inputa"
+    },
+    {
+      "from": 6,
+      "fromJack": "output",
+      "to": 5,
+      "toJack": "inputa"
+    },
+    {
+      "from": 0,
+      "fromJack": "output0",
+      "to": 7,
+      "toJack": "input"
+    },
+    {
+      "from": 5,
+      "fromJack": "output",
+      "to": 8,
+      "toJack": "inputa"
+    },
+    {
+      "from": 7,
+      "fromJack": "output",
+      "to": 8,
+      "toJack": "inputb"
+    },
+    {
+      "from": 8,
+      "fromJack": "output",
+      "to": 9,
+      "toJack": "inputa"
+    },
+    {
+      "from": 9,
+      "fromJack": "output",
+      "to": 3,
+      "toJack": "amplitude"
+    },
+    {
+      "from": 10,
+      "fromJack": "out",
+      "to": 9,
+      "toJack": "inputb"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 1146.9697265625,
+  "windowHeight": 764.8787231445312
+}

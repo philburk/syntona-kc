@@ -1,0 +1,241 @@
+{
+  "modules": [
+    {
+      "id": 0,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 71.9,
+      "y": 38,
+      "text": "The lineIn module can be used to process or record audio input.\n\nTo Do:\n* Talk into your microphone.\n* Slowly turn up the left knobs on tracks #1 and #2 until you can hear echos.\n* Turn the knobs down if you get too much feedback.\n* The delay module can be used to create echo effects.\n",
+      "w": 784.7866,
+      "h": 148.21338
+    },
+    {
+      "id": 1,
+      "type": "ksyn.lineIn",
+      "name": "lineIn",
+      "x": 95,
+      "y": 312.1
+    },
+    {
+      "id": 2,
+      "type": "ksyn.lineOut",
+      "name": "lineOut",
+      "x": 693.9,
+      "y": 373,
+      "jacks": {
+        "input0": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "input1": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "ksyn.effects.delay",
+      "name": "delay",
+      "x": 312,
+      "y": 246.1,
+      "jacks": {
+        "input": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "delay": {
+          "v": 0.32106173038482666,
+          "min": 0,
+          "max": 2.176870822906494,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "ksyn.effects.delay",
+      "name": "delay",
+      "x": 312.9,
+      "y": 381.1,
+      "jacks": {
+        "input": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "delay": {
+          "v": 0.7927650213241577,
+          "min": 0,
+          "max": 2.176870822906494,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "ksyn.math.mixer4x2",
+      "name": "mixer4x2",
+      "x": 485.9,
+      "y": 263,
+      "jacks": {
+        "input0": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "input1": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "input2": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "input3": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "gain0": {
+          "v": 0.00560405058786273,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "gain1": {
+          "v": 0.006440615747123957,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "gain2": {
+          "v": 1,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "gain3": {
+          "v": 1,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "amplitude": {
+          "v": 1,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "pan0": {
+          "v": -0.6218525171279907,
+          "min": -1,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "pan1": {
+          "v": 0.6691066026687622,
+          "min": -1,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "pan2": {
+          "v": 0,
+          "min": -1,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "pan3": {
+          "v": 0,
+          "min": -1,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 143.9,
+      "y": 496,
+      "filePath": "tutorials/07_audio_input/03_measure_latency.json",
+      "buttonText": ">> Next, measure latency"
+    }
+  ],
+  "connections": [
+    {
+      "from": 1,
+      "fromJack": "output0",
+      "to": 3,
+      "toJack": "input"
+    },
+    {
+      "from": 1,
+      "fromJack": "output1",
+      "to": 4,
+      "toJack": "input"
+    },
+    {
+      "from": 3,
+      "fromJack": "output",
+      "to": 5,
+      "toJack": "input0"
+    },
+    {
+      "from": 4,
+      "fromJack": "output",
+      "to": 5,
+      "toJack": "input1"
+    },
+    {
+      "from": 5,
+      "fromJack": "output0",
+      "to": 2,
+      "toJack": "input0"
+    },
+    {
+      "from": 5,
+      "fromJack": "output1",
+      "to": 2,
+      "toJack": "input1"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 1146.9697265625,
+  "windowHeight": 764.8787231445312
+}

@@ -69,3 +69,9 @@ tutorials/06_midi/01_midi_input.json
 tutorials/06_midi/02_midi_control.json
 tutorials/06_midi/03_match_note.json
 tutorials/06_midi/04_midiOut.json
+tutorials/07_audio_input/01_audio_settings.json
+tutorials/07_audio_input/02_lineIn.json
+tutorials/07_audio_input/03_measure_latency.json
+tutorials/07_audio_input/04_record_audio.json
+tutorials/07_audio_input/05_sampleReader.json
+tutorials/07_audio_input/06_pitchDetector.json
