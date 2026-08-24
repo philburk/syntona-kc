@@ -362,4 +362,19 @@ class PatchFileReferenceTest {
         assertEquals("instruments/sawLowPass.json", migrated.resourcePath)
         assertEquals(null, migrated.filePath)
     }
+
+    @Test
+    fun testPatchModuleIsRoot() {
+        val root = PatchModule("mySynth")
+        assertTrue(root.isRoot, "Root patch created directly should have isRoot == true")
+
+        val childPatch = PatchModule("lfoSection")
+        root.graphState.addModule(childPatch, Offset.Zero)
+        assertFalse(childPatch.isRoot, "Child patch added to another patch's graph should have isRoot == false")
+
+        val polyPatch = PolyPatchModule("voice")
+        root.graphState.addModule(polyPatch, Offset.Zero)
+        assertFalse(polyPatch.isRoot, "PolyPatch added to root graph should have isRoot == false")
+    }
 }
+

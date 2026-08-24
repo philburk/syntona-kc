@@ -148,7 +148,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
     }
     Column(modifier = modifier.fillMaxSize()) {
         val parentPatch = state.parentPatch
-        if (parentPatch != null && parentPatch.name != "root") {
+        if (parentPatch != null && !parentPatch.isRoot) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -246,7 +246,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                 }
             }
         ) {
-            val isRootGraph = parentPatch == null || parentPatch.name == "root"
+            val isRootGraph = parentPatch == null || parentPatch.isRoot
             if (isRootGraph && !FileState.isDirty && FileState.currentFilePath == null && state.modules.isEmpty()) {
                 Box(
                     modifier = Modifier.fillMaxSize(),

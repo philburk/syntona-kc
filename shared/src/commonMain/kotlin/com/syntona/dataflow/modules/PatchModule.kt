@@ -39,6 +39,9 @@ open class PatchModule(name: String = "patch", type: String = "patch") : Module(
     var resourcePath by mutableStateOf<String?>(null)
     var isModified by mutableStateOf(false)
 
+    val isRoot: Boolean
+        get() = parentPatch == null
+
     val headerTitle: String
         get() {
             val suffix = if (isModified) "*" else ""

@@ -6,7 +6,21 @@ MAKE SOME MUSIC!
 BUG: Patch Name at the root is stale and unnecessary. Do not show the patch name for root patches.
 
 More Help patches
-For help, allow help to point to a tutorial or example page resourcePath, default to help/{package}
+
+We have a help system for modules that looks for a JSON file with a path matching the module package and name.
+Also provide a way to a tutorial or example page resourcePath so we can reuse those patches for module help.
+We can specify these in the ModuleRegistry.
+
+For example:
+examples/matchControl.json => music.midi.matchControl
+examples/pianoRoll.json => music.compose.pianoRoll
+examples/recSeq.json => music.compose.recSeq
+tutorials/03_core/05_key_match.json => core.input.keyMatch
+tutorials/04_sequencer/03_pitch_to_freq.json => core.math.p2f
+tutorials/06_midi/04_midiOut.json => music.midi.midiOut
+tutorials/06_midi/01_midi_input.json => music.midi.midiIn
+tutorials/07_audio_input/05_sampleReader.json => ksyn.data.sampleReader
+
 
 More tutorials. Audio, timeline, pianoroll, Help
 
