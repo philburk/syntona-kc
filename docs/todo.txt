@@ -3,8 +3,6 @@
 
 MAKE SOME MUSIC!
 
-BUG: Patch Name at the root is stale and unnecessary. Do not show the patch name for root patches.
-
 More Help patches
 
 We have a help system for modules that looks for a JSON file with a path matching the module package and name.
@@ -20,9 +18,6 @@ tutorials/04_sequencer/03_pitch_to_freq.json => core.math.p2f
 tutorials/06_midi/04_midiOut.json => music.midi.midiOut
 tutorials/06_midi/01_midi_input.json => music.midi.midiIn
 tutorials/07_audio_input/05_sampleReader.json => ksyn.data.sampleReader
-
-
-More tutorials. Audio, timeline, pianoroll, Help
 
 Composing
 * beatClock
@@ -43,14 +38,18 @@ Save that most recent list in Settings storage.
 
 AudioJacks do not need to store the kickable value in the JSON because it is ignored.
 
-When saving WAV files, try to use paths relative to the .SNTN file if at or below the SNTN path.
-
 BUG: deleting modules using BACKSPACE or DELETE key sometimes does not work. Edit menu Cut always works.
 
 When selecting a new input output pair, suggest measuring latency.
 
 BUG: Why does envAD not hold after the attack until off()?
 Maybe we do need an envAR that holds?
+
+
+Add multiTrack module like a DAW, + button for MIDI or Audio or composable Patch tracks.
+Audio tracks have audio in/out, MIDI tracks have VoiceMessage in/out.
+Support quantization based on tempo, save original content for requantization.
+Save audio in adjacent /audio/ folder. What does Logic do?
 
 segEnv should not have to end on y==0, may want to queue an upward ramp of frequency.
 BUG: EnvelopeEditor, points at end or added to the end cannot be moved up or deleted. See midi_driven.sntn.
@@ -75,6 +74,7 @@ Website softsynth.com/syntona
 * Overview, screen shots, recordings
 
 
+Tutorials for
 KSyn Sources, oscillators, noise
 KSyn Control, ramps, envelopes
 KSyn Filters, low pass, high pass, four pole
@@ -87,10 +87,7 @@ Ties in with the hierarchy editor.
 
 Add theremin (XY) input module.
 
-Also add a "sounds" folder for drum sounds, sound effects, non-melodic instruments.
-
-
-Need order4
+Need order4 ?
 
 Pack SysEx for controlling LEDs on KeyLab drum pads.
 F0 00 20 6B  7F 42 02 00  16 <Pad_ID> <R> <G>  <B> F7
@@ -98,21 +95,12 @@ Pad ID for drum pads are 0x70-0x7F.
 RGB are 0-31.
 May not work on WebMIDI because SysEx is blocked.
 
-
 Extend range of wavefolder above 8.0 (KSyn)
 
 Add wavefolder example
 
-When opening a new root window, offset it so that it does not hide the top window.
-
-
 Maybe??? Add a resource folder with a "library" of patches. Add a "Load Patch from Library" file item,
 similar to the Help menu items. Or add them to the moduleTree. Example???
-
-Add multiTrack module like a DAW, + button for MIDI or Audio or composable Patch tracks.
-Audio tracks have audio in/out, MIDI tracks have VoiceMessage in/out.
-Support quantization based on tempo, save original content for requantization.
-Save audio in adjacent /audio/ folder. What does Logic do?
 
 Help trace wires by highlighting the wires connected to a highlighted module.
 Widget to put wires in front.

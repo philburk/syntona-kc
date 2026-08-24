@@ -46,4 +46,34 @@ class ModuleRegistryTest {
         assertNotNull(legacyPackNote, "Legacy music.voices.packNote should resolve to PackNoteModule")
         assertTrue(legacyPackNote() is PackNoteModule)
     }
+
+    @Test
+    fun testHelpResourcePaths() {
+        assertEquals("examples/matchControl.json", ModuleRegistry.getHelpResourcePath("matchControl"))
+        assertEquals("examples/matchControl.json", ModuleRegistry.getHelpResourcePath("music.midi.matchControl"))
+
+        assertEquals("examples/pianoRoll.json", ModuleRegistry.getHelpResourcePath("pianoRoll"))
+        assertEquals("examples/pianoRoll.json", ModuleRegistry.getHelpResourcePath("music.compose.pianoRoll"))
+
+        assertEquals("examples/recSeq.json", ModuleRegistry.getHelpResourcePath("recSeq"))
+        assertEquals("examples/recSeq.json", ModuleRegistry.getHelpResourcePath("music.compose.recSeq"))
+
+        assertEquals("tutorials/03_core/05_key_match.json", ModuleRegistry.getHelpResourcePath("keyMatch"))
+        assertEquals("tutorials/03_core/05_key_match.json", ModuleRegistry.getHelpResourcePath("core.input.keyMatch"))
+
+        assertEquals("tutorials/04_sequencer/03_pitch_to_freq.json", ModuleRegistry.getHelpResourcePath("p2f"))
+        assertEquals("tutorials/04_sequencer/03_pitch_to_freq.json", ModuleRegistry.getHelpResourcePath("core.math.p2f"))
+
+        assertEquals("tutorials/06_midi/04_midiOut.json", ModuleRegistry.getHelpResourcePath("midiOut"))
+        assertEquals("tutorials/06_midi/04_midiOut.json", ModuleRegistry.getHelpResourcePath("music.midi.midiOut"))
+
+        assertEquals("tutorials/06_midi/01_midi_input.json", ModuleRegistry.getHelpResourcePath("midiIn"))
+        assertEquals("tutorials/06_midi/01_midi_input.json", ModuleRegistry.getHelpResourcePath("music.midi.midiIn"))
+
+        assertEquals("tutorials/07_audio_input/05_sampleReader.json", ModuleRegistry.getHelpResourcePath("sampleReader"))
+        assertEquals("tutorials/07_audio_input/05_sampleReader.json", ModuleRegistry.getHelpResourcePath("ksyn.data.sampleReader"))
+
+        assertEquals(null, ModuleRegistry.getHelpResourcePath("keyboard13"))
+    }
 }
+

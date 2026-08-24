@@ -13,8 +13,11 @@ object ModuleRegistry {
 
     data class ModuleEntry(
         val name: String,
+        var helpResourcePath: String? = null,
         val creator: () -> Module
-    )
+    ) {
+        constructor(name: String, creator: () -> Module) : this(name, null, creator)
+    }
 
     data class Bundle(
         val name: String,
@@ -65,7 +68,7 @@ object ModuleRegistry {
         math.modules.add(ModuleEntry("f(x)") { EquationModule("f(x)") })
         math.modules.add(ModuleEntry("f(x,y)") { EquationModule("f(x,y)") })
         math.modules.add(ModuleEntry("f(x,y,z)") { EquationModule("f(x,y,z)") })
-        math.modules.add(ModuleEntry("p2f") { PitchToFrequencyModule() })
+        math.modules.add(ModuleEntry("p2f", "tutorials/04_sequencer/03_pitch_to_freq.json") { PitchToFrequencyModule() })
 
         val input = getOrCreateBundle(core, "input")
         input.modules.add(ModuleEntry("number") { NumberModule() })
@@ -75,7 +78,7 @@ object ModuleRegistry {
         input.modules.add(ModuleEntry("loadKick") { LoadKickModule() })
         input.modules.add(ModuleEntry("comment") { CommentModule() })
         input.modules.add(ModuleEntry("key") { KeyModule() })
-        input.modules.add(ModuleEntry("keyMatch") { KeyMatchModule() })
+        input.modules.add(ModuleEntry("keyMatch", "tutorials/03_core/05_key_match.json") { KeyMatchModule() })
 
         val view = getOrCreateBundle(core, "view")
         view.modules.add(ModuleEntry("show") { ShowModule() })
@@ -89,7 +92,7 @@ object ModuleRegistry {
         musicInput.modules.add(ModuleEntry("keyboard13") { Keyboard13Module() })
         musicInput.modules.add(ModuleEntry("keyboard25") { Keyboard25Module() })
         musicInput.modules.add(ModuleEntry("keyNotes") { KeyNotesModule() })
-        musicInput.modules.add(ModuleEntry("pianoRoll") { PianoRollModule() })
+        musicInput.modules.add(ModuleEntry("pianoRoll", "examples/pianoRoll.json") { PianoRollModule() })
         val midi = getOrCreateBundle(music, "midi")
         midi.modules.add(ModuleEntry("packVoice") { PackVoiceModule() })
         midi.modules.add(ModuleEntry("packBend") { PackBendModule() })
@@ -99,12 +102,12 @@ object ModuleRegistry {
         midi.modules.add(ModuleEntry("unpackNoteOn") { UnpackNoteOnModule() })
         midi.modules.add(ModuleEntry("unpackNoteOff") { UnpackNoteOffModule() })
         midi.modules.add(ModuleEntry("unpackControl") { UnpackControlModule() })
-        midi.modules.add(ModuleEntry("matchControl") { MatchControlModule() })
+        midi.modules.add(ModuleEntry("matchControl", "examples/matchControl.json") { MatchControlModule() })
         midi.modules.add(ModuleEntry("matchNoteOn") { MatchNoteOnModule() })
         midi.modules.add(ModuleEntry("unpackBend") { UnpackBendModule() })
         midi.modules.add(ModuleEntry("unpackProgram") { UnpackProgramModule() })
-        midi.modules.add(ModuleEntry("midiIn") { MidiInModule() })
-        midi.modules.add(ModuleEntry("midiOut") { MidiOutModule() })
+        midi.modules.add(ModuleEntry("midiIn", "tutorials/06_midi/01_midi_input.json") { MidiInModule() })
+        midi.modules.add(ModuleEntry("midiOut", "tutorials/06_midi/04_midiOut.json") { MidiOutModule() })
 
         val compose = getOrCreateBundle(music, "compose")
         compose.modules.add(ModuleEntry("beatClock") { BeatClockModule() })
@@ -114,7 +117,7 @@ object ModuleRegistry {
             ScaleModule("diatonic", isEditable = false, doubleArrayOf(0.0, 2.0, 4.0, 5.0, 7.0, 9.0, 11.0)) })
         compose.modules.add(ModuleEntry("scale") {
             ScaleModule("scale", isEditable = true, doubleArrayOf(0.0, 2.0, 4.0, 7.0, 9.0)) })
-        compose.modules.add(ModuleEntry("recSeq") { RecSeqModule() })
+        compose.modules.add(ModuleEntry("recSeq", "examples/recSeq.json") { RecSeqModule() })
 
         val instruments = getOrCreateBundle(music, "instruments")
         val sounds = getOrCreateBundle(music, "sounds")
@@ -211,11 +214,11 @@ object ModuleRegistry {
         data.modules.add(ModuleEntry("segEnv") { SegmentedEnvelopeModule() })
         data.modules.add(ModuleEntry("samplePlayer") { SamplePlayerModule() })
         data.modules.add(ModuleEntry("sample") { FloatSampleModule() })
-        data.modules.add(ModuleEntry("sampleReader") { SampleReaderModule() })
+        data.modules.add(ModuleEntry("sampleReader", "tutorials/07_audio_input/05_sampleReader.json") { SampleReaderModule() })
         data.modules.add(ModuleEntry("recorder") { RecorderModule() })
     }
 
-    private data class Candidate(val path: String, val creator: () -> Module)
+    private data class Candidate(val path: String, val entry: ModuleEntry)
 
     private fun findAllCandidates(name: String): List<Candidate> {
         val list = mutableListOf<Candidate>()
@@ -224,7 +227,7 @@ object ModuleRegistry {
             bundle.modules.forEach { mod ->
                 if (mod.name == name) {
                     val fullPath = (nextPath + mod.name).joinToString(".")
-                    list.add(Candidate(fullPath, mod.creator))
+                    list.add(Candidate(fullPath, mod))
                 }
             }
             bundle.subBundles.forEach { collect(it, nextPath) }
@@ -248,7 +251,7 @@ object ModuleRegistry {
         return score
     }
 
-    private fun findCreatorByPath(path: String): (() -> Module)? {
+    private fun findEntryByPath(path: String): ModuleEntry? {
         val parts = path.split('.')
         if (parts.size <= 1) return null
         var current = root
@@ -257,19 +260,19 @@ object ModuleRegistry {
             if (i == 0 && part == "Modules") continue
             current = current.subBundles.find { it.name == part } ?: return null
         }
-        return current.modules.find { it.name == parts.last() }?.creator
+        return current.modules.find { it.name == parts.last() }
     }
 
-    private fun findCreatorByShortName(name: String): (() -> Module)? {
-        fun searchBundle(bundle: Bundle): (() -> Module)? {
-            bundle.modules.firstOrNull { it.name == name }?.let { return it.creator }
-            bundle.subBundles.forEach { searchBundle(it)?.let { c -> return c } }
+    private fun findEntryByShortName(name: String): ModuleEntry? {
+        fun searchBundle(bundle: Bundle): ModuleEntry? {
+            bundle.modules.firstOrNull { it.name == name }?.let { return it }
+            bundle.subBundles.forEach { searchBundle(it)?.let { e -> return e } }
             return null
         }
         return searchBundle(root)
     }
 
-    fun findCreator(typeName: String): (() -> Module)? {
+    fun findEntry(typeName: String): ModuleEntry? {
         val resolvedTypeName = when {
             typeName == "showVoice" -> "showMany"
             typeName == "double" -> "number"
@@ -279,9 +282,9 @@ object ModuleRegistry {
 
         // 1. Try to find by exact full path
         if (resolvedTypeName.contains('.')) {
-            findCreatorByPath(resolvedTypeName)?.let { return it }
+            findEntryByPath(resolvedTypeName)?.let { return it }
         } else {
-            findCreatorByShortName(resolvedTypeName)?.let { return it }
+            findEntryByShortName(resolvedTypeName)?.let { return it }
         }
 
         // 2. Try to find by final part and get the closest match
@@ -295,7 +298,19 @@ object ModuleRegistry {
             getMatchScore(parts, cand.path.split('.'))
         }
 
-        return bestCandidate?.creator
+        return bestCandidate?.entry
+    }
+
+    fun findCreator(typeName: String): (() -> Module)? {
+        return findEntry(typeName)?.creator
+    }
+
+    fun getHelpResourcePath(typeName: String): String? {
+        return findEntry(typeName)?.helpResourcePath
+    }
+
+    fun setHelpResourcePath(typeName: String, helpResourcePath: String) {
+        findEntry(typeName)?.helpResourcePath = helpResourcePath
     }
 
     fun getBundlePath(typeName: String): String? {
@@ -322,9 +337,10 @@ object ModuleRegistry {
     private fun addKSynModule(
         bundle: Bundle,
         name: String,
-        unitFactory: () -> UnitGenerator
+        unitFactory: () -> UnitGenerator,
+        helpResourcePath: String? = null
     ) {
         ksynFactories[name] = unitFactory
-        bundle.modules.add(ModuleEntry(name) { UnitGeneratorModule(name, unitFactory()) })
+        bundle.modules.add(ModuleEntry(name, helpResourcePath) { UnitGeneratorModule(name, unitFactory()) })
     }
 }

@@ -20,7 +20,7 @@ object HelpRegistry {
     suspend fun loadHelpFilesIndex() {
         try {
             availableHelpFiles = SharedResources.getFilesIndex()
-                .filter { it.startsWith("help/") && (it.endsWith(".json") || it.endsWith(SYNTONA_FILE_SUFFIX)) }
+                .filter { it.endsWith(".json") || it.endsWith(SYNTONA_FILE_SUFFIX) }
                 .toSet()
         } catch (_: Exception) {
             availableHelpFiles = emptySet()
@@ -36,9 +36,25 @@ object HelpRegistry {
 
     /**
      * Resolves the help resource path for a given module type name.
-     * E.g. "keyboard13" -> "help/music/input/keyboard13.json" or ".sntn"
+     * E.g. "keyboard13" -> "help/music/input/keyboard13.json" or ".sntn",
+     * or a custom tutorial / example resource path registered in [ModuleRegistry].
      */
     fun getHelpFilePath(typeName: String): String? {
+        // 1. Check if an explicit helpResourcePath is configured in ModuleRegistry
+        val explicitPath = ModuleRegistry.getHelpResourcePath(typeName)
+        if (explicitPath != null) {
+            if (availableHelpFiles.isEmpty() || availableHelpFiles.contains(explicitPath)) {
+                return explicitPath
+            }
+            if (availableHelpFiles.contains("$explicitPath.json")) {
+                return "$explicitPath.json"
+            }
+            if (availableHelpFiles.contains("$explicitPath$SYNTONA_FILE_SUFFIX")) {
+                return "$explicitPath$SYNTONA_FILE_SUFFIX"
+            }
+        }
+
+        // 2. Standard resolution under help/ using bundle path
         val bundlePath = ModuleRegistry.getBundlePath(typeName)
         if (bundlePath != null) {
             val pathJson = "help/${bundlePath.replace('.', '/')}.json"
@@ -46,6 +62,8 @@ object HelpRegistry {
             val pathSntn = "help/${bundlePath.replace('.', '/')}$SYNTONA_FILE_SUFFIX"
             if (availableHelpFiles.contains(pathSntn)) return pathSntn
         }
+
+        // 3. Fallback resolution using typeName directly
         val fallbackJson = "help/${typeName.replace('.', '/')}.json"
         if (availableHelpFiles.contains(fallbackJson)) return fallbackJson
         val fallbackSntn = "help/${typeName.replace('.', '/')}$SYNTONA_FILE_SUFFIX"
