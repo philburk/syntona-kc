@@ -3,6 +3,8 @@ package com.syntona.dataflow.modules
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.softsynth.ksyn.data.AudioSampleData
+import com.softsynth.ksyn.unitgen.Multiply
 import com.softsynth.ksyn.unitgen.VariableRateMonoReader
 import com.syntona.core.audio.SynthKSyn
 import com.syntona.dataflow.model.AudioInputJack
@@ -19,6 +21,7 @@ import com.syntona.dataflow.model.Module
  */
 class SampleReaderModule : Module("sampleReader") {
     val unit = VariableRateMonoReader()
+    val rateMultiplier = Multiply()
 
     var isLooping: Boolean by mutableStateOf(false)
     private var isPlayingLoop = false
@@ -34,10 +37,17 @@ class SampleReaderModule : Module("sampleReader") {
     val output: AudioOutputJack
 
     init {
+        SynthKSyn.synth.add(rateMultiplier)
         SynthKSyn.synth.add(unit)
+        if (rateMultiplier.isStartRequired) {
+            rateMultiplier.start()
+        }
         if (unit.isStartRequired) {
             unit.start()
         }
+
+        rateMultiplier.inputB.set(SynthKSyn.synth.frameRate.toFloat())
+        rateMultiplier.output.connect(unit.rate)
 
         dataInput = addDataQueueInput("data", unit.dataQueue, autoQueue = false)
         startIn = addCommandInput("start")
@@ -58,7 +68,7 @@ class SampleReaderModule : Module("sampleReader") {
             max = 1.0
             setValue(0.0)
         }
-        rate = addAudioInput("rate", unit.rate, 0).apply {
+        rate = addAudioInput("rate", rateMultiplier.inputA, 0).apply {
             min = 0.0
             max = 8.0
             setValue(1.0)
@@ -74,6 +84,12 @@ class SampleReaderModule : Module("sampleReader") {
     override fun onMessageReceived(jack: InputJack, msg: Message) {
         super.onMessageReceived(jack, msg)
         when (jack) {
+            dataInput -> {
+                val data = (msg as? Message.DataQueueMessage)?.data ?: dataInput.currentData
+                val sampleFrameRate = (data as? AudioSampleData)?.frameRate?.takeIf { it > 0.0 }
+                    ?: SynthKSyn.synth.frameRate.toDouble()
+                rateMultiplier.inputB.set(sampleFrameRate.toFloat())
+            }
             startIn -> triggerSlice(immediate = true)
             stopIn -> {
                 isPlayingLoop = false
@@ -93,6 +109,10 @@ class SampleReaderModule : Module("sampleReader") {
         val totalFrames = data.numFrames
         if (totalFrames <= 0) return
 
+        val sampleFrameRate = (data as? AudioSampleData)?.frameRate?.takeIf { it > 0.0 }
+            ?: SynthKSyn.synth.frameRate.toDouble()
+        rateMultiplier.inputB.set(sampleFrameRate.toFloat())
+
         val offsetNorm = offset.getClippedDoubleValue().coerceIn(0.0, 1.0)
         val durationMsVal = durationMs.getClippedDoubleValue()
 
@@ -102,8 +122,7 @@ class SampleReaderModule : Module("sampleReader") {
         val numFrames = if (durationMsVal <= 0.0) {
             maxAvailable
         } else {
-            val frameRate = data.getRateScaler(0, 1.0 / SynthKSyn.synth.frameRate)
-            val requestedFrames = (durationMsVal * 0.001 * frameRate).toInt()
+            val requestedFrames = (durationMsVal * 0.001 * sampleFrameRate).toInt()
             requestedFrames.coerceIn(1, maxAvailable.coerceAtLeast(1))
         }
 
@@ -112,8 +131,7 @@ class SampleReaderModule : Module("sampleReader") {
 
         if (shouldLoop) {
             isPlayingLoop = true
-            val frameRate = data.getRateScaler(0, 1.0 / SynthKSyn.synth.frameRate)
-            val crossFadeFrames = (CROSS_FADE_SECONDS * frameRate).toInt().coerceAtMost(numFrames / 2).coerceAtLeast(0)
+            val crossFadeFrames = (CROSS_FADE_SECONDS * sampleFrameRate).toInt().coerceAtMost(numFrames / 2).coerceAtLeast(0)
             if (immediate) {
                 unit.dataQueue.queueLoopImmediate(data, startFrame, numFrames, timeStamp, crossFadeFrames)
             } else {
@@ -131,7 +149,12 @@ class SampleReaderModule : Module("sampleReader") {
         if (unit.isStartRequired) {
             unit.stop()
         }
+        if (rateMultiplier.isStartRequired) {
+            rateMultiplier.stop()
+        }
+        rateMultiplier.output.disconnect(unit.rate)
         SynthKSyn.synth.remove(unit)
+        SynthKSyn.synth.remove(rateMultiplier)
         super.teardown()
     }
 

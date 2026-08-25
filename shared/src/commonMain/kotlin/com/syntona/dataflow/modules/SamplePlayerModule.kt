@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.softsynth.ksyn.data.FloatSample
+import com.softsynth.ksyn.unitgen.Multiply
 import com.softsynth.ksyn.unitgen.VariableRateMonoReader
 import com.softsynth.ksyn.util.SampleLoader
 import com.syntona.core.audio.SynthKSyn
@@ -23,6 +24,7 @@ import com.syntona.dataflow.model.Module
  */
 class SamplePlayerModule : Module("samplePlayer") {
     val unit = VariableRateMonoReader()
+    val rateMultiplier = Multiply()
 
     var sample: FloatSample by mutableStateOf(createSample())
     var filePath: String? by mutableStateOf(null)
@@ -36,17 +38,24 @@ class SamplePlayerModule : Module("samplePlayer") {
     val output: AudioOutputJack
 
     init {
+        SynthKSyn.synth.add(rateMultiplier)
         SynthKSyn.synth.add(unit)
+        if (rateMultiplier.isStartRequired) {
+            rateMultiplier.start()
+        }
         if (unit.isStartRequired) {
             unit.start()
         }
+
+        rateMultiplier.inputB.set(sample.frameRate.toFloat())
+        rateMultiplier.output.connect(unit.rate)
 
         onIn = addCommandInput("on")
         offIn = addCommandInput("off")
         loopIn = addCommandInput("loop")
         stopIn = addCommandInput("stop")
 
-        rate = addAudioInput("rate", unit.rate, 0).apply {
+        rate = addAudioInput("rate", rateMultiplier.inputA, 0).apply {
             min = 0.0
             max = 8.0
             setValue(1.0)
@@ -84,6 +93,7 @@ class SamplePlayerModule : Module("samplePlayer") {
         return try {
             val loaded = SampleLoader.loadFloatSample(bytes).toMono()
             sample = loaded
+            rateMultiplier.inputB.set(loaded.frameRate.toFloat())
             if (path != null) filePath = path
             true
         } catch (e: Exception) {
@@ -121,7 +131,12 @@ class SamplePlayerModule : Module("samplePlayer") {
         if (unit.isStartRequired) {
             unit.stop()
         }
+        if (rateMultiplier.isStartRequired) {
+            rateMultiplier.stop()
+        }
+        rateMultiplier.output.disconnect(unit.rate)
         SynthKSyn.synth.remove(unit)
+        SynthKSyn.synth.remove(rateMultiplier)
         super.teardown()
     }
 

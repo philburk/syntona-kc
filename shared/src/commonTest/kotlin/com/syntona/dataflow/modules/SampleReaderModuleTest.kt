@@ -197,6 +197,7 @@ class SampleReaderModuleTest {
         // Process scheduled commands
         (SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine).generateNextBuffer()
         // Generate audio block from reader
+        readerModule.rateMultiplier.generate()
         readerModule.unit.generate()
 
         val outputs = readerModule.unit.output!!.getValues()
@@ -229,6 +230,7 @@ class SampleReaderModuleTest {
         // Process scheduled commands
         (SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine).generateNextBuffer()
         // Generate audio block from reader
+        readerModule.rateMultiplier.generate()
         readerModule.unit.generate()
 
         val outputs = readerModule.unit.output!!.getValues()
