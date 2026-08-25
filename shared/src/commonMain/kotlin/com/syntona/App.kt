@@ -220,19 +220,24 @@ fun openRecentPatch(
     engine: com.syntona.dataflow.engine.DataFlowEngine?,
     density: Float
 ) {
-    val content = com.syntona.dataflow.editor.readFileDirect(path) ?: return
-    val current = FileState.activeDocument
-    fun openInto(into: DocumentState) {
-        loadIntoDocument(mdiState, into, path, content, density)
-    }
-    FileState.requestIfDirty(
-        openInNewWindow = {
-            if (engine != null) {
-                openInto(openNewDocument(mdiState, engine, density))
-            }
+    com.syntona.dataflow.editor.readRecentPatchFile(path) { content ->
+        if (content == null) {
+            println("Unable to load recent patch '$path': file could not be read from disk.")
+            return@readRecentPatchFile
         }
-    ) {
-        if (current != null) openInto(current)
+        val current = FileState.activeDocument
+        fun openInto(into: DocumentState) {
+            loadIntoDocument(mdiState, into, path, content, density)
+        }
+        FileState.requestIfDirty(
+            openInNewWindow = {
+                if (engine != null) {
+                    openInto(openNewDocument(mdiState, engine, density))
+                }
+            }
+        ) {
+            if (current != null) openInto(current)
+        }
     }
 }
 

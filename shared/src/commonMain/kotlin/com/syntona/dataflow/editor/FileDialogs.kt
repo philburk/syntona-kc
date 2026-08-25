@@ -21,6 +21,9 @@ expect fun chooseWavOpenFile(onSelected: (path: String) -> Unit)
 /** Read content from [path] without showing a dialog. Returns null if error or unsupported. */
 expect fun readFileDirect(path: String): String?
 
+/** Read recent patch file from disk asynchronously or synchronously. Returns null if error or unsupported. */
+expect fun readRecentPatchFile(path: String, onResult: (content: String?) -> Unit)
+
 /** Read binary content from [path] without showing a dialog. Returns null if error or unsupported. */
 expect fun readBinaryFileDirect(path: String): ByteArray?
 

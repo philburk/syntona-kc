@@ -258,6 +258,10 @@ actual fun readFileDirect(path: String): String? {
     return null
 }
 
+actual fun readRecentPatchFile(path: String, onResult: (content: String?) -> Unit) {
+    onResult(readFileDirect(path))
+}
+
 actual fun readBinaryFileDirect(path: String): ByteArray? {
     val candidates = listOfNotNull(
         File(path),
