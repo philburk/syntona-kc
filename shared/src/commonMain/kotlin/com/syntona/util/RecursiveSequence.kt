@@ -45,6 +45,14 @@ class RecursiveSequence @JvmOverloads constructor(
 
     /** Determine whether next in sequence should occur. */
     fun isNextEnabled(preference: Boolean): Boolean {
+        if (density <= 0.0) {
+            actualDensity = 0.0
+            return false
+        }
+        if (density >= 1.0) {
+            actualDensity = 1.0
+            return true
+        }
         var pref = preference
         // Calculate note density using low pass IIR filter.
         val newDensity = (actualDensity * 0.9) + (if (pref) 0.1 else 0.0)

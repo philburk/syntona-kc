@@ -43,6 +43,7 @@ fun NumberField(
         text.toDoubleOrNull()?.let { parsed ->
             onCommit(parsed)
             isDirty = false
+            text = formatNumber(parsed)
         }
     }
 
@@ -74,12 +75,29 @@ fun formatNumber(value: Double): String {
     if (value == 0.0) return "0"
     val absVal = kotlin.math.abs(value)
     val exp = kotlin.math.floor(kotlin.math.log10(absVal)).toInt()
-    return if (exp in -4..3) {
-        val places = maxOf(0, 3 - exp)
-        val factor = 10.0.pow(places)
-        val rounded = kotlin.math.round(value * factor) / factor
-        if (places == 0) rounded.toLong().toString()
-        else rounded.toString().let { if ('.' in it) it.trimEnd('0').trimEnd('.') else it }
+    return if (exp in -4..7) {
+        val isNeg = value < 0
+        if (absVal < 1.0) {
+            val frac = kotlin.math.round(absVal * 10000.0).toLong()
+            if (frac == 10000L) {
+                if (isNeg) "-1" else "1"
+            } else if (frac == 0L) {
+                "0"
+            } else {
+                "${if (isNeg) "-" else ""}0.${frac.toString().padStart(4, '0').trimEnd('0')}"
+            }
+        } else {
+            val intPart = absVal.toLong()
+            val fracPart = absVal - intPart
+            val frac = kotlin.math.round(fracPart * 10000.0).toLong()
+            if (frac == 10000L) {
+                "${if (isNeg) "-" else ""}${intPart + 1}"
+            } else if (frac == 0L) {
+                "${if (isNeg) "-" else ""}$intPart"
+            } else {
+                "${if (isNeg) "-" else ""}$intPart.${frac.toString().padStart(4, '0').trimEnd('0')}"
+            }
+        }
     } else {
         val mantissa = value / 10.0.pow(exp)
         val rm = kotlin.math.round(mantissa * 1000.0) / 1000.0
