@@ -59,6 +59,7 @@ class Recorder(
     init {
         addPort(amplitude)
         amplitude.setup(0.0, 1.0, 2.0)
+        recording.frameRate = if (frameRate > 0.0) frameRate else 44100.0
         recording.replenish()
     }
 
@@ -73,7 +74,9 @@ class Recorder(
      */
     fun record() {
         val oldRecording = recording
-        val newRecording = SegmentedFloatArray(segmentSize, poolCapacity)
+        val newRecording = SegmentedFloatArray(segmentSize, poolCapacity).apply {
+            frameRate = if (this@Recorder.frameRate > 0.0) this@Recorder.frameRate else 44100.0
+        }
         newRecording.replenish()
         val copyCount = cursor.coerceIn(0, oldRecording.length)
         if (copyCount > 0) {

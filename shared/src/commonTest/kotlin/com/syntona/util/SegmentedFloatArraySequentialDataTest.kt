@@ -24,7 +24,7 @@ class SegmentedFloatArraySequentialDataTest {
         assertEquals(-1, data.sustainEnd)
         assertEquals(-1, data.releaseBegin)
         assertEquals(-1, data.releaseEnd)
-        assertEquals(48000.0, data.getRateScaler(0, 1.0 / 48000.0))
+        assertEquals(1.0, data.getRateScaler(0, 1.0 / 48000.0))
 
         // Extend and write samples via SequentialData interface
         array.extend(10)

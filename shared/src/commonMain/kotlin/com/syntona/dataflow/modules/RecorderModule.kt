@@ -149,7 +149,9 @@ class RecorderModule : Module("recorder"), EngineAware {
             val frames = loaded.numFrames
             val data = FloatArray(frames)
             loaded.read(0, data, 0, frames)
-            val newRecording = com.syntona.util.SegmentedFloatArray(unit.segmentSize, unit.poolCapacity)
+            val newRecording = com.syntona.util.SegmentedFloatArray(unit.segmentSize, unit.poolCapacity).apply {
+                frameRate = loaded.frameRate
+            }
             var remaining = frames
             while (remaining > 0) {
                 val chunk = minOf(remaining, newRecording.segmentSize)

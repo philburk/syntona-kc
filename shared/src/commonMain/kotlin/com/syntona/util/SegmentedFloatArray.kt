@@ -322,7 +322,9 @@ class SegmentedFloatArray(
     override val releaseEnd: Int
         get() = -1
 
-    override fun getRateScaler(index: Int, synthesisPeriod: Double): Double = 1.0 / synthesisPeriod
+    var frameRate: Double = 0.0
+
+    override fun getRateScaler(index: Int, synthesisPeriod: Double): Double = 1.0
 
 
     private fun checkIndex(index: Int) {

@@ -87,6 +87,7 @@ class SampleReaderModule : Module("sampleReader") {
             dataInput -> {
                 val data = (msg as? Message.DataQueueMessage)?.data ?: dataInput.currentData
                 val sampleFrameRate = (data as? AudioSampleData)?.frameRate?.takeIf { it > 0.0 }
+                    ?: (data as? com.syntona.util.SegmentedFloatArray)?.frameRate?.takeIf { it > 0.0 }
                     ?: SynthKSyn.synth.frameRate.toDouble()
                 rateMultiplier.inputB.set(sampleFrameRate.toFloat())
             }
@@ -110,6 +111,7 @@ class SampleReaderModule : Module("sampleReader") {
         if (totalFrames <= 0) return
 
         val sampleFrameRate = (data as? AudioSampleData)?.frameRate?.takeIf { it > 0.0 }
+            ?: (data as? com.syntona.util.SegmentedFloatArray)?.frameRate?.takeIf { it > 0.0 }
             ?: SynthKSyn.synth.frameRate.toDouble()
         rateMultiplier.inputB.set(sampleFrameRate.toFloat())
 

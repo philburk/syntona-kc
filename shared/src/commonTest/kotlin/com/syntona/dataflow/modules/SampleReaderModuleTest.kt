@@ -121,7 +121,7 @@ class SampleReaderModuleTest {
     }
 
     @Test
-    fun testSampleReaderWithRecorderData() {
+    fun testSampleReaderWithRecorderData() = kotlinx.coroutines.runBlocking {
         val graphState = GraphState()
         val recorderModule = RecorderModule()
         val readerModule = SampleReaderModule()
@@ -132,14 +132,30 @@ class SampleReaderModuleTest {
         // Connect recorder.data -> reader.data
         graphState.connect(recorderModule.dataOutput, readerModule.dataInput)
 
-        // Recorder extends recording
+        // Extend and fill recording with test values
         recorderModule.unit.recording.extend(1024)
+        for (i in 0 until 1024) {
+            recorderModule.unit.recording[i] = 0.65f
+        }
         recorderModule.sendData()
 
         assertEquals(recorderModule.unit.recording, readerModule.dataInput.currentData)
 
-        // Trigger start
+        // Trigger start at default rate = 1.0
+        readerModule.rate.setValue(1.0)
         readerModule.startIn.receive(Message.FloatValue(ScoreTime.Zero, 0.0))
+
+        // Process scheduled commands
+        (SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine).generateNextBuffer()
+        readerModule.rateMultiplier.generate()
+        readerModule.unit.generate()
+
+        val outputs = readerModule.unit.output!!.getValues()
+        var nonZeroCount = 0
+        for (i in 0 until 8) {
+            if (outputs[i] > 0.1f) nonZeroCount++
+        }
+        assertTrue(nonZeroCount > 0, "Recorder data played by sampleReader should produce audio samples, got: ${outputs.take(8)}")
 
         recorderModule.teardown()
         readerModule.teardown()
