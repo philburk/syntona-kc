@@ -17,18 +17,14 @@ Composing
 
 DAHDSR decay needs higher range in KSyn.
 
-Add a File menu item called "Recent Patches" item that can load one of the 8 most recently saved or opened files that are not resources.
-Save that most recent list in Settings storage.
-
 AudioJacks do not need to store the kickable value in the JSON because it is ignored.
 
 BUG: deleting modules using BACKSPACE or DELETE key sometimes does not work. Edit menu Cut always works.
 
-When selecting a new input output pair, suggest measuring latency.
+When selecting a new input output audio device pair, suggest measuring latency.
 
 BUG: Why does envAD not hold after the attack until off()?
 Maybe we do need an envAR that holds?
-
 
 Add multiTrack module like a DAW, + button for MIDI or Audio or composable Patch tracks.
 Audio tracks have audio in/out, MIDI tracks have VoiceMessage in/out.
@@ -132,8 +128,6 @@ Add Gaussian distribution and histogram.
 Add amplitude/velocity editing in pianoRoll editor. Bottom panel?
 
 Note processing elements. scaleAmp, transpose.
-
-Add MIDI in/out support using VoiceMessages.
 
 Why is Web CPU usages is so much higher for WASM.
 On WASM, can run 120 * (red + red + squareBL + biquad)
