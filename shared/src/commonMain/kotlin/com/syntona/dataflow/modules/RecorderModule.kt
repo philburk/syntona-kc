@@ -108,11 +108,13 @@ class RecorderModule : Module("recorder"), EngineAware {
             playIn.isKicked -> {
                 pendingStopEvent?.cancel()
                 pendingStopEvent = null
+                val wasRecording = unit.isRecording
                 val latencyFrames = if (isLoadedFromFile) 0 else (latencySeconds * unit.frameRate).toInt()
                 if (unit.cursor >= unit.length || unit.cursor <= latencyFrames) {
                     unit.seek(latencyFrames)
                 }
                 unit.play()
+                if (wasRecording) sendData()
             }
             pauseIn.isKicked -> {
                 pendingStopEvent?.cancel()

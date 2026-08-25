@@ -268,4 +268,37 @@ class RecorderModuleTest {
         recorder.teardown()
         reader.teardown()
     }
+
+    @Test
+    fun testStoppingRecordingByPlayingSendsData() {
+        val recorder = RecorderModule()
+        val reader = SampleReaderModule()
+        val graph = GraphState()
+        graph.addModule(recorder, androidx.compose.ui.geometry.Offset.Zero)
+        graph.addModule(reader, androidx.compose.ui.geometry.Offset.Zero)
+        graph.connect(recorder.dataOutput, reader.dataInput)
+
+        val initialRecording = recorder.unit.recording
+        assertEquals(initialRecording, reader.dataInput.currentData)
+
+        // Start recording
+        kick(recorder, "record")
+        repeat(30) {
+            recorder.unit.replenish()
+            recorder.unit.generate()
+        }
+
+        // Stop recording by kicking "play"
+        kick(recorder, "play")
+        assertEquals(Recorder.Mode.PLAYING, recorder.unit.mode)
+
+        // The new recording take must have been sent to reader
+        val recordedData = recorder.unit.recording
+        assertTrue(recordedData !== initialRecording)
+        assertEquals(recordedData, reader.dataInput.currentData)
+        assertTrue(recordedData.length > 0)
+
+        recorder.teardown()
+        reader.teardown()
+    }
 }
