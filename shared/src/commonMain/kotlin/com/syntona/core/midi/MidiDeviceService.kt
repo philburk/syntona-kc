@@ -420,7 +420,19 @@ object MidiDeviceService {
 
         val nowEndpoints = bridge?.endpointsNow()?.filter { it.direction == direction } ?: emptyList()
         nowEndpoints.firstOrNull { it.compoundName() == deviceName }?.let { return it }
-        return nowEndpoints.firstOrNull { it.name == deviceName }
+        nowEndpoints.firstOrNull { it.name == deviceName }?.let { return it }
+
+        // Fallback: match by manufacturer if specified and unambiguous
+        val all = if (currentEndpoints.isNotEmpty()) currentEndpoints else nowEndpoints
+        if (deviceName.contains(",")) {
+            val parts = deviceName.split(",").map { it.trim() }
+            val mfg = parts.getOrNull(1) ?: ""
+            if (mfg.isNotEmpty()) {
+                val mfgMatches = all.filter { it.manufacturer.equals(mfg, ignoreCase = true) }
+                if (mfgMatches.size == 1) return mfgMatches.first()
+            }
+        }
+        return null
     }
 
     /**

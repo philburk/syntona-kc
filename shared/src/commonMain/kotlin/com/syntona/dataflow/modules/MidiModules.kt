@@ -194,10 +194,9 @@ class MidiInModule : Module("midiIn"), EngineAware, AdoptsRememberedDefaults {
             val saved = rawSavedName
             if (saved != null) {
                 val reResolved = MidiDeviceService.resolveLoadedDevice(MidiDirection.SOURCE, saved)
+                rawSavedName = null
                 if (reResolved != deviceName) {
-                    rawSavedName = null
-                    applyDevice(reResolved)
-                    return@launch
+                    deviceName = reResolved
                 }
             }
 
@@ -408,10 +407,9 @@ class MidiOutModule : Module("midiOut"), AdoptsRememberedDefaults {
             val saved = rawSavedName
             if (saved != null) {
                 val reResolved = MidiDeviceService.resolveLoadedDevice(MidiDirection.DESTINATION, saved)
+                rawSavedName = null
                 if (reResolved != deviceName) {
-                    rawSavedName = null
-                    applyDevice(reResolved)
-                    return@launch
+                    deviceName = reResolved
                 }
             }
 
