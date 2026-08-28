@@ -1,0 +1,258 @@
+{
+  "version": "0.6.1 beta",
+  "versionCode": 393217,
+  "modules": [
+    {
+      "id": 0,
+      "type": "music.compose.stepper",
+      "name": "stepper",
+      "x": 507.9,
+      "y": 299,
+      "jacks": {
+        "kick": {
+          "v": 0,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "N": {
+          "v": 4,
+          "min": 1,
+          "max": 128,
+          "kickable": false,
+          "integer": true
+        },
+        "loop": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "integer": true
+        }
+      }
+    },
+    {
+      "id": 1,
+      "type": "core.input.kick",
+      "name": "kick",
+      "x": 75.9,
+      "y": 432
+    },
+    {
+      "id": 2,
+      "type": "music.compose.stepper",
+      "name": "stepper",
+      "x": 511.9,
+      "y": 563,
+      "jacks": {
+        "kick": {
+          "v": 0,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "N": {
+          "v": 4,
+          "min": 1,
+          "max": 128,
+          "kickable": false,
+          "integer": true
+        },
+        "loop": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "integer": true
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "core.basic.arm",
+      "name": "arm",
+      "x": 360.9,
+      "y": 408,
+      "jacks": {
+        "in": {
+          "v": 0,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 654.9,
+      "y": 372,
+      "jacks": {
+        "in": {
+          "v": 3,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 717.9,
+      "y": 427,
+      "jacks": {
+        "in": {
+          "v": 1,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 660.9,
+      "y": 622,
+      "jacks": {
+        "in": {
+          "v": 3,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 721.9,
+      "y": 681,
+      "jacks": {
+        "in": {
+          "v": 1,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "core.view.flash",
+      "name": "flash",
+      "x": 635.9,
+      "y": 300,
+      "jacks": {
+        "flash": {
+          "v": 3,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "core.view.flash",
+      "name": "flash",
+      "x": 650,
+      "y": 547.9,
+      "jacks": {
+        "flash": {
+          "v": 3,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 81.9,
+      "y": 43.1,
+      "text": "The stepper module lets you create series of numbers. These can be used to control sequencers.\n\nToDo:\n* Click the \"kick\" button at the left. Notice the stepper does not respond.\n* Click the \"arm\" button.\n* Now click the \"kick\" button. Notice that kick now starts the stepper.\n* Keep clicking on the \"kick\" button and notice how the stepper goes up to 3 then stops.\n\nIt sends a \"done\" message to the next stepper and starts the next sequence.",
+      "w": 636.875,
+      "h": 199
+    }
+  ],
+  "connections": [
+    {
+      "from": 1,
+      "fromJack": "kick",
+      "to": 2,
+      "toJack": "kick"
+    },
+    {
+      "from": 0,
+      "fromJack": "done",
+      "to": 2,
+      "toJack": "start"
+    },
+    {
+      "from": 1,
+      "fromJack": "kick",
+      "to": 3,
+      "toJack": "in"
+    },
+    {
+      "from": 1,
+      "fromJack": "kick",
+      "to": 0,
+      "toJack": "kick"
+    },
+    {
+      "from": 3,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "start"
+    },
+    {
+      "from": 0,
+      "fromJack": "index",
+      "to": 4,
+      "toJack": "in"
+    },
+    {
+      "from": 0,
+      "fromJack": "done",
+      "to": 5,
+      "toJack": "in"
+    },
+    {
+      "from": 2,
+      "fromJack": "index",
+      "to": 6,
+      "toJack": "in"
+    },
+    {
+      "from": 0,
+      "fromJack": "index",
+      "to": 8,
+      "toJack": "flash"
+    },
+    {
+      "from": 2,
+      "fromJack": "index",
+      "to": 9,
+      "toJack": "flash"
+    },
+    {
+      "from": 2,
+      "fromJack": "done",
+      "to": 7,
+      "toJack": "in"
+    }
+  ],
+  "windowX": 38,
+  "windowY": 38,
+  "windowWidth": 1338.37890625,
+  "windowHeight": 848.04296875
+}

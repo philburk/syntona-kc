@@ -25,11 +25,13 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.drag
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.syntona.dataflow.modules.ArmModule
 import com.syntona.dataflow.modules.RecorderModule
+import com.syntona.dataflow.modules.StepperModule
 import com.syntona.util.formatMinutesSecondsMillis
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -48,7 +50,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.Slider
@@ -287,6 +292,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                     is SequenceModule -> SequenceModuleNode(module, state)
                     is MixerModule -> MixerModuleNode(module, state)
                     is ModuloSelectModule -> ModuleNode(module, state, headerColor = colors.headerSequence)
+                    is StepperModule -> ModuleNode(module, state, headerColor = colors.headerSequence)
                     is InputModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
                     is CommandModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
                     is OutputModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
@@ -1021,6 +1027,7 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
             .pointerInput(jack) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
+                    if (down.isConsumed) return@awaitEachGesture
                     val isShiftPressed = currentEvent.keyboardModifiers.isShiftPressed
                     val startOffset = down.position
                     val unconnectedInput = jack is InputJack &&
@@ -1093,6 +1100,49 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
             if (jack.module is SendModule) {
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(">>", color = colors.jackDefault, fontSize = 10.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+            }
+            val stepper = jack.module as? StepperModule
+            if (stepper != null && jack === stepper.loop) {
+                Spacer(modifier = Modifier.widthIn(min = 8.dp).weight(1f))
+                val isConnected = state.connections.any { it.input == jack }
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(16.dp)
+                        .pointerInput(stepper) {
+                            awaitEachGesture {
+                                val down = awaitFirstDown(requireUnconsumed = true)
+                                down.consume()
+                                val up = waitForUpOrCancellation()
+                                if (up != null) {
+                                    up.consume()
+                                    if (!isConnected) {
+                                        val newLoop = !stepper.isLooping
+                                        val newValue = if (newLoop) 1.0 else 0.0
+                                        val e = state.engine
+                                        if (e != null) e.post(SetValueCommand(stepper.loop, newValue, ScoreClock.now()))
+                                        else stepper.loop.setValue(newValue)
+                                        stepper.isLooping = newLoop
+                                        state.markChanged()
+                                        FileState.markDirty()
+                                    }
+                                }
+                            }
+                        }
+                ) {
+                    CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
+                        Checkbox(
+                            checked = stepper.isLooping,
+                            onCheckedChange = null,
+                            modifier = Modifier.size(16.dp),
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = colors.headerSequence,
+                                uncheckedColor = Color.Gray,
+                                checkmarkColor = Color.White
+                            )
+                        )
+                    }
+                }
             }
             Spacer(modifier = Modifier.width(4.dp))
         } else {
