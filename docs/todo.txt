@@ -1,8 +1,26 @@
 
 # ----------------------------------------------- HIGH PRIORITY
 
-Tag a new minor version of KSyn and use that in Syntona.
+TYPO: drums's pitch in 06_add_drum
 
+Try to save a native signed version.
+
+Export JSyn and KSyn source code for circuits.
+
+matchNote could have a MIDI output that is minus the matchedNote.
+Then you could use the black keys as triggers and send the remaining keys to a polyPatch.
+
+The orange MIDI jacks and the yellow SequentialData jacks look too similar.
+
+The ARM module should be able to pass VoiceMessages or any type.
+
+UNDO no longer works on web!
+
+counter module starts 1. See tuna_sandwich shortSeq.
+Maybe add a preIncrement output that starts at zero for seq8.
+
+Use envelopes to gate off the pull to reduce CPU load for silent patches.
+Write tests in KSyn and Syntona.
 
 # ----------------------------------------------- MEDIUM PRIORITY
 
