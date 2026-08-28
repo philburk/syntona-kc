@@ -14,8 +14,6 @@ The orange MIDI jacks and the yellow SequentialData jacks look too similar.
 
 The ARM module should be able to pass VoiceMessages or any type.
 
-UNDO no longer works on web!
-
 counter module starts 1. See tuna_sandwich shortSeq.
 Maybe add a preIncrement output that starts at zero for seq8.
 

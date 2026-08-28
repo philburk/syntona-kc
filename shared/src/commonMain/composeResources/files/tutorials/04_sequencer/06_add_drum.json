@@ -1,4 +1,6 @@
 {
+  "version": "0.6.0 beta",
+  "versionCode": 393216,
   "modules": [
     {
       "id": 0,
@@ -6,7 +8,7 @@
       "name": "comment",
       "x": 49.9,
       "y": 28,
-      "text": "Now let's add a drum to our sequence. We can trigger the drum on individual notes.\n\nTo Do:\n* Click the \"start\" button to start the beatClock.\n* In the Filter box, enter \"drum\"Drag a drumFM module into the patch.\n* Connect the drumFM \"aOut1\" jack to the lineOut.\n* Connect some of the individual jacks on the right hand side of the seq8 module to the drumFM \"trigger\" jack.\n* Drag on the drums's pitch jack to raise it to around 57.\n* Increase the \"mcRatio\" and \"depth\" jacks as well.\n",
+      "text": "Now let's add a drum to our sequence. We can trigger the drum on individual notes.\n\nTo Do:\n* Click the \"start\" button to start the beatClock.\n* In the Filter box, enter \"drum\" then drag a drumFM module into the patch.\n* Connect the drumFM \"aOut1\" jack to the lineOut.\n* Connect some of the individual jacks on the right hand side of the seq8 module to the drumFM \"trigger\" jack.\n* Drag on the drum's pitch jack to raise it to around 57.\n* Increase the \"mcRatio\" and \"depth\" jacks as well.\n",
       "w": 544.875,
       "h": 227
     },
