@@ -170,8 +170,10 @@ object GraphSerializer {
                 val min = module.patchJack?.min ?: module.defaultMin
                 val max = module.patchJack?.max ?: module.defaultMax
                 val kickable = module.patchJack?.isKickable ?: module.defaultIsKickable
+                val integer = module.patchJack?.isInteger ?: module.defaultIsInteger
                 append(",\"jacks\":{\"${jackName.jsonEscape}\":{")
                 append("\"v\":$v,\"min\":$min,\"max\":$max,\"kickable\":$kickable")
+                if (integer) append(",\"integer\":true")
                 append("}}")
             } else if (module is AudioInputModule) {
                 val jackName = module.name
@@ -203,6 +205,7 @@ object GraphSerializer {
                         fields.add("\"min\":${jack.min}")
                         fields.add("\"max\":${jack.max}")
                         fields.add("\"kickable\":${jack.isKickable}")
+                        if (jack.isInteger) fields.add("\"integer\":true")
                         if (jack is AudioInputJack) fields.add("\"add\":${jack.isValueAdded}")
                         append(fields.joinToString(","))
                         append("}")
@@ -570,6 +573,10 @@ object GraphSerializer {
                                 module.defaultIsKickable = it
                                 module.patchJack?.isKickable = it
                             }
+                            (jackValue.map["integer"] as? JsonValue.Bool)?.value?.let {
+                                module.defaultIsInteger = it
+                                module.patchJack?.isInteger = it
+                            }
                         }
                         else -> {}
                     }
@@ -641,6 +648,7 @@ object GraphSerializer {
                         (jackValue.map["max"] as? JsonValue.Num)?.value?.let { inputJack.max = it }
                         (jackValue.map["v"] as? JsonValue.Num)?.value?.let { inputJack.setValue(it) }
                         (jackValue.map["kickable"] as? JsonValue.Bool)?.value?.let { inputJack.isKickable = it }
+                        (jackValue.map["integer"] as? JsonValue.Bool)?.value?.let { inputJack.isInteger = it }
                         if (inputJack is AudioInputJack) {
                             (jackValue.map["add"] as? JsonValue.Bool)?.value?.let { inputJack.isValueAdded = it }
                         }

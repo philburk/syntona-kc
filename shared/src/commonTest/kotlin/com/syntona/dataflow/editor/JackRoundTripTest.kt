@@ -166,5 +166,61 @@ class JackRoundTripTest {
         assertEquals(com.syntona.SyntonaVersion.toString(), (parsedPatch.map["version"] as? JsonValue.Str)?.value)
         assertEquals(com.syntona.SyntonaVersion.code, (parsedPatch.map["versionCode"] as? JsonValue.Num)?.value?.toInt())
     }
+
+    @Test
+    fun jackIntegerSurvivesRoundTrip() {
+        val knob = KnobModule()
+        val jack = knob.inputs.first { it.name == "in" }
+        assertEquals(false, jack.isInteger)
+        jack.isInteger = true
+
+        val back = roundTrip(knob)
+        assertEquals(true, back.inputs.first { it.name == "in" }.isInteger)
+    }
+
+    @Test
+    fun convertedModulesHaveIntegerByDefaultAndSurviveRoundTrip() {
+        val keyboard = com.syntona.dataflow.modules.Keyboard25Module()
+        assertEquals(true, keyboard.octaveIn.isInteger)
+
+        val back = roundTrip(keyboard) as com.syntona.dataflow.modules.Keyboard25Module
+        assertEquals(true, back.octaveIn.isInteger)
+    }
+
+    @Test
+    fun omittedIntegerKeepsModuleDefault() {
+        // When JSON has no "integer" key, deserializer must not overwrite the module's default.
+        val state = GraphState()
+        // Craft JSON without "integer" field for keyboard25 and knob
+        val jsonWithoutInteger = """
+            {
+              "version": "${com.syntona.SyntonaVersion}",
+              "modules": [
+                {
+                  "type": "music.input.keyboard25",
+                  "name": "keyboard25",
+                  "jacks": {
+                    "octave": { "v": 4.0, "min": 2.0, "max": 8.0, "kickable": false }
+                  }
+                },
+                {
+                  "type": "core.input.knob",
+                  "name": "knob",
+                  "jacks": {
+                    "in": { "v": 0.5, "min": 0.0, "max": 1.0, "kickable": false }
+                  }
+                }
+              ],
+              "connections": []
+            }
+        """.trimIndent()
+
+        GraphSerializer.deserialize(state, jsonWithoutInteger)
+        val loadedKeyboard = state.modules.first { it is com.syntona.dataflow.modules.Keyboard25Module } as com.syntona.dataflow.modules.Keyboard25Module
+        val loadedKnob = state.modules.first { it is KnobModule } as KnobModule
+
+        assertEquals(true, loadedKeyboard.octaveIn.isInteger, "keyboard25.octave should remain true by default")
+        assertEquals(false, loadedKnob.inputs.first { it.name == "in" }.isInteger, "knob.in should remain false by default")
+    }
 }
 

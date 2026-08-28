@@ -61,7 +61,7 @@ class PackVoiceModule : Module("packVoice") {
  */
 class PackNoteModule : Module("packNote"), EngineAware {
     val pitchIn = addInput("pitch", isKickable = true)
-    val tagIn = addInput("tag").also {
+    val tagIn = addIntegerInput("tag").also {
         it.min = -1.0
         it.max = 127.0
     }
@@ -116,7 +116,7 @@ class PackBendModule : Module("packBend"), EngineAware {
         it.min = -2.0
         it.max = 2.0
     }
-    val tagIn = addInput("tag").also {
+    val tagIn = addIntegerInput("tag").also {
         it.min = -1.0
         it.max = 127.0
     }
@@ -152,7 +152,7 @@ class PackBendModule : Module("packBend"), EngineAware {
  */
 class PackControlModule : Module("packControl") {
     val valueIn = addInput("value", isKickable = true)
-    val indexIn = addInput("index").also {
+    val indexIn = addIntegerInput("index").also {
         it.min = 0.0
         it.max = 127.0
     }
@@ -186,7 +186,7 @@ class PackControlModule : Module("packControl") {
  * nothing per-note to address until MIDI 2.0 arrives.
  */
 class PackProgramModule : Module("packProgram") {
-    val programIn = addInput("program", isKickable = true).also {
+    val programIn = addIntegerInput("program", isKickable = true).also {
         it.min = 0.0
         it.max = 127.0
     }
@@ -337,7 +337,7 @@ abstract class MatchVoiceModule(
 ) : Module(type), CommandJackBadge {
     val input = addVoiceInput("in", isKickable = true)
     val learn = addCommandInput("learn")
-    val matchIn = addInput(selectorName).also {
+    val matchIn = addIntegerInput(selectorName).also {
         it.min = MATCH_ARMED
         it.max = 127.0
     }

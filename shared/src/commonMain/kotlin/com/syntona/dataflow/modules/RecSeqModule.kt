@@ -5,8 +5,8 @@ import com.syntona.dataflow.model.Module
 import com.syntona.util.RecursiveSequence
 
 class RecSeqModule : Module("recSeq") {
-    val step = addInput("step", isKickable = true)
-    val stepsPerCycle = addInput("stepsPerCycle").also {
+    val step = addIntegerInput("step", isKickable = true)
+    val stepsPerCycle = addIntegerInput("stepsPerCycle").also {
         it.min = 2.0
         it.max = 32.0
         it.setValue(8.0)
@@ -16,12 +16,12 @@ class RecSeqModule : Module("recSeq") {
         it.max = 1.0
         it.setValue(0.5)
     }
-    val limit = addInput("limit").also {
+    val limit = addIntegerInput("limit").also {
         it.min = 2.0
         it.max = 35.0
         it.setValue(11.0)
     }
-    val maxJump = addInput("maxJump").also {
+    val maxJump = addIntegerInput("maxJump").also {
         it.min = 2.0
         it.max = 35.0
         it.setValue(5.0)

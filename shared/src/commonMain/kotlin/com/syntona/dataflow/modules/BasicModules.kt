@@ -26,7 +26,7 @@ class CounterModule() : Module("counter") {
  */
 class ClockDividerModule : Module("ckDiv") {
     val input = addInput("in", isKickable = true)
-    val divisor = addInput("N").also {
+    val divisor = addIntegerInput("N").also {
         it.min = 1.0
         it.max = 128.0
         it.setValue(2.0)

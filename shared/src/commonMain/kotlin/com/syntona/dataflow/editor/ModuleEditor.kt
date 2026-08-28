@@ -220,9 +220,10 @@ private fun JackEditorRow(jack: InputJack) {
                 NumberField(
                     value = jack.min,
                     onCommit = { newMin ->
-                        jack.min = newMin
-                        if (jack.max < newMin + 1.0) {
-                            jack.max = newMin + 1.0
+                        val finalMin = if (jack.isInteger) kotlin.math.round(newMin) else newMin
+                        jack.min = finalMin
+                        if (jack.max < finalMin + 1.0) {
+                            jack.max = finalMin + 1.0
                         }
                         val clamped = jack.getValue().coerceIn(jack.min, jack.max)
                         if (jack.getValue() != clamped) {
@@ -239,7 +240,8 @@ private fun JackEditorRow(jack: InputJack) {
                     onCommit = { newValue ->
                         val low = minOf(jack.min, jack.max)
                         val high = maxOf(jack.min, jack.max)
-                        val clamped = newValue.coerceIn(low, high)
+                        val rounded = if (jack.isInteger) kotlin.math.round(newValue) else newValue
+                        val clamped = rounded.coerceIn(low, high)
                         jack.setValue(clamped)
                         currentValue = clamped
                     },
@@ -250,9 +252,10 @@ private fun JackEditorRow(jack: InputJack) {
                 NumberField(
                     value = jack.max,
                     onCommit = { newMax ->
-                        jack.max = newMax
-                        if (jack.min > newMax - 1.0) {
-                            jack.min = newMax - 1.0
+                        val finalMax = if (jack.isInteger) kotlin.math.round(newMax) else newMax
+                        jack.max = finalMax
+                        if (jack.min > finalMax - 1.0) {
+                            jack.min = finalMax - 1.0
                         }
                         val clamped = jack.getValue().coerceIn(jack.min, jack.max)
                         if (jack.getValue() != clamped) {
@@ -272,6 +275,22 @@ private fun JackEditorRow(jack: InputJack) {
                         onCheckedChange = {
                             isKickable = it
                             jack.isKickable = it
+                            FileState.markDirty()
+                        }
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    var isInteger by remember(jack) { mutableStateOf(jack.isInteger) }
+                    JackFlagCheckbox(
+                        label = "Int?",
+                        checked = isInteger,
+                        onCheckedChange = {
+                            isInteger = it
+                            jack.isInteger = it
+                            if (it) {
+                                val rounded = kotlin.math.round(jack.getValue())
+                                jack.setValue(rounded)
+                                currentValue = rounded
+                            }
                             FileState.markDirty()
                         }
                     )
@@ -301,10 +320,12 @@ private fun JackEditorRow(jack: InputJack) {
                         ((currentValue - jack.min) / range).toFloat().coerceIn(0f, 1f)
                     } else 0f,
                     onValueChange = { fraction ->
-                        val newValue = jack.min + fraction * range
+                        val raw = jack.min + fraction * range
+                        val newValue = if (jack.isInteger) kotlin.math.round(raw) else raw
                         currentValue = newValue
                         jack.setValue(newValue)
                     },
+                    steps = if (jack.isInteger && range in 1.0..128.0) (range - 1).toInt() else 0,
                     modifier = Modifier.fillMaxWidth(),
                     interactionSource = interactionSource,
                     thumb = {

@@ -30,6 +30,7 @@ class InputModule : Module("input") {
                     value.setValue(defaultValue)
                 }
                 value.isKickable = defaultIsKickable
+                value.isInteger = defaultIsInteger
             }
         }
 
@@ -54,6 +55,11 @@ class InputModule : Module("input") {
         set(value) {
             field = value
             patchJack?.isKickable = value
+        }
+    var defaultIsInteger: Boolean = false
+        set(value) {
+            field = value
+            patchJack?.isInteger = value
         }
 
     fun receive(msg: Message) {

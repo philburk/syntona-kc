@@ -194,4 +194,22 @@ class JackInheritanceTest {
         assertEquals(freqJack.min, knob.valueIn.min)
         assertEquals(freqJack.max, knob.valueIn.max)
     }
+
+    @Test
+    fun testInputModuleInheritsIntegerOnConnection() {
+        val patch = PatchModule("testPatch")
+        val inMod = InputModule()
+        patch.graphState.addModule(inMod, Offset.Zero)
+
+        val keyboard = com.syntona.dataflow.modules.Keyboard25Module()
+        patch.graphState.addModule(keyboard, Offset.Zero)
+
+        assertEquals(false, inMod.defaultIsInteger)
+        assertEquals(false, inMod.patchJack?.isInteger)
+
+        patch.graphState.connect(inMod.output, keyboard.octaveIn)
+
+        assertEquals(true, inMod.defaultIsInteger)
+        assertEquals(true, inMod.patchJack?.isInteger)
+    }
 }

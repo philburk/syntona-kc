@@ -509,12 +509,14 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
                     val target = connected.first().input
                     m.defaultMin = target.min
                     m.defaultMax = target.max
+                    m.defaultIsInteger = target.isInteger
                     val low = minOf(target.min, target.max)
                     val high = maxOf(target.min, target.max)
                     m.defaultValue = target.getValue().coerceIn(low, high)
                 } else {
                     m.defaultMin = connected.minOf { it.input.min }
                     m.defaultMax = connected.maxOf { it.input.max }
+                    m.defaultIsInteger = connected.all { it.input.isInteger }
                 }
             }
             is AudioInputModule -> {

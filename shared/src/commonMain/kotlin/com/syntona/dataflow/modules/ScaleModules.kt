@@ -16,7 +16,7 @@ class ScaleModule(
     var errorMessage by mutableStateOf<String?>(null)
 
     // Inputs:
-    val inputIn = addInput("in", isKickable = true)
+    val inputIn = addIntegerInput("in", isKickable = true)
     val inputOffset = addInput("offset", isKickable = false).apply { setValue(36.0) }
 
     // Output:

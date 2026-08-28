@@ -41,8 +41,14 @@ abstract class Module(val type: String) {
 
     private val processingMessages = mutableSetOf<Message>()
     private var safe = true
-    protected fun addInput(name: String, isKickable: Boolean = false): InputJack {
-        val jack = InputJack(name, this, isKickable)
+    protected fun addInput(name: String, isKickable: Boolean = false, isInteger: Boolean = false): InputJack {
+        val jack = InputJack(name, this, isKickable, isInteger)
+        _inputs.add(jack)
+        return jack
+    }
+
+    protected fun addIntegerInput(name: String, isKickable: Boolean = false): IntegerInputJack {
+        val jack = IntegerInputJack(name, this, isKickable)
         _inputs.add(jack)
         return jack
     }
@@ -53,8 +59,14 @@ abstract class Module(val type: String) {
         return jack
     }
 
-    protected fun addOutput(name: String): OutputJack {
-        val jack = OutputJack(name, this)
+    protected fun addOutput(name: String, isInteger: Boolean = false): OutputJack {
+        val jack = OutputJack(name, this, isInteger)
+        _outputs.add(jack)
+        return jack
+    }
+
+    protected fun addIntegerOutput(name: String): OutputJack {
+        val jack = OutputJack(name, this, isInteger = true)
         _outputs.add(jack)
         return jack
     }

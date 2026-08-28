@@ -12,7 +12,7 @@ class KeyNotesModule : Module("keyNotes"), PlayableKeys {
         it.min = 0.0
         it.max = 1.0
     }
-    override val octaveIn = addInput("octave").also {
+    override val octaveIn = addIntegerInput("octave").also {
         it.min = MIN_KEY_OCTAVE
         it.max = MAX_KEY_OCTAVE
     }

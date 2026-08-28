@@ -1,8 +1,6 @@
 
 # ----------------------------------------------- HIGH PRIORITY
 
-TYPO: drums's pitch in 06_add_drum
-
 Try to save a native signed version.
 
 Export JSyn and KSyn source code for circuits.
@@ -10,15 +8,23 @@ Export JSyn and KSyn source code for circuits.
 matchNote could have a MIDI output that is minus the matchedNote.
 Then you could use the black keys as triggers and send the remaining keys to a polyPatch.
 
+Add integrated envSeg with Segmented envelope and monoReader.
+Try to be backwards compatible by converting connected segEnv and monoRdr modules to the new module
+when reading from JSON.
+
 The orange MIDI jacks and the yellow SequentialData jacks look too similar.
-
-The ARM module should be able to pass VoiceMessages or any type.
-
-counter module starts 1. See tuna_sandwich shortSeq.
-Maybe add a preIncrement output that starts at zero for seq8.
 
 Use envelopes to gate off the pull to reduce CPU load for silent patches.
 Write tests in KSyn and Syntona.
+
+counter module starts 1. See tuna_sandwich shortSeq.
+Maybe add a preIncrement output that starts at zero for seq8.
+Maybe name that "stepper" and include a loop toggle. A stepper can serve as the forLoop.
+Add a "done" jack for cascading. See docs/stepper.md file.
+
+Logic bundle with AND OR XOR NOT, gate. TRUE>0, FALSE<=0.
+Define "branch" and "choose", eg. choose2,4,8.
+A gate is a branch1 or a choose1, which are equivalent.
 
 # ----------------------------------------------- MEDIUM PRIORITY
 

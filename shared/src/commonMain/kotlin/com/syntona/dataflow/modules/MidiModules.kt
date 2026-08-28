@@ -295,7 +295,7 @@ class MidiOutModule : Module("midiOut"), AdoptsRememberedDefaults {
         get() = false
 
     val input = addVoiceInput("in")
-    val channelIn = addInput("channel").also {
+    val channelIn = addIntegerInput("channel").also {
         it.min = 1.0
         it.max = 16.0
     }

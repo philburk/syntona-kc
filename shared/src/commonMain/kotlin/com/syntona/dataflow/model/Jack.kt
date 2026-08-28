@@ -17,16 +17,21 @@ sealed class Jack {
 
     /** Returns the current scalar value of this jack for display. */
     abstract fun getValue(): Double
+
+    /** Whether this jack treats values as discrete integers. */
+    abstract var isInteger: Boolean
 }
 
 /**
  * An input port that can receive messages.
  * @property isKickable If true, receiving a message on this jack triggers [Module.execute].
+ * @property isInteger If true, values on this jack are treated as discrete integers.
  */
 open class InputJack(
     name: String,
     override val module: Module,
-    isKickable: Boolean = false
+    isKickable: Boolean = false,
+    isInteger: Boolean = false
 ) : Jack() {
     override var name by mutableStateOf(name)
     private var _isKickable by mutableStateOf(isKickable)
@@ -36,6 +41,15 @@ open class InputJack(
             _isKickable = value
             val polyPatch = module.parentPatch as? com.syntona.dataflow.modules.PolyPatchModule
             polyPatch?.syncInputJackKickable(this, value)
+        }
+
+    private var _isInteger by mutableStateOf(isInteger)
+    override var isInteger: Boolean
+        get() = _isInteger
+        set(value) {
+            _isInteger = value
+            val polyPatch = module.parentPatch as? com.syntona.dataflow.modules.PolyPatchModule
+            polyPatch?.syncInputJackInteger(this, value)
         }
 
     var isKicked = false
@@ -123,13 +137,24 @@ class CommandJack(name: String, module: Module) : InputJack(name, module, isKick
 }
 
 /**
+ * An [InputJack] that treats values as discrete integers.
+ */
+open class IntegerInputJack(
+    name: String,
+    module: Module,
+    isKickable: Boolean = false
+) : InputJack(name, module, isKickable = isKickable, isInteger = true)
+
+/**
  * An output port that can send messages to connected [InputJack]s.
  */
 open class OutputJack(
     name: String,
-    override val module: Module
+    override val module: Module,
+    isInteger: Boolean = false
 ) : Jack() {
     override var name by mutableStateOf(name)
+    override var isInteger by mutableStateOf(isInteger)
     private val connections = mutableListOf<InputJack>()
 
     private var lastSentValue: Double by mutableStateOf(0.0)

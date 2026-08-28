@@ -45,6 +45,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -976,6 +977,7 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
     var isHovered by remember { mutableStateOf(false) }
     var isValueDragging by remember { mutableStateOf(false) }
     var valueDragCurrentValue by remember { mutableStateOf(0.0) }
+    var valueDragRawValue by remember { mutableStateOf(0.0) }
     var valueDragAccumX by remember { mutableStateOf(0f) }
     var jackRootPosition by remember { mutableStateOf(Offset.Zero) }
 
@@ -1024,7 +1026,9 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
                     val unconnectedInput = jack is InputJack &&
                         state.connections.none { it.input == jack }
                     if (unconnectedInput) {
-                        valueDragCurrentValue = jack.getValue()
+                        val initialVal = jack.getValue()
+                        valueDragCurrentValue = initialVal
+                        valueDragRawValue = initialVal
                         valueDragAccumX = 0f
                         isValueDragging = true
                     } else {
@@ -1051,17 +1055,29 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
                                 val inputJack = jack as InputJack
                                 valueDragAccumX += dragAmount.x
                                 val range = inputJack.max - inputJack.min
-                                val sensitivity = range / 400.0 * 10.0.pow(-valueDragAccumX / 200.0)
+                                val baseSensitivity = if (inputJack.isInteger) {
+                                    maxOf(range / 400.0, 1.0 / 20.0)
+                                } else {
+                                    range / 400.0
+                                }
+                                val sensitivity = baseSensitivity * 10.0.pow(-valueDragAccumX / 200.0)
                                 val low = minOf(inputJack.min, inputJack.max)
                                 val high = maxOf(inputJack.min, inputJack.max)
-                                val newValue = (valueDragCurrentValue - dragAmount.y * sensitivity)
+                                valueDragRawValue = (valueDragRawValue - dragAmount.y * sensitivity)
                                     .coerceIn(low, high)
-                                valueDragCurrentValue = newValue
-                                val e = state.engine
-                                if (e != null) e.post(SetValueCommand(inputJack, newValue, ScoreClock.now()))
-                                else inputJack.setValue(newValue)
-                                state.markChanged()
-                                FileState.markDirty()
+                                val newValue = if (inputJack.isInteger) {
+                                    kotlin.math.round(valueDragRawValue).coerceIn(low, high)
+                                } else {
+                                    valueDragRawValue
+                                }
+                                if (newValue != valueDragCurrentValue) {
+                                    valueDragCurrentValue = newValue
+                                    val e = state.engine
+                                    if (e != null) e.post(SetValueCommand(inputJack, newValue, ScoreClock.now()))
+                                    else inputJack.setValue(newValue)
+                                    state.markChanged()
+                                    FileState.markDirty()
+                                }
                             } else {
                                 state.onPointerMove(state.dragPointerPosition + dragAmount)
                             }
@@ -1293,8 +1309,9 @@ private fun JackMarker(jack: Jack, squareSize: Dp = 8.dp) {
         else -> colors.jackDefault
     }
     val kickColor = colors.jackKickable
+    val markerShape = if (jack.isInteger) RectangleShape else RoundedCornerShape(2.dp)
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(modifier = Modifier.size(squareSize).background(typeColor))
+        Box(modifier = Modifier.size(squareSize).background(typeColor, shape = markerShape))
         if (jack is InputJack && jack.isKickable) {
             Canvas(modifier = Modifier.size(width = squareSize / 2, height = squareSize)) {
                 drawPath(
