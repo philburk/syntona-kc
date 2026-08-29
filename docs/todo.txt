@@ -23,6 +23,8 @@ A gate is a branch1 or a choose1, which are equivalent.
 
 Add tempo jack to the pianoRoll module.
 
+Add toggle "flip-flop" module.
+
 # ----------------------------------------------- MEDIUM PRIORITY
 
 Composing

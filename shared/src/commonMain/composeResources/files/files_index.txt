@@ -10,6 +10,7 @@ examples/looper.json
 examples/matchControl.json
 examples/midiIn.json
 examples/midiOut.json
+examples/midi_branch.json
 examples/mod8_knobs.json
 examples/patch.json
 examples/pianoRoll.json
