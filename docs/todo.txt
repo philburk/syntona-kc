@@ -17,11 +17,6 @@ The orange MIDI jacks and the yellow SequentialData jacks look too similar.
 Use envelopes to gate off the pull to reduce CPU load for silent patches.
 Write tests in KSyn and Syntona.
 
-counter module starts 1. See tuna_sandwich shortSeq.
-Maybe add a preIncrement output that starts at zero for seq8.
-Maybe name that "stepper" and include a loop toggle. A stepper can serve as the forLoop.
-Add a "done" jack for cascading. See docs/stepper.md file.
-
 Logic bundle with AND OR XOR NOT, gate. TRUE>0, FALSE<=0.
 Define "branch" and "choose", eg. choose2,4,8.
 A gate is a branch1 or a choose1, which are equivalent.

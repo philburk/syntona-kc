@@ -87,8 +87,6 @@ open class SequenceModule(val numOutputs: Int) : Module("seq" + numOutputs) {
                 stepOutputs[index].isHighlighted = (index == 0)
             }
             return
-        } else if (increment.isKicked) {
-            count++
         }
         for (index in 0 until numOutputs) {
             stepOutputs[index].isHighlighted = false
@@ -103,6 +101,10 @@ open class SequenceModule(val numOutputs: Int) : Module("seq" + numOutputs) {
             allOutput.send(msg)
         }
         output.isHighlighted = true
+        // Post-increment
+        if (increment.isKicked) {
+            count++
+        }
     }
 }
 
