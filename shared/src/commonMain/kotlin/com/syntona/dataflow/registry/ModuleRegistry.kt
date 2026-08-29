@@ -119,6 +119,9 @@ object ModuleRegistry {
             ScaleModule("scale", isEditable = true, doubleArrayOf(0.0, 2.0, 4.0, 7.0, 9.0)) })
         compose.modules.add(ModuleEntry("recSeq", "examples/recSeq.json") { RecSeqModule() })
         compose.modules.add(ModuleEntry("stepper", "examples/stepper.json") { StepperModule() })
+        compose.modules.add(ModuleEntry("table4") { Table4Module() })
+        compose.modules.add(ModuleEntry("table8") { Table8Module() })
+        compose.modules.add(ModuleEntry("table16") { Table16Module() })
 
         val instruments = getOrCreateBundle(music, "instruments")
         val sounds = getOrCreateBundle(music, "sounds")

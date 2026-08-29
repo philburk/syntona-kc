@@ -36,6 +36,7 @@ instruments/sawLowPass.json
 instruments/twoOpFM.json
 sounds/chuff.json
 sounds/drumFM.json
+tuna_sandwich.json
 tutorials/01_tour/01_sawtooth_modulation.json
 tutorials/01_tour/02_envelope_editor.json
 tutorials/02_editing/01_connections.json

@@ -455,13 +455,13 @@ class PolyPatchModuleTest {
         seq.stepInputs[3].receive(Message.FloatValue(com.syntona.core.model.ScoreTime.Zero, 42.0))
         assertEquals("42.0", seq.values[3])
 
-        // Step the sequence by kicking 'in' 3 times to get from 0 to 3
-        // Initial state is step 0. So 3 increments should land on step 3.
-        seq.increment.receive(Message.FloatValue(com.syntona.core.model.ScoreTime.Zero, 1.0))
-        seq.increment.receive(Message.FloatValue(com.syntona.core.model.ScoreTime.Zero, 1.0))
-        seq.increment.receive(Message.FloatValue(com.syntona.core.model.ScoreTime.Zero, 1.0))
+        // Step the sequence by kicking 4 times to fire steps 0, 1, 2, 3 (post-increment starting at 0)
+        seq.kick.receive(Message.FloatValue(com.syntona.core.model.ScoreTime.Zero, 1.0))
+        seq.kick.receive(Message.FloatValue(com.syntona.core.model.ScoreTime.Zero, 1.0))
+        seq.kick.receive(Message.FloatValue(com.syntona.core.model.ScoreTime.Zero, 1.0))
+        seq.kick.receive(Message.FloatValue(com.syntona.core.model.ScoreTime.Zero, 1.0))
 
-        assertEquals(3, seq.count)
+        assertEquals(4, seq.count)
 
         // Output of step 3 should have received the value 42.0
         assertEquals(42.0, seq.stepOutputs[3].getValue())

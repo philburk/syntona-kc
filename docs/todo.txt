@@ -21,11 +21,16 @@ Logic bundle with AND OR XOR NOT, gate. TRUE>0, FALSE<=0.
 Define "branch" and "choose", eg. choose2,4,8.
 A gate is a branch1 or a choose1, which are equivalent.
 
+Add tempo jack to the pianoRoll module.
+
 # ----------------------------------------------- MEDIUM PRIORITY
 
 Composing
 * beatClock
 * ckDiv
+* stepper
+* scale
+* table8
 * pianoRoll
 * timeline
 * beatLine ?

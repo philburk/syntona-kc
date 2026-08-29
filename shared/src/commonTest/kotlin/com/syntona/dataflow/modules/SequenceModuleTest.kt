@@ -74,12 +74,12 @@ class SequenceModuleTest {
         seq.values[1] = "20.0"
         seq.values[2] = "30.0"
 
-        // Increment 3 times
-        seq.increment.receive(Message.FloatValue(ScoreTime.Zero, 1.0))
-        seq.increment.receive(Message.FloatValue(ScoreTime.Zero, 1.0))
-        seq.increment.receive(Message.FloatValue(ScoreTime.Zero, 1.0))
+        // Increment 3 times (post-increment: fires steps 0, 1, 2)
+        seq.kick.receive(Message.FloatValue(ScoreTime.Zero, 1.0))
+        seq.kick.receive(Message.FloatValue(ScoreTime.Zero, 1.0))
+        seq.kick.receive(Message.FloatValue(ScoreTime.Zero, 1.0))
 
-        assertEquals(listOf(20.0, 30.0, 1.0), receivedAllValues)
+        assertEquals(listOf(10.0, 20.0, 30.0), receivedAllValues)
     }
 
     @Test
@@ -112,8 +112,13 @@ class SequenceModuleTest {
         // Set step 1 to a comma-separated list of values "60,62.5,67"
         seq.values[1] = "60,62.5,67"
 
-        // Advance to step 1 (1 increment from initial step 0)
-        seq.increment.receive(Message.FloatValue(ScoreTime.Zero, 1.0))
+        // Kick step 0, advances count to 1
+        seq.kick.receive(Message.FloatValue(ScoreTime.Zero, 1.0))
+        stepOutputsEmitted.clear()
+        allOutputsEmitted.clear()
+
+        // Kick step 1
+        seq.kick.receive(Message.FloatValue(ScoreTime.Zero, 1.0))
 
         val expected = listOf(60.0, 62.5, 67.0)
         assertEquals(expected, stepOutputsEmitted, "Step output 1 should emit all 3 values in order")
@@ -148,6 +153,31 @@ class SequenceModuleTest {
         val module = creator()
         assertTrue(module is SequenceModule)
         assertEquals(16, module.numOutputs)
-        assertEquals("all", module.allOutput.name)
+        assertEquals("out", module.mainOutput.name)
+        assertEquals("out", module.allOutput.name)
+        assertEquals("kick", module.kick.name)
+        assertEquals("kick", module.increment.name)
+    }
+
+    @Test
+    fun testLegacyInAndAllConnectionsDeserialization() {
+        val legacyJson = """
+            {
+                "modules": [
+                    {"id": 0, "type": "core.basic.seq8", "name": "seq"},
+                    {"id": 1, "type": "core.basic.counter", "name": "counter"}
+                ],
+                "connections": [
+                    {"from": 0, "fromJack": "all", "to": 1, "toJack": "inc"},
+                    {"from": 1, "fromJack": "out", "to": 0, "toJack": "in"}
+                ]
+            }
+        """.trimIndent()
+        val graphState = com.syntona.dataflow.editor.GraphState()
+        com.syntona.dataflow.editor.GraphSerializer.deserialize(graphState, legacyJson)
+        val seq = graphState.modules.first { it is SequenceModule } as SequenceModule
+        assertEquals(2, graphState.connections.size)
+        assertEquals(seq.mainOutput, graphState.connections[0].output)
+        assertEquals(seq.kick, graphState.connections[1].input)
     }
 }

@@ -32,6 +32,8 @@ import kotlinx.coroutines.launch
 import com.syntona.dataflow.modules.ArmModule
 import com.syntona.dataflow.modules.RecorderModule
 import com.syntona.dataflow.modules.StepperModule
+import com.syntona.dataflow.modules.StepValueModule
+import com.syntona.dataflow.modules.TableModule
 import com.syntona.util.formatMinutesSecondsMillis
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -289,7 +291,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                     is FaderModule -> FaderModuleNode(module, state)
                     is KnobModule -> KnobModuleNode(module, state)
                     is PatchModule -> PatchModuleNode(module, state)
-                    is SequenceModule -> SequenceModuleNode(module, state)
+                    is StepValueModule -> StepValueModuleNode(module, state)
                     is MixerModule -> MixerModuleNode(module, state)
                     is ModuloSelectModule -> ModuleNode(module, state, headerColor = colors.headerSequence)
                     is StepperModule -> ModuleNode(module, state, headerColor = colors.headerSequence)
@@ -1671,7 +1673,7 @@ fun NumberModuleNode(module: NumberModule, state: GraphState) {
 }
 
 @Composable
-fun SequenceModuleNode(module: SequenceModule, state: GraphState) {
+fun StepValueModuleNode(module: StepValueModule, state: GraphState) {
     val colors = LocalGraphColors.current
     val position = state.modulePositions[module] ?: Offset.Zero
     val isSelected = state.selectedModules.contains(module)
@@ -1692,7 +1694,7 @@ fun SequenceModuleNode(module: SequenceModule, state: GraphState) {
         Column {
             ModuleHeader(module = module, state = state, headerColor = colors.headerSequence, height = 28.dp)
 
-            val controlInputs = module.inputs.filter { it !== module.reset && it !== module.increment && !module.stepInputs.contains(it) }
+            val controlInputs = module.inputs.filter { !module.stepInputs.contains(it) }
             val controlOutputs = module.outputs.filter { !module.stepOutputs.contains(it) }
 
             Row(
@@ -1700,16 +1702,6 @@ fun SequenceModuleNode(module: SequenceModule, state: GraphState) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.Start) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        CompactJackConnector(module.reset, state, isLeft = true)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(module.reset.name, fontSize = 10.sp, color = Color.Gray)
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        CompactJackConnector(module.increment, state, isLeft = true)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(module.increment.name, fontSize = 10.sp, color = Color.Gray)
-                    }
                     controlInputs.forEach { jack ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             CompactJackConnector(jack, state, isLeft = true)

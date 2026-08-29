@@ -1,9 +1,11 @@
 package com.syntona.dataflow.modules
 
+import androidx.compose.runtime.mutableStateListOf
+import com.syntona.core.model.ScoreTime
+import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
-import androidx.compose.runtime.mutableStateListOf
-import com.syntona.dataflow.model.InputJack
+import com.syntona.dataflow.model.OutputJack
 
 class CounterModule() : Module("counter") {
     val reset = addInput("reset", isKickable = true)
@@ -44,28 +46,34 @@ class ClockDividerModule : Module("ckDiv") {
     }
 }
 
-open class SequenceModule(val numOutputs: Int) : Module("seq" + numOutputs) {
-    val reset = addInput("reset", isKickable = true)
-    val increment = addInput("in", isKickable = true)
+/**
+ * Common base class for modules that hold an indexed array of text/numeric values,
+ * with per-step inputs (in0..inN-1), per-step outputs (out0..outN-1), and a main output.
+ */
+abstract class StepValueModule(
+    typeName: String,
+    val numOutputs: Int,
+    mainOutputName: String = "out"
+) : Module(typeName) {
 
-    val stepInputs = List(numOutputs) { index ->
+    val stepInputs: List<InputJack> = List(numOutputs) { index ->
         addInput("in$index")
     }
 
-    val stepOutputs = List(numOutputs) { index ->
+    val stepOutputs: List<OutputJack> = List(numOutputs) { index ->
         addOutput("out$index")
     }
 
-    val allOutput = addOutput("all")
+    val mainOutput: OutputJack = addOutput(mainOutputName)
 
     val values = mutableStateListOf<String>().apply {
         repeat(numOutputs) { add("1.0") }
     }
 
-    var count = 0
-
     init {
-        stepOutputs[0].isHighlighted = true
+        if (numOutputs > 0) {
+            stepOutputs[0].isHighlighted = true
+        }
     }
 
     override fun onMessageReceived(jack: InputJack, msg: Message) {
@@ -80,6 +88,39 @@ open class SequenceModule(val numOutputs: Int) : Module("seq" + numOutputs) {
         super.onMessageReceived(jack, msg)
     }
 
+    /**
+     * Highlights the active output jack and sends the parsed values for [activeIndex]
+     * to both the corresponding stepOutput and the main output.
+     */
+    protected fun fireStep(activeIndex: Int, triggerTime: ScoreTime) {
+        for (index in 0 until numOutputs) {
+            stepOutputs[index].isHighlighted = false
+        }
+        val safeIndex = ((activeIndex % numOutputs) + numOutputs) % numOutputs
+        val output = stepOutputs[safeIndex]
+        val activeText = values[safeIndex]
+        val valList = parseSequenceValueList(activeText)
+        for (valItem in valList) {
+            val msg = Message.FloatValue(triggerTime, valItem)
+            output.send(msg)
+            mainOutput.send(msg)
+        }
+        output.isHighlighted = true
+    }
+}
+
+open class SequenceModule(numOutputs: Int) : StepValueModule("seq$numOutputs", numOutputs, mainOutputName = "out") {
+    val reset = addInput("reset", isKickable = true)
+    val kick = addInput("kick", isKickable = true)
+
+    /** Alias for backward compatibility */
+    val increment get() = kick
+
+    /** Alias for backward compatibility */
+    val allOutput get() = mainOutput
+
+    var count = 0
+
     override fun execute(triggerMessage: Message) {
         if (reset.isKicked) {
             count = 0
@@ -88,21 +129,11 @@ open class SequenceModule(val numOutputs: Int) : Module("seq" + numOutputs) {
             }
             return
         }
-        for (index in 0 until numOutputs) {
-            stepOutputs[index].isHighlighted = false
-        }
-        val activeIndex = count % numOutputs
-        val output = stepOutputs[activeIndex]
-        val activeText = values[activeIndex]
-        val valList = parseSequenceValueList(activeText)
-        for (valItem in valList) {
-            val msg = Message.FloatValue(triggerMessage.time, valItem)
-            output.send(msg)
-            allOutput.send(msg)
-        }
-        output.isHighlighted = true
+
+        fireStep(count, triggerMessage.time)
+
         // Post-increment
-        if (increment.isKicked) {
+        if (kick.isKicked) {
             count++
         }
     }

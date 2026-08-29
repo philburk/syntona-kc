@@ -33,6 +33,7 @@ import com.syntona.dataflow.modules.Ratio
 import com.syntona.dataflow.modules.KnobModule
 import com.syntona.dataflow.modules.FaderModule
 import com.syntona.dataflow.modules.SequenceModule
+import com.syntona.dataflow.modules.StepValueModule
 import com.syntona.dataflow.modules.EquationModule
 import com.syntona.dataflow.modules.ScaleModule
 import com.syntona.dataflow.modules.BeatClockModule
@@ -295,7 +296,7 @@ object GraphSerializer {
             if (module is PolyPatchModule) {
                 append(",\"maxVoices\":${module.maxVoices}")
             }
-            if (module is SequenceModule) {
+            if (module is StepValueModule) {
                 append(",\"stepValues\":[")
                 module.values.forEachIndexed { idx, strVal ->
                     if (idx > 0) append(",")
@@ -515,7 +516,7 @@ object GraphSerializer {
                 }
             }
 
-            if (module is SequenceModule) {
+            if (module is StepValueModule) {
                 (obj?.map?.get("stepValues") as? JsonValue.Arr)?.items?.forEachIndexed { idx, item ->
                     val strVal = (item as? JsonValue.Str)?.value ?: (item as? JsonValue.Num)?.value?.toString()
                     if (strVal != null && idx < module.numOutputs) {
@@ -616,7 +617,8 @@ object GraphSerializer {
                     }
                     return@forEach
                 }
-                val inputJack = module.inputs.find { it.name == jackName } as? InputJack ?: return@forEach
+                val inputJack = (module.inputs.find { it.name == jackName }
+                    ?: if (module is SequenceModule && jackName == "in") module.kick else null) as? InputJack ?: return@forEach
                 if (module is RecorderModule && (jackName == "latencyMs" || jackName == "latency")) {
                     val measuredFrames = AudioSettings.measuredLatencyForActiveDevices()
                     if (measuredFrames >= 0) {
@@ -624,7 +626,7 @@ object GraphSerializer {
                         return@forEach
                     }
                 }
-                if (module is SequenceModule && jackName.startsWith("in") && jackName.substring(2).toIntOrNull() != null) {
+                if (module is StepValueModule && jackName.startsWith("in") && jackName.substring(2).toIntOrNull() != null) {
                     val hasStepValues = obj?.map?.containsKey("stepValues") == true
                     if (hasStepValues) {
                         // stepValues is authoritative; do not run inputJack.setValue on step inputs
@@ -864,11 +866,13 @@ object GraphSerializer {
                 continue
             }
             val output = fromModule.outputs.find { it.name == fromJack }
+                ?: if (fromModule is SequenceModule && fromJack == "all") fromModule.mainOutput else null
             if (output == null) {
                 problems.add("Output jack '$fromJack' not found on module '${fromModule.name}' (type: ${fromModule.type}).")
                 continue
             }
             val input = toModule.inputs.find { it.name == toJack }
+                ?: if (toModule is SequenceModule && toJack == "in") toModule.kick else null
             if (input == null) {
                 problems.add("Input jack '$toJack' not found on module '${toModule.name}' (type: ${toModule.type}).")
                 continue
