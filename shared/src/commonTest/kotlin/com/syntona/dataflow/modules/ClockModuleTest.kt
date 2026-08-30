@@ -30,12 +30,12 @@ class ClockModuleTest {
         assertNotNull(clock.inputs.find { it.name == "start" })
         assertNotNull(clock.inputs.find { it.name == "stop" })
         assertNotNull(clock.inputs.find { it.name == "reset" })
-        val rateJack = clock.inputs.find { it.name == "rate(hz)" }
-        assertNotNull(rateJack, "rate(hz) jack should exist")
+        val rateJack = clock.inputs.find { it.name == "rateHz" }
+        assertNotNull(rateJack, "rateHz jack should exist")
         assertEquals(0.1, rateJack.min)
         assertEquals(100.0, rateJack.max)
         assertEquals(2.0, rateJack.getDoubleValue())
-        assertNotNull(clock.outputs.find { it.name == "output" })
+        assertNotNull(clock.outputs.find { it.name == "out" })
     }
 
     @Test

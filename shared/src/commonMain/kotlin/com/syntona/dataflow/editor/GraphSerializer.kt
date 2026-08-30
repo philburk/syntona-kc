@@ -406,11 +406,7 @@ object GraphSerializer {
         for (item in modulesArr) {
             val obj = item as? JsonValue.Obj
             val rawTypeName = (obj?.map?.get("type") as? JsonValue.Str)?.value
-            val typeName = when (rawTypeName) {
-                "showVoice" -> "showMany"
-                "double" -> "number"
-                else -> rawTypeName
-            }
+            val typeName = rawTypeName?.let { ModuleRegistry.resolveLegacyTypeName(it) }
             val x = (obj?.map?.get("x") as? JsonValue.Num)?.value?.toFloat() ?: 100f
             val y = (obj?.map?.get("y") as? JsonValue.Num)?.value?.toFloat() ?: 100f
             val jacks = obj?.map?.get("jacks") as? JsonValue.Obj
@@ -617,8 +613,7 @@ object GraphSerializer {
                     }
                     return@forEach
                 }
-                val inputJack = (module.inputs.find { it.name == jackName }
-                    ?: if (module is SequenceModule && jackName == "in") module.kick else null) as? InputJack ?: return@forEach
+                val inputJack = resolveLegacyInputJack(module, jackName) ?: return@forEach
                 if (module is RecorderModule && (jackName == "latencyMs" || jackName == "latency")) {
                     val measuredFrames = AudioSettings.measuredLatencyForActiveDevices()
                     if (measuredFrames >= 0) {
@@ -865,14 +860,12 @@ object GraphSerializer {
                 problems.add("Connection target module ID $toIdx not found.")
                 continue
             }
-            val output = fromModule.outputs.find { it.name == fromJack }
-                ?: if (fromModule is SequenceModule && fromJack == "all") fromModule.mainOutput else null
+            val output = resolveLegacyOutputJack(fromModule, fromJack)
             if (output == null) {
                 problems.add("Output jack '$fromJack' not found on module '${fromModule.name}' (type: ${fromModule.type}).")
                 continue
             }
-            val input = toModule.inputs.find { it.name == toJack }
-                ?: if (toModule is SequenceModule && toJack == "in") toModule.kick else null
+            val input = resolveLegacyInputJack(toModule, toJack)
             if (input == null) {
                 problems.add("Input jack '$toJack' not found on module '${toModule.name}' (type: ${toModule.type}).")
                 continue
@@ -1078,3 +1071,64 @@ class JsonParser(private val input: String) {
         pos++
     }
 }
+
+internal fun resolveLegacyInputJack(module: Module, serializedName: String): com.syntona.dataflow.model.InputJack? {
+    // 1. Direct match
+    module.inputs.find { it.name == serializedName }?.let { return it }
+
+    // 2. Coerced name
+    val coerced = when {
+        serializedName == "rate(hz)" -> "rateHz"
+        serializedName == "delay(ms)" -> "delayMs"
+        serializedName == "inc" -> "kick"
+        serializedName == "rate" -> "speed"
+        serializedName == "loop" -> "looping"
+        serializedName.startsWith("input", ignoreCase = true) -> "in" + serializedName.substring(5)
+        else -> null
+    }
+    if (coerced != null) {
+        module.inputs.find { it.name == coerced }?.let { return it }
+    }
+
+    // 3. Case-insensitive match
+    module.inputs.find { it.name.equals(serializedName, ignoreCase = true) }?.let { return it }
+    if (coerced != null) {
+        module.inputs.find { it.name.equals(coerced, ignoreCase = true) }?.let { return it }
+    }
+
+    // 4. Special cases
+    if (module is SequenceModule && (serializedName == "in" || serializedName == "kick")) {
+        return module.kick
+    }
+
+    return null
+}
+
+internal fun resolveLegacyOutputJack(module: Module, serializedName: String): com.syntona.dataflow.model.OutputJack? {
+    // 1. Direct match
+    module.outputs.find { it.name == serializedName }?.let { return it }
+
+    // 2. Coerced name
+    val coerced = when {
+        serializedName == "value" -> "out"
+        serializedName.startsWith("output", ignoreCase = true) -> "out" + serializedName.substring(6)
+        else -> null
+    }
+    if (coerced != null) {
+        module.outputs.find { it.name == coerced }?.let { return it }
+    }
+
+    // 3. Case-insensitive match
+    module.outputs.find { it.name.equals(serializedName, ignoreCase = true) }?.let { return it }
+    if (coerced != null) {
+        module.outputs.find { it.name.equals(coerced, ignoreCase = true) }?.let { return it }
+    }
+
+    // 4. Special cases
+    if (module is SequenceModule && serializedName == "all") {
+        return module.mainOutput
+    }
+
+    return null
+}
+

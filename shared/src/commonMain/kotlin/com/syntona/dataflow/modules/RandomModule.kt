@@ -9,7 +9,7 @@ import kotlin.random.Random
  */
 class RandomModule : Module("random") {
     val kick = addInput("kick", isKickable = true)
-    val output = addOutput("value")
+    val output = addOutput("out")
 
     override fun execute(triggerMessage: Message) {
         val value = Random.nextDouble()

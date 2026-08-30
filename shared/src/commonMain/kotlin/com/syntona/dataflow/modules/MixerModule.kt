@@ -23,7 +23,7 @@ open class MixerModule(name: String, val numInputs: Int) : UnitGeneratorModule(n
     }
 
     fun getInputJack(index: Int): AudioInputJack? {
-        return inputs.find { it.name == "input$index" } as? AudioInputJack
+        return inputs.find { it.name == "in$index" } as? AudioInputJack
     }
 
     fun getVolumeKnobValue(index: Int): Float {

@@ -17,12 +17,12 @@ import com.syntona.dataflow.model.Module
  * sources connect into the PassThrough at the KSyn level. Inside the patch, [output]
  * exposes [passThrough].output so the signal can be routed to other audio modules.
  */
-class AudioInputModule : Module("aInput") {
+class AudioInputModule : Module("input~") {
     val passThrough = PassThrough()
 
     val output: AudioOutputJack
 
-    private var _name by mutableStateOf("aInput")
+    private var _name by mutableStateOf("input~")
     override var name: String
         get() = _name
         set(value) {
@@ -77,7 +77,7 @@ class AudioInputModule : Module("aInput") {
     init {
         SynthKSyn.synth.add(passThrough)
         if (passThrough.isStartRequired) passThrough.start()
-        output = addAudioOutput("output", passThrough.output, 0)
+        output = addAudioOutput("out", passThrough.output, 0)
     }
 
     override fun execute(triggerMessage: Message) {}

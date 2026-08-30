@@ -129,7 +129,7 @@ class MatchControlModuleTest {
     @Test
     fun onlyTheLearnButtonCarriesABadge() {
         val module = MatchControlModule()
-        val otherCommandJack = ArmModule().armInput
+        val otherCommandJack = OneShotModule().armInput
         assertEquals(null, module.badgeFor(otherCommandJack))
     }
 

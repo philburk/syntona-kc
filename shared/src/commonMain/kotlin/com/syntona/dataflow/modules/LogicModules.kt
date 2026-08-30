@@ -110,7 +110,7 @@ class Branch16Module : BranchModule(16)
  * Updating [indexIn] changes the active input but does not trigger an output.
  * Messages arriving on unselected inputs are dropped.
  */
-open class ChooseModule(val numInputs: Int) : Module("choose$numInputs") {
+open class SelectModule(val numInputs: Int) : Module("select$numInputs") {
     val indexIn = addIntegerInput("index", isKickable = false).also {
         it.min = 0.0
         it.max = maxOf(0.0, (numInputs - 1).toDouble())
@@ -126,16 +126,16 @@ open class ChooseModule(val numInputs: Int) : Module("choose$numInputs") {
     }
 }
 
-class Choose4Module : ChooseModule(4)
-class Choose8Module : ChooseModule(8)
-class Choose16Module : ChooseModule(16)
+class Select4Module : SelectModule(4)
+class Select8Module : SelectModule(8)
+class Select16Module : SelectModule(16)
 
 /**
  * Boolean pass-through gate / mute switch for event messages.
  * When [enable] > 0 (Open), incoming messages on [input] are forwarded to [output].
  * When [enable] <= 0 (Closed), incoming messages are dropped.
  */
-class GateModule : Module("gate") {
+class PassModule : Module("pass") {
     val enable = addIntegerInput("enable", isKickable = false).also {
         it.min = 0.0
         it.max = 1.0

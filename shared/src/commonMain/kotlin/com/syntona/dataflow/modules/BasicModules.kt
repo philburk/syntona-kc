@@ -9,7 +9,7 @@ import com.syntona.dataflow.model.OutputJack
 
 class CounterModule() : Module("counter") {
     val reset = addInput("reset", isKickable = true)
-    val increment = addInput("inc", isKickable = true)
+    val increment = addInput("kick", isKickable = true)
     val output = addOutput("out")
     var count = 0
 
@@ -26,7 +26,7 @@ class CounterModule() : Module("counter") {
 /**
  * Divides an incoming clock value by N and outputs the result if the remainder is zero.
  */
-class ClockDividerModule : Module("ckDiv") {
+class ClockDividerModule : Module("clockDiv") {
     val input = addInput("in", isKickable = true)
     val divisor = addIntegerInput("N").also {
         it.min = 1.0

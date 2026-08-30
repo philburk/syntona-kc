@@ -29,7 +29,7 @@ import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import com.syntona.dataflow.modules.ArmModule
+import com.syntona.dataflow.modules.OneShotModule
 import com.syntona.dataflow.modules.RecorderModule
 import com.syntona.dataflow.modules.StepperModule
 import com.syntona.dataflow.modules.StepValueModule
@@ -131,7 +131,7 @@ import com.syntona.dataflow.modules.PianoRollModule
 import com.syntona.dataflow.modules.KickModule
 import com.syntona.dataflow.modules.MidiInModule
 import com.syntona.dataflow.modules.MidiOutModule
-import com.syntona.dataflow.modules.LoadKickModule
+import com.syntona.dataflow.modules.OnLoadModule
 import com.syntona.dataflow.modules.ShowManyModule
 import com.softsynth.ksyn.compose.SegmentedEnvelopeEditor
 import com.syntona.dataflow.model.cleanKotlinIdentifier
@@ -529,7 +529,7 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color? = null, la
 
 
 
-            if (module is ArmModule) {
+            if (module is OneShotModule) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()

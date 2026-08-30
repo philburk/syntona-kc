@@ -115,7 +115,7 @@ class ModModule : BinaryOperatorModule("mod") {
     }
 }
 
-class PitchToFrequencyModule : UnaryOperatorModule("p2f") {
+class PitchToFrequencyModule : UnaryOperatorModule("pitchToHz") {
     init {
         input.setValue(60.0)
     }

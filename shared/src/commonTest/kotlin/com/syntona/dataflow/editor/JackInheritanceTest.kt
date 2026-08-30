@@ -53,7 +53,7 @@ class JackInheritanceTest {
 
         val outJack = knob.outputs.find { it.name == "out" }!!
         val freqJack = osc.inputs.find { it.name == "frequency" }!!
-        val rateJack = clock.inputs.find { it.name == "rate(hz)" }!!
+        val rateJack = clock.inputs.find { it.name == "rateHz" }!!
 
         rootGraph.connect(outJack, freqJack)
         assertEquals(440.0, knob.value)
@@ -181,7 +181,7 @@ class JackInheritanceTest {
 
         val outJack = knob.outputs.find { it.name == "out" }!!
         val freqJack = osc.inputs.find { it.name == "frequency" }!!
-        val rateJack = clock.inputs.find { it.name == "rate(hz)" }!!
+        val rateJack = clock.inputs.find { it.name == "rateHz" }!!
 
         rootGraph.connect(outJack, freqJack)
         rootGraph.connect(outJack, rateJack)

@@ -37,7 +37,7 @@ object ModuleRegistry {
 
         val basic = getOrCreateBundle(core, "basic")
         basic.modules.add(ModuleEntry("clock") { ClockModule() })
-        basic.modules.add(ModuleEntry("ckDiv") { ClockDividerModule() })
+        basic.modules.add(ModuleEntry("clockDiv") { ClockDividerModule() })
         basic.modules.add(ModuleEntry("timeline") { TimelineModule() })
         basic.modules.add(ModuleEntry("addTime") { AddTimeModule() })
         basic.modules.add(ModuleEntry("counter") { CounterModule() })
@@ -49,7 +49,7 @@ object ModuleRegistry {
         basic.modules.add(ModuleEntry("mod8") { Mod8Module() })
         basic.modules.add(ModuleEntry("mod16") { Mod16Module() })
         basic.modules.add(ModuleEntry("link") { LinkModule() })
-        basic.modules.add(ModuleEntry("arm") { ArmModule() })
+        basic.modules.add(ModuleEntry("oneShot") { OneShotModule() })
         basic.modules.add(ModuleEntry("send") { SendModule() })
         basic.modules.add(ModuleEntry("receive") { ReceiveModule() })
 
@@ -68,27 +68,27 @@ object ModuleRegistry {
         math.modules.add(ModuleEntry("f(x)") { EquationModule("f(x)") })
         math.modules.add(ModuleEntry("f(x,y)") { EquationModule("f(x,y)") })
         math.modules.add(ModuleEntry("f(x,y,z)") { EquationModule("f(x,y,z)") })
-        math.modules.add(ModuleEntry("p2f", "tutorials/04_sequencer/03_pitch_to_freq.json") { PitchToFrequencyModule() })
+        math.modules.add(ModuleEntry("pitchToHz", "tutorials/04_sequencer/03_pitch_to_freq.json") { PitchToFrequencyModule() })
 
         val logic = getOrCreateBundle(core, "logic")
         logic.modules.add(ModuleEntry("and") { AndModule() })
         logic.modules.add(ModuleEntry("or") { OrModule() })
         logic.modules.add(ModuleEntry("xor") { XorModule() })
         logic.modules.add(ModuleEntry("not") { NotModule() })
-        logic.modules.add(ModuleEntry("gate") { GateModule() })
+        logic.modules.add(ModuleEntry("pass") { PassModule() })
         logic.modules.add(ModuleEntry("branch4") { Branch4Module() })
         logic.modules.add(ModuleEntry("branch8") { Branch8Module() })
         logic.modules.add(ModuleEntry("branch16") { Branch16Module() })
-        logic.modules.add(ModuleEntry("choose4") { Choose4Module() })
-        logic.modules.add(ModuleEntry("choose8") { Choose8Module() })
-        logic.modules.add(ModuleEntry("choose16") { Choose16Module() })
+        logic.modules.add(ModuleEntry("select4") { Select4Module() })
+        logic.modules.add(ModuleEntry("select8") { Select8Module() })
+        logic.modules.add(ModuleEntry("select16") { Select16Module() })
 
         val input = getOrCreateBundle(core, "input")
         input.modules.add(ModuleEntry("number") { NumberModule() })
         input.modules.add(ModuleEntry("fader") { FaderModule() })
         input.modules.add(ModuleEntry("knob") { KnobModule() })
         input.modules.add(ModuleEntry("kick") { KickModule() })
-        input.modules.add(ModuleEntry("loadKick") { LoadKickModule() })
+        input.modules.add(ModuleEntry("onLoad") { OnLoadModule() })
         input.modules.add(ModuleEntry("comment") { CommentModule() })
         input.modules.add(ModuleEntry("key") { KeyModule() })
         input.modules.add(ModuleEntry("keyMatch", "tutorials/03_core/05_key_match.json") { KeyMatchModule() })
@@ -130,7 +130,7 @@ object ModuleRegistry {
             ScaleModule("diatonic", isEditable = false, doubleArrayOf(0.0, 2.0, 4.0, 5.0, 7.0, 9.0, 11.0)) })
         compose.modules.add(ModuleEntry("scale") {
             ScaleModule("scale", isEditable = true, doubleArrayOf(0.0, 2.0, 4.0, 7.0, 9.0)) })
-        compose.modules.add(ModuleEntry("recSeq", "examples/recSeq.json") { RecSeqModule() })
+        compose.modules.add(ModuleEntry("recursiveSeq", "examples/recSeq.json") { RecursiveSeqModule() })
         compose.modules.add(ModuleEntry("stepper", "examples/stepper.json") { StepperModule() })
         compose.modules.add(ModuleEntry("table4") { Table4Module() })
         compose.modules.add(ModuleEntry("table8") { Table8Module() })
@@ -142,8 +142,8 @@ object ModuleRegistry {
         val ksyn = getOrCreateBundle(root, "ksyn")
         addKSynModule(ksyn, "lineIn", ::LineIn)
         addKSynModule(ksyn, "lineOut", ::LineOut)
-        ksyn.modules.add(ModuleEntry("aInput") { AudioInputModule() })
-        ksyn.modules.add(ModuleEntry("aOutput") { AudioOutputModule() })
+        ksyn.modules.add(ModuleEntry("input~") { AudioInputModule() })
+        ksyn.modules.add(ModuleEntry("output~") { AudioOutputModule() })
 
         val sources = getOrCreateBundle(ksyn, "sources")
         addKSynModule(sources, "sineOsc", ::SineOscillator)
@@ -166,32 +166,32 @@ object ModuleRegistry {
         addKSynModule(analysis, "edgeDetector", ::EdgeDetector)
         addKSynModule(analysis, "peakFollower", ::PeakFollower)
         addKSynModule(analysis, "pitchDetector", ::PitchDetector)
-        addKSynModule(analysis, "schmidtTrigger", ::SchmidtTrigger)
+        addKSynModule(analysis, "schmittTrigger", ::SchmittTrigger)
 
         val control = getOrCreateBundle(ksyn, "control")
-        addKSynModule(control, "DAHDSR", ::EnvelopeDAHDSR)
+        addKSynModule(control, "envDAHDSR", ::EnvelopeDAHDSR)
         addKSynModule(control, "envAD", ::EnvelopeAttackDecay)
         addKSynModule(control, "latch", ::Latch)
-        addKSynModule(control, "latchZC", ::LatchZeroCrossing)
+        addKSynModule(control, "latchZeroX", ::LatchZeroCrossing)
         addKSynModule(control, "rampLin", ::LinearRamp)
         addKSynModule(control, "rampCon", ::ContinuousRamp)
         addKSynModule(control, "rampAsym", ::AsymptoticRamp)
         addKSynModule(control, "rampExp", ::ExponentialRamp)
-        addKSynModule(control, "select", ::Select)
+        addKSynModule(control, "select~", ::Select)
         control.modules.add(ModuleEntry("grabAudio") { GrabAudioModule() })
 
         val amath = getOrCreateBundle(ksyn, "math")
-        addKSynModule(amath, "a+", ::Add)
-        addKSynModule(amath, "a-", ::Subtract)
-        addKSynModule(amath, "a*", ::Multiply)
-        addKSynModule(amath, "a*+", ::MultiplyAdd)
-        addKSynModule(amath, "a/", ::Divide)
-        addKSynModule(amath, "a>", ::Compare)
-        addKSynModule(amath, "ap2f", ::PitchToFrequency)
-        addKSynModule(amath, "aPower2", ::PowerOfTwo)
-        addKSynModule(amath, "aMin", ::Minimum)
-        addKSynModule(amath, "aMax", ::Maximum)
-        addKSynModule(amath, "aRanger", ::RangeConverter)
+        addKSynModule(amath, "+~", ::Add)
+        addKSynModule(amath, "-~", ::Subtract)
+        addKSynModule(amath, "*~", ::Multiply)
+        addKSynModule(amath, "*+~", ::MultiplyAdd)
+        addKSynModule(amath, "/~", ::Divide)
+        addKSynModule(amath, ">~", ::Compare)
+        addKSynModule(amath, "pitchToHz~", ::PitchToFrequency)
+        addKSynModule(amath, "power2~", ::PowerOfTwo)
+        addKSynModule(amath, "min~", ::Minimum)
+        addKSynModule(amath, "max~", ::Maximum)
+        addKSynModule(amath, "range~", ::RangeConverter)
         ksynFactories["mixer8x2"] = { MixerStereoRamped(8) }
         ksynFactories["mixer4x2"] = { MixerStereoRamped(4) }
         amath.modules.add(ModuleEntry("mixer8x2") { Mixer8x2Module() })
@@ -212,11 +212,11 @@ object ModuleRegistry {
 
         val effects = getOrCreateBundle(ksyn, "effects")
         addKSynModule(effects, "phaseShifter", ::PhaseShifter)
-        ksynFactories["delay"] = ::InterpolatingDelay
-        effects.modules.add(ModuleEntry("delay") {
+        ksynFactories["delay~"] = ::InterpolatingDelay
+        effects.modules.add(ModuleEntry("delay~") {
             val delay = InterpolatingDelay()
             delay.allocate(48000 * 2)
-            UnitGeneratorModule("delay", delay)
+            UnitGeneratorModule("delay~", delay)
         })
         addKSynModule(effects, "pan", ::Pan)
         addKSynModule(effects, "plateReverb", ::PlateReverb)
@@ -289,13 +289,56 @@ object ModuleRegistry {
         return searchBundle(root)
     }
 
-    fun findEntry(typeName: String): ModuleEntry? {
-        val resolvedTypeName = when {
-            typeName == "showVoice" -> "showMany"
-            typeName == "double" -> "number"
-            typeName.startsWith("music.voices.") -> typeName.replace("music.voices.", "music.midi.")
-            else -> typeName
+    fun resolveLegacyTypeName(rawTypeName: String): String {
+        fun resolveSingleName(name: String): String = when (name) {
+            "showVoice" -> "showMany"
+            "double" -> "number"
+            "ckDiv" -> "clockDiv"
+            "arm" -> "oneShot"
+            "gate" -> "pass"
+            "choose4" -> "select4"
+            "choose8" -> "select8"
+            "choose16" -> "select16"
+            "loadKick" -> "onLoad"
+            "recSeq" -> "recursiveSeq"
+            "p2f" -> "pitchToHz"
+            "DAHDSR" -> "envDAHDSR"
+            "latchZC" -> "latchZeroX"
+            "aInput" -> "input~"
+            "aOutput" -> "output~"
+            "a+" -> "+~"
+            "a-" -> "-~"
+            "a*" -> "*~"
+            "a*+" -> "*+~"
+            "a/" -> "/~"
+            "a>" -> ">~"
+            "ap2f" -> "pitchToHz~"
+            "aPower2" -> "power2~"
+            "aMin" -> "min~"
+            "aMax" -> "max~"
+            "aRanger" -> "range~"
+            "delay" -> "delay~"
+            "select" -> "select~"
+            else -> name
         }
+
+        val mappedVoices = if (rawTypeName.startsWith("music.voices.")) {
+            rawTypeName.replace("music.voices.", "music.midi.")
+        } else {
+            rawTypeName
+        }
+
+        if (mappedVoices.contains('.')) {
+            val parts = mappedVoices.split('.').toMutableList()
+            parts[parts.lastIndex] = resolveSingleName(parts.last())
+            return parts.joinToString(".")
+        }
+
+        return resolveSingleName(mappedVoices)
+    }
+
+    fun findEntry(typeName: String): ModuleEntry? {
+        val resolvedTypeName = resolveLegacyTypeName(typeName)
 
         // 1. Try to find by exact full path
         if (resolvedTypeName.contains('.')) {

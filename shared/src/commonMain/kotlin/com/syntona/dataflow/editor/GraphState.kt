@@ -27,7 +27,7 @@ import com.syntona.core.model.ScoreClock
 import com.syntona.dataflow.engine.SendOutputCommand
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.modules.KickModule
-import com.syntona.dataflow.modules.LoadKickModule
+import com.syntona.dataflow.modules.OnLoadModule
 import com.syntona.dataflow.modules.PatchModule
 import com.syntona.dataflow.modules.KeyModule
 import com.syntona.dataflow.modules.KeyMatchModule
@@ -311,7 +311,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
         val e = engine
         val time = ScoreClock.now()
         fun kickInModule(module: Module) {
-            if (module is LoadKickModule) {
+            if (module is OnLoadModule) {
                 if (e != null) {
                     e.post(SendOutputCommand(
                         module.output,
@@ -423,7 +423,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
                     module.kick(time)
                 }
             }
-            is LoadKickModule -> {
+            is OnLoadModule -> {
                 if (e != null) {
                     e.post(SendOutputCommand(module.output, Message.FloatValue(time, 0.0)))
                 } else {

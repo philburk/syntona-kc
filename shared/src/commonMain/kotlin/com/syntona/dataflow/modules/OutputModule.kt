@@ -9,7 +9,7 @@ import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.model.OutputJack
 
 class OutputModule : Module("output") {
-    val input = addInput("input")
+    val input = addInput("in")
 
     private var _name by mutableStateOf("output")
     override var name: String

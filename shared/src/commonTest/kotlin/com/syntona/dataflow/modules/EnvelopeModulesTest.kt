@@ -15,10 +15,14 @@ class EnvelopeModulesTest {
 
     @Test
     fun testDAHDSRTriggerCommandJack() {
-        val dahdsrCreator = ModuleRegistry.findCreator("DAHDSR")
-        assertNotNull(dahdsrCreator, "DAHDSR should be registered")
+        val dahdsrCreator = ModuleRegistry.findCreator("envDAHDSR")
+        assertNotNull(dahdsrCreator, "envDAHDSR should be registered")
         val dahdsrMod = dahdsrCreator() as UnitGeneratorModule
         val dahdsrUnit = dahdsrMod.unit as EnvelopeDAHDSR
+
+        // Legacy DAHDSR alias
+        val legacyCreator = ModuleRegistry.findCreator("DAHDSR")
+        assertNotNull(legacyCreator, "Legacy DAHDSR should resolve")
 
         // First input must be "trigger" of type CommandJack at the top
         assertTrue(dahdsrMod.inputs.isNotEmpty())
@@ -27,9 +31,9 @@ class EnvelopeModulesTest {
         assertTrue(firstInput is CommandJack)
         assertTrue(firstInput.isKickable)
 
-        // Verify "input" is also present as an AudioInputJack
-        val inputPort = dahdsrMod.inputs.find { it.name == "input" }
-        assertNotNull(inputPort)
+        // Verify "in" is present as an AudioInputJack (coerced from input)
+        val inPort = dahdsrMod.inputs.find { it.name == "in" }
+        assertNotNull(inPort, "Input port should be coerced to 'in'")
 
         // Triggering the command jack triggers the envelope
         firstInput.receive(Message.FloatValue(ScoreTime.Zero, 1.0))
@@ -49,9 +53,9 @@ class EnvelopeModulesTest {
         assertTrue(firstInput is CommandJack)
         assertTrue(firstInput.isKickable)
 
-        // Verify "input" is also present
-        val inputPort = envADMod.inputs.find { it.name == "input" }
-        assertNotNull(inputPort)
+        // Verify "in" is present (coerced from input)
+        val inPort = envADMod.inputs.find { it.name == "in" }
+        assertNotNull(inPort, "Input port should be coerced to 'in'")
 
         // Triggering the command jack triggers the envelope
         firstInput.receive(Message.FloatValue(ScoreTime.Zero, 1.0))

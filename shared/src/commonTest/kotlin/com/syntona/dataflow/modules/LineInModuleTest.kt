@@ -22,13 +22,13 @@ class LineInModuleTest {
         assertEquals(0, module.inputs.size, "LineIn should have 0 input jacks")
         assertEquals(2, module.outputs.size, "LineIn should have 2 audio output jacks")
 
-        val output0 = module.outputs.find { it.name == "output0" }
-        val output1 = module.outputs.find { it.name == "output1" }
-        assertNotNull(output0, "LineIn should have output0 jack")
-        assertNotNull(output1, "LineIn should have output1 jack")
+        val output0 = module.outputs.find { it.name == "out0" }
+        val output1 = module.outputs.find { it.name == "out1" }
+        assertNotNull(output0, "LineIn should have out0 jack")
+        assertNotNull(output1, "LineIn should have out1 jack")
 
-        assertTrue(output0 is AudioOutputJack, "output0 should be AudioOutputJack")
-        assertTrue(output1 is AudioOutputJack, "output1 should be AudioOutputJack")
+        assertTrue(output0 is AudioOutputJack, "out0 should be AudioOutputJack")
+        assertTrue(output1 is AudioOutputJack, "out1 should be AudioOutputJack")
 
         module.teardown()
     }

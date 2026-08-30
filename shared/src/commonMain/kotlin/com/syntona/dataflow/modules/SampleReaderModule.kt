@@ -31,8 +31,8 @@ class SampleReaderModule : Module("sampleReader") {
     val stopIn: CommandJack
     val offset: InputJack
     val durationMs: InputJack
-    val loopInput: InputJack
-    val rate: AudioInputJack
+    val loopInput: com.syntona.dataflow.model.IntegerInputJack
+    val speed: AudioInputJack
     val amplitude: AudioInputJack
     val output: AudioOutputJack
 
@@ -63,12 +63,12 @@ class SampleReaderModule : Module("sampleReader") {
             max = 10000.0
             setValue(0.0)
         }
-        loopInput = addInput("loop").apply {
+        loopInput = addIntegerInput("looping").apply {
             min = 0.0
             max = 1.0
             setValue(0.0)
         }
-        rate = addAudioInput("rate", rateMultiplier.inputA, 0).apply {
+        speed = addAudioInput("speed", rateMultiplier.inputA, 0).apply {
             min = 0.0
             max = 8.0
             setValue(1.0)
@@ -78,7 +78,7 @@ class SampleReaderModule : Module("sampleReader") {
             max = 1.0
             setValue(1.0)
         }
-        output = addAudioOutput("output", unit.output!!, 0)
+        output = addAudioOutput("out", unit.output!!, 0)
     }
 
     override fun onMessageReceived(jack: InputJack, msg: Message) {

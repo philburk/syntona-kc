@@ -28,13 +28,13 @@ class SamplePlayerModuleTest {
         assertTrue(module.inputs[2] is CommandJack)
         assertEquals("stop", module.inputs[3].name)
         assertTrue(module.inputs[3] is CommandJack)
-        assertEquals("rate", module.inputs[4].name)
+        assertEquals("speed", module.inputs[4].name)
         assertTrue(module.inputs[4] is AudioInputJack)
         assertEquals("amplitude", module.inputs[5].name)
         assertTrue(module.inputs[5] is AudioInputJack)
 
         assertEquals(1, module.outputs.size)
-        assertEquals("output", module.outputs[0].name)
+        assertEquals("out", module.outputs[0].name)
         assertTrue(module.outputs[0] is AudioOutputJack)
 
         module.teardown()

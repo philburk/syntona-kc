@@ -149,7 +149,7 @@ open class PatchModule(name: String = "patch", type: String = "patch") : Module(
                 module.name = proposedName
             }
             is AudioInputModule -> {
-                val proposedName = if (module.name == "aInput") "aIn${audioInputLinks.size + 1}" else module.name
+                val proposedName = if (module.name == "input~" || module.name == "aInput") "aIn${audioInputLinks.size + 1}" else module.name
                 val jack = addAudioInput(proposedName, module.passThrough.input, 0)
                 audioInputLinks[jack] = module
                 module.patch = this
@@ -157,7 +157,7 @@ open class PatchModule(name: String = "patch", type: String = "patch") : Module(
                 module.name = proposedName
             }
             is AudioOutputModule -> {
-                val proposedName = if (module.name == "aOutput") "aOut${audioOutputLinks.size + 1}" else module.name
+                val proposedName = if (module.name == "output~" || module.name == "aOutput") "aOut${audioOutputLinks.size + 1}" else module.name
                 val jack = addAudioOutput(proposedName, module.passThrough.output, 0)
                 audioOutputLinks[jack] = module
                 module.patch = this

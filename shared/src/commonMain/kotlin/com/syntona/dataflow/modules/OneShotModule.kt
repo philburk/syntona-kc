@@ -6,7 +6,7 @@ import androidx.compose.runtime.setValue
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
 
-class ArmModule : Module("arm") {
+class OneShotModule : Module("oneShot") {
     val armInput = addCommandInput("arm")
     val kickInput = addInput("in", isKickable = true)
     val output = addOutput("out")

@@ -33,7 +33,12 @@ open class UnitGeneratorModule(name: String, val unit: UnitGenerator) : Module(n
             triggerJack = null
         }
         for (port in unit.getPorts()) {
-            val baseName = port.name.lowercase()
+            val rawName = port.name
+            val baseName = when {
+                rawName.startsWith("input", ignoreCase = true) -> "in" + rawName.substring(5)
+                rawName.startsWith("output", ignoreCase = true) -> "out" + rawName.substring(6)
+                else -> rawName.replaceFirstChar { it.lowercase() }
+            }
             when (port) {
                 is UnitInputPort -> {
                     for (i in 0 until port.numParts) {

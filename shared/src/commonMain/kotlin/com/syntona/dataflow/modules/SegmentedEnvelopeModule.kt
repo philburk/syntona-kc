@@ -27,7 +27,7 @@ class SegmentedEnvelopeModule : Module("segEnv") {
     private val queueOnIn = addCommandInput("queueOn")
     private val queueOffIn = addCommandInput("queueOff")
     private val queueIn = addCommandInput("queue")
-    private val output = addDataQueueOutput("output")
+    private val output = addDataQueueOutput("out")
 
     override fun onMessageReceived(jack: com.syntona.dataflow.model.InputJack, msg: Message) {
         super.onMessageReceived(jack, msg)

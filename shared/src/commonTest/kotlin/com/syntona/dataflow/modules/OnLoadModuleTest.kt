@@ -9,28 +9,34 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-class LoadKickModuleTest {
+class OnLoadModuleTest {
 
     @Test
     fun testModuleCreationAndOutput() {
-        val module = LoadKickModule()
-        assertEquals("loadKick", module.name)
+        val module = OnLoadModule()
+        assertEquals("onLoad", module.name)
         val kickOutput = module.outputs.find { it.name == "kick" }
-        assertNotNull(kickOutput, "LoadKickModule should have an output named 'kick'")
+        assertNotNull(kickOutput, "OnLoadModule should have an output named 'kick'")
     }
 
     @Test
     fun testModuleRegistryCreator() {
-        val creator = ModuleRegistry.findCreator("loadKick")
-        assertNotNull(creator, "LoadKickModule creator should be registered in ModuleRegistry under 'loadKick'")
+        val creator = ModuleRegistry.findCreator("onLoad")
+        assertNotNull(creator, "OnLoadModule creator should be registered in ModuleRegistry under 'onLoad'")
         val module = creator()
-        assertTrue(module is LoadKickModule, "Created module should be an instance of LoadKickModule")
+        assertTrue(module is OnLoadModule, "Created module should be an instance of OnLoadModule")
+
+        // Also verify legacy alias
+        val legacyCreator = ModuleRegistry.findCreator("loadKick")
+        assertNotNull(legacyCreator, "Legacy 'loadKick' should resolve via findCreator")
+        val legacyMod = legacyCreator()
+        assertTrue(legacyMod is OnLoadModule, "Created module via legacy alias should be an OnLoadModule")
     }
 
     @Test
     fun testKickLoadKickModules() {
         val graphState = GraphState()
-        val loadKick = LoadKickModule()
+        val loadKick = OnLoadModule()
         graphState.addModule(loadKick, androidx.compose.ui.geometry.Offset.Zero)
 
         // Capture output sent from the kick output jack
@@ -65,7 +71,7 @@ class LoadKickModuleTest {
         rootGraphState.addModule(patchModule, androidx.compose.ui.geometry.Offset.Zero)
 
         // Add a LoadKickModule inside the patch module
-        val nestedLoadKick = LoadKickModule()
+        val nestedLoadKick = OnLoadModule()
         patchModule.graphState.addModule(nestedLoadKick, androidx.compose.ui.geometry.Offset.Zero)
 
         // Add a receiver inside the patch module
@@ -95,7 +101,7 @@ class LoadKickModuleTest {
     fun testKickModule() {
         val graphState = GraphState()
         val kick = KickModule()
-        val loadKick = LoadKickModule()
+        val loadKick = OnLoadModule()
         graphState.addModule(kick, androidx.compose.ui.geometry.Offset.Zero)
         graphState.addModule(loadKick, androidx.compose.ui.geometry.Offset.Zero)
 
@@ -128,9 +134,8 @@ class LoadKickModuleTest {
         assertNotNull(kickReceived)
         assertEquals(null, loadKickReceived)
 
-        // Trigger kick for LoadKickModule
+        // Trigger kick for OnLoadModule
         graphState.kickModule(loadKick)
         assertNotNull(loadKickReceived)
     }
 }
-

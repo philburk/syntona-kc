@@ -13,11 +13,15 @@ class ClockDividerModuleTest {
 
     @Test
     fun testModuleRegistration() {
-        val creator = ModuleRegistry.findCreator("ckDiv")
-        assertNotNull(creator, "ckDiv should be registered in ModuleRegistry")
+        val creator = ModuleRegistry.findCreator("clockDiv")
+        assertNotNull(creator, "clockDiv should be registered in ModuleRegistry")
         val module = creator()
         assertTrue(module is ClockDividerModule, "Creator should return ClockDividerModule")
-        assertEquals("core.basic.ckDiv", ModuleRegistry.getBundlePath("ckDiv"))
+        assertEquals("core.basic.clockDiv", ModuleRegistry.getBundlePath("clockDiv"))
+
+        // Legacy alias
+        val legacyCreator = ModuleRegistry.findCreator("ckDiv")
+        assertNotNull(legacyCreator, "ckDiv should resolve via legacy mapping")
     }
 
     @Test

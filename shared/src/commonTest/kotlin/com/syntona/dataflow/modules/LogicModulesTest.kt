@@ -23,9 +23,9 @@ class LogicModulesTest {
     @Test
     fun testModuleRegistration() {
         val expectedModules = listOf(
-            "and", "or", "xor", "not", "gate",
+            "and", "or", "xor", "not", "pass",
             "branch4", "branch8", "branch16",
-            "choose4", "choose8", "choose16"
+            "select4", "select8", "select16"
         )
         for (name in expectedModules) {
             val creator = ModuleRegistry.findCreator(name)
@@ -33,6 +33,11 @@ class LogicModulesTest {
             val module = creator()
             assertNotNull(module)
             assertEquals("core.logic.$name", ModuleRegistry.getBundlePath(name))
+        }
+
+        // Verify legacy aliases resolve
+        listOf("gate", "choose4", "choose8", "choose16").forEach { legacyName ->
+            assertNotNull(ModuleRegistry.findCreator(legacyName), "Legacy $legacyName should resolve")
         }
     }
 
@@ -196,57 +201,57 @@ class LogicModulesTest {
     }
 
     @Test
-    fun testChooseModuleSelection() {
-        val choose = Choose4Module()
+    fun testSelectModuleSelection() {
+        val select = Select4Module()
         val receiver = MessageReceiver()
-        choose.output.connect(receiver.inJack)
+        select.output.connect(receiver.inJack)
 
         // Select index 2
-        choose.indexIn.receive(Message.FloatValue(ScoreTime.Zero, 2.0))
+        select.indexIn.receive(Message.FloatValue(ScoreTime.Zero, 2.0))
         assertEquals(0, receiver.received.size, "Index change must not trigger output")
 
         // Send on unselected inputs: in0, in1, in3 -> all dropped
-        choose.stepInputs[0].receive(Message.FloatValue(ScoreTime.Zero, 10.0))
-        choose.stepInputs[1].receive(Message.FloatValue(ScoreTime.Zero, 20.0))
-        choose.stepInputs[3].receive(Message.FloatValue(ScoreTime.Zero, 30.0))
+        select.stepInputs[0].receive(Message.FloatValue(ScoreTime.Zero, 10.0))
+        select.stepInputs[1].receive(Message.FloatValue(ScoreTime.Zero, 20.0))
+        select.stepInputs[3].receive(Message.FloatValue(ScoreTime.Zero, 30.0))
         assertEquals(0, receiver.received.size, "Unselected inputs must be dropped")
 
         // Send on selected input in2 -> forwarded
         val msg: Message = Message.FloatValue(ScoreTime(500L), 42.0)
-        choose.stepInputs[2].receive(msg)
+        select.stepInputs[2].receive(msg)
         assertEquals(listOf<Message>(msg), receiver.received, "Selected input must be forwarded")
 
         // Switch to index 0
-        choose.indexIn.receive(Message.FloatValue(ScoreTime.Zero, 0.0))
+        select.indexIn.receive(Message.FloatValue(ScoreTime.Zero, 0.0))
         val msg0: Message = Message.TextValue(ScoreTime(600L), "selected")
-        choose.stepInputs[0].receive(msg0)
+        select.stepInputs[0].receive(msg0)
         assertEquals(listOf<Message>(msg, msg0), receiver.received)
     }
 
     @Test
-    fun testGateModulePassAndDrop() {
-        val gate = GateModule()
+    fun testPassModulePassAndDrop() {
+        val pass = PassModule()
         val receiver = MessageReceiver()
-        gate.output.connect(receiver.inJack)
+        pass.output.connect(receiver.inJack)
 
         // Initial state is open (enable = 1.0)
         val msg1: Message = Message.FloatValue(ScoreTime(100L), 77.0)
-        gate.input.receive(msg1)
-        assertEquals(listOf<Message>(msg1), receiver.received, "Gate should be open by default")
+        pass.input.receive(msg1)
+        assertEquals(listOf<Message>(msg1), receiver.received, "Pass should be open by default")
 
-        // Close gate (enable = 0.0)
-        gate.enable.receive(Message.FloatValue(ScoreTime.Zero, 0.0))
+        // Close pass (enable = 0.0)
+        pass.enable.receive(Message.FloatValue(ScoreTime.Zero, 0.0))
         assertEquals(1, receiver.received.size, "Updating enable should not trigger output")
 
         // Send message when closed -> dropped
-        gate.input.receive(Message.FloatValue(ScoreTime(200L), 88.0))
-        assertEquals(1, receiver.received.size, "Message should be dropped when gate is closed")
+        pass.input.receive(Message.FloatValue(ScoreTime(200L), 88.0))
+        assertEquals(1, receiver.received.size, "Message should be dropped when pass is closed")
 
-        // Re-open gate (enable = 0.5 > 0)
-        gate.enable.receive(Message.FloatValue(ScoreTime.Zero, 0.5))
+        // Re-open pass (enable = 0.5 > 0)
+        pass.enable.receive(Message.FloatValue(ScoreTime.Zero, 0.5))
         val msg2: Message = Message.FloatValue(ScoreTime(300L), 99.0)
-        gate.input.receive(msg2)
-        assertEquals(listOf<Message>(msg1, msg2), receiver.received, "Message should pass when gate is re-opened")
+        pass.input.receive(msg2)
+        assertEquals(listOf<Message>(msg1, msg2), receiver.received, "Message should pass when pass is re-opened")
     }
 
     @Test
@@ -254,33 +259,33 @@ class LogicModulesTest {
         val graph = GraphState()
         val andMod = AndModule()
         val branch = Branch4Module()
-        val choose = Choose4Module()
-        val gate = GateModule()
+        val select = Select4Module()
+        val pass = PassModule()
 
         branch.indexIn.setValue(2.0)
-        choose.indexIn.setValue(1.0)
-        gate.enable.setValue(0.0)
+        select.indexIn.setValue(1.0)
+        pass.enable.setValue(0.0)
 
         graph.addModule(andMod, Offset.Zero)
         graph.addModule(branch, Offset(100f, 100f))
-        graph.addModule(choose, Offset(200f, 200f))
-        graph.addModule(gate, Offset(300f, 300f))
+        graph.addModule(select, Offset(200f, 200f))
+        graph.addModule(pass, Offset(300f, 300f))
 
         val json = GraphSerializer.serialize(graph, graph.modules)
         assertTrue(json.contains("core.logic.and"))
         assertTrue(json.contains("core.logic.branch4"))
-        assertTrue(json.contains("core.logic.choose4"))
-        assertTrue(json.contains("core.logic.gate"))
+        assertTrue(json.contains("core.logic.select4"))
+        assertTrue(json.contains("core.logic.pass"))
 
         val newGraph = GraphState()
         val restored = GraphSerializer.deserialize(newGraph, json)
 
         val restoredBranch = restored.find { it is Branch4Module } as Branch4Module
-        val restoredChoose = restored.find { it is Choose4Module } as Choose4Module
-        val restoredGate = restored.find { it is GateModule } as GateModule
+        val restoredSelect = restored.find { it is Select4Module } as Select4Module
+        val restoredPass = restored.find { it is PassModule } as PassModule
 
         assertEquals(2.0, restoredBranch.indexIn.getValue())
-        assertEquals(1.0, restoredChoose.indexIn.getValue())
-        assertEquals(0.0, restoredGate.enable.getValue())
+        assertEquals(1.0, restoredSelect.indexIn.getValue())
+        assertEquals(0.0, restoredPass.enable.getValue())
     }
 }

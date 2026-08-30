@@ -93,7 +93,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
             if (module.name == "output") {
                 return
             }
-            val proposedName = if (module.name == "aOutput") "aOut${outputs.size}" else module.name
+            val proposedName = if (module.name == "output~" || module.name == "aOutput") "aOut${outputs.size}" else module.name
             module.name = proposedName
             return
         }
@@ -590,7 +590,8 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                 ScaleModule(templateModule.name, templateModule.isEditable, templateModule.scaleDegrees.copyOf())
             }
             is UnitGeneratorModule -> {
-                val factory = ModuleRegistry.ksynFactories[templateModule.type]
+                val resolvedType = ModuleRegistry.resolveLegacyTypeName(templateModule.type)
+                val factory = ModuleRegistry.ksynFactories[templateModule.type] ?: ModuleRegistry.ksynFactories[resolvedType]
                 if (factory != null) {
                     UnitGeneratorModule(templateModule.name, factory())
                 } else {

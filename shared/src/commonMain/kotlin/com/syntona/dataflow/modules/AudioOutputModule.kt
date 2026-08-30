@@ -16,12 +16,12 @@ import com.syntona.dataflow.model.Module
  * Inside the patch, [input] collects audio into [passThrough].input. The parent gains an
  * [AudioOutputJack] that wraps [passThrough].output, so external modules receive the audio.
  */
-class AudioOutputModule : Module("aOutput") {
+class AudioOutputModule : Module("output~") {
     val passThrough = PassThrough()
 
     val input: AudioInputJack
 
-    private var _name by mutableStateOf("aOutput")
+    private var _name by mutableStateOf("output~")
     override var name: String
         get() = _name
         set(value) {
@@ -36,7 +36,7 @@ class AudioOutputModule : Module("aOutput") {
     init {
         SynthKSyn.synth.add(passThrough)
         if (passThrough.isStartRequired) passThrough.start()
-        input = addAudioInput("input", passThrough.input, 0)
+        input = addAudioInput("in", passThrough.input, 0)
     }
 
     override fun execute(triggerMessage: Message) {}

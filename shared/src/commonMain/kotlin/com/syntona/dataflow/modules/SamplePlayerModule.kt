@@ -33,7 +33,7 @@ class SamplePlayerModule : Module("samplePlayer") {
     val offIn: CommandJack
     val loopIn: CommandJack
     val stopIn: CommandJack
-    val rate: AudioInputJack
+    val speed: AudioInputJack
     val amplitude: AudioInputJack
     val output: AudioOutputJack
 
@@ -55,7 +55,7 @@ class SamplePlayerModule : Module("samplePlayer") {
         loopIn = addCommandInput("loop")
         stopIn = addCommandInput("stop")
 
-        rate = addAudioInput("rate", rateMultiplier.inputA, 0).apply {
+        speed = addAudioInput("speed", rateMultiplier.inputA, 0).apply {
             min = 0.0
             max = 8.0
             setValue(1.0)
@@ -65,7 +65,7 @@ class SamplePlayerModule : Module("samplePlayer") {
             max = 1.0
             setValue(1.0)
         }
-        output = addAudioOutput("output", unit.output!!, 0)
+        output = addAudioOutput("out", unit.output!!, 0)
     }
 
     override fun onMessageReceived(jack: InputJack, msg: Message) {

@@ -34,14 +34,15 @@ class SampleReaderModuleTest {
         assertTrue(module.inputs[3].isKickable)
         assertEquals("durationMs", module.inputs[4].name)
         assertTrue(module.inputs[4].isKickable)
-        assertEquals("loop", module.inputs[5].name)
-        assertEquals("rate", module.inputs[6].name)
+        assertEquals("looping", module.inputs[5].name)
+        assertTrue(module.inputs[5] is com.syntona.dataflow.model.IntegerInputJack)
+        assertEquals("speed", module.inputs[6].name)
         assertTrue(module.inputs[6] is AudioInputJack)
         assertEquals("amplitude", module.inputs[7].name)
         assertTrue(module.inputs[7] is AudioInputJack)
 
         assertEquals(1, module.outputs.size)
-        assertEquals("output", module.outputs[0].name)
+        assertEquals("out", module.outputs[0].name)
         assertTrue(module.outputs[0] is AudioOutputJack)
 
         module.teardown()
@@ -142,7 +143,7 @@ class SampleReaderModuleTest {
         assertEquals(recorderModule.unit.recording, readerModule.dataInput.currentData)
 
         // Trigger start at default rate = 1.0
-        readerModule.rate.setValue(1.0)
+        readerModule.speed.setValue(1.0)
         readerModule.startIn.receive(Message.FloatValue(ScoreTime.Zero, 0.0))
 
         // Process scheduled commands
@@ -180,7 +181,7 @@ class SampleReaderModuleTest {
         sampleModule.sendIn.receive(Message.FloatValue(ScoreTime.Zero, 0.0))
 
         assertEquals(sample1, readerModule.dataInput.currentData)
-        readerModule.rate.setValue(1.0)
+        readerModule.speed.setValue(1.0)
         readerModule.startIn.receive(Message.FloatValue(ScoreTime.Zero, 0.0))
 
         // Sample 2: 200 frames filled with 0.8
@@ -207,7 +208,7 @@ class SampleReaderModuleTest {
         }
         val msg = Message.DataQueueMessage(ScoreClock.now(), sample, Message.DataQueueOpcode.QUEUE)
         readerModule.dataInput.receive(msg)
-        readerModule.rate.setValue(1.0)
+        readerModule.speed.setValue(1.0)
         readerModule.startIn.receive(Message.FloatValue(ScoreTime.Zero, 0.0))
 
         // Process scheduled commands
@@ -240,7 +241,7 @@ class SampleReaderModuleTest {
         }
         val msg = Message.DataQueueMessage(ScoreClock.now(), stereoSample, Message.DataQueueOpcode.QUEUE)
         readerModule.dataInput.receive(msg)
-        readerModule.rate.setValue(1.0)
+        readerModule.speed.setValue(1.0)
         readerModule.startIn.receive(Message.FloatValue(ScoreTime.Zero, 0.0))
 
         // Process scheduled commands

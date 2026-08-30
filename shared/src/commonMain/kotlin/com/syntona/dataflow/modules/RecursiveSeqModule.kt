@@ -4,7 +4,7 @@ import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
 import com.syntona.util.RecursiveSequence
 
-class RecSeqModule : Module("recSeq") {
+class RecursiveSeqModule : Module("recursiveSeq") {
     val step = addIntegerInput("step", isKickable = true)
     val stepsPerCycle = addIntegerInput("stepsPerCycle").also {
         it.min = 2.0
@@ -26,7 +26,7 @@ class RecSeqModule : Module("recSeq") {
         it.max = 35.0
         it.setValue(5.0)
     }
-    val output = addOutput("output")
+    val output = addOutput("out")
 
     private val sequence = RecursiveSequence()
 

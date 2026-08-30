@@ -12,12 +12,12 @@ class ClockModule : Module("clock"), EngineAware {
     val start = addCommandInput("start")
     val stop = addCommandInput("stop")
     val reset = addCommandInput("reset")
-    val rateHz = addInput("rate(hz)").also {
+    val rateHz = addInput("rateHz").also {
         it.min = 0.1
         it.max = 100.0
         it.setValue(2.0)
     }
-    val countOut = addOutput("output")
+    val countOut = addOutput("out")
 
     private var engine: DataFlowEngine? = null
     private var pendingEvent: ScheduledEvent? = null

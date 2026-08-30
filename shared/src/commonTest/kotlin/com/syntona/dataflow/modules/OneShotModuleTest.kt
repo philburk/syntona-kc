@@ -11,12 +11,12 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-class ArmModuleTest {
+class OneShotModuleTest {
 
     @Test
     fun testModuleCreationAndJacks() {
-        val module = ArmModule()
-        assertEquals("arm", module.name)
+        val module = OneShotModule()
+        assertEquals("oneShot", module.name)
 
         val armInput = module.inputs.find { it.name == "arm" }
         assertNotNull(armInput)
@@ -33,18 +33,23 @@ class ArmModuleTest {
 
     @Test
     fun testRegistryLookup() {
-        val shortNameCreator = ModuleRegistry.findCreator("arm")
+        val shortNameCreator = ModuleRegistry.findCreator("oneShot")
         assertNotNull(shortNameCreator)
-        assertTrue(shortNameCreator() is ArmModule)
+        assertTrue(shortNameCreator() is OneShotModule)
 
-        val pathCreator = ModuleRegistry.findCreator("core.basic.arm")
+        val pathCreator = ModuleRegistry.findCreator("core.basic.oneShot")
         assertNotNull(pathCreator)
-        assertTrue(pathCreator() is ArmModule)
+        assertTrue(pathCreator() is OneShotModule)
+
+        // Legacy arm alias
+        val legacyCreator = ModuleRegistry.findCreator("arm")
+        assertNotNull(legacyCreator)
+        assertTrue(legacyCreator() is OneShotModule)
     }
 
     @Test
     fun testArmingAndKickPassthrough() {
-        val module = ArmModule()
+        val module = OneShotModule()
         val armInput = module.inputs.first { it.name == "arm" }
         val kickInput = module.inputs.first { it.name == "in" }
         val output = module.outputs.first { it.name == "out" }
@@ -82,7 +87,7 @@ class ArmModuleTest {
 
     @Test
     fun testArmToggle() {
-        val module = ArmModule()
+        val module = OneShotModule()
         val armInput = module.inputs.first { it.name == "arm" }
 
         assertFalse(module.isArmed)

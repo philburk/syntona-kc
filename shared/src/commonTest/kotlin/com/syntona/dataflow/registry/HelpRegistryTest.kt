@@ -51,14 +51,14 @@ class HelpRegistryTest {
         assertEquals("examples/pianoRoll.json", HelpRegistry.getHelpFilePath("pianoRoll"))
         assertEquals("examples/pianoRoll.json", HelpRegistry.getHelpFilePath("music.compose.pianoRoll"))
 
-        assertEquals("examples/recSeq.json", HelpRegistry.getHelpFilePath("recSeq"))
-        assertEquals("examples/recSeq.json", HelpRegistry.getHelpFilePath("music.compose.recSeq"))
+        assertEquals("examples/recSeq.json", HelpRegistry.getHelpFilePath("recursiveSeq"))
+        assertEquals("examples/recSeq.json", HelpRegistry.getHelpFilePath("music.compose.recursiveSeq"))
 
         assertEquals("tutorials/03_core/05_key_match.json", HelpRegistry.getHelpFilePath("keyMatch"))
         assertEquals("tutorials/03_core/05_key_match.json", HelpRegistry.getHelpFilePath("core.input.keyMatch"))
 
-        assertEquals("tutorials/04_sequencer/03_pitch_to_freq.json", HelpRegistry.getHelpFilePath("p2f"))
-        assertEquals("tutorials/04_sequencer/03_pitch_to_freq.json", HelpRegistry.getHelpFilePath("core.math.p2f"))
+        assertEquals("tutorials/04_sequencer/03_pitch_to_freq.json", HelpRegistry.getHelpFilePath("pitchToHz"))
+        assertEquals("tutorials/04_sequencer/03_pitch_to_freq.json", HelpRegistry.getHelpFilePath("core.math.pitchToHz"))
 
         assertEquals("tutorials/06_midi/04_midiOut.json", HelpRegistry.getHelpFilePath("midiOut"))
         assertEquals("tutorials/06_midi/04_midiOut.json", HelpRegistry.getHelpFilePath("music.midi.midiOut"))

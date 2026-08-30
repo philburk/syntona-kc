@@ -48,8 +48,8 @@ class PolyPatchModuleTest {
         polyPatch.graphState.addModule(audioOutputModule, androidx.compose.ui.geometry.Offset.Zero)
 
         // Connect them
-        val outJack = sineOscModule.outputs.find { it.name == "output" }
-        val inJack = audioOutputModule.inputs.find { it.name == "input" }
+        val outJack = sineOscModule.outputs.find { it.name == "out" }
+        val inJack = audioOutputModule.inputs.find { it.name == "in" }
         assertNotNull(outJack)
         assertNotNull(inJack)
         polyPatch.graphState.connect(outJack, inJack)
@@ -249,15 +249,15 @@ class PolyPatchModuleTest {
         val offModule = polyPatch.graphState.modules.find { it.name == "off" }!!
         val outputModule = polyPatch.graphState.modules.find { it.name == "output" }!!
 
-        // Add DAHDSR module
-        val dahdsrModule = UnitGeneratorModule("DAHDSR", com.softsynth.ksyn.unitgen.EnvelopeDAHDSR())
+        // Add envDAHDSR module
+        val dahdsrModule = UnitGeneratorModule("envDAHDSR", com.softsynth.ksyn.unitgen.EnvelopeDAHDSR())
         polyPatch.graphState.addModule(dahdsrModule, androidx.compose.ui.geometry.Offset.Zero)
         val dahdsrVoiceMod = voice0.templateToVoiceMap[dahdsrModule] as UnitGeneratorModule
         val dahdsrUnit0 = dahdsrVoiceMod.unit as com.softsynth.ksyn.unitgen.EnvelopeDAHDSR
 
         // Connect DAHDSR output to main output so it is pulled by the synthesis engine
-        val dahdsrOutJack = dahdsrModule.outputs.find { it.name == "output" }!!
-        val patchOutInJack = outputModule.inputs.find { it.name == "input" }!!
+        val dahdsrOutJack = dahdsrModule.outputs.find { it.name == "out" }!!
+        val patchOutInJack = outputModule.inputs.find { it.name == "in" }!!
         polyPatch.graphState.connect(dahdsrOutJack, patchOutInJack)
         engine.generateNextBuffer()
 
@@ -274,22 +274,10 @@ class PolyPatchModuleTest {
         engine.generateNextBuffer()
         assertEquals(0.0f, dahdsrUnit0.output.get(0), 1e-4f)
 
-        // Note off
-        polyPatch.voiceInputJack.receive(
-            Message.VoiceMessage(
-                com.syntona.core.model.ScoreTime.Zero,
-                Message.VoiceOpcode.NOTE_OFF,
-                tag = 10,
-                value = 60.0,
-                extra = 0.0
-            )
-        )
-        engine.generateNextBuffer()
-
-        // 2. Connect on.output and off.output to DAHDSR.input
-        val onOutJack = onModule.outputs.find { it.name == "output" }!!
-        val offOutJack = offModule.outputs.find { it.name == "output" }!!
-        val dahdsrInJack = dahdsrModule.inputs.find { it.name == "input" }!!
+        // 2. Connect on.out and off.out to DAHDSR.in
+        val onOutJack = onModule.outputs.find { it.name == "out" }!!
+        val offOutJack = offModule.outputs.find { it.name == "out" }!!
+        val dahdsrInJack = dahdsrModule.inputs.find { it.name == "in" }!!
         polyPatch.graphState.connect(onOutJack, dahdsrInJack)
         polyPatch.graphState.connect(offOutJack, dahdsrInJack)
         engine.generateNextBuffer()
@@ -383,9 +371,9 @@ class PolyPatchModuleTest {
         polyPatch.graphState.addModule(triOsc, androidx.compose.ui.geometry.Offset.Zero)
 
         // Connect the triOsc output to output in the polyPatch
-        val outJack = triOsc.outputs.find { it.name == "output" }!!
+        val outJack = triOsc.outputs.find { it.name == "out" }!!
         val outputModule = polyPatch.graphState.modules.find { it.name == "output" }!!
-        val inJack = outputModule.inputs.find { it.name == "input" }!!
+        val inJack = outputModule.inputs.find { it.name == "in" }!!
         polyPatch.graphState.connect(outJack, inJack)
 
         // Run synthesis engine to start pulling data
@@ -405,8 +393,8 @@ class PolyPatchModuleTest {
         // Connect it in the parent patch
         val parentOutput = AudioOutputModule()
         rootGraph.addModule(parentOutput, androidx.compose.ui.geometry.Offset.Zero)
-        val pastedOutJack = pastedTriOsc.outputs.find { it.name == "output" }!!
-        val parentInJack = parentOutput.inputs.find { it.name == "input" }!!
+        val pastedOutJack = pastedTriOsc.outputs.find { it.name == "out" }!!
+        val parentInJack = parentOutput.inputs.find { it.name == "in" }!!
         rootGraph.connect(pastedOutJack, parentInJack)
 
         // Run buffer generation to ensure no crashes or NPEs
@@ -708,12 +696,12 @@ class PolyPatchModuleTest {
         // 2. Wire on -> segEnv.queueOn, off -> segEnv.queueOff, segEnv.output -> monoRdr.data
         val onModule = polyPatch.graphState.modules.find { it.name == "on" }!!
         val offModule = polyPatch.graphState.modules.find { it.name == "off" }!!
-        val onOut = onModule.outputs.find { it.name == "output" }!!
-        val offOut = offModule.outputs.find { it.name == "output" }!!
+        val onOut = onModule.outputs.find { it.name == "out" }!!
+        val offOut = offModule.outputs.find { it.name == "out" }!!
 
         val queueOnIn = segEnv.inputs.find { it.name == "queueOn" }!!
         val queueOffIn = segEnv.inputs.find { it.name == "queueOff" }!!
-        val segEnvOut = segEnv.outputs.find { it.name == "output" }!!
+        val segEnvOut = segEnv.outputs.find { it.name == "out" }!!
         val monoRdrDataIn = monoRdr.inputs.find { it.name == "data" }!!
 
         polyPatch.graphState.connect(onOut, queueOnIn)
@@ -722,8 +710,8 @@ class PolyPatchModuleTest {
 
         // Connect monoRdr output to main output so it is pulled during buffer generation
         val outputModule = polyPatch.graphState.modules.find { it.name == "output" }!!
-        val monoRdrOut = monoRdr.outputs.find { it.name == "output" }!!
-        val patchOutIn = outputModule.inputs.find { it.name == "input" }!!
+        val monoRdrOut = monoRdr.outputs.find { it.name == "out" }!!
+        val patchOutIn = outputModule.inputs.find { it.name == "in" }!!
         polyPatch.graphState.connect(monoRdrOut, patchOutIn)
 
         // 3. Send NoteOn for tag = 10
@@ -775,7 +763,7 @@ class PolyPatchModuleTest {
 
         // Connect pitch.output -> f(x).x
         val pitchModule = polyPatch.graphState.modules.find { it.name == "pitch" }!!
-        val pitchOut = pitchModule.outputs.find { it.name == "output" }!!
+        val pitchOut = pitchModule.outputs.find { it.name == "out" }!!
         val fxIn = fx.inputs.find { it.name == "x" }!!
         polyPatch.graphState.connect(pitchOut, fxIn)
 
@@ -859,12 +847,12 @@ class PolyPatchModuleTest {
         polyPatch.graphState.addModule(ap2f, androidx.compose.ui.geometry.Offset.Zero)
         polyPatch.graphState.addModule(triOsc, androidx.compose.ui.geometry.Offset.Zero)
 
-        val ap2fInJack = ap2f.inputs.find { it.name == "input" } as AudioInputJack
-        val triOutJack = triOsc.outputs.find { it.name == "output" }!!
+        val ap2fInJack = ap2f.inputs.find { it.name == "in" } as AudioInputJack
+        val triOutJack = triOsc.outputs.find { it.name == "out" }!!
         val pitchMod = polyPatch.graphState.modules.find { it.name == "pitch" }!!
-        val pitchOutJack = pitchMod.outputs.find { it.name == "output" }!!
+        val pitchOutJack = pitchMod.outputs.find { it.name == "out" }!!
 
-        // Wire pitch -> ap2f.input and triOsc -> ap2f.input
+        // Wire pitch -> ap2f.in and triOsc -> ap2f.in
         polyPatch.graphState.connect(pitchOutJack, ap2fInJack)
         polyPatch.graphState.connect(triOutJack, ap2fInJack)
 
@@ -872,8 +860,8 @@ class PolyPatchModuleTest {
         val voice1 = polyPatch.voices[1]
         val voiceAP2F0 = voice0.templateToVoiceMap[ap2f] as UnitGeneratorModule
         val voiceAP2F1 = voice1.templateToVoiceMap[ap2f] as UnitGeneratorModule
-        val voiceAP2FInJack0 = voiceAP2F0.inputs.find { it.name == "input" } as AudioInputJack
-        val voiceAP2FInJack1 = voiceAP2F1.inputs.find { it.name == "input" } as AudioInputJack
+        val voiceAP2FInJack0 = voiceAP2F0.inputs.find { it.name == "in" } as AudioInputJack
+        val voiceAP2FInJack1 = voiceAP2F1.inputs.find { it.name == "in" } as AudioInputJack
 
         // 2. Initially isValueAdded is false
         assertEquals(false, voiceAP2FInJack0.isValueAdded)

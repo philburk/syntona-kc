@@ -8,7 +8,7 @@ import com.syntona.dataflow.model.Module
 
 class AddTimeModule : Module("addTime"), EngineAware {
     val input = addInput("in", isKickable = true)
-    val delayMs = addInput("delay(ms)").also {
+    val delayMs = addInput("delayMs").also {
         it.min = 0.0
         it.max = 60_000.0
     }

@@ -9,12 +9,12 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-class RecSeqModuleTest {
+class RecursiveSeqModuleTest {
 
     @Test
     fun testModuleCreationAndJacks() {
-        val module = RecSeqModule()
-        assertEquals("recSeq", module.name)
+        val module = RecursiveSeqModule()
+        assertEquals("recursiveSeq", module.name)
 
         val stepInput = module.inputs.find { it.name == "step" }
         assertNotNull(stepInput)
@@ -32,29 +32,35 @@ class RecSeqModuleTest {
         assertEquals(1.0, densityInput.max)
         assertTrue(densityInput.getDoubleValue() == 0.5, "density expected 0.5 but got ${densityInput.getDoubleValue()}")
 
-        val outputJack = module.outputs.find { it.name == "output" }
+        val outputJack = module.outputs.find { it.name == "out" }
         assertNotNull(outputJack)
     }
 
     @Test
     fun testModuleRegistryRegistration() {
-        val creatorByShortName = ModuleRegistry.findCreator("recSeq")
+        val creatorByShortName = ModuleRegistry.findCreator("recursiveSeq")
         assertNotNull(creatorByShortName)
         val moduleFromShortName = creatorByShortName()
-        assertTrue(moduleFromShortName is RecSeqModule)
+        assertTrue(moduleFromShortName is RecursiveSeqModule)
 
-        val creatorByPath = ModuleRegistry.findCreator("music.compose.recSeq")
+        val creatorByPath = ModuleRegistry.findCreator("music.compose.recursiveSeq")
         assertNotNull(creatorByPath)
         val moduleFromPath = creatorByPath()
-        assertTrue(moduleFromPath is RecSeqModule)
+        assertTrue(moduleFromPath is RecursiveSeqModule)
+
+        // Verify legacy recSeq alias
+        val legacyCreator = ModuleRegistry.findCreator("recSeq")
+        assertNotNull(legacyCreator)
+        val legacyMod = legacyCreator()
+        assertTrue(legacyMod is RecursiveSeqModule)
     }
 
     @Test
     fun testExecutionOutputsValue() {
-        val module = RecSeqModule()
+        val module = RecursiveSeqModule()
         val stepInput = module.inputs.first { it.name == "step" }
         val densityInput = module.inputs.first { it.name == "density" }
-        val outputJack = module.outputs.first { it.name == "output" }
+        val outputJack = module.outputs.first { it.name == "out" }
 
         densityInput.setValue(1.0)
 
@@ -78,10 +84,10 @@ class RecSeqModuleTest {
 
     @Test
     fun testZeroDensitySendsNoMessagesOrRests() {
-        val module = RecSeqModule()
+        val module = RecursiveSeqModule()
         val stepInput = module.inputs.first { it.name == "step" }
         val densityInput = module.inputs.first { it.name == "density" }
-        val outputJack = module.outputs.first { it.name == "output" }
+        val outputJack = module.outputs.first { it.name == "out" }
 
         densityInput.setValue(0.0)
 

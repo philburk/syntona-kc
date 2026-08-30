@@ -20,7 +20,7 @@ class CommandModuleTest {
         assertEquals("command", module.name)
         assertEquals(0, module.inputs.size)
         assertEquals(1, module.outputs.size)
-        assertEquals("output", module.outputs[0].name)
+        assertEquals("out", module.outputs[0].name)
     }
 
     @Test

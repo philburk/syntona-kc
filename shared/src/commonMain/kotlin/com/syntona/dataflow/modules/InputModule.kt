@@ -8,7 +8,7 @@ import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
 
 class InputModule : Module("input") {
-    val output = addOutput("output")
+    val output = addOutput("out")
 
     private var _name by mutableStateOf("input")
     override var name: String
