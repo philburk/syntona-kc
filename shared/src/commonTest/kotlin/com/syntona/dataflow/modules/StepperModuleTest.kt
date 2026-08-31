@@ -52,7 +52,8 @@ class StepperModuleTest {
         assertEquals(128.0, stepper.limit.max)
         assertEquals(4.0, stepper.limit.getValue())
 
-        assertEquals("loop", stepper.loop.name)
+        assertEquals("looping", stepper.loop.name)
+        assertEquals("looping", stepper.looping.name)
         assertTrue(stepper.loop.isInteger)
         assertEquals(0.0, stepper.loop.min)
         assertEquals(1.0, stepper.loop.max)
@@ -373,4 +374,36 @@ class StepperModuleTest {
         assertEquals("RUN", stepper.badgeFor(stepper.start))
         assertEquals(listOf(0.0, 1.0, 0.0), indexReceiver.values)
     }
+
+    @Test
+    fun testLegacyLoopJackDeserialization() {
+        val legacyJson = """
+            {
+              "modules": [
+                {
+                  "id": 0,
+                  "type": "stepper",
+                  "name": "stepper",
+                  "jacks": {
+                    "loop": {
+                      "v": 1.0,
+                      "min": 0.0,
+                      "max": 1.0
+                    }
+                  }
+                }
+              ],
+              "connections": []
+            }
+        """.trimIndent()
+
+        val graphState = com.syntona.dataflow.editor.GraphState()
+        val deserialized = com.syntona.dataflow.editor.GraphSerializer.deserialize(graphState, legacyJson)
+        assertEquals(1, deserialized.size)
+        val stepper = deserialized[0] as StepperModule
+        assertEquals("looping", stepper.loop.name)
+        assertEquals(1.0, stepper.loop.getValue())
+        assertTrue(stepper.isLooping)
+    }
 }
+

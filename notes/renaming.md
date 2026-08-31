@@ -36,6 +36,8 @@ Change "choose4" to "select4", "choose8" to "select8", "choose16" to "select16".
 * Change samplePlayer.rate to samplePlayer.speed
 * Change sampleReader.rate to sampleReader.speed
 * Change sampleReader.loop to sampleReader.looping and make it an IntegerJack.
+* Change stepper.loop to stepper.looping.
+* Change clockDiv.N to clockDiv.divisor and make it an IntegerJack.
 * Change any jack named "rate(hz)" to "rateHz".
 * Change any jack named "delay(ms)" to "delayMs".
 

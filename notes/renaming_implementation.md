@@ -35,8 +35,11 @@ Source compatibility is not required; classes and tests will be renamed directly
 
 #### [MODIFY] [BasicModules.kt](file:///Users/phil/Work/syntona-kc/shared/src/commonMain/kotlin/com/syntona/dataflow/modules/BasicModules.kt)
 - `CounterModule`: change input jack `"inc"` to `"kick"` (`val increment = addInput("kick", isKickable = true)`).
-- `ClockDividerModule`: change type from `"ckDiv"` to `"clockDiv"`.
+- `ClockDividerModule`: change type from `"ckDiv"` to `"clockDiv"`, and change `"N"` input jack to `"divisor"` (as `IntegerInputJack`).
 - Rename `output` jacks to `"out"` where applicable.
+
+#### [MODIFY] [StepperModule.kt](file:///Users/phil/Work/syntona-kc/shared/src/commonMain/kotlin/com/syntona/dataflow/modules/StepperModule.kt)
+- Change `loop` jack from `"loop"` to `"looping"`.
 
 #### [MODIFY] [SamplePlayerModule.kt](file:///Users/phil/Work/syntona-kc/shared/src/commonMain/kotlin/com/syntona/dataflow/modules/SamplePlayerModule.kt)
 - Rename `rate` jack to `"speed"`.

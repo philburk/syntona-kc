@@ -108,4 +108,61 @@ class ClockDividerModuleTest {
         // 3 / 3 = 1.0, 6 / 3 = 2.0
         assertEquals(listOf(0.0, 1.0, 1.0, 2.0), receivedValues)
     }
+
+    @Test
+    fun testDivisorJackProperties() {
+        val ckDiv = ClockDividerModule()
+        assertEquals("divisor", ckDiv.divisor.name)
+        assertEquals("divisor", ckDiv.n.name)
+        assertTrue(ckDiv.divisor.isInteger)
+        assertTrue(ckDiv.divisor is com.syntona.dataflow.model.IntegerInputJack)
+        assertEquals(1.0, ckDiv.divisor.min)
+        assertEquals(128.0, ckDiv.divisor.max)
+        assertEquals(2.0, ckDiv.divisor.getValue())
+    }
+
+    @Test
+    fun testLegacyNJackDeserializationAndConnection() {
+        val legacyJson = """
+            {
+              "modules": [
+                {
+                  "id": 0,
+                  "type": "core.basic.clockDiv",
+                  "name": "clockDiv",
+                  "jacks": {
+                    "N": {
+                      "v": 8.0,
+                      "min": 1.0,
+                      "max": 128.0
+                    }
+                  }
+                },
+                {
+                  "id": 1,
+                  "type": "core.input.number",
+                  "name": "number"
+                }
+              ],
+              "connections": [
+                {
+                  "from": 1,
+                  "fromJack": "out",
+                  "to": 0,
+                  "toJack": "N"
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val graphState = com.syntona.dataflow.editor.GraphState()
+        val deserialized = com.syntona.dataflow.editor.GraphSerializer.deserialize(graphState, legacyJson)
+        assertEquals(2, deserialized.size)
+        val ckDiv = deserialized[0] as ClockDividerModule
+        assertEquals("divisor", ckDiv.divisor.name)
+        assertEquals(8.0, ckDiv.divisor.getValue())
+        assertTrue(ckDiv.divisor.isInteger)
+        assertTrue(graphState.connections.any { it.input === ckDiv.divisor }, "Connection to legacy 'N' should connect to 'divisor'")
+    }
 }
+

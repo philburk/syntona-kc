@@ -24,11 +24,12 @@ class StepperModule : Module("stepper"), CommandJackBadge {
         it.max = 128.0
         it.setValue(4.0)
     }
-    val loop = addIntegerInput("loop").also {
+    val loop = addIntegerInput("looping").also {
         it.min = 0.0
         it.max = 1.0
         it.setValue(0.0)
     }
+    val looping: com.syntona.dataflow.model.IntegerInputJack get() = loop
 
     val indexOut = addIntegerOutput("index")
     val doneOut = addOutput("done")

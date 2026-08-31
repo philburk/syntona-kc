@@ -28,11 +28,12 @@ class CounterModule() : Module("counter") {
  */
 class ClockDividerModule : Module("clockDiv") {
     val input = addInput("in", isKickable = true)
-    val divisor = addIntegerInput("N").also {
+    val divisor = addIntegerInput("divisor").also {
         it.min = 1.0
         it.max = 128.0
         it.setValue(2.0)
     }
+    val n: com.syntona.dataflow.model.IntegerInputJack get() = divisor
     val output = addOutput("out")
 
     override fun execute(triggerMessage: Message) {
