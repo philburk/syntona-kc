@@ -69,4 +69,55 @@ class ModuleRenameTest {
         module.name = "myAmpEnv"
         assertEquals("myAmpEnv", module.name)
     }
+
+    @Test
+    fun testLegacyModuleNameResolutionOnDeserialization() {
+        val legacyJson = """
+            {
+              "modules": [
+                {"id": 0, "type": "core.input.loadKick", "name": "loadKick", "x": 0.0, "y": 0.0},
+                {"id": 1, "type": "ksyn.math.ap2f", "name": "ap2f", "x": 0.0, "y": 0.0},
+                {"id": 2, "type": "ksyn.math.a*", "name": "a*", "x": 0.0, "y": 0.0},
+                {"id": 3, "type": "core.logic.ckDiv", "name": "ckDiv", "x": 0.0, "y": 0.0},
+                {"id": 4, "type": "core.control.arm", "name": "arm", "x": 0.0, "y": 0.0},
+                {"id": 5, "type": "core.logic.gate", "name": "gate", "x": 0.0, "y": 0.0},
+                {"id": 6, "type": "core.logic.choose4", "name": "choose4", "x": 0.0, "y": 0.0}
+              ],
+              "connections": []
+            }
+        """.trimIndent()
+
+        val graphState = GraphState()
+        val deserialized = GraphSerializer.deserialize(graphState, legacyJson)
+        assertEquals(7, deserialized.size)
+
+        assertEquals("onLoad", deserialized[0].name)
+        assertEquals("pitchToHz~", deserialized[1].name)
+        assertEquals("*~", deserialized[2].name)
+        assertEquals("clockDiv", deserialized[3].name)
+        assertEquals("oneShot", deserialized[4].name)
+        assertEquals("pass", deserialized[5].name)
+        assertEquals("select4", deserialized[6].name)
+    }
+
+    @Test
+    fun testCustomNicknamesPreservedOnDeserialization() {
+        val customJson = """
+            {
+              "modules": [
+                {"id": 0, "type": "core.input.loadKick", "name": "kickTrigger", "x": 0.0, "y": 0.0},
+                {"id": 1, "type": "ksyn.math.ap2f", "name": "myPitchConverter", "x": 0.0, "y": 0.0}
+              ],
+              "connections": []
+            }
+        """.trimIndent()
+
+        val graphState = GraphState()
+        val deserialized = GraphSerializer.deserialize(graphState, customJson)
+        assertEquals(2, deserialized.size)
+
+        assertEquals("kickTrigger", deserialized[0].name)
+        assertEquals("myPitchConverter", deserialized[1].name)
+    }
 }
+

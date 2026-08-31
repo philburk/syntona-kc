@@ -3,7 +3,7 @@
 
 Try to save a native signed version.
 
-Export JSyn and KSyn source code for circuits.
+Export JSyn and KSyn source code for circuits!!!
 
 matchNote could have a MIDI output that is minus the matchedNote.
 Then you could use the black keys as triggers and send the remaining keys to a polyPatch.

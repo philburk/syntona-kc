@@ -289,39 +289,40 @@ object ModuleRegistry {
         return searchBundle(root)
     }
 
-    fun resolveLegacyTypeName(rawTypeName: String): String {
-        fun resolveSingleName(name: String): String = when (name) {
-            "showVoice" -> "showMany"
-            "double" -> "number"
-            "ckDiv" -> "clockDiv"
-            "arm" -> "oneShot"
-            "gate" -> "pass"
-            "choose4" -> "select4"
-            "choose8" -> "select8"
-            "choose16" -> "select16"
-            "loadKick" -> "onLoad"
-            "recSeq" -> "recursiveSeq"
-            "p2f" -> "pitchToHz"
-            "DAHDSR" -> "envDAHDSR"
-            "latchZC" -> "latchZeroX"
-            "aInput" -> "input~"
-            "aOutput" -> "output~"
-            "a+" -> "+~"
-            "a-" -> "-~"
-            "a*" -> "*~"
-            "a*+" -> "*+~"
-            "a/" -> "/~"
-            "a>" -> ">~"
-            "ap2f" -> "pitchToHz~"
-            "aPower2" -> "power2~"
-            "aMin" -> "min~"
-            "aMax" -> "max~"
-            "aRanger" -> "range~"
-            "delay" -> "delay~"
-            "select" -> "select~"
-            else -> name
-        }
+    fun resolveLegacyModuleName(name: String): String = when (name) {
+        "showVoice" -> "showMany"
+        "double" -> "number"
+        "ckDiv" -> "clockDiv"
+        "arm" -> "oneShot"
+        "gate" -> "pass"
+        "choose4" -> "select4"
+        "choose8" -> "select8"
+        "choose16" -> "select16"
+        "loadKick" -> "onLoad"
+        "recSeq" -> "recursiveSeq"
+        "p2f" -> "pitchToHz"
+        "DAHDSR" -> "envDAHDSR"
+        "latchZC" -> "latchZeroX"
+        "schmidtTrigger" -> "schmittTrigger"
+        "aInput" -> "input~"
+        "aOutput" -> "output~"
+        "a+" -> "+~"
+        "a-" -> "-~"
+        "a*" -> "*~"
+        "a*+" -> "*+~"
+        "a/" -> "/~"
+        "a>" -> ">~"
+        "ap2f" -> "pitchToHz~"
+        "aPower2" -> "power2~"
+        "aMin" -> "min~"
+        "aMax" -> "max~"
+        "aRanger" -> "range~"
+        "delay" -> "delay~"
+        "select" -> "select~"
+        else -> name
+    }
 
+    fun resolveLegacyTypeName(rawTypeName: String): String {
         val mappedVoices = if (rawTypeName.startsWith("music.voices.")) {
             rawTypeName.replace("music.voices.", "music.midi.")
         } else {
@@ -330,11 +331,11 @@ object ModuleRegistry {
 
         if (mappedVoices.contains('.')) {
             val parts = mappedVoices.split('.').toMutableList()
-            parts[parts.lastIndex] = resolveSingleName(parts.last())
+            parts[parts.lastIndex] = resolveLegacyModuleName(parts.last())
             return parts.joinToString(".")
         }
 
-        return resolveSingleName(mappedVoices)
+        return resolveLegacyModuleName(mappedVoices)
     }
 
     fun findEntry(typeName: String): ModuleEntry? {

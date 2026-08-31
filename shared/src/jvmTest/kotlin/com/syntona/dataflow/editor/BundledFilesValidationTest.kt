@@ -31,4 +31,28 @@ class BundledFilesValidationTest {
             assertTrue(modules.isNotEmpty(), "File ${file.name} loaded 0 modules")
         }
     }
+
+    @Test
+    fun testDrumRhythmLegacyModuleRenamingOnLoad() {
+        val candidates = listOf(
+            File("src/commonMain/composeResources/files/examples/drum_rhythm.json"),
+            File("shared/src/commonMain/composeResources/files/examples/drum_rhythm.json"),
+            File("../shared/src/commonMain/composeResources/files/examples/drum_rhythm.json")
+        )
+        val file = candidates.find { it.exists() && it.isFile }
+        assertTrue(file != null, "Could not find drum_rhythm.json")
+
+        val graphState = GraphState()
+        val problems = mutableListOf<String>()
+        val modules = GraphSerializer.deserialize(graphState, file.readText(), problems = problems)
+        assertTrue(problems.isEmpty(), "Problems: ${problems.joinToString("; ")}")
+
+        val onLoadMod = modules.find { it is com.syntona.dataflow.modules.OnLoadModule }
+        assertTrue(onLoadMod != null, "Should have loaded an OnLoadModule")
+        kotlin.test.assertEquals("onLoad", onLoadMod.name, "Legacy 'loadKick' should have been renamed to 'onLoad'")
+
+        val ckDivMod = modules.find { it is com.syntona.dataflow.modules.ClockDividerModule }
+        assertTrue(ckDivMod != null, "Should have loaded a ClockDividerModule")
+        kotlin.test.assertEquals("clockDiv", ckDivMod.name, "Legacy 'ckDiv' should have been renamed to 'clockDiv'")
+    }
 }

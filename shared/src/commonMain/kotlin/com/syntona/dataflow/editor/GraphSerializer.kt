@@ -419,7 +419,9 @@ object GraphSerializer {
             }
 
             val module = creator()
-            (obj?.map?.get("name") as? JsonValue.Str)?.value?.let { module.name = it }
+            (obj?.map?.get("name") as? JsonValue.Str)?.value?.let { rawName ->
+                module.name = ModuleRegistry.resolveLegacyModuleName(rawName)
+            }
             if (module is CommentModule) {
                 (obj?.map?.get("text") as? JsonValue.Str)?.value?.let { module.text = it }
                 (obj?.map?.get("w") as? JsonValue.Num)?.value?.let { module.width = it.toFloat() }

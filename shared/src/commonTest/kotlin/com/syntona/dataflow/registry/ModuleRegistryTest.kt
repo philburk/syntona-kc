@@ -75,5 +75,44 @@ class ModuleRegistryTest {
 
         assertEquals(null, ModuleRegistry.getHelpResourcePath("keyboard13"))
     }
+
+    @Test
+    fun testResolveLegacyModuleName() {
+        assertEquals("onLoad", ModuleRegistry.resolveLegacyModuleName("loadKick"))
+        assertEquals("pitchToHz~", ModuleRegistry.resolveLegacyModuleName("ap2f"))
+        assertEquals("*~", ModuleRegistry.resolveLegacyModuleName("a*"))
+        assertEquals("+~", ModuleRegistry.resolveLegacyModuleName("a+"))
+        assertEquals("-~", ModuleRegistry.resolveLegacyModuleName("a-"))
+        assertEquals("*+~", ModuleRegistry.resolveLegacyModuleName("a*+"))
+        assertEquals("/~", ModuleRegistry.resolveLegacyModuleName("a/"))
+        assertEquals(">~", ModuleRegistry.resolveLegacyModuleName("a>"))
+        assertEquals("min~", ModuleRegistry.resolveLegacyModuleName("aMin"))
+        assertEquals("max~", ModuleRegistry.resolveLegacyModuleName("aMax"))
+        assertEquals("range~", ModuleRegistry.resolveLegacyModuleName("aRanger"))
+        assertEquals("power2~", ModuleRegistry.resolveLegacyModuleName("aPower2"))
+        assertEquals("delay~", ModuleRegistry.resolveLegacyModuleName("delay"))
+        assertEquals("select~", ModuleRegistry.resolveLegacyModuleName("select"))
+        assertEquals("clockDiv", ModuleRegistry.resolveLegacyModuleName("ckDiv"))
+        assertEquals("oneShot", ModuleRegistry.resolveLegacyModuleName("arm"))
+        assertEquals("pass", ModuleRegistry.resolveLegacyModuleName("gate"))
+        assertEquals("select4", ModuleRegistry.resolveLegacyModuleName("choose4"))
+        assertEquals("select8", ModuleRegistry.resolveLegacyModuleName("choose8"))
+        assertEquals("select16", ModuleRegistry.resolveLegacyModuleName("choose16"))
+        assertEquals("recursiveSeq", ModuleRegistry.resolveLegacyModuleName("recSeq"))
+        assertEquals("pitchToHz", ModuleRegistry.resolveLegacyModuleName("p2f"))
+        assertEquals("envDAHDSR", ModuleRegistry.resolveLegacyModuleName("DAHDSR"))
+        assertEquals("latchZeroX", ModuleRegistry.resolveLegacyModuleName("latchZC"))
+        assertEquals("schmittTrigger", ModuleRegistry.resolveLegacyModuleName("schmidtTrigger"))
+        assertEquals("input~", ModuleRegistry.resolveLegacyModuleName("aInput"))
+        assertEquals("output~", ModuleRegistry.resolveLegacyModuleName("aOutput"))
+        assertEquals("showMany", ModuleRegistry.resolveLegacyModuleName("showVoice"))
+        assertEquals("number", ModuleRegistry.resolveLegacyModuleName("double"))
+
+        // Unmodified custom names
+        assertEquals("customKick", ModuleRegistry.resolveLegacyModuleName("customKick"))
+        assertEquals("in1", ModuleRegistry.resolveLegacyModuleName("in1"))
+        assertEquals("aIn1", ModuleRegistry.resolveLegacyModuleName("aIn1"))
+        assertEquals("aOut1", ModuleRegistry.resolveLegacyModuleName("aOut1"))
+    }
 }
 
