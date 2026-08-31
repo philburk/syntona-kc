@@ -1885,9 +1885,19 @@ fun ResizableModuleBox(
     val borderWidth = if (isSelected) 2.dp else 1.dp
     val density = LocalDensity.current
 
+    // Safety floor based on jacks so they are never hidden or clipped
+    val maxJacks = maxOf(module.inputs.size, module.outputs.size)
+    val minJackHeight = if (maxJacks > 0) (8 + maxJacks * 20 + (maxJacks - 1) * 4).dp else 0.dp
+    val effectiveMinHeight = maxOf(minHeight, minJackHeight)
+    val effectiveMinWidth = minWidth
+
     // Local state for smooth dragging, initialized from module's state
-    var currentWidth by remember(module, initialWidth) { mutableStateOf(initialWidth) }
-    var currentHeight by remember(module, initialHeight) { mutableStateOf(initialHeight) }
+    var currentWidth by remember(module, initialWidth, effectiveMinWidth) {
+        mutableStateOf(initialWidth.coerceAtLeast(effectiveMinWidth))
+    }
+    var currentHeight by remember(module, initialHeight, effectiveMinHeight) {
+        mutableStateOf(initialHeight.coerceAtLeast(effectiveMinHeight))
+    }
 
     Surface(
         modifier = Modifier
@@ -1920,8 +1930,8 @@ fun ResizableModuleBox(
                                 change.consume()
                                 val dw: Dp = (dragAmount.x / density.density).dp
                                 val dh: Dp = (dragAmount.y / density.density).dp
-                                currentWidth = (currentWidth + dw).coerceAtLeast(minWidth)
-                                currentHeight = (currentHeight + dh).coerceAtLeast(minHeight)
+                                currentWidth = (currentWidth + dw).coerceAtLeast(effectiveMinWidth)
+                                currentHeight = (currentHeight + dh).coerceAtLeast(effectiveMinHeight)
                              }
                         }
                 ) {
@@ -2532,14 +2542,16 @@ fun MixerModuleNode(module: MixerModule, state: GraphState) {
 @Composable
 fun EquationModuleNode(module: EquationModule, state: GraphState) {
     val colors = LocalGraphColors.current
+    val minWidth = module.minWidth.dp
+    val minHeight = module.minHeight.dp
     ResizableModuleBox(
         module = module,
         state = state,
         headerColor = colors.headerDefault,
-        initialWidth = module.width.dp,
-        initialHeight = module.height.dp,
-        minWidth = 140.dp,
-        minHeight = 36.dp,
+        initialWidth = module.width.dp.coerceAtLeast(minWidth),
+        initialHeight = module.height.dp.coerceAtLeast(minHeight),
+        minWidth = minWidth,
+        minHeight = minHeight,
         onResize = { w, h ->
             module.width = w.value
             module.height = h.value

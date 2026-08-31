@@ -211,4 +211,58 @@ class EquationModuleTest {
         assertEquals(280f, deserialized.width)
         assertEquals(75f, deserialized.height)
     }
+
+    @Test
+    fun testMinimumDimensionsEnforced() {
+        val fx = EquationModule("f(x)")
+        assertEquals(140f, fx.minWidth)
+        assertEquals(40f, fx.minHeight)
+        fx.width = 50f
+        fx.height = 20f
+        assertEquals(140f, fx.width, "Width should be clamped to minWidth")
+        assertEquals(40f, fx.height, "Height should be clamped to minHeight")
+
+        val fxy = EquationModule("f(x,y)")
+        assertEquals(140f, fxy.minWidth)
+        assertEquals(60f, fxy.minHeight)
+        fxy.width = 50f
+        fxy.height = 20f
+        assertEquals(140f, fxy.width, "Width should be clamped to minWidth")
+        assertEquals(60f, fxy.height, "Height should be clamped to minHeight so Y jack is visible")
+
+        val fxyz = EquationModule("f(x,y,z)")
+        assertEquals(140f, fxyz.minWidth)
+        assertEquals(88f, fxyz.minHeight)
+        fxyz.width = 80f
+        fxyz.height = 30f
+        assertEquals(140f, fxyz.width, "Width should be clamped to minWidth")
+        assertEquals(88f, fxyz.height, "Height should be clamped to minHeight so Z jack is visible")
+    }
+
+    @Test
+    fun testDeserializationClampsSmallDimensions() {
+        val json = """
+            {
+              "modules": [
+                {
+                  "id": 0,
+                  "type": "core.math.f(x,y)",
+                  "name": "f(x,y)",
+                  "w": 50,
+                  "h": 20
+                }
+              ],
+              "connections": []
+            }
+        """.trimIndent()
+
+        val graphState = GraphState()
+        val deserialized = GraphSerializer.deserialize(graphState, json)
+        assertEquals(1, deserialized.size)
+        val mod = deserialized[0] as EquationModule
+        assertTrue(mod.width >= mod.minWidth, "Width should be clamped to minWidth")
+        assertTrue(mod.height >= mod.minHeight, "Height should be clamped to minHeight")
+        assertEquals(60f, mod.height, "f(x,y) height should be clamped to 60f to keep Y jack visible")
+    }
 }
+

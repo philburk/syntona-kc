@@ -17,8 +17,27 @@ class EquationModule(type: String) : Module(type) {
             compile(value)
         }
 
-    var width by mutableStateOf(180f)
-    var height by mutableStateOf(if (type == "f(x,y,z)") 72f else if (type == "f(x,y)") 52f else 40f)
+    val minWidth: Float get() = 140f
+    val minHeight: Float
+        get() = when (type) {
+            "f(x,y,z)" -> 88f
+            "f(x,y)" -> 60f
+            else -> 40f
+        }
+
+    private var _width by mutableStateOf(180f)
+    var width: Float
+        get() = _width
+        set(value) {
+            _width = maxOf(value, minWidth)
+        }
+
+    private var _height by mutableStateOf(defaultHeightFor(type))
+    var height: Float
+        get() = _height
+        set(value) {
+            _height = maxOf(value, minHeight)
+        }
 
     var errorMessage by mutableStateOf<String?>(null)
     private var parsedAst: ExpressionNode? = null
@@ -158,6 +177,14 @@ class EquationModule(type: String) : Module(type) {
                     else -> throw IllegalArgumentException("Unknown binary operation: ${node.operation}")
                 }
             }
+        }
+    }
+
+    companion object {
+        fun defaultHeightFor(type: String): Float = when (type) {
+            "f(x,y,z)" -> 88f
+            "f(x,y)" -> 60f
+            else -> 40f
         }
     }
 }
