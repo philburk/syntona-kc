@@ -4,6 +4,13 @@ expect fun showOpenFileDialog(onResult: (path: String, content: String) -> Unit)
 
 expect fun showSaveFileDialog(content: String, defaultName: String, onSaved: (path: String) -> Unit)
 
+expect fun showExportSourceFileDialog(
+    defaultName: String,
+    extension: String,
+    dialogTitle: String,
+    onChosen: (path: String) -> Unit
+)
+
 expect fun isSaveAsResourceAvailable(): Boolean
 
 expect fun showSaveAsResourceFileDialog(content: String, defaultName: String, onSaved: (path: String) -> Unit)

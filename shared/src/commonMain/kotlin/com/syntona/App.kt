@@ -345,7 +345,6 @@ fun App(
             }
         }
 
-        // Transient banner shown after "Share Piece as URL...". Null when nothing to say.
         var shareNotice by remember { mutableStateOf<String?>(null) }
         var shareNoticeIsProblem by remember { mutableStateOf(false) }
         shareNotice?.let { notice ->
@@ -354,6 +353,9 @@ fun App(
                 shareNotice = null
             }
         }
+
+        var exportWarningMessage by remember { mutableStateOf<String?>(null) }
+        var onExportWarningProceed by remember { mutableStateOf<(() -> Unit)?>(null) }
 
         val mdiState = remember {
             MdiState().also { mdi ->
@@ -1012,6 +1014,80 @@ fun App(
                                                         }
                                                     }
                                                 )
+                                               val activeExportPatch = mdiState.activeGraphState?.parentPatch
+                                               val canExport = activeExportPatch != null && !activeExportPatch.isRoot
+                                               var exportSubmenuExpanded by remember { mutableStateOf(false) }
+                                               Box {
+                                                   CompactDropdownMenuItem(
+                                                       text = { Text("Export") },
+                                                       trailingIcon = { ChevronRightIcon(color = Color.Gray, size = 10.dp) },
+                                                       enabled = canExport,
+                                                       onClick = { exportSubmenuExpanded = true }
+                                                   )
+                                                   DropdownMenu(
+                                                       expanded = exportSubmenuExpanded,
+                                                       onDismissRequest = { exportSubmenuExpanded = false }
+                                                   ) {
+                                                       CompactDropdownMenuItem(
+                                                           text = { Text("Source code for KSyn...") },
+                                                           onClick = {
+                                                               exportSubmenuExpanded = false
+                                                               fileExpanded = false
+                                                               val target = mdiState.activeGraphState?.parentPatch ?: return@CompactDropdownMenuItem
+                                                               val onProceed = {
+                                                                   val defaultClassName = com.syntona.export.SourceExporter.sanitizeClassName(target.name)
+                                                                   com.syntona.dataflow.editor.showExportSourceFileDialog(
+                                                                       defaultName = "$defaultClassName.kt",
+                                                                       extension = "kt",
+                                                                       dialogTitle = "Export Source Code for KSyn"
+                                                                   ) { chosenPath ->
+                                                                       val fileStem = chosenPath.substringAfterLast('/').substringAfterLast('\\').substringBeforeLast(".kt")
+                                                                       val className = com.syntona.export.SourceExporter.sanitizeClassName(fileStem)
+                                                                       val code = com.syntona.export.KSynSourceExporter.export(target, className)
+                                                                       saveFileDirect(chosenPath, code)
+                                                                   }
+                                                               }
+                                                               val validation = com.syntona.export.SourceExporter.validatePatch(target)
+                                                               if (validation.unsupportedModules.isNotEmpty()) {
+                                                                   val names = validation.unsupportedModules.map { it.name }.distinct().joinToString(", ")
+                                                                   exportWarningMessage = "Warning: This patch contains non-audio modules ($names) that cannot be exported as audio units.\nDo you want to proceed and omit them?"
+                                                                   onExportWarningProceed = onProceed
+                                                               } else {
+                                                                   onProceed()
+                                                               }
+                                                           }
+                                                       )
+                                                       CompactDropdownMenuItem(
+                                                           text = { Text("Source code for JSyn...") },
+                                                           onClick = {
+                                                               exportSubmenuExpanded = false
+                                                               fileExpanded = false
+                                                               val target = mdiState.activeGraphState?.parentPatch ?: return@CompactDropdownMenuItem
+                                                               val onProceed = {
+                                                                   val defaultClassName = com.syntona.export.SourceExporter.sanitizeClassName(target.name)
+                                                                   com.syntona.dataflow.editor.showExportSourceFileDialog(
+                                                                       defaultName = "$defaultClassName.java",
+                                                                       extension = "java",
+                                                                       dialogTitle = "Export Source Code for JSyn"
+                                                                   ) { chosenPath ->
+                                                                       val fileStem = chosenPath.substringAfterLast('/').substringAfterLast('\\').substringBeforeLast(".java")
+                                                                       val className = com.syntona.export.SourceExporter.sanitizeClassName(fileStem)
+                                                                       val code = com.syntona.export.JSynSourceExporter.export(target, className)
+                                                                       saveFileDirect(chosenPath, code)
+                                                                   }
+                                                               }
+                                                               val validation = com.syntona.export.SourceExporter.validatePatch(target)
+                                                               if (validation.unsupportedModules.isNotEmpty()) {
+                                                                   val names = validation.unsupportedModules.map { it.name }.distinct().joinToString(", ")
+                                                                   exportWarningMessage = "Warning: This patch contains non-audio modules ($names) that cannot be exported as audio units.\nDo you want to proceed and omit them?"
+                                                                   onExportWarningProceed = onProceed
+                                                               } else {
+                                                                   onProceed()
+                                                               }
+                                                           }
+                                                       )
+                                                   }
+                                               }
                                                if (isShareUrlAvailable()) {
                                                    CompactDropdownMenuItem(
                                                        text = { Text("Share Piece as URL...") },
@@ -1493,6 +1569,30 @@ fun App(
                             text = { Text(report) },
                             confirmButton = {
                                 Button(onClick = { FileState.loadingProblemsReport = null }) { Text("OK") }
+                            }
+                        )
+                    }
+                    exportWarningMessage?.let { warning ->
+                        AlertDialog(
+                            onDismissRequest = {
+                                exportWarningMessage = null
+                                onExportWarningProceed = null
+                            },
+                            title = { Text("Export Warning") },
+                            text = { Text(warning) },
+                            confirmButton = {
+                                Button(onClick = {
+                                    val proceed = onExportWarningProceed
+                                    exportWarningMessage = null
+                                    onExportWarningProceed = null
+                                    proceed?.invoke()
+                                }) { Text("Proceed") }
+                            },
+                            dismissButton = {
+                                TextButton(onClick = {
+                                    exportWarningMessage = null
+                                    onExportWarningProceed = null
+                                }) { Text("Cancel") }
                             }
                         )
                     }

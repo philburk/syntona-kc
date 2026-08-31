@@ -1,0 +1,280 @@
+package com.syntona.export
+
+import com.softsynth.ksyn.unitgen.EnvelopeDAHDSR
+import com.softsynth.ksyn.unitgen.PitchToFrequency
+import com.softsynth.ksyn.unitgen.SawtoothOscillatorBL
+import com.syntona.dataflow.editor.GraphState
+import com.syntona.dataflow.model.AudioInputJack
+import com.syntona.dataflow.modules.AudioInputModule
+import com.syntona.dataflow.modules.AudioOutputModule
+import com.syntona.dataflow.modules.FaderModule
+import com.syntona.dataflow.modules.InputModule
+import com.syntona.dataflow.modules.KnobModule
+import com.syntona.dataflow.modules.PatchModule
+import com.syntona.dataflow.modules.PianoRollModule
+import com.syntona.dataflow.modules.PolyPatchModule
+import com.syntona.dataflow.modules.UnitGeneratorModule
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
+
+class SourceExporterTest {
+
+    @Test
+    fun testSanitizeClassName() {
+        assertEquals("HeavenlyBell", SourceExporter.sanitizeClassName("HeavenlyBell.kt"))
+        assertEquals("HeavenlyBell", SourceExporter.sanitizeClassName("HeavenlyBell.java"))
+        assertEquals("HeavenlyBell", SourceExporter.sanitizeClassName("heavenly-bell"))
+        assertEquals("MinimalSawVoice", SourceExporter.sanitizeClassName("minimal_saw_voice"))
+        assertEquals("Voice123", SourceExporter.sanitizeClassName("123"))
+        assertEquals("SyntonaVoice", SourceExporter.sanitizeClassName(""))
+    }
+
+    @Test
+    fun testSanitizeIdentifier() {
+        assertEquals("sawOscBL", SourceExporter.sanitizeIdentifier("sawOscBL"))
+        assertEquals("v123", SourceExporter.sanitizeIdentifier("123"))
+        assertEquals("inPart0", SourceExporter.sanitizeIdentifier("in-part-0"))
+    }
+
+    @Test
+    fun testValidatePatch() {
+        val patch = PolyPatchModule()
+        // Default polyPatch has voice inputs and default audio output
+        val result1 = SourceExporter.validatePatch(patch)
+        assertTrue(result1.isExportable)
+        assertTrue(result1.unsupportedModules.isEmpty())
+
+        // Add knob and fader (should be ignored without warning)
+        patch.graphState.addModule(KnobModule(), androidx.compose.ui.geometry.Offset.Zero)
+        patch.graphState.addModule(FaderModule(), androidx.compose.ui.geometry.Offset.Zero)
+
+        val result2 = SourceExporter.validatePatch(patch)
+        assertEquals(2, result2.ignoredModules.size)
+        assertTrue(result2.unsupportedModules.isEmpty())
+
+        // Add a non-KSyn module like PianoRollModule
+        patch.graphState.addModule(PianoRollModule(), androidx.compose.ui.geometry.Offset.Zero)
+        val result3 = SourceExporter.validatePatch(patch)
+        assertEquals(1, result3.unsupportedModules.size)
+        assertEquals("pianoRoll", result3.unsupportedModules[0].name)
+    }
+
+    @Test
+    fun testKSynExportPolyPatch() {
+        val polyPatch = PolyPatchModule("minimalSaw")
+
+        val p2fMod = UnitGeneratorModule("pitchToHz~", PitchToFrequency())
+        val oscMod = UnitGeneratorModule("sawOscBL", SawtoothOscillatorBL())
+        val envMod = UnitGeneratorModule("envDAHDSR", EnvelopeDAHDSR())
+
+        polyPatch.graphState.addModule(p2fMod, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(oscMod, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(envMod, androidx.compose.ui.geometry.Offset.Zero)
+
+        // Find ports
+        val p2fOut = p2fMod.outputs.first { it.name == "out" }
+        val oscFreqIn = oscMod.inputs.first { it.name == "frequency" }
+        polyPatch.graphState.connect(p2fOut, oscFreqIn)
+
+        val oscOut = oscMod.outputs.first { it.name == "out" }
+        val envAmpIn = envMod.inputs.first { it.name == "amplitude" }
+        polyPatch.graphState.connect(oscOut, envAmpIn)
+
+        val envOut = envMod.outputs.first { it.name == "out" }
+        val outputMod = polyPatch.graphState.modules.filterIsInstance<AudioOutputModule>().first()
+        val outIn = outputMod.inputs.first { it.name == "in" }
+        polyPatch.graphState.connect(envOut, outIn)
+
+        val code = KSynSourceExporter.export(polyPatch, "MinimalSawVoice")
+
+        assertTrue(code.contains("class MinimalSawVoice : Circuit(), PitchedVoice {"))
+        assertTrue(code.contains("PitchToFrequency()"))
+        assertTrue(code.contains("SawtoothOscillatorBL()"))
+        assertTrue(code.contains("EnvelopeDAHDSR()"))
+        assertTrue(code.contains("p2f.output.connect(osc.frequency)"))
+        assertTrue(code.contains("osc.output.connect(ampEnv.amplitude)"))
+        assertTrue(code.contains("override fun noteOn("))
+        assertTrue(code.contains("override fun noteOff("))
+        assertTrue(code.contains("override fun getOutputPort(): UnitOutputPort"))
+        assertTrue(code.contains("ampEnv.setupAutoDisable(this)"))
+    }
+
+    @Test
+    fun testJSynExportPolyPatchBypassesPitchToFrequency() {
+        val polyPatch = PolyPatchModule("minimalSaw")
+
+        val p2fMod = UnitGeneratorModule("pitchToHz~", PitchToFrequency())
+        val oscMod = UnitGeneratorModule("sawOscBL", SawtoothOscillatorBL())
+        val envMod = UnitGeneratorModule("envDAHDSR", EnvelopeDAHDSR())
+
+        polyPatch.graphState.addModule(p2fMod, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(oscMod, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(envMod, androidx.compose.ui.geometry.Offset.Zero)
+
+        // Connect p2f to osc frequency
+        val p2fOut = p2fMod.outputs.first { it.name == "out" }
+        val oscFreqIn = oscMod.inputs.first { it.name == "frequency" }
+        polyPatch.graphState.connect(p2fOut, oscFreqIn)
+
+        // Connect osc to env amplitude
+        val oscOut = oscMod.outputs.first { it.name == "out" }
+        val envAmpIn = envMod.inputs.first { it.name == "amplitude" }
+        polyPatch.graphState.connect(oscOut, envAmpIn)
+
+        val envOut = envMod.outputs.first { it.name == "out" }
+        val outputMod = polyPatch.graphState.modules.filterIsInstance<AudioOutputModule>().first()
+        val outIn = outputMod.inputs.first { it.name == "in" }
+        polyPatch.graphState.connect(envOut, outIn)
+
+        val code = JSynSourceExporter.export(polyPatch, "MinimalSawVoice")
+
+        assertTrue(code.contains("public class MinimalSawVoice extends Circuit implements UnitVoice {"))
+        // JSyn voice directly binds frequency without PitchToFrequency
+        assertFalse(code.contains("PitchToFrequency"))
+        assertTrue(code.contains("addPort(frequency = osc.frequency, \"Frequency\");"))
+        assertTrue(code.contains("osc.output.connect(ampEnv.amplitude);"))
+        assertTrue(code.contains("public void noteOn(double freq, double ampl, TimeStamp timeStamp)"))
+        assertTrue(code.contains("public void noteOff(TimeStamp timeStamp)"))
+        assertTrue(code.contains("public UnitOutputPort getOutput()"))
+        assertTrue(code.contains("ampEnv.setupAutoDisable(this);"))
+    }
+
+    @Test
+    fun testKSynAndJSynExportRegularPatch() {
+        val patch = PatchModule("myFilter")
+
+        val inMod = AudioInputModule()
+        inMod.name = "audioIn"
+        val outMod = AudioOutputModule()
+        outMod.name = "audioOut"
+        val filterMod = UnitGeneratorModule("lowPass", com.softsynth.ksyn.unitgen.FilterLowPass())
+
+        patch.graphState.addModule(inMod, androidx.compose.ui.geometry.Offset.Zero)
+        patch.graphState.addModule(filterMod, androidx.compose.ui.geometry.Offset.Zero)
+        patch.graphState.addModule(outMod, androidx.compose.ui.geometry.Offset.Zero)
+
+        patch.graphState.connect(inMod.output, filterMod.inputs.first { it.name == "in" })
+        patch.graphState.connect(filterMod.outputs.first { it.name == "out" }, outMod.input)
+
+        val ksynCode = KSynSourceExporter.export(patch, "MyFilter")
+        assertTrue(ksynCode.contains("class MyFilter : Circuit() {"))
+        assertTrue(ksynCode.contains("val audioIn: UnitInputPort"))
+        assertTrue(ksynCode.contains("val audioOut: UnitOutputPort"))
+
+        val jsynCode = JSynSourceExporter.export(patch, "MyFilter")
+        assertTrue(jsynCode.contains("public class MyFilter extends Circuit {"))
+        assertTrue(jsynCode.contains("public UnitInputPort audioIn;"))
+        assertTrue(jsynCode.contains("public UnitOutputPort audioOut;"))
+    }
+
+    @Test
+    fun testNormalizeJackPortName() {
+        assertEquals("Q", SourceExporter.normalizeJackPortName("q"))
+        assertEquals("Q", SourceExporter.normalizeJackPortName("Q"))
+        assertEquals("inputA", SourceExporter.normalizeJackPortName("inA"))
+        assertEquals("inputA", SourceExporter.normalizeJackPortName("inputa"))
+        assertEquals("inputB", SourceExporter.normalizeJackPortName("inB"))
+        assertEquals("inputB", SourceExporter.normalizeJackPortName("inputb"))
+        assertEquals("inputC", SourceExporter.normalizeJackPortName("inC"))
+        assertEquals("outputA", SourceExporter.normalizeJackPortName("outA"))
+        assertEquals("outputA", SourceExporter.normalizeJackPortName("outputa"))
+        assertEquals("input", SourceExporter.normalizeJackPortName("in"))
+        assertEquals("output", SourceExporter.normalizeJackPortName("out"))
+    }
+
+    @Test
+    fun testPitchToFrequencyModuleValidatedAsAudio() {
+        val patch = PolyPatchModule("minimalSawWithP2f")
+        val p2f = com.syntona.dataflow.modules.PitchToFrequencyModule()
+        patch.graphState.addModule(p2f, androidx.compose.ui.geometry.Offset.Zero)
+
+        val result = SourceExporter.validatePatch(patch)
+        assertTrue(result.isExportable)
+        assertTrue(result.unsupportedModules.isEmpty(), "PitchToFrequencyModule should be considered audio, not unsupported")
+    }
+
+    @Test
+    fun testKSynExportSawLowPassConnections() {
+        val polyPatch = PolyPatchModule("SawLowPass")
+
+        val oscMod = UnitGeneratorModule("sawOscBL", SawtoothOscillatorBL())
+        val filterMod = UnitGeneratorModule("fourPole", com.softsynth.ksyn.unitgen.FilterFourPoles())
+        val multMod = UnitGeneratorModule("multiply", com.softsynth.ksyn.unitgen.Multiply())
+        val envMod = UnitGeneratorModule("ampEnv", EnvelopeDAHDSR())
+
+        polyPatch.graphState.addModule(oscMod, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(filterMod, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(multMod, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(envMod, androidx.compose.ui.geometry.Offset.Zero)
+
+        // osc -> filter input
+        val oscOut = oscMod.outputs.first { it.name == "out" }
+        val filterIn = filterMod.inputs.first { it.name == "in" }
+        polyPatch.graphState.connect(oscOut, filterIn)
+
+        // filter -> multiply inputA
+        val filterOut = filterMod.outputs.first { it.name == "out" }
+        val multInA = multMod.inputs.first { it.name == "inA" }
+        polyPatch.graphState.connect(filterOut, multInA)
+
+        // env -> multiply inputB
+        val envOut = envMod.outputs.first { it.name == "out" }
+        val multInB = multMod.inputs.first { it.name == "inB" }
+        polyPatch.graphState.connect(envOut, multInB)
+
+        val code = KSynSourceExporter.export(polyPatch, "SawLowPassVoice")
+
+        assertTrue(code.contains("filter.output.connect(multiply.inputA)"))
+        assertTrue(code.contains("ampEnv.output.connect(multiply.inputB)"))
+        assertTrue(code.contains("filter.Q.setup("))
+    }
+
+    @Test
+    fun testMultipleEnvelopesAndCustomAmplitudeRouting() {
+        val polyPatch = PolyPatchModule("sawLowPass")
+
+        val oscMod = UnitGeneratorModule("sawOscBL", SawtoothOscillatorBL())
+        val envMod1 = UnitGeneratorModule("ampEnv", EnvelopeDAHDSR())
+        val envMod2 = UnitGeneratorModule("ampEnv2", EnvelopeDAHDSR())
+        val multMod1 = UnitGeneratorModule("multiply", com.softsynth.ksyn.unitgen.Multiply())
+        val multMod2 = UnitGeneratorModule("multiply2", com.softsynth.ksyn.unitgen.Multiply())
+
+        polyPatch.graphState.addModule(oscMod, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(envMod1, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(envMod2, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(multMod1, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(multMod2, androidx.compose.ui.geometry.Offset.Zero)
+
+        // PolyPatch default input modules: on, off, pitch, amplitude, pressure
+        val onMod = polyPatch.graphState.modules.filterIsInstance<InputModule>().first { it.name == "on" }
+        val offMod = polyPatch.graphState.modules.filterIsInstance<InputModule>().first { it.name == "off" }
+        val ampMod = polyPatch.graphState.modules.filterIsInstance<InputModule>().first { it.name == "amplitude" }
+
+        // Wire "on" to both env1 and env2
+        polyPatch.graphState.connect(onMod.output, envMod1.inputs.first { it.name == "in" || it.name == "input" })
+        polyPatch.graphState.connect(onMod.output, envMod2.inputs.first { it.name == "in" || it.name == "input" })
+
+        // Wire "off" to both env1 and env2
+        polyPatch.graphState.connect(offMod.output, envMod1.inputs.first { it.name == "in" || it.name == "input" })
+        polyPatch.graphState.connect(offMod.output, envMod2.inputs.first { it.name == "in" || it.name == "input" })
+
+        // Wire "amplitude" to multiply2.inputa
+        polyPatch.graphState.connect(ampMod.output, multMod2.inputs.first { it.name.startsWith("inA", ignoreCase = true) })
+
+        val ksynCode = KSynSourceExporter.export(polyPatch, "SawLowPassVoice")
+        assertTrue(ksynCode.contains("amplitude = multiply2.inputA"), "KSyn amplitude port should route to multiply2.inputA:\n$ksynCode")
+        assertTrue(ksynCode.contains("ampEnv.input.off(timeStamp)"), "KSyn noteOff should trigger ampEnv")
+        assertTrue(ksynCode.contains("ampEnv2.input.off(timeStamp)"), "KSyn noteOff should trigger ampEnv2")
+        assertTrue(ksynCode.contains("ampEnv.input.on(timeStamp)"), "KSyn noteOn should trigger ampEnv")
+        assertTrue(ksynCode.contains("ampEnv2.input.on(timeStamp)"), "KSyn noteOn should trigger ampEnv2")
+
+        val jsynCode = JSynSourceExporter.export(polyPatch, "SawLowPassVoice")
+        assertTrue(jsynCode.contains("addPort(amplitude = multiply2.inputA, \"Amplitude\");"), "JSyn amplitude port should route to multiply2.inputA:\n$jsynCode")
+        assertTrue(jsynCode.contains("ampEnv.input.off(timeStamp);"), "JSyn noteOff should trigger ampEnv")
+        assertTrue(jsynCode.contains("ampEnv2.input.off(timeStamp);"), "JSyn noteOff should trigger ampEnv2")
+        assertTrue(jsynCode.contains("ampEnv.input.on(timeStamp);"), "JSyn noteOn should trigger ampEnv")
+        assertTrue(jsynCode.contains("ampEnv2.input.on(timeStamp);"), "JSyn noteOn should trigger ampEnv2")
+    }
+}

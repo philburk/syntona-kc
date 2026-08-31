@@ -141,6 +141,42 @@ actual fun showSaveFileDialog(content: String, defaultName: String, onSaved: (pa
     }
 }
 
+actual fun showExportSourceFileDialog(
+    defaultName: String,
+    extension: String,
+    dialogTitle: String,
+    onChosen: (path: String) -> Unit
+) {
+    val cleanExt = extension.removePrefix(".")
+    val chooser = JFileChooser().apply {
+        this.dialogTitle = dialogTitle
+        fileFilter = FileNameExtensionFilter("Source files (*.$cleanExt)", cleanExt)
+        if (!lastDocumentDirectory.exists()) lastDocumentDirectory.mkdirs()
+        currentDirectory = lastDocumentDirectory
+        val initialName = if (defaultName.endsWith(".$cleanExt")) defaultName else "$defaultName.$cleanExt"
+        selectedFile = File(lastDocumentDirectory, initialName)
+    }
+    if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
+        val path = chooser.selectedFile.path
+        val fullPath = if (path.endsWith(".$cleanExt", ignoreCase = true)) path else "$path.$cleanExt"
+        val file = File(fullPath)
+        updateLastDocumentDirectory(file.parentFile)
+        if (file.exists()) {
+            val response = javax.swing.JOptionPane.showConfirmDialog(
+                null,
+                "${file.name} already exists. Do you want to replace it?",
+                "Confirm Save",
+                javax.swing.JOptionPane.YES_NO_OPTION,
+                javax.swing.JOptionPane.WARNING_MESSAGE
+            )
+            if (response != javax.swing.JOptionPane.YES_OPTION) {
+                return
+            }
+        }
+        onChosen(file.absolutePath)
+    }
+}
+
 actual fun showSaveAsResourceFileDialog(content: String, defaultName: String, onSaved: (path: String) -> Unit) {
     // Prefer the folder the currently loaded resource came from, so that saving an example
     // opened from the Help menu starts in examples/ rather than the resource root. Once the

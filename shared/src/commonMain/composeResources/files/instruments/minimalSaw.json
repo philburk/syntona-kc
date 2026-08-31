@@ -1,0 +1,248 @@
+{
+  "version": "0.6.1 beta",
+  "versionCode": 393217,
+  "type": "core.polyPatch",
+  "maxVoices": 4,
+  "patch": {
+    "modules": [
+      {
+        "id": 0,
+        "type": "core.input",
+        "name": "on",
+        "x": 50,
+        "y": 60,
+        "jacks": {
+          "on": {
+            "v": 0,
+            "min": 0,
+            "max": 1,
+            "kickable": false
+          }
+        }
+      },
+      {
+        "id": 1,
+        "type": "core.input",
+        "name": "off",
+        "x": 50,
+        "y": 130,
+        "jacks": {
+          "off": {
+            "v": 0,
+            "min": 0,
+            "max": 1,
+            "kickable": false
+          }
+        }
+      },
+      {
+        "id": 2,
+        "type": "core.input",
+        "name": "pitch",
+        "x": 50,
+        "y": 200,
+        "jacks": {
+          "pitch": {
+            "v": 60,
+            "min": 0,
+            "max": 100,
+            "kickable": false
+          }
+        }
+      },
+      {
+        "id": 3,
+        "type": "core.input",
+        "name": "amplitude",
+        "x": 50,
+        "y": 270,
+        "jacks": {
+          "amplitude": {
+            "v": 1,
+            "min": 0,
+            "max": 1,
+            "kickable": false
+          }
+        }
+      },
+      {
+        "id": 4,
+        "type": "core.input",
+        "name": "pressure",
+        "x": 50,
+        "y": 340,
+        "jacks": {
+          "pressure": {
+            "v": 0,
+            "min": 0,
+            "max": 100,
+            "kickable": false
+          }
+        }
+      },
+      {
+        "id": 5,
+        "type": "ksyn.output~",
+        "name": "output",
+        "x": 517,
+        "y": 303,
+        "jacks": {
+          "in": {
+            "v": 0,
+            "min": 0,
+            "max": 1,
+            "kickable": false,
+            "add": false
+          }
+        }
+      },
+      {
+        "id": 6,
+        "type": "ksyn.sources.sawOscBL",
+        "name": "sawOscBL",
+        "x": 257.9,
+        "y": 144,
+        "jacks": {
+          "frequency": {
+            "v": 440,
+            "min": 40,
+            "max": 8000,
+            "kickable": false,
+            "add": false
+          },
+          "amplitude": {
+            "v": 1,
+            "min": 0,
+            "max": 1,
+            "kickable": false,
+            "add": false
+          }
+        }
+      },
+      {
+        "id": 7,
+        "type": "ksyn.control.envDAHDSR",
+        "name": "envDAHDSR",
+        "x": 372.9,
+        "y": 65,
+        "jacks": {
+          "in": {
+            "v": 0,
+            "min": 0,
+            "max": 1,
+            "kickable": false,
+            "add": false
+          },
+          "delay": {
+            "v": 0,
+            "min": 0,
+            "max": 2,
+            "kickable": false,
+            "add": false
+          },
+          "attack": {
+            "v": 0.009999999776482582,
+            "min": 0,
+            "max": 1,
+            "kickable": false,
+            "add": false
+          },
+          "hold": {
+            "v": 0,
+            "min": 0,
+            "max": 1,
+            "kickable": false,
+            "add": false
+          },
+          "decay": {
+            "v": 0.20000000298023224,
+            "min": 0,
+            "max": 1,
+            "kickable": false,
+            "add": false
+          },
+          "sustain": {
+            "v": 0.5,
+            "min": 0,
+            "max": 1,
+            "kickable": false,
+            "add": false
+          },
+          "release": {
+            "v": 1,
+            "min": 0,
+            "max": 15,
+            "kickable": false,
+            "add": false
+          },
+          "amplitude": {
+            "v": 1,
+            "min": 0,
+            "max": 1,
+            "kickable": false,
+            "add": false
+          }
+        }
+      },
+      {
+        "id": 8,
+        "type": "core.math.pitchToHz",
+        "name": "pitchToHz",
+        "x": 148.1,
+        "y": 172.9,
+        "jacks": {
+          "in": {
+            "v": 60,
+            "min": 0,
+            "max": 100,
+            "kickable": true
+          }
+        }
+      }
+    ],
+    "connections": [
+      {
+        "from": 2,
+        "fromJack": "out",
+        "to": 8,
+        "toJack": "in"
+      },
+      {
+        "from": 8,
+        "fromJack": "out",
+        "to": 6,
+        "toJack": "frequency"
+      },
+      {
+        "from": 3,
+        "fromJack": "out",
+        "to": 6,
+        "toJack": "amplitude"
+      },
+      {
+        "from": 6,
+        "fromJack": "out",
+        "to": 7,
+        "toJack": "amplitude"
+      },
+      {
+        "from": 7,
+        "fromJack": "out",
+        "to": 5,
+        "toJack": "in"
+      },
+      {
+        "from": 1,
+        "fromJack": "out",
+        "to": 7,
+        "toJack": "in"
+      },
+      {
+        "from": 0,
+        "fromJack": "out",
+        "to": 7,
+        "toJack": "in"
+      }
+    ]
+  }
+}

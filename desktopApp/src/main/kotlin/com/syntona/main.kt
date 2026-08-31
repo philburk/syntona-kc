@@ -393,6 +393,66 @@ fun main() {
                             target.resourcePath = null
                         }
                     }
+                    val activePatch = state.activeGraphState?.parentPatch
+                    val canExport = activePatch != null && !activePatch.isRoot
+                    Menu("Export") {
+                        Item("Source code for KSyn...", enabled = canExport) {
+                            val target = state.activeGraphState?.parentPatch ?: return@Item
+                            val validation = com.syntona.export.SourceExporter.validatePatch(target)
+                            if (validation.unsupportedModules.isNotEmpty()) {
+                                val moduleNames = validation.unsupportedModules.map { it.name }.distinct().joinToString(", ")
+                                val response = javax.swing.JOptionPane.showConfirmDialog(
+                                    null,
+                                    "Warning: This patch contains non-audio modules ($moduleNames) that cannot be exported as audio units.\nDo you want to proceed and omit them?",
+                                    "Export Warning",
+                                    javax.swing.JOptionPane.YES_NO_OPTION,
+                                    javax.swing.JOptionPane.WARNING_MESSAGE
+                                )
+                                if (response != javax.swing.JOptionPane.YES_OPTION) {
+                                    return@Item
+                                }
+                            }
+                            val defaultClassName = com.syntona.export.SourceExporter.sanitizeClassName(target.name)
+                            com.syntona.dataflow.editor.showExportSourceFileDialog(
+                                defaultName = "$defaultClassName.kt",
+                                extension = "kt",
+                                dialogTitle = "Export Source Code for KSyn"
+                            ) { chosenPath ->
+                                val fileStem = chosenPath.substringAfterLast('/').substringAfterLast('\\').substringBeforeLast(".kt")
+                                val className = com.syntona.export.SourceExporter.sanitizeClassName(fileStem)
+                                val code = com.syntona.export.KSynSourceExporter.export(target, className)
+                                saveFileDirect(chosenPath, code)
+                            }
+                        }
+                        Item("Source code for JSyn...", enabled = canExport) {
+                            val target = state.activeGraphState?.parentPatch ?: return@Item
+                            val validation = com.syntona.export.SourceExporter.validatePatch(target)
+                            if (validation.unsupportedModules.isNotEmpty()) {
+                                val moduleNames = validation.unsupportedModules.map { it.name }.distinct().joinToString(", ")
+                                val response = javax.swing.JOptionPane.showConfirmDialog(
+                                    null,
+                                    "Warning: This patch contains non-audio modules ($moduleNames) that cannot be exported as audio units.\nDo you want to proceed and omit them?",
+                                    "Export Warning",
+                                    javax.swing.JOptionPane.YES_NO_OPTION,
+                                    javax.swing.JOptionPane.WARNING_MESSAGE
+                                )
+                                if (response != javax.swing.JOptionPane.YES_OPTION) {
+                                    return@Item
+                                }
+                            }
+                            val defaultClassName = com.syntona.export.SourceExporter.sanitizeClassName(target.name)
+                            com.syntona.dataflow.editor.showExportSourceFileDialog(
+                                defaultName = "$defaultClassName.java",
+                                extension = "java",
+                                dialogTitle = "Export Source Code for JSyn"
+                            ) { chosenPath ->
+                                val fileStem = chosenPath.substringAfterLast('/').substringAfterLast('\\').substringBeforeLast(".java")
+                                val className = com.syntona.export.SourceExporter.sanitizeClassName(fileStem)
+                                val code = com.syntona.export.JSynSourceExporter.export(target, className)
+                                saveFileDirect(chosenPath, code)
+                            }
+                        }
+                    }
                     Separator()
                     Item("Settings...", shortcut = KeyShortcut(Key.Comma, meta = true)) {
                         com.syntona.ui.SettingsDialogState.open()

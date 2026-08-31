@@ -248,6 +248,19 @@ actual fun showSaveFileDialog(content: String, defaultName: String, onSaved: (pa
     jsSaveFileWithPicker(content, defaultName, onSaved)
 }
 
+actual fun showExportSourceFileDialog(
+    defaultName: String,
+    extension: String,
+    dialogTitle: String,
+    onChosen: (path: String) -> Unit
+) {
+    val cleanExt = extension.removePrefix(".")
+    val defaultWithExt = if (defaultName.endsWith(".$cleanExt")) defaultName else "$defaultName.$cleanExt"
+    val name = jsPrompt() ?: defaultWithExt
+    val cleanName = if (name.endsWith(".$cleanExt")) name else "$name.$cleanExt"
+    onChosen(cleanName)
+}
+
 actual fun isSaveAsResourceAvailable(): Boolean = false
 
 actual fun showSaveAsResourceFileDialog(content: String, defaultName: String, onSaved: (path: String) -> Unit) {}

@@ -32,6 +32,7 @@ help/ksyn/data/sample.json
 help/music/compose/scale.json
 help/music/input/keyboard13.json
 help/music/input/pianoRoll.json
+instruments/minimalSaw.json
 instruments/sawBasic.json
 instruments/sawLowPass.json
 instruments/twoOpFM.json
