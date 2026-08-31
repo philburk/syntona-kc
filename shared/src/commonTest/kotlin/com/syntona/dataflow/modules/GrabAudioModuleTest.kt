@@ -18,10 +18,10 @@ class GrabAudioModuleTest {
         val module = GrabAudioModule()
         assertEquals("grabAudio", module.name)
 
-        // Assert input jack order: kick should be above input
+        // Assert input jack order: kick should be above in
         assertEquals(2, module.inputs.size)
         assertEquals("kick", module.inputs[0].name)
-        assertEquals("input", module.inputs[1].name)
+        assertEquals("in", module.inputs[1].name)
 
         val kickInput = module.inputs[0]
         assertTrue(kickInput.isKickable, "kick input should be kickable")
@@ -29,8 +29,8 @@ class GrabAudioModuleTest {
         val audioInput = module.inputs[1]
         assertTrue(audioInput is AudioInputJack, "input jack should be an AudioInputJack")
 
-        val regularOutput = module.outputs.find { it.name == "output" }
-        assertNotNull(regularOutput, "GrabAudioModule should have an output named 'output'")
+        val regularOutput = module.outputs.find { it.name == "out" }
+        assertNotNull(regularOutput, "GrabAudioModule should have an output named 'out'")
         assertTrue(regularOutput is OutputJack, "output jack should be a regular OutputJack")
     }
 
@@ -63,7 +63,7 @@ class GrabAudioModuleTest {
         assertEquals(null, messageReceived)
 
         // Set value on grabAudio audio input
-        val audioInput = grabAudio.inputs.first { it.name == "input" }
+        val audioInput = grabAudio.inputs.first { it.name == "in" }
         audioInput.setValue(12.34)
 
         // Trigger grabAudio kick

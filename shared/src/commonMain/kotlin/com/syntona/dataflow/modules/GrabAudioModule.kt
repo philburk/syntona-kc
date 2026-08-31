@@ -27,7 +27,7 @@ class GrabAudioModule : com.syntona.dataflow.model.Module("grabAudio") {
 
     val kick: CommandJack
     val input: AudioInputJack
-    val output = addOutput("output")
+    val output = addOutput("out")
 
     init {
         // Add unit to Synth
@@ -38,7 +38,7 @@ class GrabAudioModule : com.syntona.dataflow.model.Module("grabAudio") {
 
         // Add inputs in the desired order: kick first, then input
         kick = addCommandInput("kick")
-        input = addAudioInput("input", unit.input, 0)
+        input = addAudioInput("in", unit.input, 0)
     }
 
     override fun execute(triggerMessage: Message) {

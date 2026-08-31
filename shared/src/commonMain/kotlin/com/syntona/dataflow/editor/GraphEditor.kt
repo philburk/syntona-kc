@@ -2507,8 +2507,8 @@ fun MixerModuleNode(module: MixerModule, state: GraphState) {
                 Spacer(modifier = Modifier.weight(1f))
 
                 Column(horizontalAlignment = Alignment.End) {
-                    val out0 = module.outputs.find { it.name == "output0" }
-                    val out1 = module.outputs.find { it.name == "output1" }
+                    val out0 = module.getOutputJack(0) ?: module.outputs.find { it.name == "out0" || it.name == "output0" }
+                    val out1 = module.getOutputJack(1) ?: module.outputs.find { it.name == "out1" || it.name == "output1" }
                     if (out0 != null) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("L", color = Color.LightGray, fontSize = 10.sp)

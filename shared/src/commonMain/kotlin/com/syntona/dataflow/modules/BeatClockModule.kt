@@ -21,7 +21,7 @@ class BeatClockModule : Module("beatClock"), EngineAware {
         it.max = 300.0
         it.setValue(120.0)
     }
-    val countOut = addOutput("output")
+    val countOut = addOutput("out")
 
     var division by mutableStateOf("1/1")
 

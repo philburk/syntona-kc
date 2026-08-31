@@ -26,6 +26,10 @@ open class MixerModule(name: String, val numInputs: Int) : UnitGeneratorModule(n
         return inputs.find { it.name == "in$index" } as? AudioInputJack
     }
 
+    fun getOutputJack(index: Int): com.syntona.dataflow.model.AudioOutputJack? {
+        return outputs.find { it.name == "out$index" || it.name == "output$index" } as? com.syntona.dataflow.model.AudioOutputJack
+    }
+
     fun getVolumeKnobValue(index: Int): Float {
         return volumeStates[index].value
     }

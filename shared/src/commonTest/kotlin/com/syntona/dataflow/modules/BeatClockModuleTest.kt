@@ -51,7 +51,7 @@ class BeatClockModuleTest {
         assertEquals(20.0, tempoInput.min)
         assertEquals(300.0, tempoInput.max)
 
-        val countOutput = module.outputs.find { it.name == "output" }
+        val countOutput = module.outputs.find { it.name == "out" }
         assertNotNull(countOutput)
     }
 

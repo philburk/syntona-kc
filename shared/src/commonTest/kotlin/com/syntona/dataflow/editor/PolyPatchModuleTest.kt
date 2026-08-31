@@ -645,12 +645,20 @@ class PolyPatchModuleTest {
         assertNotNull(mixer8.getInputJack(0))
         assertNotNull(mixer8.inputs.find { it.name == "amplitude" })
         assertEquals(2, mixer8.outputs.size)
+        assertNotNull(mixer8.getOutputJack(0))
+        assertNotNull(mixer8.getOutputJack(1))
+        assertEquals("out0", mixer8.getOutputJack(0)?.name)
+        assertEquals("out1", mixer8.getOutputJack(1)?.name)
 
         assertNotNull(mixer4.getGainJack(0))
         assertNotNull(mixer4.getPanJack(0))
         assertNotNull(mixer4.getInputJack(0))
         assertNotNull(mixer4.inputs.find { it.name == "amplitude" })
         assertEquals(2, mixer4.outputs.size)
+        assertNotNull(mixer4.getOutputJack(0))
+        assertNotNull(mixer4.getOutputJack(1))
+        assertEquals("out0", mixer4.getOutputJack(0)?.name)
+        assertEquals("out1", mixer4.getOutputJack(1)?.name)
 
         // Verify volume/pan helpers
         val gainJack = mixer8.getGainJack(0)!!
