@@ -296,4 +296,86 @@ object SourceExporter {
         }
         return Pair(cleanName, partIndex)
     }
+
+    data class EnvelopeCandidate<T>(
+        val module: UnitGeneratorModule,
+        val info: T,
+        val distanceToOutput: Int,
+        val isConnectedToAmplitudePort: Boolean,
+        val nameContainsAmp: Boolean
+    )
+
+    /**
+     * Identifies the primary amplitude envelope in a patch.
+     * Traces backwards from AudioOutputModule to find the envelope most closely connected
+     * to the audio output path (closest distance, amplitude port connection, or "amp" naming).
+     */
+    fun <T> findMainAmpEnvelope(
+        patch: PatchModule,
+        unitMap: Map<UnitGeneratorModule, T>,
+        getClassName: (T) -> String,
+        getVarName: (T) -> String
+    ): T? {
+        val envelopeEntries = unitMap.filter { (_, info) ->
+            val cls = getClassName(info)
+            cls == "EnvelopeDAHDSR" || cls == "EnvelopeAttackDecay"
+        }
+        if (envelopeEntries.isEmpty()) return null
+        if (envelopeEntries.size == 1) return envelopeEntries.values.first()
+
+        val audioOutputs = patch.graphState.modules.filterIsInstance<AudioOutputModule>()
+        val envelopeDistances = mutableMapOf<UnitGeneratorModule, Int>()
+        val connectsToAmpPort = mutableSetOf<UnitGeneratorModule>()
+
+        if (audioOutputs.isNotEmpty()) {
+            val queue = ArrayDeque<Pair<Module, Int>>()
+            val visited = mutableSetOf<Module>()
+            for (outMod in audioOutputs) {
+                queue.add(Pair(outMod, 0))
+                visited.add(outMod)
+            }
+
+            while (queue.isNotEmpty()) {
+                val (currMod, dist) = queue.removeFirst()
+
+                if (currMod is UnitGeneratorModule && currMod in envelopeEntries) {
+                    if (!envelopeDistances.containsKey(currMod)) {
+                        envelopeDistances[currMod] = dist
+                    }
+                }
+
+                // Check incoming connections to currMod
+                val incoming = patch.graphState.connections.filter { it.input.module === currMod }
+                for (conn in incoming) {
+                    val upstreamMod = conn.output.module
+                    // If upstream is an envelope, check if it connects to an amplitude-related port or multiplier
+                    if (upstreamMod is UnitGeneratorModule && upstreamMod in envelopeEntries) {
+                        val inputPortName = conn.input.name.lowercase()
+                        if (inputPortName.contains("amp") || inputPortName == "ina" || inputPortName == "inb" || inputPortName == "inputa" || inputPortName == "inputb") {
+                            connectsToAmpPort.add(upstreamMod)
+                        }
+                    }
+                    if (upstreamMod !in visited) {
+                        visited.add(upstreamMod)
+                        queue.add(Pair(upstreamMod, dist + 1))
+                    }
+                }
+            }
+        }
+
+        val candidates = envelopeEntries.map { (mod, info) ->
+            val dist = envelopeDistances[mod] ?: Int.MAX_VALUE
+            val toAmpPort = connectsToAmpPort.contains(mod)
+            val nameHasAmp = getVarName(info).contains("amp", ignoreCase = true)
+            EnvelopeCandidate(mod, info, dist, toAmpPort, nameHasAmp)
+        }
+
+        val bestCandidate = candidates.minWithOrNull(
+            compareBy<EnvelopeCandidate<T>> { it.distanceToOutput }
+                .thenByDescending { it.isConnectedToAmplitudePort }
+                .thenByDescending { it.nameContainsAmp }
+        )
+
+        return bestCandidate?.info ?: envelopeEntries.values.first()
+    }
 }

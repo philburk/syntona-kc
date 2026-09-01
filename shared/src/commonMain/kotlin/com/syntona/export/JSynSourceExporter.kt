@@ -120,8 +120,7 @@ object JSynSourceExporter {
         val envelopes = unitMap.values.filter {
             it.className == "EnvelopeDAHDSR" || it.className == "EnvelopeAttackDecay"
         }
-        val mainAmpEnv = envelopes.firstOrNull { it.varName.contains("amp", ignoreCase = true) }
-            ?: envelopes.firstOrNull()
+        val mainAmpEnv = SourceExporter.findMainAmpEnvelope(patch, unitMap, { it.className }, { it.varName })
 
         // Find which oscillator frequency was fed by pitch/p2f in Syntona
         val connections = patch.graphState.connections

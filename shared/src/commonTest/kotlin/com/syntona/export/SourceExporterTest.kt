@@ -357,4 +357,40 @@ class SourceExporterTest {
         assertTrue(jsynCode.contains("ampEnv.input.on(timeStamp);"), "JSyn noteOn should trigger ampEnv")
         assertTrue(jsynCode.contains("ampEnv2.input.on(timeStamp);"), "JSyn noteOn should trigger ampEnv2")
     }
+
+    @Test
+    fun testAutoDisableSelectsClosestEnvelopeToOutput() {
+        val polyPatch = PolyPatchModule("multiEnvVoice")
+
+        // Patch layout:
+        // osc -> filter -> bigEnv -> AudioOutputModule
+        // filter.frequency <- filterEnv
+        val osc = UnitGeneratorModule("osc", SawtoothOscillatorBL())
+        val filter = UnitGeneratorModule("filter", com.softsynth.ksyn.unitgen.FilterLowPass())
+        val filterEnv = UnitGeneratorModule("filterEnv", EnvelopeDAHDSR())
+        val bigEnv = UnitGeneratorModule("bigEnv", EnvelopeDAHDSR())
+        val outputMod = polyPatch.graphState.modules.filterIsInstance<AudioOutputModule>().first()
+
+        polyPatch.graphState.addModule(osc, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(filter, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(filterEnv, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(bigEnv, androidx.compose.ui.geometry.Offset.Zero)
+
+        // filterEnv -> filter.frequency (distance 3 to output)
+        polyPatch.graphState.connect(filterEnv.outputs.first { it.name == "out" }, filter.inputs.first { it.name == "frequency" })
+        // osc -> filter.in
+        polyPatch.graphState.connect(osc.outputs.first { it.name == "out" }, filter.inputs.first { it.name == "in" })
+        // filter -> bigEnv.amplitude (distance 2 to output)
+        polyPatch.graphState.connect(filter.outputs.first { it.name == "out" }, bigEnv.inputs.first { it.name == "amplitude" })
+        // bigEnv -> outputMod.in (distance 1 to output)
+        polyPatch.graphState.connect(bigEnv.outputs.first { it.name == "out" }, outputMod.inputs.first { it.name == "in" })
+
+        val ksynCode = KSynSourceExporter.export(polyPatch, "MultiEnvVoice")
+        assertTrue(ksynCode.contains("bigEnv.setupAutoDisable(this)"), "Should choose bigEnv (closest to output):\n$ksynCode")
+        assertFalse(ksynCode.contains("filterEnv.setupAutoDisable(this)"), "Should not choose filterEnv")
+
+        val jsynCode = JSynSourceExporter.export(polyPatch, "MultiEnvVoice")
+        assertTrue(jsynCode.contains("bigEnv.setupAutoDisable(this);"), "Should choose bigEnv in JSyn:\n$jsynCode")
+        assertFalse(jsynCode.contains("filterEnv.setupAutoDisable(this);"), "Should not choose filterEnv in JSyn")
+    }
 }
