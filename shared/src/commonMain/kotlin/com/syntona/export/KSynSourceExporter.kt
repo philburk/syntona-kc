@@ -93,6 +93,9 @@ object KSynSourceExporter {
         // Class documentation
         sb.appendLine("/**")
         sb.appendLine(" * Exported from Syntona patch: ${patch.name}")
+        sb.appendLine(" *")
+        sb.appendLine(" * Instead of editing this file, you may want to")
+        sb.appendLine(" * modify the Syntona patch and then re-export this source code.")
         sb.appendLine(" */")
 
         val inheritance = if (isPoly) ": Circuit(), PitchedVoice" else ": Circuit()"
@@ -369,43 +372,19 @@ object KSynSourceExporter {
 
             // usePreset()
             sb.appendLine("    override fun usePreset(presetIndex: Int) {")
-            sb.appendLine("        val n = presetIndex % presetNames.size")
-            sb.appendLine("        when (n) {")
-            sb.appendLine("            0 -> {")
-            if (mainAmpEnv != null) {
-                sb.appendLine("                ${mainAmpEnv.varName}.attack.set(0.01)")
-                sb.appendLine("                ${mainAmpEnv.varName}.decay.set(0.2)")
-                sb.appendLine("                ${mainAmpEnv.varName}.release.set(1.0)")
-            }
-            sb.appendLine("            }")
-            sb.appendLine("            1 -> {")
-            if (mainAmpEnv != null) {
-                sb.appendLine("                ${mainAmpEnv.varName}.attack.set(0.5)")
-                sb.appendLine("                ${mainAmpEnv.varName}.decay.set(0.3)")
-                sb.appendLine("                ${mainAmpEnv.varName}.release.set(0.2)")
-            }
-            sb.appendLine("            }")
-            sb.appendLine("            else -> {")
-            if (mainAmpEnv != null) {
-                sb.appendLine("                ${mainAmpEnv.varName}.attack.set(0.1)")
-                sb.appendLine("                ${mainAmpEnv.varName}.decay.set(0.3)")
-                sb.appendLine("                ${mainAmpEnv.varName}.release.set(0.5)")
-            }
-            sb.appendLine("            }")
-            sb.appendLine("        }")
             sb.appendLine("    }")
             sb.appendLine()
 
             // Companion object & VoiceDescription
             sb.appendLine("    companion object {")
-            sb.appendLine("        val presetNames = arrayOf(\"Default\", \"SlowAttack\", \"FastRelease\")")
+            sb.appendLine("        val presetNames = arrayOf(\"Default\")")
             sb.appendLine()
             sb.appendLine("        fun getVoiceDescription(): VoiceDescription {")
             sb.appendLine("            return MyVoiceDescription")
             sb.appendLine("        }")
             sb.appendLine("    }")
             sb.appendLine()
-            sb.appendLine("    private object MyVoiceDescription : VoiceDescription(\"${className}Synth\", presetNames) {")
+            sb.appendLine("    private object MyVoiceDescription : VoiceDescription(\"$className\", presetNames) {")
             sb.appendLine("        override val voiceClassName: String")
             sb.appendLine("            get() = \"$packageName.$className\"")
             sb.appendLine()

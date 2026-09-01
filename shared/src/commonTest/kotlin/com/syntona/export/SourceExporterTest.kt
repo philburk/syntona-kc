@@ -99,6 +99,9 @@ class SourceExporterTest {
         assertTrue(code.contains("override fun noteOff("))
         assertTrue(code.contains("override fun getOutputPort(): UnitOutputPort"))
         assertTrue(code.contains("ampEnv.setupAutoDisable(this)"))
+        assertTrue(code.contains("This code was exported from Syntona."))
+        assertTrue(code.contains("val presetNames = arrayOf(\"Default\")"))
+        assertTrue(code.contains("VoiceDescription(\"MinimalSawVoice\", presetNames)"))
     }
 
     @Test
@@ -139,6 +142,9 @@ class SourceExporterTest {
         assertTrue(code.contains("public void noteOff(TimeStamp timeStamp)"))
         assertTrue(code.contains("public UnitOutputPort getOutput()"))
         assertTrue(code.contains("ampEnv.setupAutoDisable(this);"))
+        assertTrue(code.contains("This code was exported from Syntona."))
+        assertTrue(code.contains("\"Default\""))
+        assertTrue(code.contains("super(\"MinimalSawVoice\", presetNames);"))
     }
 
     @Test
@@ -162,11 +168,13 @@ class SourceExporterTest {
         assertTrue(ksynCode.contains("class MyFilter : Circuit() {"))
         assertTrue(ksynCode.contains("val audioIn: UnitInputPort"))
         assertTrue(ksynCode.contains("val audioOut: UnitOutputPort"))
+        assertTrue(ksynCode.contains("This code was exported from Syntona."))
 
         val jsynCode = JSynSourceExporter.export(patch, "MyFilter")
         assertTrue(jsynCode.contains("public class MyFilter extends Circuit {"))
         assertTrue(jsynCode.contains("public UnitInputPort audioIn;"))
         assertTrue(jsynCode.contains("public UnitOutputPort audioOut;"))
+        assertTrue(jsynCode.contains("This code was exported from Syntona."))
     }
 
     @Test

@@ -77,6 +77,9 @@ object JSynSourceExporter {
 
         sb.appendLine("/**")
         sb.appendLine(" * Exported from Syntona patch: ${patch.name}")
+        sb.appendLine(" *")
+        sb.appendLine(" * Instead of editing this file, you may want to")
+        sb.appendLine(" * modify the Syntona patch and then re-export this source code.")
         sb.appendLine(" */")
 
         val inheritance = if (isPoly) "extends Circuit implements UnitVoice" else "extends Circuit"
@@ -363,43 +366,19 @@ object JSynSourceExporter {
 
             sb.appendLine("    @Override")
             sb.appendLine("    public void usePreset(int presetIndex) {")
-            sb.appendLine("        int n = presetIndex % presetNames.length;")
-            sb.appendLine("        switch (n) {")
-            sb.appendLine("            case 0:")
-            if (mainAmpEnv != null) {
-                sb.appendLine("                ${mainAmpEnv.varName}.attack.set(0.01);")
-                sb.appendLine("                ${mainAmpEnv.varName}.decay.set(0.2);")
-                sb.appendLine("                ${mainAmpEnv.varName}.release.set(1.0);")
-            }
-            sb.appendLine("                break;")
-            sb.appendLine("            case 1:")
-            if (mainAmpEnv != null) {
-                sb.appendLine("                ${mainAmpEnv.varName}.attack.set(0.5);")
-                sb.appendLine("                ${mainAmpEnv.varName}.decay.set(0.3);")
-                sb.appendLine("                ${mainAmpEnv.varName}.release.set(0.2);")
-            }
-            sb.appendLine("                break;")
-            sb.appendLine("            default:")
-            if (mainAmpEnv != null) {
-                sb.appendLine("                ${mainAmpEnv.varName}.attack.set(0.1);")
-                sb.appendLine("                ${mainAmpEnv.varName}.decay.set(0.3);")
-                sb.appendLine("                ${mainAmpEnv.varName}.release.set(0.5);")
-            }
-            sb.appendLine("                break;")
-            sb.appendLine("        }")
             sb.appendLine("    }")
             sb.appendLine()
 
             // Preset names and VoiceDescription
             sb.appendLine("    public static final String[] presetNames = {")
-            sb.appendLine("        \"Default\", \"SlowAttack\", \"FastRelease\"")
+            sb.appendLine("        \"Default\"")
             sb.appendLine("    };")
             sb.appendLine()
             sb.appendLine("    public static class MyVoiceDescription extends VoiceDescription {")
             sb.appendLine("        String[] tags = { \"electronic\", \"syntona\" };")
             sb.appendLine()
             sb.appendLine("        public MyVoiceDescription() {")
-            sb.appendLine("            super(\"${className}Synth\", presetNames);")
+            sb.appendLine("            super(\"$className\", presetNames);")
             sb.appendLine("        }")
             sb.appendLine()
             sb.appendLine("        @Override")
