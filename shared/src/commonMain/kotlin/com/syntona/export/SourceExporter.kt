@@ -63,12 +63,45 @@ object SourceExporter {
         return if (result.isEmpty()) "SyntonaVoice" else result
     }
 
+    private val SYMBOLIC_NAME_PREFIXES = listOf(
+        "*+~" to "timesPlus",
+        "*+" to "timesPlus",
+        "+~" to "plus",
+        "*~" to "times",
+        "-~" to "minus",
+        "/~" to "divide",
+        ">~" to "compare",
+        "+" to "plus",
+        "*" to "times",
+        "-" to "minus",
+        "/" to "divide",
+        ">" to "compare",
+    )
+
+    private val RESERVED_KEYWORDS = setOf(
+        "abstract", "as", "boolean", "break", "byte", "case", "catch", "char", "class", "const",
+        "continue", "default", "do", "double", "else", "enum", "extends", "false", "final", "finally",
+        "float", "for", "fun", "goto", "if", "implements", "import", "in", "instanceof", "int",
+        "interface", "is", "long", "native", "new", "null", "object", "package", "private", "protected",
+        "public", "return", "short", "static", "strictfp", "super", "switch", "synchronized", "this",
+        "throw", "throws", "transient", "true", "try", "typeof", "val", "var", "void", "volatile",
+        "when", "while", "yield"
+    )
+
     /**
      * Converts a module or port name into a valid camelCase variable name.
      */
     fun sanitizeIdentifier(name: String): String {
-        val trimmed = name.trim()
+        var trimmed = name.trim()
         if (trimmed.isEmpty()) return "u"
+
+        for ((symbol, word) in SYMBOLIC_NAME_PREFIXES) {
+            if (trimmed.startsWith(symbol)) {
+                trimmed = word + trimmed.substring(symbol.length)
+                break
+            }
+        }
+
         val sb = StringBuilder()
         var capitalizeNext = false
         for (ch in trimmed) {
@@ -85,7 +118,27 @@ object SourceExporter {
             }
         }
         val res = sb.toString()
-        return if (res.isEmpty()) "u" else res
+        val finalRes = if (res.isEmpty()) "u" else res
+        return if (finalRes in RESERVED_KEYWORDS) "${finalRes}Unit" else finalRes
+    }
+
+    /**
+     * Ensures an identifier is unique within [used] set.
+     * If [base] already exists in [used], appends or increments a numerical suffix (e.g. '2', '3').
+     */
+    fun makeUniqueVar(base: String, used: Set<String>): String {
+        if (!used.contains(base)) return base
+        val match = Regex("""^(.*?)(\d+)$""").matchEntire(base)
+        val (prefix, startNum) = if (match != null) {
+            Pair(match.groupValues[1], match.groupValues[2].toIntOrNull() ?: 2)
+        } else {
+            Pair(base, 2)
+        }
+        var i = if (match != null) startNum + 1 else 2
+        while (used.contains("$prefix$i")) {
+            i++
+        }
+        return "$prefix$i"
     }
 
     /**

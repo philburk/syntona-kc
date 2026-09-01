@@ -36,6 +36,15 @@ class SourceExporterTest {
         assertEquals("sawOscBL", SourceExporter.sanitizeIdentifier("sawOscBL"))
         assertEquals("v123", SourceExporter.sanitizeIdentifier("123"))
         assertEquals("inPart0", SourceExporter.sanitizeIdentifier("in-part-0"))
+        // Math unit symbolic names
+        assertEquals("plus", SourceExporter.sanitizeIdentifier("+~"))
+        assertEquals("times", SourceExporter.sanitizeIdentifier("*~"))
+        assertEquals("timesPlus", SourceExporter.sanitizeIdentifier("*+~"))
+        assertEquals("minus", SourceExporter.sanitizeIdentifier("-~"))
+        assertEquals("divide", SourceExporter.sanitizeIdentifier("/~"))
+        assertEquals("compare", SourceExporter.sanitizeIdentifier(">~"))
+        assertEquals("plus2", SourceExporter.sanitizeIdentifier("+~ 2"))
+        assertEquals("timesPlus2", SourceExporter.sanitizeIdentifier("*+~2"))
     }
 
     @Test
@@ -93,12 +102,12 @@ class SourceExporterTest {
         assertTrue(code.contains("PitchToFrequency()"))
         assertTrue(code.contains("SawtoothOscillatorBL()"))
         assertTrue(code.contains("EnvelopeDAHDSR()"))
-        assertTrue(code.contains("p2f.output.connect(osc.frequency)"))
-        assertTrue(code.contains("osc.output.connect(ampEnv.amplitude)"))
+        assertTrue(code.contains("pitchToHz.output.connect(sawOscBL.frequency)"))
+        assertTrue(code.contains("sawOscBL.output.connect(envDAHDSR.amplitude)"))
         assertTrue(code.contains("override fun noteOn("))
         assertTrue(code.contains("override fun noteOff("))
         assertTrue(code.contains("override fun getOutputPort(): UnitOutputPort"))
-        assertTrue(code.contains("ampEnv.setupAutoDisable(this)"))
+        assertTrue(code.contains("envDAHDSR.setupAutoDisable(this)"))
         assertTrue(code.contains("This code was exported from Syntona."))
         assertTrue(code.contains("val presetNames = arrayOf(\"Default\")"))
         assertTrue(code.contains("VoiceDescription(\"MinimalSawVoice\", presetNames)"))
@@ -136,12 +145,12 @@ class SourceExporterTest {
         assertTrue(code.contains("public class MinimalSawVoice extends Circuit implements UnitVoice {"))
         // JSyn voice directly binds frequency without PitchToFrequency
         assertFalse(code.contains("PitchToFrequency"))
-        assertTrue(code.contains("addPort(frequency = osc.frequency, \"Frequency\");"))
-        assertTrue(code.contains("osc.output.connect(ampEnv.amplitude);"))
+        assertTrue(code.contains("addPort(frequency = sawOscBL.frequency, \"Frequency\");"))
+        assertTrue(code.contains("sawOscBL.output.connect(envDAHDSR.amplitude);"))
         assertTrue(code.contains("public void noteOn(double freq, double ampl, TimeStamp timeStamp)"))
         assertTrue(code.contains("public void noteOff(TimeStamp timeStamp)"))
         assertTrue(code.contains("public UnitOutputPort getOutput()"))
-        assertTrue(code.contains("ampEnv.setupAutoDisable(this);"))
+        assertTrue(code.contains("envDAHDSR.setupAutoDisable(this);"))
         assertTrue(code.contains("This code was exported from Syntona."))
         assertTrue(code.contains("\"Default\""))
         assertTrue(code.contains("super(\"MinimalSawVoice\", presetNames);"))
@@ -234,9 +243,72 @@ class SourceExporterTest {
 
         val code = KSynSourceExporter.export(polyPatch, "SawLowPassVoice")
 
-        assertTrue(code.contains("filter.output.connect(multiply.inputA)"))
+        assertTrue(code.contains("fourPole.output.connect(multiply.inputA)"))
         assertTrue(code.contains("ampEnv.output.connect(multiply.inputB)"))
-        assertTrue(code.contains("filter.Q.setup("))
+        assertTrue(code.contains("fourPole.Q.setup("))
+    }
+
+    @Test
+    fun testModuleNameCollisions() {
+        val polyPatch = PolyPatchModule("collisionTest")
+
+        // Two modules both named "osc"
+        val osc1 = UnitGeneratorModule("osc", SawtoothOscillatorBL())
+        val osc2 = UnitGeneratorModule("osc", SawtoothOscillatorBL())
+        val osc3 = UnitGeneratorModule("osc", SawtoothOscillatorBL())
+
+        polyPatch.graphState.addModule(osc1, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(osc2, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(osc3, androidx.compose.ui.geometry.Offset.Zero)
+
+        val ksynCode = KSynSourceExporter.export(polyPatch, "CollisionVoice")
+        assertTrue(ksynCode.contains("private val osc = SawtoothOscillatorBL()"))
+        assertTrue(ksynCode.contains("private val osc2 = SawtoothOscillatorBL()"))
+        assertTrue(ksynCode.contains("private val osc3 = SawtoothOscillatorBL()"))
+
+        val jsynCode = JSynSourceExporter.export(polyPatch, "CollisionVoice")
+        assertTrue(jsynCode.contains("private SawtoothOscillatorBL osc;"))
+        assertTrue(jsynCode.contains("private SawtoothOscillatorBL osc2;"))
+        assertTrue(jsynCode.contains("private SawtoothOscillatorBL osc3;"))
+    }
+
+    @Test
+    fun testMathUnitsExport() {
+        val polyPatch = PolyPatchModule("mathPatch")
+
+        val addMod = UnitGeneratorModule("+~", com.softsynth.ksyn.unitgen.Add())
+        val addMod2 = UnitGeneratorModule("+~", com.softsynth.ksyn.unitgen.Add())
+        val mulMod = UnitGeneratorModule("*~", com.softsynth.ksyn.unitgen.Multiply())
+        val mulAddMod = UnitGeneratorModule("*+~", com.softsynth.ksyn.unitgen.MultiplyAdd())
+        val subMod = UnitGeneratorModule("-~", com.softsynth.ksyn.unitgen.Subtract())
+        val divMod = UnitGeneratorModule("/~", com.softsynth.ksyn.unitgen.Divide())
+        val cmpMod = UnitGeneratorModule(">~", com.softsynth.ksyn.unitgen.Compare())
+
+        polyPatch.graphState.addModule(addMod, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(addMod2, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(mulMod, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(mulAddMod, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(subMod, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(divMod, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(cmpMod, androidx.compose.ui.geometry.Offset.Zero)
+
+        val ksynCode = KSynSourceExporter.export(polyPatch, "MathVoice")
+        assertTrue(ksynCode.contains("private val plus = Add()"), "Expected 'plus = Add()' in KSyn:\n$ksynCode")
+        assertTrue(ksynCode.contains("private val plus2 = Add()"), "Expected 'plus2 = Add()' in KSyn:\n$ksynCode")
+        assertTrue(ksynCode.contains("private val times = Multiply()"), "Expected 'times = Multiply()' in KSyn:\n$ksynCode")
+        assertTrue(ksynCode.contains("private val timesPlus = MultiplyAdd()"), "Expected 'timesPlus = MultiplyAdd()' in KSyn:\n$ksynCode")
+        assertTrue(ksynCode.contains("private val minus = Subtract()"), "Expected 'minus = Subtract()' in KSyn:\n$ksynCode")
+        assertTrue(ksynCode.contains("private val divide = Divide()"), "Expected 'divide = Divide()' in KSyn:\n$ksynCode")
+        assertTrue(ksynCode.contains("private val compare = Compare()"), "Expected 'compare = Compare()' in KSyn:\n$ksynCode")
+
+        val jsynCode = JSynSourceExporter.export(polyPatch, "MathVoice")
+        assertTrue(jsynCode.contains("private Add plus;"), "Expected 'Add plus;' in JSyn:\n$jsynCode")
+        assertTrue(jsynCode.contains("private Add plus2;"), "Expected 'Add plus2;' in JSyn:\n$jsynCode")
+        assertTrue(jsynCode.contains("private Multiply times;"), "Expected 'Multiply times;' in JSyn:\n$jsynCode")
+        assertTrue(jsynCode.contains("private MultiplyAdd timesPlus;"), "Expected 'MultiplyAdd timesPlus;' in JSyn:\n$jsynCode")
+        assertTrue(jsynCode.contains("private Subtract minus;"), "Expected 'Subtract minus;' in JSyn:\n$jsynCode")
+        assertTrue(jsynCode.contains("private Divide divide;"), "Expected 'Divide divide;' in JSyn:\n$jsynCode")
+        assertTrue(jsynCode.contains("private Compare compare;"), "Expected 'Compare compare;' in JSyn:\n$jsynCode")
     }
 
     @Test

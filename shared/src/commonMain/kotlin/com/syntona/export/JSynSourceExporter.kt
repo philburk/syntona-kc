@@ -30,7 +30,7 @@ object JSynSourceExporter {
         val isPoly = patch is PolyPatchModule
 
         val unitMap = mutableMapOf<UnitGeneratorModule, UnitInfo>()
-        val usedVarNames = mutableSetOf<String>()
+        val usedVarNames = if (isPoly) mutableSetOf("frequency", "amplitude") else mutableSetOf()
 
         // Check if PitchToFrequency is present (either as PitchToFrequencyModule or UnitGeneratorModule)
         val p2fModules = patch.graphState.modules.filter {
@@ -43,8 +43,8 @@ object JSynSourceExporter {
                 if (isPoly && module.unit is com.softsynth.ksyn.unitgen.PitchToFrequency) {
                     continue
                 }
-                val baseVar = chooseVarNameForUnit(module)
-                val uniqueVar = makeUniqueVar(baseVar, usedVarNames)
+                val baseVar = SourceExporter.sanitizeIdentifier(module.name)
+                val uniqueVar = SourceExporter.makeUniqueVar(baseVar, usedVarNames)
                 usedVarNames.add(uniqueVar)
 
                 val (unitClassName, constructorArgs) = resolveJSynClassAndArgs(module)
@@ -78,7 +78,7 @@ object JSynSourceExporter {
         sb.appendLine("/**")
         sb.appendLine(" * Exported from Syntona patch: ${patch.name}")
         sb.appendLine(" *")
-        sb.appendLine(" * Instead of editing this file, you may want to")
+        sb.appendLine(" * This code was exported from Syntona. Rather then editing this file, you may want to")
         sb.appendLine(" * modify the Syntona patch and then re-export this source code.")
         sb.appendLine(" */")
 
@@ -432,37 +432,7 @@ object JSynSourceExporter {
         return null
     }
 
-    private fun chooseVarNameForUnit(module: UnitGeneratorModule): String {
-        val unit = module.unit
-        val className = unit::class.simpleName ?: "unit"
-        return when {
-            className.contains("Sawtooth", ignoreCase = true) -> "osc"
-            className.contains("Sine", ignoreCase = true) -> "osc"
-            className.contains("Square", ignoreCase = true) -> "osc"
-            className.contains("Triangle", ignoreCase = true) -> "osc"
-            className.contains("Pulse", ignoreCase = true) -> "osc"
-            className.contains("Noise", ignoreCase = true) -> "noise"
-            unit is EnvelopeDAHDSR -> "ampEnv"
-            unit is EnvelopeAttackDecay -> "ampEnv"
-            className.contains("Filter", ignoreCase = true) -> "filter"
-            unit is com.softsynth.ksyn.unitgen.MixerStereoRamped -> "mixer"
-            unit is com.softsynth.ksyn.unitgen.MixerMonoRamped -> "mixer"
-            unit is com.softsynth.ksyn.unitgen.Add -> "add"
-            unit is com.softsynth.ksyn.unitgen.Subtract -> "sub"
-            unit is com.softsynth.ksyn.unitgen.Multiply -> "multiply"
-            unit is com.softsynth.ksyn.unitgen.Divide -> "divide"
-            else -> SourceExporter.sanitizeIdentifier(module.name)
-        }
-    }
 
-    private fun makeUniqueVar(base: String, used: Set<String>): String {
-        if (!used.contains(base)) return base
-        var i = 2
-        while (used.contains("$base$i")) {
-            i++
-        }
-        return "$base$i"
-    }
 
     private fun resolveJSynClassAndArgs(module: UnitGeneratorModule): Pair<String, String> {
         val unit = module.unit
