@@ -342,6 +342,7 @@ abstract class MatchVoiceModule(
         it.max = 127.0
     }
     val output = addOutput(payloadName)
+    val unmatched = addVoiceOutput("unmatched")
 
     /**
      * Mirrors [matchIn] as Compose state. Jack values are plain fields, so the badge on the node
@@ -360,6 +361,16 @@ abstract class MatchVoiceModule(
 
     /** Which field is passed on when a message matches. */
     protected abstract fun payloadOf(msg: Message.VoiceMessage): Double
+
+    /**
+     * Whether this message belongs to the matched target (and should therefore be filtered from [unmatched]).
+     * By default, checks if [msg.opcode] == [opcode] and [identifierOf] matches [matchNumber].
+     */
+    protected open fun isTarget(msg: Message.VoiceMessage): Boolean {
+        if (msg.opcode != opcode) return false
+        val incoming = round(identifierOf(msg)).toInt()
+        return incoming == matchNumber
+    }
 
     /** True while waiting to be told what to follow. */
     val isArmed: Boolean get() = matchNumber < 0
@@ -386,15 +397,26 @@ abstract class MatchVoiceModule(
             return
         }
         val msg = triggerMessage as? Message.VoiceMessage ?: return
-        if (msg.opcode != opcode) return
 
-        val incoming = round(identifierOf(msg)).toInt()
         if (isArmed) {
-            matchIn.setValue(incoming.toDouble().coerceIn(0.0, matchIn.max))
-        } else if (incoming != matchNumber) {
-            return
+            if (msg.opcode == opcode) {
+                val incoming = round(identifierOf(msg)).toInt()
+                matchIn.setValue(incoming.toDouble().coerceIn(0.0, matchIn.max))
+                output.send(Message.FloatValue(msg.time, payloadOf(msg)))
+                return
+            } else {
+                unmatched.send(msg)
+                return
+            }
         }
-        output.send(Message.FloatValue(msg.time, payloadOf(msg)))
+
+        if (isTarget(msg)) {
+            if (msg.opcode == opcode) {
+                output.send(Message.FloatValue(msg.time, payloadOf(msg)))
+            }
+        } else {
+            unmatched.send(msg)
+        }
     }
 
     /**
@@ -443,10 +465,12 @@ class MatchControlModule : MatchVoiceModule(
 
 /**
  * Follows one note and emits its amplitude on every strike, ignoring every other note.
+ * Any notes that do not match are forwarded out the [unmatched] output.
  *
  * For triggering from a drum pad or one key of a keyboard: match on the note, and the amplitude
- * carries how hard it was hit, so a trigger arrives with its dynamics attached. NOTE_OFF is not
- * matched - this fires when a pad is struck, not when it is released.
+ * carries how hard it was hit, so a trigger arrives with its dynamics attached. Both NOTE_ON
+ * and NOTE_OFF for the matched note are filtered from [unmatched], allowing remaining notes
+ * to pass through cleanly to a downstream polyPatch or voice.
  */
 class MatchNoteOnModule : MatchVoiceModule(
     type = "matchNoteOn",
@@ -457,4 +481,12 @@ class MatchNoteOnModule : MatchVoiceModule(
     override fun identifierOf(msg: Message.VoiceMessage): Double = msg.tag.toDouble()
 
     override fun payloadOf(msg: Message.VoiceMessage): Double = msg.extra
+
+    override fun isTarget(msg: Message.VoiceMessage): Boolean {
+        if (msg.opcode != Message.VoiceOpcode.NOTE_ON && msg.opcode != Message.VoiceOpcode.NOTE_OFF) {
+            return false
+        }
+        val incoming = round(identifierOf(msg)).toInt()
+        return incoming == matchNumber
+    }
 }

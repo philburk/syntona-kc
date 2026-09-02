@@ -3,11 +3,6 @@
 
 Try to save a native signed version.
 
-Resize the f(x,y) modules in the tutorial.
-
-Export JSyn and KSyn source code for circuits!!!
-Prevent resizable modules from hiding their jacks.
-
 matchNote could have a MIDI output that is minus the matchedNote.
 Then you could use the black keys as triggers and send the remaining keys to a polyPatch.
 

@@ -55,6 +55,88 @@ class MatchNoteOnModuleTest {
         val module = MatchNoteOnModule()
         assertNotNull(module.inputs.find { it.name == "tag" }, "matches on the note's tag")
         assertNotNull(module.outputs.find { it.name == "amplitude" }, "emits how hard it was hit")
+        assertNotNull(module.outputs.find { it.name == "unmatched" }, "emits unmatched voice messages")
+    }
+
+    @Test
+    fun passesUnmatchedNotesThroughUnmatchedOutput() {
+        val module = MatchNoteOnModule()
+        val ampRecorder = Recorder()
+        module.output.connect(ampRecorder.input)
+
+        val unmatchedVoiceMsgs = mutableListOf<Message.VoiceMessage>()
+        val voiceRecorder = object : Module("voiceRecorder") {
+            val input = addVoiceInput("in", isKickable = true)
+            override fun execute(triggerMessage: Message) {
+                if (triggerMessage is Message.VoiceMessage) unmatchedVoiceMsgs.add(triggerMessage)
+            }
+        }
+        module.unmatched.connect(voiceRecorder.input)
+
+        // Set module to match note 61 (e.g. C#4 black key)
+        module.matchIn.setValue(61.0)
+
+        // 1. Play matched note 61 (ON then OFF)
+        val on61 = noteOn(tag = 61, amplitude = 0.8)
+        val off61 = Message.VoiceMessage(testTime, Message.VoiceOpcode.NOTE_OFF, 61, 61.0, 0.0)
+        module.input.receive(on61)
+        module.input.receive(off61)
+
+        assertEquals(listOf(0.8), ampRecorder.values, "Matched note should trigger amplitude output")
+        assertTrue(unmatchedVoiceMsgs.isEmpty(), "Matched note (both NOTE_ON and NOTE_OFF) must NOT appear on unmatched")
+
+        // 2. Play other notes (e.g. note 60 C4, note 62 D4)
+        val on60 = noteOn(tag = 60, amplitude = 0.7)
+        val off60 = Message.VoiceMessage(testTime, Message.VoiceOpcode.NOTE_OFF, 60, 60.0, 0.0)
+        val on62 = noteOn(tag = 62, amplitude = 0.9)
+        val off62 = Message.VoiceMessage(testTime, Message.VoiceOpcode.NOTE_OFF, 62, 62.0, 0.0)
+
+        module.input.receive(on60)
+        module.input.receive(off60)
+        module.input.receive(on62)
+        module.input.receive(off62)
+
+        assertEquals(listOf(0.8), ampRecorder.values, "Other notes must not trigger amplitude output")
+        assertEquals(listOf(on60, off60, on62, off62), unmatchedVoiceMsgs, "Unmatched notes must pass through cleanly")
+
+        // 3. Pitch bend and control change pass through to unmatched
+        val bend = Message.VoiceMessage(testTime, Message.VoiceOpcode.PITCH_BEND, -1, 0.5, 0.0)
+        module.input.receive(bend)
+        assertEquals(listOf(on60, off60, on62, off62, bend), unmatchedVoiceMsgs)
+    }
+
+    @Test
+    fun canChainMultipleMatchModulesToFilterMultipleTriggerKeys() {
+        // Chain: in -> matcher1 (filters note 61) -> unmatched -> matcher2 (filters note 63) -> unmatched -> downstream
+        val match61 = MatchNoteOnModule().apply { matchIn.setValue(61.0) }
+        val match63 = MatchNoteOnModule().apply { matchIn.setValue(63.0) }
+        match61.unmatched.connect(match63.input)
+
+        val trigger61Recorder = Recorder()
+        val trigger63Recorder = Recorder()
+        match61.output.connect(trigger61Recorder.input)
+        match63.output.connect(trigger63Recorder.input)
+
+        val remainingMsgs = mutableListOf<Message.VoiceMessage>()
+        val polyPatchRecorder = object : Module("polyPatchRecorder") {
+            val input = addVoiceInput("in", isKickable = true)
+            override fun execute(triggerMessage: Message) {
+                if (triggerMessage is Message.VoiceMessage) remainingMsgs.add(triggerMessage)
+            }
+        }
+        match63.unmatched.connect(polyPatchRecorder.input)
+
+        val on61 = noteOn(tag = 61, amplitude = 0.6)
+        val on63 = noteOn(tag = 63, amplitude = 0.9)
+        val on60 = noteOn(tag = 60, amplitude = 0.7)
+
+        match61.input.receive(on61)
+        match61.input.receive(on63)
+        match61.input.receive(on60)
+
+        assertEquals(listOf(0.6), trigger61Recorder.values)
+        assertEquals(listOf(0.9), trigger63Recorder.values)
+        assertEquals(listOf(on60), remainingMsgs, "Only un-filtered notes reach downstream")
     }
 
     @Test
