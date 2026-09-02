@@ -12,6 +12,9 @@ class DataQueueInputJack(
     val dataQueuePort: UnitDataQueuePort,
     val autoQueue: Boolean = true
 ) : InputJack(name, module) {
+    override val isDisplayableValue: Boolean get() = false
+    override val isValueDraggable: Boolean get() = false
+    override val isModuleEditorVisible: Boolean get() = false
 
     var currentData: SequentialData? = null
         private set
@@ -42,6 +45,10 @@ class DataQueueOutputJack(
     name: String,
     override val module: Module
 ) : OutputJack(name, module) {
+    override val isDisplayableValue: Boolean get() = false
+    override val isValueDraggable: Boolean get() = false
+    override val isModuleEditorVisible: Boolean get() = false
+
     var currentData: SequentialData? = null
 
     override fun send(msg: Message) {

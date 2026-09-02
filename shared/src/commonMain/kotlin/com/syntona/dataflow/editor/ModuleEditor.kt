@@ -142,15 +142,15 @@ fun ModuleEditor(module: Module, onDismiss: () -> Unit, modifier: Modifier = Mod
                 } else if (module is MidiOutModule) {
                     MidiOutModuleEditor(module)
                 } else if (module is InputModule) {
-                    module.patchJack?.takeIf { it !is CommandJack }?.let { jack ->
+                    module.patchJack?.takeIf { it.isModuleEditorVisible }?.let { jack ->
                         JackEditorRow(jack)
                     }
                 } else if (module is AudioInputModule) {
-                    module.patchJack?.let { jack ->
+                    module.patchJack?.takeIf { it.isModuleEditorVisible }?.let { jack ->
                         JackEditorRow(jack)
                     }
                 } else {
-                    module.inputs.filter { it !is CommandJack }.forEach { jack ->
+                    module.inputs.filter { it.isModuleEditorVisible }.forEach { jack ->
                         JackEditorRow(jack)
                     }
                 }
@@ -195,7 +195,7 @@ private fun JackFlagCheckbox(
 
 @Composable
 private fun JackEditorRow(jack: InputJack) {
-    if (jack is CommandJack) return
+    if (!jack.isModuleEditorVisible) return
     var currentValue by remember(jack) { mutableStateOf(jack.getValue()) }
 
     // FieldSet-style box: border with a legend overlapping the top edge.
@@ -563,7 +563,7 @@ private fun PackVoiceModuleEditor(module: PackVoiceModule) {
 
         androidx.compose.material3.HorizontalDivider(color = BORDER_COLOR, thickness = 1.dp)
 
-        module.inputs.filter { it !== module.opcodeIn && it !is CommandJack }.forEach { jack ->
+        module.inputs.filter { it !== module.opcodeIn && it.isModuleEditorVisible }.forEach { jack ->
             JackEditorRow(jack)
         }
     }
@@ -662,7 +662,7 @@ private fun KeyNotesModuleEditor(module: KeyNotesModule) {
 
         // The octave jack replaced the old "Starting Midi Note" field: the lowest key sounds
         // at 12 * octave.
-        module.inputs.filter { it !is CommandJack }.forEach { jack ->
+        module.inputs.filter { it.isModuleEditorVisible }.forEach { jack ->
             JackEditorRow(jack)
         }
     }
@@ -761,7 +761,7 @@ private fun MidiOutModuleEditor(module: MidiOutModule) {
             }
         }
         androidx.compose.material3.HorizontalDivider(color = BORDER_COLOR, thickness = 1.dp)
-        module.inputs.filter { it !== module.channelIn && it !is CommandJack }.forEach { jack ->
+        module.inputs.filter { it !== module.channelIn && it.isModuleEditorVisible }.forEach { jack ->
             JackEditorRow(jack)
         }
     }

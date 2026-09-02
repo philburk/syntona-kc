@@ -3,12 +3,6 @@
 
 Try to save a native signed version.
 
-BUG: the module header is only active in the top 2/3.
-The bottom third does not respond.
-The same is true for CommandJack buttons like on the samplePlayer.
-The top three buttons, on, off and loop, are only active on the top.
-But the last button called "stop" is active over the whole button.
-
 BUG: create a sampleReader module.
 Click and drag up on the "data" jack.
 EXPECT nothing to happen.
@@ -41,9 +35,9 @@ Need repro steps.
 
 # ----------------------------------------------- MEDIUM PRIORITY
 
-Composing
+Composing Tutorial
 * beatClock
-* ckDiv
+* clockDiv
 * stepper
 * scale
 * table8

@@ -20,6 +20,15 @@ sealed class Jack {
 
     /** Whether this jack treats values as discrete integers. */
     abstract var isInteger: Boolean
+
+    /** Whether this jack represents a displayable numeric scalar value. */
+    open val isDisplayableValue: Boolean get() = true
+
+    /** Whether an unconnected input jack can have its numeric value adjusted by click-dragging. */
+    open val isValueDraggable: Boolean get() = false
+
+    /** Whether this jack appears as a customizable row in ModuleEditor. */
+    open val isModuleEditorVisible: Boolean get() = false
 }
 
 /**
@@ -33,6 +42,8 @@ open class InputJack(
     isKickable: Boolean = false,
     isInteger: Boolean = false
 ) : Jack() {
+    override val isValueDraggable: Boolean get() = true
+    override val isModuleEditorVisible: Boolean get() = true
     override var name by mutableStateOf(name)
     private var _isKickable by mutableStateOf(isKickable)
     open var isKickable: Boolean
@@ -131,6 +142,9 @@ interface CommandJackBadge {
 }
 
 class CommandJack(name: String, module: Module) : InputJack(name, module, isKickable = true) {
+    override val isDisplayableValue: Boolean get() = false
+    override val isValueDraggable: Boolean get() = false
+    override val isModuleEditorVisible: Boolean get() = false
     override var name: String
         get() = if (module is com.syntona.dataflow.modules.LinkModule) module.buttonText else super.name
         set(value) { super.name = value }
@@ -181,8 +195,21 @@ open class OutputJack(
  * An output jack rendered as a clickable Button in the UI rather than a label.
  * Clicking the button sends a kick message from this jack.
  */
-class CommandOutputJack(name: String, module: Module) : OutputJack(name, module)
+class CommandOutputJack(name: String, module: Module) : OutputJack(name, module) {
+    override val isDisplayableValue: Boolean get() = false
+    override val isValueDraggable: Boolean get() = false
+    override val isModuleEditorVisible: Boolean get() = false
+}
 
-class VoiceInputJack(name: String, module: Module, isKickable: Boolean = false) : InputJack(name, module, isKickable)
-class VoiceOutputJack(name: String, module: Module) : OutputJack(name, module)
+class VoiceInputJack(name: String, module: Module, isKickable: Boolean = false) : InputJack(name, module, isKickable) {
+    override val isDisplayableValue: Boolean get() = false
+    override val isValueDraggable: Boolean get() = false
+    override val isModuleEditorVisible: Boolean get() = false
+}
+
+class VoiceOutputJack(name: String, module: Module) : OutputJack(name, module) {
+    override val isDisplayableValue: Boolean get() = false
+    override val isValueDraggable: Boolean get() = false
+    override val isModuleEditorVisible: Boolean get() = false
+}
 

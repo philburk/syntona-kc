@@ -1049,7 +1049,7 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
 
     val displayText = when {
         isValueDragging -> formatValue(valueDragCurrentValue)
-        isHovered -> formatValue(jack.getValue())
+        isHovered && jack.isDisplayableValue -> formatValue(jack.getValue())
         else -> jack.name
     }
 
@@ -1090,7 +1090,7 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
                     if (down.isConsumed) return@awaitEachGesture
                     val isShiftPressed = currentEvent.keyboardModifiers.isShiftPressed
                     val startOffset = down.position
-                    val unconnectedInput = jack is InputJack &&
+                    val unconnectedInput = jack.isValueDraggable &&
                         state.connections.none { it.input == jack }
                     if (unconnectedInput) {
                         val initialVal = jack.getValue()
