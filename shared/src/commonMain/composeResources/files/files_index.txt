@@ -1,6 +1,7 @@
 examples/basic_sequence.json
 examples/drum_rhythm.json
 examples/etude_001.json
+examples/filter_bank_delay.json
 examples/glow_flash.json
 examples/keyNotes.json
 examples/key_control.json
