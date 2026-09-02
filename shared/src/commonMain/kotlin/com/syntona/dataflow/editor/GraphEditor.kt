@@ -285,38 +285,40 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
             WireRenderer(state)
 
             // Draw Modules — add cases here for modules with custom layouts
-            state.modules.forEach { module ->
-                when (module) {
-                    is NumberModule -> NumberModuleNode(module, state)
-                    is EquationModule -> EquationModuleNode(module, state)
-                    is ScaleModule -> ScaleModuleNode(module, state)
-                    is FaderModule -> FaderModuleNode(module, state)
-                    is KnobModule -> KnobModuleNode(module, state)
-                    is PatchModule -> PatchModuleNode(module, state)
-                    is StepValueModule -> StepValueModuleNode(module, state)
-                    is MixerModule -> MixerModuleNode(module, state)
-                    is ModuloSelectModule -> ModuleNode(module, state, headerColor = colors.headerSequence)
-                    is StepperModule -> ModuleNode(module, state, headerColor = colors.headerSequence)
-                    is InputModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
-                    is CommandModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
-                    is OutputModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
-                    is AudioInputModule -> ModuleNode(module, state, headerColor = colors.headerAudio, label = module.name)
-                    is AudioOutputModule -> ModuleNode(module, state, headerColor = colors.headerAudio, label = module.name)
-                    is ScopeModule -> ScopeModuleNode(module, state)
-                    is KeyboardModule -> KeyboardModuleNode(module, state)
-                    is CommentModule -> CommentModuleNode(module, state)
-                    is SegmentedEnvelopeModule -> SegmentedEnvelopeModuleNode(module, state)
-                    is PianoRollModule -> PianoRollModuleNode(module, state)
-                    is KeyMatchModule -> KeyMatchModuleNode(module, state)
-                    is MatchControlModule -> MatchControlModuleNode(module, state)
-                    is GlowModule -> GlowModuleNode(module, state)
-                    is FlashModule -> FlashModuleNode(module, state)
-                    is SendModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
-                    is ReceiveModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
-                    is TimelineModule -> TimelineModuleNode(module, state)
-                    is MidiInModule -> MidiInModuleNode(module, state)
-                    is MidiOutModule -> MidiOutModuleNode(module, state)
-                    else -> ModuleNode(module, state)
+            CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
+                state.modules.forEach { module ->
+                    when (module) {
+                        is NumberModule -> NumberModuleNode(module, state)
+                        is EquationModule -> EquationModuleNode(module, state)
+                        is ScaleModule -> ScaleModuleNode(module, state)
+                        is FaderModule -> FaderModuleNode(module, state)
+                        is KnobModule -> KnobModuleNode(module, state)
+                        is PatchModule -> PatchModuleNode(module, state)
+                        is StepValueModule -> StepValueModuleNode(module, state)
+                        is MixerModule -> MixerModuleNode(module, state)
+                        is ModuloSelectModule -> ModuleNode(module, state, headerColor = colors.headerSequence)
+                        is StepperModule -> ModuleNode(module, state, headerColor = colors.headerSequence)
+                        is InputModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
+                        is CommandModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
+                        is OutputModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
+                        is AudioInputModule -> ModuleNode(module, state, headerColor = colors.headerAudio, label = module.name)
+                        is AudioOutputModule -> ModuleNode(module, state, headerColor = colors.headerAudio, label = module.name)
+                        is ScopeModule -> ScopeModuleNode(module, state)
+                        is KeyboardModule -> KeyboardModuleNode(module, state)
+                        is CommentModule -> CommentModuleNode(module, state)
+                        is SegmentedEnvelopeModule -> SegmentedEnvelopeModuleNode(module, state)
+                        is PianoRollModule -> PianoRollModuleNode(module, state)
+                        is KeyMatchModule -> KeyMatchModuleNode(module, state)
+                        is MatchControlModule -> MatchControlModuleNode(module, state)
+                        is GlowModule -> GlowModuleNode(module, state)
+                        is FlashModule -> FlashModuleNode(module, state)
+                        is SendModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
+                        is ReceiveModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
+                        is TimelineModule -> TimelineModuleNode(module, state)
+                        is MidiInModule -> MidiInModuleNode(module, state)
+                        is MidiOutModule -> MidiOutModuleNode(module, state)
+                        else -> ModuleNode(module, state)
+                    }
                 }
             }
 
@@ -1273,37 +1275,39 @@ fun CommandJackView(jack: CommandJack, state: GraphState, isLeft: Boolean) {
         // A highlighted command jack is one whose module is waiting for something - armed, or
         // learning a controller. Tinting the button is what makes that state visible; without
         // it, setting isHighlighted on a CommandJack has no effect at all.
-        Button(
-            onClick = {},
-            modifier = Modifier
-                .height(24.dp)
-                .pointerInput(jack) {
-                    awaitEachGesture {
-                        awaitFirstDown(requireUnconsumed = false)
-                        val e = state.engine
-                        if (e != null) {
-                            e.post(KickJackCommand(jack, ScoreClock.now()))
-                        } else {
-                            jack.receive(com.syntona.dataflow.model.Message.FloatValue(ScoreTime.Zero, 0.0))
+        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
+            Button(
+                onClick = {},
+                modifier = Modifier
+                    .height(24.dp)
+                    .pointerInput(jack) {
+                        awaitEachGesture {
+                            awaitFirstDown(requireUnconsumed = false)
+                            val e = state.engine
+                            if (e != null) {
+                                e.post(KickJackCommand(jack, ScoreClock.now()))
+                            } else {
+                                jack.receive(com.syntona.dataflow.model.Message.FloatValue(ScoreTime.Zero, 0.0))
+                            }
                         }
-                    }
-                },
-            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
-            colors = if (jack.isHighlighted) {
-                ButtonDefaults.buttonColors(
-                    containerColor = colors.buttonBgArmed,
-                    contentColor = Color.Black
+                    },
+                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                colors = if (jack.isHighlighted) {
+                    ButtonDefaults.buttonColors(
+                        containerColor = colors.buttonBgArmed,
+                        contentColor = Color.Black
+                    )
+                } else {
+                    ButtonDefaults.buttonColors()
+                }
+            ) {
+                Text(
+                    jack.name,
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    softWrap = false
                 )
-            } else {
-                ButtonDefaults.buttonColors()
             }
-        ) {
-            Text(
-                jack.name,
-                fontSize = 10.sp,
-                maxLines = 1,
-                softWrap = false
-            )
         }
         (jack.module as? CommandJackBadge)?.badgeFor(jack)?.let { badge ->
             Spacer(modifier = Modifier.width(4.dp))
@@ -1367,25 +1371,27 @@ fun CommandOutputJackView(jack: CommandOutputJack, state: GraphState, isLeft: Bo
             Box(modifier = Modifier.size(8.dp).background(colors.jackKickable))
             Spacer(modifier = Modifier.width(4.dp))
         }
-        Button(
-            onClick = {},
-            modifier = Modifier
-                .height(20.dp)
-                .pointerInput(jack) {
-                    awaitEachGesture {
-                        awaitFirstDown(requireUnconsumed = false)
-                        val e = state.engine
-                        val time = ScoreClock.now()
-                        if (e != null) {
-                            e.post(SendOutputCommand(jack, Message.FloatValue(time, 0.0)))
-                        } else {
-                            jack.send(Message.FloatValue(time, 0.0))
+        CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
+            Button(
+                onClick = {},
+                modifier = Modifier
+                    .height(20.dp)
+                    .pointerInput(jack) {
+                        awaitEachGesture {
+                            awaitFirstDown(requireUnconsumed = false)
+                            val e = state.engine
+                            val time = ScoreClock.now()
+                            if (e != null) {
+                                e.post(SendOutputCommand(jack, Message.FloatValue(time, 0.0)))
+                            } else {
+                                jack.send(Message.FloatValue(time, 0.0))
+                            }
                         }
-                    }
-                },
-            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
-        ) {
-            Text("Kick", fontSize = 10.sp)
+                    },
+                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
+            ) {
+                Text("Kick", fontSize = 10.sp)
+            }
         }
         if (!isLeft) {
             Spacer(modifier = Modifier.width(4.dp))
