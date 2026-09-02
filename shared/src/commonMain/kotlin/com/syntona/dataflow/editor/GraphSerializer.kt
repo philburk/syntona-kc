@@ -271,7 +271,6 @@ object GraphSerializer {
                 append(",\"topOctaveKeys\":\"${module.topOctaveKeys.jsonEscape}\"")
             }
             if (module is PianoRollModule) {
-                append(",\"bpm\":${module.bpm}")
                 append(",\"playStart\":${module.playStartTicks}")
                 module.windowX?.let { append(",\"windowX\":$it") }
                 module.windowY?.let { append(",\"windowY\":$it") }
@@ -782,7 +781,11 @@ object GraphSerializer {
                 }
             }
             if (module is PianoRollModule) {
-                (obj?.map?.get("bpm") as? JsonValue.Num)?.value?.toInt()?.let { module.bpm = it }
+                (obj?.map?.get("bpm") as? JsonValue.Num)?.value?.let { legacyBpm ->
+                    if (jacks?.map?.containsKey("tempo") != true) {
+                        module.tempo.setValue(legacyBpm)
+                    }
+                }
                 (obj?.map?.get("playStart") as? JsonValue.Num)?.value?.toInt()?.let { module.playStartTicks = it }
                 (obj?.map?.get("windowX") as? JsonValue.Num)?.value?.let { module.windowX = it.toFloat() }
                 (obj?.map?.get("windowY") as? JsonValue.Num)?.value?.let { module.windowY = it.toFloat() }

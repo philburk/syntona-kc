@@ -94,7 +94,14 @@
       "name": "pianoRoll",
       "x": 149.9,
       "y": 177,
-      "bpm": 120,
+      "jacks": {
+        "tempo": {
+          "v": 120,
+          "min": 20,
+          "max": 300,
+          "kickable": false
+        }
+      },
       "playStart": 0,
       "windowX": 396.98438,
       "windowY": 396.14404,

@@ -1014,8 +1014,6 @@ private fun PianoRollToolbar(
 
         DurationSelector(defaultDurationTicks, onDefaultDurationChange)
 
-        BpmSelector(module)
-
         Text("|", color = Color(0x33FFFFFF))
 
         Text("Zoom", fontSize = 10.sp, color = PR_RULER_TEXT)
@@ -1071,33 +1069,6 @@ private fun DurationSelector(durationTicks: Int, onChange: (Int) -> Unit) {
                     text = { Text("$label ($shortcut)") },
                     onClick = {
                         onChange(ticks)
-                        expanded = false
-                    },
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun BpmSelector(module: PianoRollModule) {
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        TextButton(
-            onClick = { expanded = true },
-            modifier = Modifier
-                .height(30.dp)
-                .focusProperties { canFocus = false }
-        ) {
-            Text("${module.bpm} BPM", fontSize = 11.sp, color = PR_RULER_TEXT)
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            for (bpm in PianoRollTiming.MIN_BPM..PianoRollTiming.MAX_BPM step 10) {
-                CompactDropdownMenuItem(
-                    text = { Text("$bpm") },
-                    onClick = {
-                        module.bpm = bpm
-                        FileState.markDirty()
                         expanded = false
                     },
                 )

@@ -81,8 +81,12 @@ class PianoRollModuleTest {
         assertEquals("pianoRoll", m.name)
         assertNotNull(m.inputs.find { it.name == "start" }, "should have a 'start' command input")
         assertNotNull(m.inputs.find { it.name == "stop" }, "should have a 'stop' command input")
+        val tempoInput = m.inputs.find { it.name == "tempo" }
+        assertNotNull(tempoInput, "should have a 'tempo' input")
+        assertEquals(120.0, tempoInput.getValue())
+        assertEquals(20.0, tempoInput.min)
+        assertEquals(300.0, tempoInput.max)
         assertNotNull(m.outputs.find { it.name == "out" }, "should have an 'out' voice output")
-        assertEquals(PianoRollTiming.DEFAULT_BPM, m.bpm)
     }
 
     @Test
@@ -187,7 +191,7 @@ class PianoRollSerializationTest {
     fun testRoundTrip() {
         val graphState = GraphState()
         val m = PianoRollModule()
-        m.bpm = 90
+        m.tempo.setValue(90.0)
         m.playStartTicks = 480
         m.windowWidth = 900f
         m.notes.addAll(
@@ -199,13 +203,13 @@ class PianoRollSerializationTest {
         graphState.addModule(m, Offset.Zero)
 
         val json = GraphSerializer.serialize(graphState, graphState.modules)
-        assertTrue(json.contains("\"bpm\": 90"), "serialized JSON should contain bpm")
+        assertTrue(json.contains("\"tempo\""), "serialized JSON should contain tempo jack")
 
         val restoredState = GraphState()
         GraphSerializer.deserialize(restoredState, json)
         val restored = restoredState.modules.filterIsInstance<PianoRollModule>().firstOrNull()
         assertNotNull(restored)
-        assertEquals(90, restored.bpm)
+        assertEquals(90.0, restored.tempo.getValue())
         assertEquals(480, restored.playStartTicks)
         assertEquals(900f, restored.windowWidth)
         assertEquals(2, restored.notes.size)
@@ -247,10 +251,35 @@ class PianoRollSerializationTest {
         GraphSerializer.deserialize(graphState, json)
         val m = graphState.modules.filterIsInstance<PianoRollModule>().firstOrNull()
         assertNotNull(m)
-        assertEquals(PianoRollTiming.DEFAULT_BPM, m.bpm)
+        assertEquals(PianoRollTiming.DEFAULT_TEMPO, m.tempo.getValue())
         assertEquals(0, m.playStartTicks)
         assertEquals(0, m.notes.size)
         assertNull(m.windowWidth)
+    }
+
+    @Test
+    fun testLegacyBpmDeserialization() {
+        val json = """
+            {
+              "modules": [
+                {
+                  "id": 0,
+                  "type": "music.input.pianoRoll",
+                  "name": "pianoRoll",
+                  "x": 0.0,
+                  "y": 0.0,
+                  "jacks": {},
+                  "bpm": 85
+                }
+              ],
+              "connections": []
+            }
+        """.trimIndent()
+        val graphState = GraphState()
+        GraphSerializer.deserialize(graphState, json)
+        val m = graphState.modules.filterIsInstance<PianoRollModule>().firstOrNull()
+        assertNotNull(m)
+        assertEquals(85.0, m.tempo.getValue())
     }
 
     @Test

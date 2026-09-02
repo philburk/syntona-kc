@@ -46,7 +46,7 @@ class PianoRollPlaybackTest {
             module.output.connect(probe.input)
 
             // Two notes at 240 BPM-ish speeds: keep everything short.
-            module.bpm = 120 // nsPerTick ≈ 2.08ms; a 16th (60 ticks) ≈ 125ms
+            module.tempo.setValue(120.0) // nsPerTick ≈ 2.08ms; a 16th (60 ticks) ≈ 125ms
             module.notes.add(PianoRollNote(id = 0, startTicks = 0, durationTicks = 60, rootPitch = 60.0))
             module.notes.add(
                 PianoRollNote(id = 1, startTicks = 60, durationTicks = 60, parentId = 0, ratio = Ratio(3, 2))

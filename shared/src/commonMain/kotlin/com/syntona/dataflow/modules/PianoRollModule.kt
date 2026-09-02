@@ -15,6 +15,7 @@ import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.model.VoiceOutputJack
 import kotlin.math.log2
+import kotlin.math.roundToLong
 
 /**
  * A piano-roll sequencer supporting relative just intonation. Notes may be chained to a
@@ -25,11 +26,14 @@ import kotlin.math.log2
 class PianoRollModule : Module("pianoRoll"), EngineAware {
     val start = addCommandInput("start")
     val stop = addCommandInput("stop")
+    val tempo = addInput("tempo").also {
+        it.min = 20.0
+        it.max = 300.0
+        it.setValue(120.0)
+    }
     val output = addVoiceOutput("out")
 
     val notes = mutableStateListOf<PianoRollNote>()
-
-    var bpm by mutableStateOf(PianoRollTiming.DEFAULT_BPM)
 
     /** Playback start marker position, set by clicking the timeline ruler. */
     var playStartTicks by mutableStateOf(0)
@@ -126,7 +130,8 @@ class PianoRollModule : Module("pianoRoll"), EngineAware {
         if (isPlaying) stopPlayback(now)
         val e = engine ?: return
 
-        val nsPerTick = PianoRollTiming.nanosPerTick(bpm)
+        val tempoVal = tempo.getDoubleValue(PianoRollTiming.DEFAULT_TEMPO).coerceAtLeast(1.0)
+        val nsPerTick = PianoRollTiming.nanosPerTick(tempoVal)
         val startTicks = playStartTicks
         val playable = notes.filter { it.endTicks > startTicks }
         if (playable.isEmpty()) return
@@ -138,8 +143,8 @@ class PianoRollModule : Module("pianoRoll"), EngineAware {
         for (note in playable) {
             val pitch = pitchOf(note)
             val onDelayTicks = (note.startTicks - startTicks).coerceAtLeast(0)
-            val onTime = now + ScoreTime(onDelayTicks * nsPerTick)
-            val offTime = now + ScoreTime((note.endTicks - startTicks) * nsPerTick)
+            val onTime = now + ScoreTime((onDelayTicks * nsPerTick).roundToLong())
+            val offTime = now + ScoreTime(((note.endTicks - startTicks) * nsPerTick).roundToLong())
             if (offTime > lastOffTime) lastOffTime = offTime
 
             scheduledEvents.add(e.schedule(onTime) {
@@ -197,7 +202,8 @@ class PianoRollModule : Module("pianoRoll"), EngineAware {
     fun playheadTicks(now: ScoreTime): Double? {
         if (!isPlaying) return null
         val elapsedNs = (now - playbackStartTime).nanoseconds
-        return playStartTicks + elapsedNs.toDouble() / PianoRollTiming.nanosPerTick(bpm)
+        val tempoVal = tempo.getDoubleValue(PianoRollTiming.DEFAULT_TEMPO).coerceAtLeast(1.0)
+        return playStartTicks + elapsedNs.toDouble() / PianoRollTiming.nanosPerTick(tempoVal)
     }
 
     // ---------------------------------------------------------------- preview

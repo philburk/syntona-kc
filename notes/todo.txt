@@ -3,21 +3,14 @@
 
 Try to save a native signed version.
 
-matchNote could have a MIDI output that is minus the matchedNote.
-Then you could use the black keys as triggers and send the remaining keys to a polyPatch.
-
 Add integrated envSeg with Segmented envelope and monoReader.
 Try to be backwards compatible by converting connected segEnv and monoRdr modules to the new module
 when reading from JSON.
 
-The orange MIDI jacks and the yellow SequentialData jacks look too similar.
-
 Use envelopes to gate off the pull to reduce CPU load for silent patches.
 Write tests in KSyn and Syntona.
 
-Logic bundle with AND OR XOR NOT, gate. TRUE>0, FALSE<=0.
-Define "branch" and "choose", eg. choose2,4,8.
-A gate is a branch1 or a choose1, which are equivalent.
+The orange MIDI jacks and the yellow SequentialData jacks look too similar.
 
 Add tempo jack to the pianoRoll module.
 

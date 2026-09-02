@@ -79,11 +79,16 @@ object PianoRollTiming {
 
     const val DEFAULT_NOTE_TICKS = TPB
 
-    const val MIN_BPM = 70
-    const val MAX_BPM = 160
+    const val MIN_TEMPO = 20.0
+    const val MAX_TEMPO = 300.0
+    const val DEFAULT_TEMPO = 120.0
+
+    const val MIN_BPM = 20
+    const val MAX_BPM = 300
     const val DEFAULT_BPM = 120
 
-    fun nanosPerTick(bpm: Int): Long = 60_000_000_000L / (bpm.toLong() * TPB)
+    fun nanosPerTick(tempo: Double): Double = 60_000_000_000.0 / (tempo * TPB)
+    fun nanosPerTick(bpm: Int): Long = (60_000_000_000.0 / (bpm.toDouble() * TPB)).toLong()
 
     fun snapTicks(ticks: Int): Int {
         val snapped = ((ticks.toDouble() / GRID_TICKS) + 0.5).toInt() * GRID_TICKS
