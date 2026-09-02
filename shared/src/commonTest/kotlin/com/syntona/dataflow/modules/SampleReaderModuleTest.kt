@@ -13,6 +13,7 @@ import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.registry.ModuleRegistry
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -257,6 +258,34 @@ class SampleReaderModuleTest {
             if (outputs[i] > 0.1f) nonZeroCount++
         }
         assertTrue(nonZeroCount > 0, "Stereo sample reader output should produce audio samples, got: ${outputs.take(8)}")
+
+        readerModule.teardown()
+    }
+
+    @Test
+    fun testDisplayCursorSecondsAndIsActive() = kotlinx.coroutines.runBlocking {
+        val readerModule = SampleReaderModule()
+        val sample = FloatSample(44100, 1).apply {
+            frameRate = 44100.0
+            for (i in 0 until 44100) writeSample(i, 0.5f)
+        }
+        readerModule.dataInput.receive(Message.DataQueueMessage(ScoreClock.now(), sample, Message.DataQueueOpcode.QUEUE))
+
+        assertFalse(readerModule.isActive, "Should be inactive initially")
+        assertEquals(0.0, readerModule.displayCursorSeconds, 0.001)
+
+        readerModule.speed.setValue(1.0)
+        readerModule.startIn.receive(Message.FloatValue(ScoreTime.Zero, 0.0))
+
+        val engine = SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
+        engine.generateNextBuffer()
+
+        assertTrue(readerModule.isActive, "Should be active after start")
+        assertTrue(readerModule.displayCursorSeconds >= 0.0)
+
+        readerModule.stopIn.receive(Message.FloatValue(ScoreTime.Zero, 0.0))
+        engine.generateNextBuffer()
+        assertFalse(readerModule.isActive, "Should be inactive after stop")
 
         readerModule.teardown()
     }

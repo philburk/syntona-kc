@@ -26,6 +26,18 @@ class SampleReaderModule : Module("sampleReader") {
     var isLooping: Boolean by mutableStateOf(false)
     private var isPlayingLoop = false
 
+    val displayCursorSeconds: Double
+        get() {
+            val data = dataInput.currentData ?: return 0.0
+            val sampleFrameRate = (data as? AudioSampleData)?.frameRate?.takeIf { it > 0.0 }
+                ?: (data as? com.syntona.util.SegmentedFloatArray)?.frameRate?.takeIf { it > 0.0 }
+                ?: SynthKSyn.synth.frameRate.toDouble()
+            return if (sampleFrameRate > 0.0) unit.dataQueue.frameIndex / sampleFrameRate else 0.0
+        }
+
+    val isActive: Boolean
+        get() = unit.dataQueue.hasMore()
+
     val dataInput: DataQueueInputJack
     val startIn: CommandJack
     val stopIn: CommandJack

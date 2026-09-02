@@ -232,6 +232,7 @@ object ModuleRegistry {
         data.modules.add(ModuleEntry("samplePlayer") { SamplePlayerModule() })
         data.modules.add(ModuleEntry("sample") { FloatSampleModule() })
         data.modules.add(ModuleEntry("sampleReader", "tutorials/07_audio_input/05_sampleReader.json") { SampleReaderModule() })
+        data.modules.add(ModuleEntry("sampleWriter") { SampleWriterModule() })
         data.modules.add(ModuleEntry("recorder") { RecorderModule() })
     }
 

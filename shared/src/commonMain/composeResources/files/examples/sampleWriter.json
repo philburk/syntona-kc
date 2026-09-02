@@ -1,0 +1,148 @@
+{
+  "version": "0.6.1 beta",
+  "versionCode": 393217,
+  "modules": [
+    {
+      "id": 0,
+      "type": "ksyn.data.sample",
+      "name": "sample",
+      "x": 58,
+      "y": 202.1
+    },
+    {
+      "id": 1,
+      "type": "ksyn.lineIn",
+      "name": "lineIn",
+      "x": 56,
+      "y": 370.1
+    },
+    {
+      "id": 2,
+      "type": "ksyn.data.sampleWriter",
+      "name": "sampleWriter",
+      "x": 281.9,
+      "y": 325,
+      "jacks": {
+        "data": {
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        },
+        "looping": {
+          "v": 1,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "integer": true
+        },
+        "in": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "ksyn.data.sampleReader",
+      "name": "sampleReader",
+      "x": 447,
+      "y": 180.1,
+      "jacks": {
+        "data": {
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        },
+        "offset": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": true
+        },
+        "durationMs": {
+          "v": 0,
+          "min": 0,
+          "max": 10000,
+          "kickable": true
+        },
+        "looping": {
+          "v": 1,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "integer": true
+        },
+        "speed": {
+          "v": 1,
+          "min": 0,
+          "max": 8,
+          "kickable": false,
+          "add": false
+        },
+        "amplitude": {
+          "v": 1,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "ksyn.lineOut",
+      "name": "lineOut",
+      "x": 640,
+      "y": 219.1,
+      "jacks": {
+        "in0": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "in1": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": 1,
+      "fromJack": "out0",
+      "to": 2,
+      "toJack": "in"
+    },
+    {
+      "from": 0,
+      "fromJack": "data",
+      "to": 2,
+      "toJack": "data"
+    },
+    {
+      "from": 0,
+      "fromJack": "data",
+      "to": 3,
+      "toJack": "data"
+    },
+    {
+      "from": 3,
+      "fromJack": "out",
+      "to": 4,
+      "toJack": "in0"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 829,
+  "windowHeight": 600.875
+}

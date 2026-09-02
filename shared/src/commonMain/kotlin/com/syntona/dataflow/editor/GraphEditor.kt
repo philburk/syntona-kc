@@ -31,6 +31,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.syntona.dataflow.modules.OneShotModule
 import com.syntona.dataflow.modules.RecorderModule
+import com.syntona.dataflow.modules.SampleReaderModule
+import com.syntona.dataflow.modules.SampleWriterModule
 import com.syntona.dataflow.modules.StepperModule
 import com.syntona.dataflow.modules.StepValueModule
 import com.syntona.dataflow.modules.TableModule
@@ -488,6 +490,60 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color? = null, la
                         fontSize = 12.sp,
                         // Monospace keeps every digit the same width, so the module does not
                         // change size as the time advances.
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+
+            // Show time display for SampleReaderModule. Changes color when active (playing).
+            if (module is SampleReaderModule) {
+                var cursorText by remember { mutableStateOf(formatMinutesSecondsMillis(0.0)) }
+                var isActive by remember { mutableStateOf(false) }
+                LaunchedEffect(module) {
+                    while (true) {
+                        cursorText = formatMinutesSecondsMillis(module.displayCursorSeconds)
+                        isActive = module.isActive
+                        delay(50)
+                    }
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .background(Color.Black),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = cursorText,
+                        color = if (isActive) Color.Green else Color.DarkGray,
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace
+                    )
+                }
+            }
+
+            // Show time display for SampleWriterModule. Changes color when active (writing).
+            if (module is SampleWriterModule) {
+                var cursorText by remember { mutableStateOf(formatMinutesSecondsMillis(0.0)) }
+                var isActive by remember { mutableStateOf(false) }
+                LaunchedEffect(module) {
+                    while (true) {
+                        cursorText = formatMinutesSecondsMillis(module.displayCursorSeconds)
+                        isActive = module.isActive
+                        delay(50)
+                    }
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                        .background(Color.Black),
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Text(
+                        text = cursorText,
+                        color = if (isActive) Color.Red else Color.DarkGray,
+                        fontSize = 12.sp,
                         fontFamily = FontFamily.Monospace
                     )
                 }
