@@ -3,6 +3,8 @@
 
 Try to save a native signed version.
 
+Add toggle "flip-flop" module.
+
 Add integrated envSeg with Segmented envelope and monoReader.
 Try to be backwards compatible by converting connected segEnv and monoRdr modules to the new module
 when reading from JSON.
@@ -12,9 +14,6 @@ Write tests in KSyn and Syntona.
 
 The orange MIDI jacks and the yellow SequentialData jacks look too similar.
 
-Add tempo jack to the pianoRoll module.
-
-Add toggle "flip-flop" module.
 
 # ----------------------------------------------- MEDIUM PRIORITY
 

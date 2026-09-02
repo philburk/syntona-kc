@@ -577,6 +577,11 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                     isLooping = templateModule.isLooping
                 }
             }
+            is ToggleModule -> {
+                ToggleModule().apply {
+                    name = templateModule.name
+                }
+            }
             is EquationModule -> {
                 EquationModule(templateModule.name).apply {
                     equation = templateModule.equation

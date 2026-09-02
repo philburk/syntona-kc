@@ -75,6 +75,7 @@ object ModuleRegistry {
         logic.modules.add(ModuleEntry("or") { OrModule() })
         logic.modules.add(ModuleEntry("xor") { XorModule() })
         logic.modules.add(ModuleEntry("not") { NotModule() })
+        logic.modules.add(ModuleEntry("toggle") { ToggleModule() })
         logic.modules.add(ModuleEntry("pass") { PassModule() })
         logic.modules.add(ModuleEntry("branch4") { Branch4Module() })
         logic.modules.add(ModuleEntry("branch8") { Branch8Module() })

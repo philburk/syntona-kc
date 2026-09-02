@@ -153,3 +153,44 @@ class PassModule : Module("pass") {
         }
     }
 }
+
+/**
+ * A toggle / T-flip-flop module.
+ *
+ * Alternates outputting a TRUE (1.0) message between [out0] and [out1] on each [kick].
+ * A [reset] message sets the state back to 0 (so the next kick outputs to [out0]).
+ */
+class ToggleModule : Module("toggle") {
+    val reset = addInput("reset", isKickable = true)
+    val kick = addInput("kick", isKickable = true)
+
+    val out0 = addOutput("out0")
+    val out1 = addOutput("out1")
+
+    var state = 0
+        private set
+
+    init {
+        out0.isHighlighted = true
+    }
+
+    override fun execute(triggerMessage: Message) {
+        if (reset.isKicked) {
+            state = 0
+            out0.isHighlighted = true
+            out1.isHighlighted = false
+            return
+        }
+
+        if (kick.isKicked) {
+            val output = if (state == 0) out0 else out1
+            out0.isHighlighted = (state == 0)
+            out1.isHighlighted = (state == 1)
+
+            output.send(Message.FloatValue(triggerMessage.time, 1.0))
+
+            state = 1 - state
+        }
+    }
+}
+

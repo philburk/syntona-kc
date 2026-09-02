@@ -23,7 +23,7 @@ class LogicModulesTest {
     @Test
     fun testModuleRegistration() {
         val expectedModules = listOf(
-            "and", "or", "xor", "not", "pass",
+            "and", "or", "xor", "not", "toggle", "pass",
             "branch4", "branch8", "branch16",
             "select4", "select8", "select16"
         )
@@ -287,5 +287,78 @@ class LogicModulesTest {
         assertEquals(2.0, restoredBranch.indexIn.getValue())
         assertEquals(1.0, restoredSelect.indexIn.getValue())
         assertEquals(0.0, restoredPass.enable.getValue())
+    }
+
+    @Test
+    fun testToggleModule() {
+        val toggle = ToggleModule()
+        assertEquals("toggle", toggle.name)
+        assertEquals(2, toggle.inputs.size)
+        assertEquals("reset", toggle.inputs[0].name)
+        assertTrue(toggle.inputs[0].isKickable, "reset should be kickable")
+        assertEquals("kick", toggle.inputs[1].name)
+        assertTrue(toggle.inputs[1].isKickable, "kick should be kickable")
+
+        assertEquals(2, toggle.outputs.size)
+        assertEquals("out0", toggle.outputs[0].name)
+        assertEquals("out1", toggle.outputs[1].name)
+
+        val rec0 = MessageReceiver("rec0")
+        val rec1 = MessageReceiver("rec1")
+        toggle.out0.connect(rec0.inJack)
+        toggle.out1.connect(rec1.inJack)
+
+        // Initial state
+        assertEquals(0, toggle.state)
+        assertTrue(toggle.out0.isHighlighted)
+        assertFalse(toggle.out1.isHighlighted)
+
+        // Kick 1 -> should fire out0 with TRUE (1.0)
+        toggle.kick.receive(Message.FloatValue(ScoreTime(100L), 0.0))
+        assertEquals(1, rec0.received.size)
+        assertEquals(0, rec1.received.size)
+        assertEquals(1.0, (rec0.received.last() as Message.FloatValue).value)
+        assertEquals(ScoreTime(100L), rec0.received.last().time)
+        assertEquals(1, toggle.state)
+        assertTrue(toggle.out0.isHighlighted)
+        assertFalse(toggle.out1.isHighlighted)
+
+        // Kick 2 -> should fire out1 with TRUE (1.0)
+        rec0.received.clear()
+        rec1.received.clear()
+        toggle.kick.receive(Message.FloatValue(ScoreTime(200L), 0.0))
+        assertEquals(0, rec0.received.size)
+        assertEquals(1, rec1.received.size)
+        assertEquals(1.0, (rec1.received.last() as Message.FloatValue).value)
+        assertEquals(ScoreTime(200L), rec1.received.last().time)
+        assertEquals(0, toggle.state)
+        assertFalse(toggle.out0.isHighlighted)
+        assertTrue(toggle.out1.isHighlighted)
+
+        // Kick 3 -> should fire out0 with TRUE (1.0)
+        rec0.received.clear()
+        rec1.received.clear()
+        toggle.kick.receive(Message.FloatValue(ScoreTime(300L), 0.0))
+        assertEquals(1, rec0.received.size)
+        assertEquals(0, rec1.received.size)
+        assertEquals(1.0, (rec0.received.last() as Message.FloatValue).value)
+        assertEquals(1, toggle.state)
+
+        // Reset -> should reset state back to 0 without emitting
+        rec0.received.clear()
+        rec1.received.clear()
+        toggle.reset.receive(Message.FloatValue(ScoreTime(400L), 0.0))
+        assertEquals(0, rec0.received.size)
+        assertEquals(0, rec1.received.size)
+        assertEquals(0, toggle.state)
+        assertTrue(toggle.out0.isHighlighted)
+        assertFalse(toggle.out1.isHighlighted)
+
+        // Kick after Reset -> should fire out0 again
+        toggle.kick.receive(Message.FloatValue(ScoreTime(500L), 0.0))
+        assertEquals(1, rec0.received.size)
+        assertEquals(0, rec1.received.size)
+        assertEquals(1.0, (rec0.received.last() as Message.FloatValue).value)
+        assertEquals(1, toggle.state)
     }
 }
