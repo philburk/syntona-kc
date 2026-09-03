@@ -1,4 +1,6 @@
 {
+  "version": "0.6.1 beta",
+  "versionCode": 393217,
   "modules": [
     {
       "id": 0,
@@ -43,14 +45,14 @@
       "x": 835.9,
       "y": 245,
       "jacks": {
-        "input0": {
+        "in0": {
           "v": 0,
           "min": 0,
           "max": 1,
           "kickable": false,
           "add": false
         },
-        "input1": {
+        "in1": {
           "v": 0,
           "min": 0,
           "max": 1,
@@ -88,7 +90,7 @@
           "kickable": true
         },
         "in": {
-          "v": 4,
+          "v": 18,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -108,7 +110,7 @@
           "kickable": true
         },
         "in": {
-          "v": 63,
+          "v": 274,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -123,7 +125,7 @@
       "y": 559.1,
       "jacks": {
         "in": {
-          "v": 4,
+          "v": 18,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -142,7 +144,7 @@
           "max": 100,
           "kickable": true
         },
-        "inc": {
+        "kick": {
           "v": 5,
           "min": 0,
           "max": 100,
@@ -152,171 +154,6 @@
     },
     {
       "id": 8,
-      "type": "core.patch",
-      "name": "chuff",
-      "x": 694.9,
-      "y": 407,
-      "jacks": {
-        "in1": {
-          "v": 63,
-          "min": 0,
-          "max": 100,
-          "kickable": false
-        }
-      },
-      "windowX": 476.875,
-      "windowY": 326.75,
-      "windowWidth": 600,
-      "windowHeight": 450,
-      "windowOpen": false,
-      "patch": {
-        "modules": [
-          {
-            "id": 0,
-            "type": "core.input",
-            "name": "in1",
-            "x": 16.9,
-            "y": 29
-          },
-          {
-            "id": 1,
-            "type": "ksyn.aOutput",
-            "name": "aOut1",
-            "x": 497.9,
-            "y": 17,
-            "jacks": {
-              "input": {
-                "v": 0,
-                "min": 0,
-                "max": 1,
-                "kickable": false,
-                "add": false
-              }
-            }
-          },
-          {
-            "id": 2,
-            "type": "ksyn.data.monoRdr",
-            "name": "monoRdr",
-            "x": 220.9,
-            "y": 45,
-            "jacks": {
-              "data": {
-                "min": 0,
-                "max": 100,
-                "kickable": false
-              },
-              "amplitude": {
-                "v": 1,
-                "min": 0,
-                "max": 1,
-                "kickable": false,
-                "add": false
-              },
-              "rate": {
-                "v": 1,
-                "min": 0,
-                "max": 1,
-                "kickable": false,
-                "add": false
-              }
-            }
-          },
-          {
-            "id": 3,
-            "type": "ksyn.data.segEnv",
-            "name": "segEnv",
-            "x": 101.9,
-            "y": 49,
-            "envData": [0.0069444444961845875, 0.9008403420448303, 0.0347222238779068, 0.4638655483722687, 0.024305559694767, 0.2386554628610611, 0.038194440305233, 0.07058823853731155, 0.100694440305233, 0],
-            "sustainBegin": -1,
-            "sustainEnd": -1,
-            "releaseBegin": -1,
-            "releaseEnd": -1
-          },
-          {
-            "id": 4,
-            "type": "ksyn.sources.redNoise",
-            "name": "redNoise",
-            "x": 321.9,
-            "y": 69,
-            "jacks": {
-              "frequency": {
-                "v": 3868.1484375,
-                "min": 40,
-                "max": 8000,
-                "kickable": false,
-                "add": false
-              },
-              "amplitude": {
-                "v": 1,
-                "min": 0,
-                "max": 1,
-                "kickable": false,
-                "add": false
-              }
-            }
-          },
-          {
-            "id": 5,
-            "type": "ksyn.sources.sineOsc",
-            "name": "sineOsc",
-            "x": 407.9,
-            "y": 46,
-            "jacks": {
-              "frequency": {
-                "v": 2030.347900390625,
-                "min": 40,
-                "max": 8000,
-                "kickable": false,
-                "add": false
-              },
-              "amplitude": {
-                "v": 1,
-                "min": 0,
-                "max": 1,
-                "kickable": false,
-                "add": false
-              }
-            }
-          }
-        ],
-        "connections": [
-          {
-            "from": 3,
-            "fromJack": "output",
-            "to": 2,
-            "toJack": "data"
-          },
-          {
-            "from": 2,
-            "fromJack": "output",
-            "to": 4,
-            "toJack": "amplitude"
-          },
-          {
-            "from": 0,
-            "fromJack": "output",
-            "to": 3,
-            "toJack": "queueOn"
-          },
-          {
-            "from": 4,
-            "fromJack": "output",
-            "to": 5,
-            "toJack": "amplitude"
-          },
-          {
-            "from": 5,
-            "fromJack": "output",
-            "to": 1,
-            "toJack": "input"
-          }
-        ]
-      }
-    },
-    {
-      "id": 9,
       "type": "ksyn.data.recorder",
       "name": "recorder",
       "x": 565,
@@ -345,14 +182,14 @@
       }
     },
     {
-      "id": 10,
+      "id": 9,
       "type": "core.input.kick",
       "name": "stopAll",
       "x": 68,
       "y": 491.9
     },
     {
-      "id": 11,
+      "id": 10,
       "type": "core.input.comment",
       "name": "comment",
       "x": 28.9,
@@ -362,17 +199,27 @@
       "h": 95.069336
     },
     {
-      "id": 12,
-      "type": "core.input.loadKick",
-      "name": "loadKick",
+      "id": 11,
+      "type": "core.input.onLoad",
+      "name": "onLoad",
       "x": 18.9,
       "y": 277.9
+    },
+    {
+      "id": 12,
+      "type": "core.patch",
+      "name": "chuff",
+      "x": 682.9,
+      "y": 458.1,
+      "windowOpen": false,
+      "resourcePath": "sounds/chuff.json",
+      "filePath": "/Users/phil/work/syntona-kc/shared/src/commonMain/composeResources/files/sounds/chuff.json"
     }
   ],
   "connections": [
     {
       "from": 1,
-      "fromJack": "output0",
+      "fromJack": "out0",
       "to": 0,
       "toJack": "in"
     },
@@ -380,7 +227,7 @@
       "from": 0,
       "fromJack": "out",
       "to": 2,
-      "toJack": "input0"
+      "toJack": "in0"
     },
     {
       "from": 4,
@@ -396,7 +243,7 @@
     },
     {
       "from": 3,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 5,
       "toJack": "in"
     },
@@ -404,7 +251,7 @@
       "from": 5,
       "fromJack": "out5",
       "to": 7,
-      "toJack": "inc"
+      "toJack": "kick"
     },
     {
       "from": 7,
@@ -419,18 +266,6 @@
       "toJack": "in"
     },
     {
-      "from": 8,
-      "fromJack": "aOut1",
-      "to": 2,
-      "toJack": "input1"
-    },
-    {
-      "from": 3,
-      "fromJack": "output",
-      "to": 8,
-      "toJack": "in1"
-    },
-    {
       "from": 4,
       "fromJack": "out2",
       "to": 0,
@@ -439,7 +274,7 @@
     {
       "from": 4,
       "fromJack": "out2",
-      "to": 9,
+      "to": 8,
       "toJack": "rewind"
     },
     {
@@ -451,56 +286,68 @@
     {
       "from": 4,
       "fromJack": "out2",
-      "to": 9,
+      "to": 8,
       "toJack": "record"
     },
     {
       "from": 4,
       "fromJack": "out0",
-      "to": 9,
+      "to": 8,
       "toJack": "rewind"
     },
     {
       "from": 4,
       "fromJack": "out0",
-      "to": 9,
+      "to": 8,
       "toJack": "play"
     },
     {
-      "from": 9,
+      "from": 8,
       "fromJack": "out",
       "to": 2,
-      "toJack": "input0"
+      "toJack": "in0"
     },
     {
       "from": 1,
-      "fromJack": "output0",
-      "to": 9,
+      "fromJack": "out0",
+      "to": 8,
       "toJack": "in"
     },
     {
-      "from": 10,
+      "from": 9,
       "fromJack": "kick",
       "to": 3,
       "toJack": "stop"
     },
     {
-      "from": 10,
+      "from": 9,
       "fromJack": "kick",
       "to": 0,
       "toJack": "pause"
     },
     {
-      "from": 10,
+      "from": 9,
       "fromJack": "kick",
-      "to": 9,
+      "to": 8,
       "toJack": "pause"
     },
     {
-      "from": 12,
+      "from": 11,
       "fromJack": "kick",
       "to": 3,
       "toJack": "start"
+    },
+    {
+      "from": 12,
+      "fromJack": "out",
+      "to": 2,
+      "toJack": "in1"
+    },
+    {
+      "from": 3,
+      "fromJack": "out",
+      "to": 12,
+      "toJack": "trigger"
     }
   ],
   "windowX": 10,

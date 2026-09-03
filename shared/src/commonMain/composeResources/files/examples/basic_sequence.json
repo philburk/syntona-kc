@@ -1,4 +1,6 @@
 {
+  "version": "0.6.1 beta",
+  "versionCode": 393217,
   "modules": [
     {
       "id": 0,
@@ -7,7 +9,7 @@
       "x": 118.9,
       "y": 79.9,
       "jacks": {
-        "rate(hz)": {
+        "rateHz": {
           "v": 10,
           "min": 0.1,
           "max": 100,
@@ -19,17 +21,17 @@
       "id": 1,
       "type": "ksyn.lineOut",
       "name": "lineOut",
-      "x": 903.9,
-      "y": 120,
+      "x": 754.9,
+      "y": 233,
       "jacks": {
-        "input0": {
+        "in0": {
           "v": 0,
           "min": 0,
           "max": 1,
           "kickable": false,
           "add": false
         },
-        "input1": {
+        "in1": {
           "v": 0,
           "min": 0,
           "max": 1,
@@ -40,27 +42,24 @@
     },
     {
       "id": 2,
-      "type": "ksyn.data.segEnv",
+      "type": "ksyn.data.envSeg",
       "name": "segEnv",
-      "x": 513.9,
-      "y": 220,
-      "envData": [0.019999999552965164, 0.8999999761581421, 0.10000000149011612, 0.5, 0.5, 0],
-      "sustainBegin": 2,
-      "sustainEnd": 2,
-      "releaseBegin": -1,
-      "releaseEnd": -1
-    },
-    {
-      "id": 3,
-      "type": "ksyn.data.monoRdr",
-      "name": "monoRdr",
-      "x": 686.9,
-      "y": 155.1,
+      "x": 594.9,
+      "y": 156,
       "jacks": {
-        "data": {
+        "looping": {
+          "v": 0,
           "min": 0,
-          "max": 100,
-          "kickable": false
+          "max": 1,
+          "kickable": false,
+          "integer": true
+        },
+        "speed": {
+          "v": 1,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
         },
         "amplitude": {
           "v": 1,
@@ -68,22 +67,20 @@
           "max": 1,
           "kickable": false,
           "add": false
-        },
-        "rate": {
-          "v": 1,
-          "min": 0,
-          "max": 1,
-          "kickable": false,
-          "add": false
         }
-      }
+      },
+      "envData": [0.019999999552965164, 0.8999999761581421, 0.10000000149011612, 0.5, 0.5, 0],
+      "sustainBegin": -1,
+      "sustainEnd": -1,
+      "releaseBegin": -1,
+      "releaseEnd": -1
     },
     {
-      "id": 4,
+      "id": 3,
       "type": "ksyn.sources.sawOscBL",
       "name": "sawOscBL",
-      "x": 509,
-      "y": 69.1,
+      "x": 471,
+      "y": 63.1,
       "jacks": {
         "frequency": {
           "v": 500,
@@ -102,23 +99,12 @@
       }
     },
     {
-      "id": 5,
+      "id": 4,
       "type": "core.basic.seq8",
       "name": "seq8",
       "x": 232.9,
       "y": 94,
       "jacks": {
-        "reset": {
-          "min": 0,
-          "max": 100,
-          "kickable": true
-        },
-        "in": {
-          "v": 213,
-          "min": 0,
-          "max": 100,
-          "kickable": true
-        },
         "in0": {
           "v": 0,
           "min": 0,
@@ -166,81 +152,86 @@
           "min": 0,
           "max": 100,
           "kickable": false
+        },
+        "reset": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "kick": {
+          "v": 251,
+          "min": 0,
+          "max": 100,
+          "kickable": true
         }
       },
       "stepValues": ["600.0", "1.0", "1.0", "500.0", "400.0", "1.0", "1.0", "1.0"]
     },
     {
-      "id": 6,
-      "type": "core.input.loadKick",
-      "name": "loadKick",
+      "id": 5,
+      "type": "core.input.onLoad",
+      "name": "onLoad",
       "x": 17,
       "y": 59.1
     }
   ],
   "connections": [
     {
-      "from": 2,
-      "fromJack": "output",
-      "to": 3,
-      "toJack": "data"
-    },
-    {
-      "from": 4,
-      "fromJack": "output",
-      "to": 3,
+      "from": 3,
+      "fromJack": "out",
+      "to": 2,
       "toJack": "amplitude"
     },
     {
-      "from": 3,
-      "fromJack": "output",
+      "from": 2,
+      "fromJack": "out",
       "to": 1,
-      "toJack": "input1"
+      "toJack": "in1"
     },
     {
       "from": 0,
-      "fromJack": "output",
-      "to": 5,
-      "toJack": "in"
+      "fromJack": "out",
+      "to": 4,
+      "toJack": "kick"
     },
     {
-      "from": 5,
+      "from": 4,
       "fromJack": "out0",
-      "to": 4,
+      "to": 3,
       "toJack": "frequency"
     },
     {
-      "from": 5,
+      "from": 4,
       "fromJack": "out0",
       "to": 2,
-      "toJack": "queue"
+      "toJack": "on"
     },
     {
-      "from": 5,
+      "from": 4,
       "fromJack": "out3",
-      "to": 4,
+      "to": 3,
       "toJack": "frequency"
     },
     {
-      "from": 5,
+      "from": 4,
       "fromJack": "out3",
       "to": 2,
-      "toJack": "queue"
+      "toJack": "on"
     },
     {
-      "from": 5,
+      "from": 4,
       "fromJack": "out4",
-      "to": 4,
+      "to": 3,
       "toJack": "frequency"
     },
     {
-      "from": 5,
+      "from": 4,
       "fromJack": "out4",
       "to": 2,
-      "toJack": "queue"
+      "toJack": "on"
     },
     {
-      "from": 6,
+      "from": 5,
       "fromJack": "kick",
       "to": 0,
       "toJack": "start"

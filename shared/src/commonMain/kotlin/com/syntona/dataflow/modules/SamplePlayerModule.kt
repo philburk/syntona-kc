@@ -12,6 +12,7 @@ import com.syntona.core.audio.writeWavFile
 import com.syntona.dataflow.editor.readBinaryFileDirect
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.AudioOutputJack
+import com.syntona.dataflow.model.BooleanInputJack
 import com.syntona.dataflow.model.CommandJack
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
@@ -19,7 +20,7 @@ import com.syntona.dataflow.model.Module
 
 /**
  * A self-contained, 1-module WAV sample player.
- * Supports on/off/loop/stop triggering and variable-rate playback.
+ * Supports on/off/stop triggering, looping toggle, and variable-rate playback.
  * In a polyPatch, the underlying [FloatSample] is shared across all voice instances.
  */
 class SamplePlayerModule : Module("samplePlayer") {
@@ -29,10 +30,17 @@ class SamplePlayerModule : Module("samplePlayer") {
     var sample: FloatSample by mutableStateOf(createSample())
     var filePath: String? by mutableStateOf(null)
 
+    var isLooping: Boolean
+        get() = loopInput.isChecked
+        set(value) {
+            loopInput.isChecked = value
+        }
+
     val onIn: CommandJack
     val offIn: CommandJack
-    val loopIn: CommandJack
     val stopIn: CommandJack
+    val loopInput: BooleanInputJack
+    val looping: BooleanInputJack get() = loopInput
     val speed: AudioInputJack
     val amplitude: AudioInputJack
     val output: AudioOutputJack
@@ -52,8 +60,8 @@ class SamplePlayerModule : Module("samplePlayer") {
 
         onIn = addCommandInput("on")
         offIn = addCommandInput("off")
-        loopIn = addCommandInput("loop")
         stopIn = addCommandInput("stop")
+        loopInput = addBooleanInput("looping")
 
         speed = addAudioInput("speed", rateMultiplier.inputA, 0).apply {
             min = 0.0
@@ -73,13 +81,14 @@ class SamplePlayerModule : Module("samplePlayer") {
         val timeStamp = SynthKSyn.synth.createTimeStamp()
         when (jack) {
             onIn -> {
-                unit.dataQueue.queueOn(sample, timeStamp)
+                if (isLooping || loopInput.isChecked) {
+                    unit.dataQueue.queueLoop(sample)
+                } else {
+                    unit.dataQueue.queueOn(sample, timeStamp)
+                }
             }
             offIn -> {
                 unit.dataQueue.queueOff(sample, false, timeStamp)
-            }
-            loopIn -> {
-                unit.dataQueue.queueLoop(sample)
             }
             stopIn -> {
                 unit.dataQueue.clear()

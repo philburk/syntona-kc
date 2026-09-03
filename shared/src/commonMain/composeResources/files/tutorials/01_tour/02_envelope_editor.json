@@ -1,6 +1,6 @@
 {
-  "version": "0.6.0 beta",
-  "versionCode": 393216,
+  "version": "0.6.1 beta",
+  "versionCode": 393217,
   "modules": [
     {
       "id": 0,
@@ -8,7 +8,7 @@
       "name": "comment",
       "x": 18.9,
       "y": 8,
-      "text": "Click on the first knob and drag up to increase the amplitude (volume).\nClick on the second knob and drag to control the oscillator frequency.\nDouble click on the \"segEnv\" header to open the segmented envelope editor.\nThe clock is triggering note on and off events by queuing envelope segments.",
+      "text": "Click on the first knob and drag up to increase the amplitude (volume).\nClick on the second knob and drag to control the oscillator frequency.\nDouble click on the \"segEnv\" header to open the segmented envelope editor.\nThe clock is triggering note on and off events by turning on the envelope.",
       "w": 570.1186,
       "h": 83.28953
     },
@@ -42,14 +42,14 @@
       "x": 630.9,
       "y": 197.9,
       "jacks": {
-        "input0": {
+        "in0": {
           "v": 0,
           "min": 0,
           "max": 1,
           "kickable": false,
           "add": false
         },
-        "input1": {
+        "in1": {
           "v": 0,
           "min": 0,
           "max": 1,
@@ -80,15 +80,23 @@
     },
     {
       "id": 4,
-      "type": "ksyn.data.monoRdr",
-      "name": "monoRdr",
-      "x": 392,
-      "y": 291.1,
+      "type": "ksyn.data.envSeg",
+      "name": "segEnv",
+      "x": 279.9,
+      "y": 258,
       "jacks": {
-        "data": {
+        "looping": {
           "min": 0,
-          "max": 100,
-          "kickable": false
+          "max": 1,
+          "kickable": false,
+          "integer": true
+        },
+        "speed": {
+          "v": 1,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
         },
         "amplitude": {
           "v": 0.14787563681602478,
@@ -96,22 +104,8 @@
           "max": 1,
           "kickable": false,
           "add": false
-        },
-        "rate": {
-          "v": 1,
-          "min": 0,
-          "max": 1,
-          "kickable": false,
-          "add": false
         }
-      }
-    },
-    {
-      "id": 5,
-      "type": "ksyn.data.segEnv",
-      "name": "segEnv",
-      "x": 285.9,
-      "y": 294,
+      },
       "envData": [0.019999999552965164, 0.8999999761581421, 0.10000000149011612, 0.5, 0.06333333253860474, 0.3405405282974243, 0.07999998331069946, 0.5081080794334412, 0.1900000274181366, 0.2108108103275299, 0.22282323241233826, 0.06285714358091354, 0.23131674528121948, 0],
       "sustainBegin": 2,
       "sustainEnd": 4,
@@ -119,13 +113,13 @@
       "releaseEnd": -1
     },
     {
-      "id": 6,
+      "id": 5,
       "type": "core.basic.clock",
       "name": "clock",
       "x": 78.9,
       "y": 281,
       "jacks": {
-        "rate(hz)": {
+        "rateHz": {
           "v": 2,
           "min": 0.1,
           "max": 100,
@@ -134,7 +128,7 @@
       }
     },
     {
-      "id": 7,
+      "id": 6,
       "type": "core.input.knob",
       "name": "knob",
       "x": 111,
@@ -154,14 +148,14 @@
       }
     },
     {
-      "id": 8,
-      "type": "core.input.loadKick",
-      "name": "loadKick",
+      "id": 7,
+      "type": "core.input.onLoad",
+      "name": "onLoad",
       "x": 8.9,
       "y": 191.1
     },
     {
-      "id": 9,
+      "id": 8,
       "type": "core.basic.link",
       "name": "link",
       "x": 549.9,
@@ -170,7 +164,7 @@
       "buttonText": ">> Next, editing connections"
     },
     {
-      "id": 10,
+      "id": 9,
       "type": "core.basic.mod2",
       "name": "mod2",
       "x": 194.9,
@@ -182,7 +176,7 @@
           "kickable": true
         },
         "in": {
-          "v": 100,
+          "v": 92,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -193,9 +187,9 @@
   "connections": [
     {
       "from": 1,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 2,
-      "toJack": "input0"
+      "toJack": "in0"
     },
     {
       "from": 3,
@@ -204,52 +198,46 @@
       "toJack": "frequency"
     },
     {
-      "from": 5,
-      "fromJack": "output",
-      "to": 4,
-      "toJack": "data"
-    },
-    {
       "from": 4,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 1,
       "toJack": "amplitude"
     },
     {
-      "from": 7,
+      "from": 6,
       "fromJack": "out",
       "to": 4,
       "toJack": "amplitude"
     },
     {
-      "from": 8,
+      "from": 7,
       "fromJack": "kick",
-      "to": 6,
+      "to": 5,
       "toJack": "start"
     },
     {
       "from": 1,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 2,
-      "toJack": "input1"
+      "toJack": "in1"
     },
     {
-      "from": 6,
-      "fromJack": "output",
-      "to": 10,
+      "from": 5,
+      "fromJack": "out",
+      "to": 9,
       "toJack": "in"
     },
     {
-      "from": 10,
+      "from": 9,
       "fromJack": "out0",
-      "to": 5,
-      "toJack": "queueOn"
+      "to": 4,
+      "toJack": "on"
     },
     {
-      "from": 10,
+      "from": 9,
       "fromJack": "out1",
-      "to": 5,
-      "toJack": "queueOff"
+      "to": 4,
+      "toJack": "off"
     }
   ],
   "windowX": 10,

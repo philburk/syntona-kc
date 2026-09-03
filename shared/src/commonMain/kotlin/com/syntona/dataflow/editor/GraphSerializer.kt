@@ -45,6 +45,7 @@ import com.syntona.dataflow.modules.RecorderModule
 import com.syntona.dataflow.modules.ClockDividerModule
 import com.syntona.dataflow.modules.StepperModule
 import com.syntona.dataflow.modules.PassModule
+import com.syntona.dataflow.modules.EnvSegModule
 import com.softsynth.ksyn.data.SegmentedEnvelope
 import com.syntona.dataflow.registry.ModuleRegistry
 import com.syntona.util.relativizePath
@@ -284,8 +285,8 @@ object GraphSerializer {
                 }
                 append("]")
             }
-            if (module is SegmentedEnvelopeModule) {
-                val env = module.envelope
+            if (module is SegmentedEnvelopeModule || module is EnvSegModule) {
+                val env = if (module is SegmentedEnvelopeModule) module.envelope else (module as EnvSegModule).envelope
                 val data = DoubleArray(env.numFrames * 2)
                 env.read(data)
                 val dataJson = data.joinToString(prefix = "[", postfix = "]") { it.toString() }
@@ -402,10 +403,31 @@ object GraphSerializer {
             val modulesArr = (rootObj.map["modules"] as? JsonValue.Arr)?.items ?: return emptyList()
             val connectionsArr = (rootObj.map["connections"] as? JsonValue.Arr)?.items ?: return emptyList()
 
+            val monoRdrToSegEnv = mutableMapOf<Int, Int>()
+            val segEnvToMonoRdr = mutableMapOf<Int, Int>()
+            for (item in connectionsArr) {
+                val obj = item as? JsonValue.Obj ?: continue
+                val fromIdx = (obj.map["from"] as? JsonValue.Num)?.value?.toInt() ?: continue
+                val fromJack = (obj.map["fromJack"] as? JsonValue.Str)?.value ?: continue
+                val toIdx = (obj.map["to"] as? JsonValue.Num)?.value?.toInt() ?: continue
+                val toJack = (obj.map["toJack"] as? JsonValue.Str)?.value ?: continue
+
+                val fromType = ((modulesArr.getOrNull(fromIdx) as? JsonValue.Obj)?.map?.get("type") as? JsonValue.Str)?.value?.let { ModuleRegistry.resolveLegacyTypeName(it) }
+                val toType = ((modulesArr.getOrNull(toIdx) as? JsonValue.Obj)?.map?.get("type") as? JsonValue.Str)?.value?.let { ModuleRegistry.resolveLegacyTypeName(it) }
+
+                if ((fromType == "segEnv" || fromType == "ksyn.data.segEnv") &&
+                    (toType == "monoRdr" || toType == "ksyn.data.monoRdr") &&
+                    (fromJack.equals("out", ignoreCase = true) || fromJack.equals("output", ignoreCase = true)) &&
+                    (toJack.equals("data", ignoreCase = true) || toJack.equals("dataQueue", ignoreCase = true))) {
+                    monoRdrToSegEnv[toIdx] = fromIdx
+                    segEnvToMonoRdr[fromIdx] = toIdx
+                }
+            }
+
             val created = mutableListOf<Module?>()
             val succeeded = mutableListOf<Module>()
 
-        for (item in modulesArr) {
+        for ((idx, item) in modulesArr.withIndex()) {
             val obj = item as? JsonValue.Obj
             val rawTypeName = (obj?.map?.get("type") as? JsonValue.Str)?.value
             val typeName = rawTypeName?.let { ModuleRegistry.resolveLegacyTypeName(it) }
@@ -413,7 +435,18 @@ object GraphSerializer {
             val y = (obj?.map?.get("y") as? JsonValue.Num)?.value?.toFloat() ?: 100f
             val jacks = obj?.map?.get("jacks") as? JsonValue.Obj
 
-            val creator = typeName?.let { ModuleRegistry.findCreator(it) }
+            if (idx in monoRdrToSegEnv) {
+                // Merged into corresponding segEnv -> EnvSegModule
+                created.add(null)
+                continue
+            }
+
+            val isMergedSegEnv = idx in segEnvToMonoRdr
+            val creator = if (isMergedSegEnv) {
+                { EnvSegModule() }
+            } else {
+                typeName?.let { ModuleRegistry.findCreator(it) }
+            }
             if (creator == null) {
                 problems.add("Module type '$typeName' not found in registry (name: '${obj?.map?.get("name") ?: "unknown"}').")
                 created.add(null)
@@ -421,6 +454,34 @@ object GraphSerializer {
             }
 
             val module = creator()
+            if (isMergedSegEnv && module is EnvSegModule) {
+                val monoRdrIdx = segEnvToMonoRdr[idx]
+                val monoRdrObj = monoRdrIdx?.let { modulesArr.getOrNull(it) as? JsonValue.Obj }
+                val monoRdrJacks = monoRdrObj?.map?.get("jacks") as? JsonValue.Obj
+                if (monoRdrJacks != null) {
+                    for ((jackName, jackValue) in monoRdrJacks.map) {
+                        val targetJack = when {
+                            jackName.equals("rate", ignoreCase = true) -> module.speed
+                            jackName.equals("amplitude", ignoreCase = true) -> module.amplitude
+                            else -> resolveLegacyInputJack(module, jackName)
+                        }
+                        if (targetJack != null) {
+                            when (jackValue) {
+                                is JsonValue.Num -> targetJack.setValue(jackValue.value)
+                                is JsonValue.Obj -> {
+                                    (jackValue.map["min"] as? JsonValue.Num)?.value?.let { targetJack.min = it }
+                                    (jackValue.map["max"] as? JsonValue.Num)?.value?.let { targetJack.max = it }
+                                    (jackValue.map["v"] as? JsonValue.Num)?.value?.let { targetJack.setValue(it) }
+                                    if (targetJack is AudioInputJack) {
+                                        (jackValue.map["add"] as? JsonValue.Bool)?.value?.let { targetJack.isValueAdded = it }
+                                    }
+                                }
+                                else -> {}
+                            }
+                        }
+                    }
+                }
+            }
             (obj?.map?.get("name") as? JsonValue.Str)?.value?.let { rawName ->
                 module.name = ModuleRegistry.resolveLegacyModuleName(rawName)
             }
@@ -828,22 +889,52 @@ object GraphSerializer {
                     module.resetNextNoteId()
                 }
             }
-            if (module is SegmentedEnvelopeModule) {
+            if (module is SegmentedEnvelopeModule || module is EnvSegModule) {
                 val envDataArr = (obj?.map?.get("envData") as? JsonValue.Arr)?.items
                 if (envDataArr != null) {
-                    val doubles = DoubleArray(envDataArr.size) { idx ->
-                        (envDataArr[idx] as? JsonValue.Num)?.value ?: 0.0
+                    val doubles = DoubleArray(envDataArr.size) { arrIdx ->
+                        (envDataArr[arrIdx] as? JsonValue.Num)?.value ?: 0.0
                     }
                     val env = SegmentedEnvelope(doubles)
                     (obj.map["sustainBegin"] as? JsonValue.Num)?.value?.let { env.sustainBegin = it.toInt() }
                     (obj.map["sustainEnd"] as? JsonValue.Num)?.value?.let { env.sustainEnd = it.toInt() }
                     (obj.map["releaseBegin"] as? JsonValue.Num)?.value?.let { env.releaseBegin = it.toInt() }
                     (obj.map["releaseEnd"] as? JsonValue.Num)?.value?.let { env.releaseEnd = it.toInt() }
-                    module.envelope = env
+                    if (module is SegmentedEnvelopeModule) {
+                        module.envelope = env
+                    } else if (module is EnvSegModule) {
+                        module.envelope = env
+                    }
+                }
+                if (isMergedSegEnv && module is EnvSegModule) {
+                    val incomingJacksToSegEnv = connectionsArr.mapNotNull { connItem ->
+                        val connObj = connItem as? JsonValue.Obj ?: return@mapNotNull null
+                        val toIdx = (connObj.map["to"] as? JsonValue.Num)?.value?.toInt() ?: return@mapNotNull null
+                        val toJack = (connObj.map["toJack"] as? JsonValue.Str)?.value ?: return@mapNotNull null
+                        if (toIdx == idx) toJack else null
+                    }
+                    val hasQueue = incomingJacksToSegEnv.any { it.equals("queue", ignoreCase = true) }
+                    val hasOtherCommand = incomingJacksToSegEnv.any {
+                        it.equals("queueOn", ignoreCase = true) ||
+                        it.equals("queueOff", ignoreCase = true) ||
+                        it.equals("loop", ignoreCase = true) ||
+                        it.equals("queueLoop", ignoreCase = true)
+                    }
+                    if (hasQueue && !hasOtherCommand) {
+                        module.envelope.sustainBegin = -1
+                        module.envelope.sustainEnd = -1
+                        module.isLooping = false
+                    }
                 }
             }
             created.add(module)
             succeeded.add(module)
+        }
+
+        for ((monoRdrIdx, segEnvIdx) in monoRdrToSegEnv) {
+            if (monoRdrIdx < created.size && segEnvIdx < created.size) {
+                created[monoRdrIdx] = created[segEnvIdx]
+            }
         }
 
         for (item in connectionsArr) {
@@ -866,6 +957,10 @@ object GraphSerializer {
             val toModule = created.getOrNull(toIdx)
             if (toModule == null) {
                 problems.add("Connection target module ID $toIdx not found.")
+                continue
+            }
+            if (fromModule === toModule) {
+                // Skip internal connection between merged modules
                 continue
             }
             val output = resolveLegacyOutputJack(fromModule, fromJack)
@@ -1081,6 +1176,35 @@ class JsonParser(private val input: String) {
 }
 
 internal fun resolveLegacyInputJack(module: Module, serializedName: String): com.syntona.dataflow.model.InputJack? {
+    if (module is EnvSegModule) {
+        when {
+            serializedName.equals("queueOn", ignoreCase = true) || serializedName.equals("on", ignoreCase = true) -> return module.onIn
+            serializedName.equals("queueOff", ignoreCase = true) || serializedName.equals("off", ignoreCase = true) -> return module.offIn
+            serializedName.equals("loop", ignoreCase = true) || serializedName.equals("queueLoop", ignoreCase = true) -> {
+                module.loopInput.isChecked = true
+                return module.onIn
+            }
+            serializedName.equals("queue", ignoreCase = true) -> return module.onIn
+            serializedName.equals("looping", ignoreCase = true) -> return module.loopInput
+            serializedName.equals("rate", ignoreCase = true) || serializedName.equals("speed", ignoreCase = true) -> return module.speed
+            serializedName.equals("amplitude", ignoreCase = true) -> return module.amplitude
+        }
+    }
+    if (module is SamplePlayerModule) {
+        when {
+            serializedName.equals("on", ignoreCase = true) -> return module.onIn
+            serializedName.equals("off", ignoreCase = true) -> return module.offIn
+            serializedName.equals("stop", ignoreCase = true) -> return module.stopIn
+            serializedName.equals("loop", ignoreCase = true) || serializedName.equals("queueLoop", ignoreCase = true) -> {
+                module.loopInput.isChecked = true
+                return module.onIn
+            }
+            serializedName.equals("looping", ignoreCase = true) -> return module.loopInput
+            serializedName.equals("rate", ignoreCase = true) || serializedName.equals("speed", ignoreCase = true) -> return module.speed
+            serializedName.equals("amplitude", ignoreCase = true) -> return module.amplitude
+        }
+    }
+
     // 1. Direct match
     module.inputs.find { it.name == serializedName }?.let { return it }
 
@@ -1124,6 +1248,10 @@ internal fun resolveLegacyInputJack(module: Module, serializedName: String): com
 }
 
 internal fun resolveLegacyOutputJack(module: Module, serializedName: String): com.syntona.dataflow.model.OutputJack? {
+    if (module is EnvSegModule && (serializedName.equals("output", ignoreCase = true) || serializedName.equals("out", ignoreCase = true))) {
+        return module.output
+    }
+
     // 1. Direct match
     module.outputs.find { it.name == serializedName }?.let { return it }
 

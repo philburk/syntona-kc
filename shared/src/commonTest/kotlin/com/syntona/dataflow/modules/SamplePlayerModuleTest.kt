@@ -24,10 +24,10 @@ class SamplePlayerModuleTest {
         assertTrue(module.inputs[0] is CommandJack)
         assertEquals("off", module.inputs[1].name)
         assertTrue(module.inputs[1] is CommandJack)
-        assertEquals("loop", module.inputs[2].name)
+        assertEquals("stop", module.inputs[2].name)
         assertTrue(module.inputs[2] is CommandJack)
-        assertEquals("stop", module.inputs[3].name)
-        assertTrue(module.inputs[3] is CommandJack)
+        assertEquals("looping", module.inputs[3].name)
+        assertTrue(module.inputs[3] is com.syntona.dataflow.model.BooleanInputJack)
         assertEquals("speed", module.inputs[4].name)
         assertTrue(module.inputs[4] is AudioInputJack)
         assertEquals("amplitude", module.inputs[5].name)
@@ -54,8 +54,8 @@ class SamplePlayerModuleTest {
         val module = SamplePlayerModule()
         val now = ScoreTime.Zero
 
+        module.loopInput.isChecked = true
         module.onIn.receive(Message.FloatValue(now, 1.0))
-        module.loopIn.receive(Message.FloatValue(now, 1.0))
         module.offIn.receive(Message.FloatValue(now, 0.0))
         module.stopIn.receive(Message.FloatValue(now, 0.0))
 

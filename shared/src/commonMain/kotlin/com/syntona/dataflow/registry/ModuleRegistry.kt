@@ -230,6 +230,7 @@ object ModuleRegistry {
         addKSynModule(data, "monoRdr", ::VariableRateMonoReader)
         addKSynModule(data, "monoWtr", ::FixedRateMonoWriter)
         data.modules.add(ModuleEntry("segEnv") { SegmentedEnvelopeModule() })
+        data.modules.add(ModuleEntry("envSeg") { EnvSegModule() })
         data.modules.add(ModuleEntry("samplePlayer") { SamplePlayerModule() })
         data.modules.add(ModuleEntry("sample") { FloatSampleModule() })
         data.modules.add(ModuleEntry("sampleReader", "tutorials/07_audio_input/05_sampleReader.json") { SampleReaderModule() })

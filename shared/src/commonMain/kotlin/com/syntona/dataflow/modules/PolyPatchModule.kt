@@ -551,6 +551,13 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                     envelope = templateModule.envelope // Share by reference!
                 }
             }
+            is EnvSegModule -> {
+                EnvSegModule().apply {
+                    name = templateModule.name
+                    envelope = templateModule.envelope // Share by reference!
+                    isLooping = templateModule.isLooping
+                }
+            }
             is FloatSampleModule -> {
                 FloatSampleModule().apply {
                     name = templateModule.name
@@ -563,6 +570,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                     name = templateModule.name
                     sample = templateModule.sample // Share by reference!
                     filePath = templateModule.filePath
+                    isLooping = templateModule.isLooping
                 }
             }
             is SampleReaderModule -> {

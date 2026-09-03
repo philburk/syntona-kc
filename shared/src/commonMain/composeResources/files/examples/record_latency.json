@@ -1,28 +1,33 @@
 {
+  "version": "0.6.1 beta",
+  "versionCode": 393217,
   "modules": [
     {
       "id": 0,
       "type": "ksyn.data.recorder",
       "name": "recorder",
       "x": 631,
-      "y": 433.875,
+      "y": 433.9,
       "jacks": {
         "in": {
           "v": 0,
           "min": 0,
           "max": 1,
+          "kickable": false,
           "add": false
         },
         "amplitude": {
           "v": 1,
           "min": 0,
           "max": 2,
+          "kickable": false,
           "add": false
         },
         "latencyMs": {
-          "v": 86.52083333333333,
+          "v": 82,
           "min": 0,
-          "max": 1000
+          "max": 1000,
+          "kickable": false
         }
       }
     },
@@ -30,27 +35,28 @@
       "id": 1,
       "type": "ksyn.lineIn",
       "name": "lineIn",
-      "x": 512.896,
-      "y": 402.06934,
-      "jacks": {}
+      "x": 512.9,
+      "y": 402.1
     },
     {
       "id": 2,
       "type": "ksyn.lineOut",
       "name": "lineOut",
-      "x": 746.875,
+      "x": 746.9,
       "y": 342,
       "jacks": {
-        "input0": {
+        "in0": {
           "v": 0,
           "min": 0,
           "max": 1,
+          "kickable": false,
           "add": false
         },
-        "input1": {
+        "in1": {
           "v": 0,
           "min": 0,
           "max": 1,
+          "kickable": false,
           "add": false
         }
       }
@@ -59,254 +65,254 @@
       "id": 3,
       "type": "music.compose.beatClock",
       "name": "beatClock",
-      "x": 181.88818,
-      "y": 311.0559,
+      "x": 181.9,
+      "y": 311.1,
       "jacks": {
         "tempo": {
           "v": 60,
           "min": 20,
-          "max": 300
+          "max": 300,
+          "kickable": false
         }
       },
       "division": "1/1"
     },
     {
       "id": 4,
+      "type": "core.input.kick",
+      "name": "STOP",
+      "x": 46,
+      "y": 538.9
+    },
+    {
+      "id": 5,
+      "type": "core.basic.oneShot",
+      "name": "record",
+      "x": 399.9,
+      "y": 385,
+      "jacks": {
+        "in": {
+          "v": 47,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 45.9,
+      "y": 20,
+      "text": "Use Settings in the File menu to select audio input and output device.\n\nThen use the Latency tab to measure the round trip latency. This will be used to compensate for the latency and allow for synchronized playback.\n\nThen \"arm\" the \"record\" and \"play\" modules to record in sync with the chuff sound.",
+      "w": 464.771,
+      "h": 184.94434
+    },
+    {
+      "id": 7,
+      "type": "core.basic.oneShot",
+      "name": "play",
+      "x": 403,
+      "y": 544.9,
+      "jacks": {
+        "in": {
+          "v": 47,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "core.input.onLoad",
+      "name": "onLoad",
+      "x": 42.9,
+      "y": 363
+    },
+    {
+      "id": 9,
       "type": "core.patch",
       "name": "chuff",
-      "x": 433.875,
-      "y": 266,
-      "jacks": {
-        "in1": {
-          "v": 142,
-          "min": 0,
-          "max": 100
-        }
-      },
-      "windowX": 476.875,
-      "windowY": 326.75,
-      "windowWidth": 600,
-      "windowHeight": 450,
+      "x": 422,
+      "y": 268.1,
       "windowOpen": false,
       "patch": {
         "modules": [
           {
             "id": 0,
-            "type": "core.input",
-            "name": "in1",
-            "x": 16.875,
-            "y": 29,
-            "jacks": {}
-          },
-          {
-            "id": 1,
-            "type": "ksyn.aOutput",
+            "type": "ksyn.output~",
             "name": "aOut1",
-            "x": 497.875,
-            "y": 17,
+            "x": 471.9,
+            "y": 164,
             "jacks": {
-              "input": {
+              "in": {
                 "v": 0,
                 "min": 0,
                 "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 1,
+            "type": "ksyn.sources.redNoise",
+            "name": "redNoise",
+            "x": 243.9,
+            "y": 172,
+            "jacks": {
+              "frequency": {
+                "v": 3868.1484375,
+                "min": 40,
+                "max": 8000,
+                "kickable": false,
+                "add": false
+              },
+              "amplitude": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
                 "add": false
               }
             }
           },
           {
             "id": 2,
-            "type": "ksyn.data.monoRdr",
-            "name": "monoRdr",
-            "x": 220.875,
-            "y": 45,
+            "type": "ksyn.sources.sineOsc",
+            "name": "sineOsc",
+            "x": 362.9,
+            "y": 161,
             "jacks": {
+              "frequency": {
+                "v": 2030.347900390625,
+                "min": 40,
+                "max": 8000,
+                "kickable": false,
+                "add": false
+              },
               "amplitude": {
                 "v": 1,
                 "min": 0,
                 "max": 1,
-                "add": false
-              },
-              "rate": {
-                "v": 1,
-                "min": 0,
-                "max": 1,
+                "kickable": false,
                 "add": false
               }
             }
           },
           {
             "id": 3,
-            "type": "ksyn.data.segEnv",
-            "name": "segEnv",
-            "x": 101.875,
-            "y": 49,
-            "jacks": {},
-            "envData": [0.0010000000474974513, 0.9127516746520996, 0.012888888828456402, 0.43959730863571167, 0.006944444961845875, 0.26174497604370117, 0.00347222201526165, 0.07718120515346527, 0.0590277798473835, 0],
-            "sustainBegin": -1,
-            "sustainEnd": -1,
-            "releaseBegin": -1,
-            "releaseEnd": -1
+            "type": "core.command",
+            "name": "trigger",
+            "x": 25.9,
+            "y": 190
           },
           {
             "id": 4,
-            "type": "ksyn.sources.redNoise",
-            "name": "redNoise",
-            "x": 321.875,
-            "y": 69,
+            "type": "ksyn.control.envAD",
+            "name": "envAD",
+            "x": 140.1,
+            "y": 154.1,
             "jacks": {
-              "frequency": {
-                "v": 3868.1484375,
-                "min": 40,
-                "max": 8000,
+              "in": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "attack": {
+                "v": 0.001457819016650319,
+                "min": 0.0010000000474974513,
+                "max": 8,
+                "kickable": false,
+                "add": false
+              },
+              "decay": {
+                "v": 0.2195161134004593,
+                "min": 0.0010000000474974513,
+                "max": 8,
+                "kickable": false,
                 "add": false
               },
               "amplitude": {
                 "v": 1,
                 "min": 0,
                 "max": 1,
+                "kickable": false,
                 "add": false
               }
             }
           },
           {
             "id": 5,
-            "type": "ksyn.sources.sineOsc",
-            "name": "sineOsc",
-            "x": 407.875,
-            "y": 46,
-            "jacks": {
-              "frequency": {
-                "v": 2546.87353515625,
-                "min": 40,
-                "max": 8000,
-                "add": false
-              },
-              "amplitude": {
-                "v": 1,
-                "min": 0,
-                "max": 1,
-                "add": false
-              }
-            }
+            "type": "core.input.comment",
+            "name": "comment",
+            "x": 48.9,
+            "y": 19,
+            "text": "Multiple a sine wave by noise to get a nicely shaped \"chuff\".",
+            "w": 437.78662,
+            "h": 77.08839
           }
         ],
         "connections": [
           {
-            "from": 3,
-            "fromJack": "output",
+            "from": 1,
+            "fromJack": "out",
             "to": 2,
-            "toJack": "data"
+            "toJack": "amplitude"
           },
           {
             "from": 2,
-            "fromJack": "output",
-            "to": 4,
-            "toJack": "amplitude"
+            "fromJack": "out",
+            "to": 0,
+            "toJack": "in"
           },
           {
-            "from": 0,
-            "fromJack": "output",
-            "to": 3,
-            "toJack": "queueOn"
+            "from": 3,
+            "fromJack": "out",
+            "to": 4,
+            "toJack": "trigger"
           },
           {
             "from": 4,
-            "fromJack": "output",
-            "to": 5,
-            "toJack": "amplitude"
-          },
-          {
-            "from": 5,
-            "fromJack": "output",
+            "fromJack": "out",
             "to": 1,
-            "toJack": "input"
+            "toJack": "amplitude"
           }
         ]
       }
-    },
-    {
-      "id": 5,
-      "type": "core.input.kick",
-      "name": "STOP",
-      "x": 46,
-      "y": 538.875,
-      "jacks": {}
-    },
-    {
-      "id": 6,
-      "type": "core.basic.arm",
-      "name": "record",
-      "x": 399.875,
-      "y": 385,
-      "jacks": {}
-    },
-    {
-      "id": 7,
-      "type": "core.input.comment",
-      "name": "comment",
-      "x": 45.875,
-      "y": 20,
-      "jacks": {},
-      "text": "Use Settings in the File menu to select audio input and output device.\n\nThen use the Latency tab to measure the round trip latency. This will be used to compensate for the latency and allow for synchronized playback.\n\nThen \"arm\" the \"record\" and \"play\" modules to record in sync with the chuff sound.",
-      "w": 464.771,
-      "h": 184.94434
-    },
-    {
-      "id": 8,
-      "type": "core.basic.arm",
-      "name": "play",
-      "x": 403,
-      "y": 544.875,
-      "jacks": {}
-    },
-    {
-      "id": 9,
-      "type": "core.input.loadKick",
-      "name": "loadKick",
-      "x": 42.875,
-      "y": 363,
-      "jacks": {}
     }
   ],
   "connections": [
     {
       "from": 1,
-      "fromJack": "output0",
+      "fromJack": "out0",
       "to": 0,
       "toJack": "in"
     },
     {
       "from": 4,
-      "fromJack": "aOut1",
-      "to": 2,
-      "toJack": "input1"
-    },
-    {
-      "from": 3,
-      "fromJack": "output",
-      "to": 4,
-      "toJack": "in1"
-    },
-    {
-      "from": 5,
       "fromJack": "kick",
       "to": 3,
       "toJack": "stop"
     },
     {
-      "from": 5,
+      "from": 4,
       "fromJack": "kick",
       "to": 0,
       "toJack": "pause"
     },
     {
       "from": 3,
-      "fromJack": "output",
-      "to": 6,
+      "fromJack": "out",
+      "to": 5,
       "toJack": "in"
     },
     {
-      "from": 6,
+      "from": 5,
       "fromJack": "out",
       "to": 0,
       "toJack": "rewind"
@@ -315,37 +321,49 @@
       "from": 0,
       "fromJack": "out",
       "to": 2,
-      "toJack": "input0"
+      "toJack": "in0"
     },
     {
-      "from": 6,
+      "from": 5,
       "fromJack": "out",
       "to": 0,
       "toJack": "record"
     },
     {
       "from": 3,
-      "fromJack": "output",
-      "to": 8,
+      "fromJack": "out",
+      "to": 7,
       "toJack": "in"
     },
     {
-      "from": 8,
+      "from": 7,
       "fromJack": "out",
       "to": 0,
       "toJack": "rewind"
     },
     {
-      "from": 8,
+      "from": 7,
       "fromJack": "out",
       "to": 0,
       "toJack": "play"
     },
     {
-      "from": 9,
+      "from": 8,
       "fromJack": "kick",
       "to": 3,
       "toJack": "start"
+    },
+    {
+      "from": 9,
+      "fromJack": "aOut1",
+      "to": 2,
+      "toJack": "in1"
+    },
+    {
+      "from": 3,
+      "fromJack": "out",
+      "to": 9,
+      "toJack": "trigger"
     }
   ],
   "windowX": 10,

@@ -3,17 +3,25 @@
 
 Try to save a native signed version.
 
-Add integrated "envSeg" with Segmented envelope and monoReader.
+Add integrated "envSeg" module that combines a SegmentedEnvelope and VariableRateMonoReader.
+This can be used in place of the "segEnv" and "monoRdr" modules.
 This is a somewhat similar to the "samplePlayer" module.
-Jecks on the new module are:
+Jacks on the new module are:
 Command "on"
 Command "off"
 Command "loop"
 "speed" scaler for playback rate
 "amplitude"
 "out" audio output
+When you double-click on the envSeg module header you get the EnvelopeEditor like on the old segEnv module.
 Try to be backwards compatible by converting connected segEnv and monoRdr modules to the new module
 when reading from JSON.
+
+BUG: looping jack on new envSeg in tuna_sandwich does not respond!
+may be related to this:
+BUG: load tuna_sandwich
+Load examples/looper
+Cannot discard old patch!
 
 The "kick" input jacks on the stepper and the toggle should be CommandJacks.
 They should have a button so we can trigger them manually.
