@@ -1047,9 +1047,10 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
     var valueDragAccumX by remember { mutableStateOf(0f) }
     var jackRootPosition by remember { mutableStateOf(Offset.Zero) }
 
+    val shouldShowValueOnHover = jack.isDisplayableValue && (jack !is InputJack || jack.isValueDraggable)
     val displayText = when {
         isValueDragging -> formatValue(valueDragCurrentValue)
-        isHovered && jack.isDisplayableValue -> formatValue(jack.getValue())
+        isHovered && shouldShowValueOnHover -> formatValue(jack.getValue())
         else -> jack.name
     }
 
@@ -1161,15 +1162,14 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
                 Spacer(modifier = Modifier.width(4.dp))
                 Text(">>", color = colors.jackDefault, fontSize = 10.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
             }
-            val stepper = jack.module as? StepperModule
-            if (stepper != null && jack === stepper.loop) {
+            if (jack is BooleanInputJack) {
                 Spacer(modifier = Modifier.widthIn(min = 8.dp).weight(1f))
                 val isConnected = state.connections.any { it.input == jack }
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
                         .size(16.dp)
-                        .pointerInput(stepper) {
+                        .pointerInput(jack) {
                             awaitEachGesture {
                                 val down = awaitFirstDown(requireUnconsumed = true)
                                 down.consume()
@@ -1177,12 +1177,12 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
                                 if (up != null) {
                                     up.consume()
                                     if (!isConnected) {
-                                        val newLoop = !stepper.isLooping
-                                        val newValue = if (newLoop) 1.0 else 0.0
+                                        val newChecked = !jack.isChecked
+                                        val newValue = if (newChecked) 1.0 else 0.0
                                         val e = state.engine
-                                        if (e != null) e.post(SetValueCommand(stepper.loop, newValue, ScoreClock.now()))
-                                        else stepper.loop.setValue(newValue)
-                                        stepper.isLooping = newLoop
+                                        if (e != null) e.post(SetValueCommand(jack, newValue, ScoreClock.now()))
+                                        else jack.setValue(newValue)
+                                        jack.isChecked = newChecked
                                         state.markChanged()
                                         FileState.markDirty()
                                     }
@@ -1192,7 +1192,7 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
                 ) {
                     CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
                         Checkbox(
-                            checked = stepper.isLooping,
+                            checked = jack.isChecked,
                             onCheckedChange = null,
                             modifier = Modifier.size(16.dp),
                             colors = CheckboxDefaults.colors(

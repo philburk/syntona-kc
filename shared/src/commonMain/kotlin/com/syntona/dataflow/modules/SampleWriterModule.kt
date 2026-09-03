@@ -7,6 +7,7 @@ import com.softsynth.ksyn.data.AudioSampleData
 import com.softsynth.ksyn.unitgen.FixedRateMonoWriter
 import com.syntona.core.audio.SynthKSyn
 import com.syntona.dataflow.model.AudioInputJack
+import com.syntona.dataflow.model.BooleanInputJack
 import com.syntona.dataflow.model.CommandJack
 import com.syntona.dataflow.model.DataQueueInputJack
 import com.syntona.dataflow.model.InputJack
@@ -21,7 +22,11 @@ import com.syntona.dataflow.model.Module
 class SampleWriterModule : Module("sampleWriter") {
     val unit = FixedRateMonoWriter()
 
-    var isLooping: Boolean by mutableStateOf(false)
+    var isLooping: Boolean
+        get() = loopInput.isChecked
+        set(value) {
+            loopInput.isChecked = value
+        }
     private var isWritingLoop = false
 
     val displayCursorSeconds: Double
@@ -39,7 +44,8 @@ class SampleWriterModule : Module("sampleWriter") {
     val dataInput: DataQueueInputJack
     val startIn: CommandJack
     val stopIn: CommandJack
-    val loopInput: IntegerInputJack
+    val loopInput: BooleanInputJack
+    val looping: BooleanInputJack get() = loopInput
     val input: AudioInputJack
 
     init {
@@ -51,11 +57,7 @@ class SampleWriterModule : Module("sampleWriter") {
         dataInput = addDataQueueInput("data", unit.dataQueue, autoQueue = false)
         startIn = addCommandInput("start")
         stopIn = addCommandInput("stop")
-        loopInput = addIntegerInput("looping").apply {
-            min = 0.0
-            max = 1.0
-            setValue(0.0)
-        }
+        loopInput = addBooleanInput("looping")
         input = addAudioInput("in", unit.input, 0)
     }
 
@@ -75,7 +77,7 @@ class SampleWriterModule : Module("sampleWriter") {
         val totalFrames = data.numFrames
         if (totalFrames <= 0) return
 
-        val shouldLoop = isLooping || loopInput.getClippedDoubleValue() >= 0.5
+        val shouldLoop = isLooping || loopInput.isChecked
         val timeStamp = SynthKSyn.synth.createTimeStamp()
 
         if (shouldLoop) {

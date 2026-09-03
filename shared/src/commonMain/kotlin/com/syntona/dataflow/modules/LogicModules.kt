@@ -1,5 +1,6 @@
 package com.syntona.dataflow.modules
 
+import com.syntona.dataflow.model.BooleanInputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
 
@@ -132,23 +133,22 @@ class Select16Module : SelectModule(16)
 
 /**
  * Boolean pass-through gate / mute switch for event messages.
- * When [enable] > 0 (Open), incoming messages on [input] are forwarded to [output].
- * When [enable] <= 0 (Closed), incoming messages are dropped.
+ * When [enabled] > 0 (Open), incoming messages on [input] are forwarded to [output].
+ * When [enabled] <= 0 (Closed), incoming messages are dropped.
  */
 class PassModule : Module("pass") {
-    val enable = addIntegerInput("enable", isKickable = false).also {
-        it.min = 0.0
-        it.max = 1.0
-    }
+    val enabled = addBooleanInput("enabled", isKickable = false)
+    val enable: BooleanInputJack get() = enabled
+
     val input = addInput("in", isKickable = true)
     val output = addOutput("out")
 
     init {
-        enable.setValue(1.0)
+        enabled.setValue(1.0)
     }
 
     override fun execute(triggerMessage: Message) {
-        if (input.isKicked && isTruthy(enable.getDoubleValue())) {
+        if (input.isKicked && isTruthy(enabled.getDoubleValue())) {
             output.send(triggerMessage)
         }
     }

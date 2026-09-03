@@ -44,6 +44,7 @@ import com.syntona.dataflow.modules.SamplePlayerModule
 import com.syntona.dataflow.modules.RecorderModule
 import com.syntona.dataflow.modules.ClockDividerModule
 import com.syntona.dataflow.modules.StepperModule
+import com.syntona.dataflow.modules.PassModule
 import com.softsynth.ksyn.data.SegmentedEnvelope
 import com.syntona.dataflow.registry.ModuleRegistry
 import com.syntona.util.relativizePath
@@ -1090,6 +1091,7 @@ internal fun resolveLegacyInputJack(module: Module, serializedName: String): com
         serializedName == "inc" -> "kick"
         serializedName == "rate" -> "speed"
         serializedName == "loop" -> "looping"
+        serializedName == "enable" -> "enabled"
         module is ClockDividerModule && serializedName.equals("N", ignoreCase = true) -> "divisor"
         serializedName.startsWith("input", ignoreCase = true) -> "in" + serializedName.substring(5)
         else -> null
@@ -1113,6 +1115,9 @@ internal fun resolveLegacyInputJack(module: Module, serializedName: String): com
     }
     if (module is StepperModule && (serializedName.equals("loop", ignoreCase = true) || serializedName.equals("looping", ignoreCase = true))) {
         return module.loop
+    }
+    if (module is PassModule && (serializedName.equals("enable", ignoreCase = true) || serializedName.equals("enabled", ignoreCase = true))) {
+        return module.enabled
     }
 
     return null

@@ -3,24 +3,22 @@
 
 Try to save a native signed version.
 
-BUG: create a sampleReader module.
-Click and drag up on the "data" jack.
-EXPECT nothing to happen.
-ACTUAL it shows an increasing numeric value.
-Data jacks should not be editable and should not appear in the ModuleEditor.
-
-
-Boolean input jacks that are Integer and have a range of 0-1 could be declared BooleanInputJacks
-and always have a checkbox, like the "looping" jack on the "stepper" module.
-It does not need the editing behavior where we can set the by dragging the mouse up or down.
-The user can just click the checkbox.
-Also the BooleanJacks do not need to appear in the ModuleEditor. The min/max should never change.
-Look for candidates for BooleanJacks and make a list for conversion.
-Likely candidates are jacks called "enabled",
-
-Add integrated envSeg with Segmented envelope and monoReader.
+Add integrated "envSeg" with Segmented envelope and monoReader.
+This is a somewhat similar to the "samplePlayer" module.
+Jecks on the new module are:
+Command "on"
+Command "off"
+Command "loop"
+"speed" scaler for playback rate
+"amplitude"
+"out" audio output
 Try to be backwards compatible by converting connected segEnv and monoRdr modules to the new module
 when reading from JSON.
+
+The "kick" input jacks on the stepper and the toggle should be CommandJacks.
+They should have a button so we can trigger them manually.
+They should have isModuleEditorVisible=false.
+Any other candidates for CommandJacks that are called "kick" or "incr"?
 
 Use envelopes to gate off the pull to reduce CPU load for silent patches.
 Write tests in KSyn and Syntona.

@@ -24,12 +24,10 @@ class StepperModule : Module("stepper"), CommandJackBadge {
         it.max = 128.0
         it.setValue(4.0)
     }
-    val loop = addIntegerInput("looping").also {
-        it.min = 0.0
-        it.max = 1.0
+    val loop = addBooleanInput("looping").also {
         it.setValue(0.0)
     }
-    val looping: com.syntona.dataflow.model.IntegerInputJack get() = loop
+    val looping: com.syntona.dataflow.model.BooleanInputJack get() = loop
 
     val indexOut = addIntegerOutput("index")
     val doneOut = addOutput("done")
@@ -42,23 +40,11 @@ class StepperModule : Module("stepper"), CommandJackBadge {
 
     private var lastActiveTime: ScoreTime? = null
 
-    private var _isLooping by mutableStateOf(false)
     var isLooping: Boolean
-        get() = _isLooping
+        get() = loop.isChecked
         set(value) {
-            _isLooping = value
-            val doubleVal = if (value) 1.0 else 0.0
-            if (loop.getDoubleValue() != doubleVal) {
-                loop.setValue(doubleVal)
-            }
+            loop.isChecked = value
         }
-
-    override fun onMessageReceived(jack: InputJack, msg: Message) {
-        if (jack === loop && msg is Message.FloatValue) {
-            _isLooping = msg.value > 0.5
-        }
-        super.onMessageReceived(jack, msg)
-    }
 
     override fun badgeFor(jack: CommandJack): String? =
         if (jack === start && isRunning) "RUN" else null

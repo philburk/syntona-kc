@@ -35,7 +35,10 @@ class SampleWriterModuleTest {
         assertEquals("stop", module.inputs[2].name)
         assertTrue(module.inputs[2] is CommandJack)
         assertEquals("looping", module.inputs[3].name)
-        assertTrue(module.inputs[3] is IntegerInputJack)
+        assertTrue(module.inputs[3] is com.syntona.dataflow.model.BooleanInputJack)
+        assertFalse(module.inputs[3].isValueDraggable)
+        assertFalse(module.inputs[3].isDisplayableValue)
+        assertFalse(module.inputs[3].isModuleEditorVisible)
         assertEquals("in", module.inputs[4].name)
         assertTrue(module.inputs[4] is AudioInputJack)
 

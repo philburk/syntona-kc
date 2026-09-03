@@ -23,7 +23,11 @@ class SampleReaderModule : Module("sampleReader") {
     val unit = VariableRateMonoReader()
     val rateMultiplier = Multiply()
 
-    var isLooping: Boolean by mutableStateOf(false)
+    var isLooping: Boolean
+        get() = loopInput.isChecked
+        set(value) {
+            loopInput.isChecked = value
+        }
     private var isPlayingLoop = false
 
     val displayCursorSeconds: Double
@@ -43,7 +47,8 @@ class SampleReaderModule : Module("sampleReader") {
     val stopIn: CommandJack
     val offset: InputJack
     val durationMs: InputJack
-    val loopInput: com.syntona.dataflow.model.IntegerInputJack
+    val loopInput: com.syntona.dataflow.model.BooleanInputJack
+    val looping: com.syntona.dataflow.model.BooleanInputJack get() = loopInput
     val speed: AudioInputJack
     val amplitude: AudioInputJack
     val output: AudioOutputJack
@@ -75,11 +80,7 @@ class SampleReaderModule : Module("sampleReader") {
             max = 10000.0
             setValue(0.0)
         }
-        loopInput = addIntegerInput("looping").apply {
-            min = 0.0
-            max = 1.0
-            setValue(0.0)
-        }
+        loopInput = addBooleanInput("looping")
         speed = addAudioInput("speed", rateMultiplier.inputA, 0).apply {
             min = 0.0
             max = 8.0
@@ -140,7 +141,7 @@ class SampleReaderModule : Module("sampleReader") {
             requestedFrames.coerceIn(1, maxAvailable.coerceAtLeast(1))
         }
 
-        val shouldLoop = isLooping || loopInput.getClippedDoubleValue() >= 0.5
+        val shouldLoop = isLooping || loopInput.isChecked
         val timeStamp = SynthKSyn.synth.createTimeStamp()
 
         if (shouldLoop) {

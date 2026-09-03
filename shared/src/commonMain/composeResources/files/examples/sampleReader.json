@@ -1,4 +1,6 @@
 {
+  "version": "0.6.1 beta",
+  "versionCode": 393217,
   "modules": [
     {
       "id": 0,
@@ -40,17 +42,17 @@
       "id": 2,
       "type": "ksyn.lineOut",
       "name": "lineOut",
-      "x": 809.9,
-      "y": 125,
+      "x": 801.9,
+      "y": 205,
       "jacks": {
-        "input0": {
+        "in0": {
           "v": 0,
           "min": 0,
           "max": 1,
           "kickable": false,
           "add": false
         },
-        "input1": {
+        "in1": {
           "v": 0,
           "min": 0,
           "max": 1,
@@ -63,8 +65,8 @@
       "id": 3,
       "type": "ksyn.data.sampleReader",
       "name": "sampleReader",
-      "x": 634,
-      "y": 306.1,
+      "x": 660,
+      "y": 316.1,
       "jacks": {
         "data": {
           "min": 0,
@@ -72,25 +74,26 @@
           "kickable": false
         },
         "offset": {
-          "v": 0.08052155375480652,
+          "v": 0.12651291489601135,
           "min": 0,
           "max": 1,
           "kickable": false
         },
         "durationMs": {
-          "v": 1850.8914794921875,
+          "v": 1733.3621826171875,
           "min": 0,
           "max": 10000,
           "kickable": false
         },
-        "loop": {
+        "looping": {
           "v": 0.871808748888619,
           "min": 0,
           "max": 1,
-          "kickable": false
+          "kickable": false,
+          "integer": true
         },
-        "rate": {
-          "v": 0.797296404838562,
+        "speed": {
+          "v": 1.1772964000701904,
           "min": 0,
           "max": 8,
           "kickable": false,
@@ -109,8 +112,8 @@
       "id": 4,
       "type": "core.input.knob",
       "name": "knob",
-      "x": 408.9,
-      "y": 403.9,
+      "x": 398.9,
+      "y": 471.9,
       "jacks": {
         "kick": {
           "min": 0,
@@ -118,7 +121,7 @@
           "kickable": true
         },
         "in": {
-          "v": 0.08052155375480652,
+          "v": 0.12651291489601135,
           "min": 0,
           "max": 1,
           "kickable": false
@@ -138,7 +141,7 @@
           "kickable": true
         },
         "in": {
-          "v": 1850.8914794921875,
+          "v": 1733.3621826171875,
           "min": 0,
           "max": 10000,
           "kickable": false
@@ -159,7 +162,7 @@
   "connections": [
     {
       "from": 0,
-      "fromJack": "output0",
+      "fromJack": "out0",
       "to": 1,
       "toJack": "in"
     },
@@ -167,7 +170,7 @@
       "from": 1,
       "fromJack": "out",
       "to": 2,
-      "toJack": "input0"
+      "toJack": "in0"
     },
     {
       "from": 1,
@@ -177,9 +180,9 @@
     },
     {
       "from": 3,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 2,
-      "toJack": "input1"
+      "toJack": "in1"
     },
     {
       "from": 4,

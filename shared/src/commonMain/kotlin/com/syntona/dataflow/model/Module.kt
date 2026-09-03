@@ -53,6 +53,12 @@ abstract class Module(val type: String) {
         return jack
     }
 
+    protected fun addBooleanInput(name: String, isKickable: Boolean = false): BooleanInputJack {
+        val jack = BooleanInputJack(name, this, isKickable)
+        _inputs.add(jack)
+        return jack
+    }
+
     protected fun addCommandInput(name: String): CommandJack {
         val jack = CommandJack(name, this)
         _inputs.add(jack)

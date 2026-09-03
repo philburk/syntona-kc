@@ -160,6 +160,44 @@ open class IntegerInputJack(
 ) : InputJack(name, module, isKickable = isKickable, isInteger = true)
 
 /**
+ * An [InputJack] that represents a discrete 0 or 1 boolean state.
+ * Rendered with an inline interactive Checkbox in the graph canvas when unconnected.
+ * Not editable via mouse drag and excluded from ModuleEditor.
+ */
+open class BooleanInputJack(
+    name: String,
+    module: Module,
+    isKickable: Boolean = false
+) : IntegerInputJack(name, module, isKickable = isKickable) {
+    init {
+        min = 0.0
+        max = 1.0
+    }
+
+    override val isDisplayableValue: Boolean get() = false
+    override val isValueDraggable: Boolean get() = false
+    override val isModuleEditorVisible: Boolean get() = false
+
+    private var _isChecked by mutableStateOf(false)
+    var isChecked: Boolean
+        get() = _isChecked
+        set(value) {
+            _isChecked = value
+            val doubleVal = if (value) 1.0 else 0.0
+            if (getDoubleValue() != doubleVal) {
+                setValue(doubleVal)
+            }
+        }
+
+    override fun receive(msg: Message) {
+        if (msg is Message.FloatValue) {
+            _isChecked = msg.value > 0.0
+        }
+        super.receive(msg)
+    }
+}
+
+/**
  * An output port that can send messages to connected [InputJack]s.
  */
 open class OutputJack(

@@ -54,10 +54,15 @@ class StepperModuleTest {
 
         assertEquals("looping", stepper.loop.name)
         assertEquals("looping", stepper.looping.name)
+        assertTrue(stepper.loop is com.syntona.dataflow.model.BooleanInputJack)
         assertTrue(stepper.loop.isInteger)
+        assertFalse(stepper.loop.isValueDraggable)
+        assertFalse(stepper.loop.isDisplayableValue)
+        assertFalse(stepper.loop.isModuleEditorVisible)
         assertEquals(0.0, stepper.loop.min)
         assertEquals(1.0, stepper.loop.max)
         assertEquals(0.0, stepper.loop.getValue())
+        assertFalse(stepper.loop.isChecked)
 
         assertEquals("index", stepper.indexOut.name)
         assertTrue(stepper.indexOut.isInteger)

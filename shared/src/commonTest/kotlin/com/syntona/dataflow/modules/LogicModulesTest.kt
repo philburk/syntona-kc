@@ -234,21 +234,30 @@ class LogicModulesTest {
         val receiver = MessageReceiver()
         pass.output.connect(receiver.inJack)
 
-        // Initial state is open (enable = 1.0)
+        assertEquals("enabled", pass.enabled.name)
+        assertTrue(pass.enabled is com.syntona.dataflow.model.BooleanInputJack)
+        assertFalse(pass.enabled.isValueDraggable)
+        assertFalse(pass.enabled.isDisplayableValue)
+        assertFalse(pass.enabled.isModuleEditorVisible)
+        assertTrue(pass.enabled.isChecked)
+
+        // Initial state is open (enabled = 1.0)
         val msg1: Message = Message.FloatValue(ScoreTime(100L), 77.0)
         pass.input.receive(msg1)
         assertEquals(listOf<Message>(msg1), receiver.received, "Pass should be open by default")
 
-        // Close pass (enable = 0.0)
-        pass.enable.receive(Message.FloatValue(ScoreTime.Zero, 0.0))
-        assertEquals(1, receiver.received.size, "Updating enable should not trigger output")
+        // Close pass (enabled = 0.0)
+        pass.enabled.receive(Message.FloatValue(ScoreTime.Zero, 0.0))
+        assertEquals(1, receiver.received.size, "Updating enabled should not trigger output")
+        assertFalse(pass.enabled.isChecked)
 
         // Send message when closed -> dropped
         pass.input.receive(Message.FloatValue(ScoreTime(200L), 88.0))
         assertEquals(1, receiver.received.size, "Message should be dropped when pass is closed")
 
-        // Re-open pass (enable = 0.5 > 0)
-        pass.enable.receive(Message.FloatValue(ScoreTime.Zero, 0.5))
+        // Re-open pass (enabled = 0.5 > 0)
+        pass.enabled.receive(Message.FloatValue(ScoreTime.Zero, 0.5))
+        assertTrue(pass.enabled.isChecked)
         val msg2: Message = Message.FloatValue(ScoreTime(300L), 99.0)
         pass.input.receive(msg2)
         assertEquals(listOf<Message>(msg1, msg2), receiver.received, "Message should pass when pass is re-opened")
@@ -264,7 +273,7 @@ class LogicModulesTest {
 
         branch.indexIn.setValue(2.0)
         select.indexIn.setValue(1.0)
-        pass.enable.setValue(0.0)
+        pass.enabled.setValue(0.0)
 
         graph.addModule(andMod, Offset.Zero)
         graph.addModule(branch, Offset(100f, 100f))
@@ -286,7 +295,7 @@ class LogicModulesTest {
 
         assertEquals(2.0, restoredBranch.indexIn.getValue())
         assertEquals(1.0, restoredSelect.indexIn.getValue())
-        assertEquals(0.0, restoredPass.enable.getValue())
+        assertEquals(0.0, restoredPass.enabled.getValue())
     }
 
     @Test
