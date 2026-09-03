@@ -3,19 +3,6 @@
 
 Try to save a native signed version.
 
-Add integrated "envSeg" module that combines a SegmentedEnvelope and VariableRateMonoReader.
-This can be used in place of the "segEnv" and "monoRdr" modules.
-This is a somewhat similar to the "samplePlayer" module.
-Jacks on the new module are:
-Command "on"
-Command "off"
-Command "loop"
-"speed" scaler for playback rate
-"amplitude"
-"out" audio output
-When you double-click on the envSeg module header you get the EnvelopeEditor like on the old segEnv module.
-Try to be backwards compatible by converting connected segEnv and monoRdr modules to the new module
-when reading from JSON.
 
 BUG: looping jack on new envSeg in tuna_sandwich does not respond!
 may be related to this:

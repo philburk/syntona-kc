@@ -2458,6 +2458,15 @@ fun ModuleHeader(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false }
                     ) {
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text("Edit Jacks...", fontSize = 12.sp) },
+                            onClick = {
+                                showMenu = false
+                                state.editingModule = module
+                            },
+                            modifier = Modifier.height(28.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                        )
                         if (module is FloatSampleModule || module is SamplePlayerModule || module is RecorderModule) {
                             androidx.compose.material3.DropdownMenuItem(
                                 text = { Text("Load from WAV File...", fontSize = 12.sp) },

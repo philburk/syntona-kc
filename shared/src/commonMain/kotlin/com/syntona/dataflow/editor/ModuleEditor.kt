@@ -170,7 +170,8 @@ fun ModuleEditor(module: Module, onDismiss: () -> Unit, modifier: Modifier = Mod
 private fun JackFlagCheckbox(
     label: String,
     checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
+    onCheckedChange: (Boolean) -> Unit,
+    textColor: Color = LABEL_COLOR
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -179,7 +180,7 @@ private fun JackFlagCheckbox(
         Text(
             label,
             fontSize = 11.sp,
-            color = LABEL_COLOR,
+            color = textColor,
             maxLines = 1,
             softWrap = false
         )
@@ -194,7 +195,12 @@ private fun JackFlagCheckbox(
 }
 
 @Composable
-private fun JackEditorRow(jack: InputJack) {
+internal fun JackEditorRow(
+    jack: InputJack,
+    backgroundColor: Color = PANEL_COLOR,
+    textColor: Color = LABEL_COLOR,
+    borderColor: Color = BORDER_COLOR
+) {
     if (!jack.isModuleEditorVisible) return
     var currentValue by remember(jack) { mutableStateOf(jack.getValue()) }
 
@@ -207,7 +213,7 @@ private fun JackEditorRow(jack: InputJack) {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = 8.dp)
-                .border(1.dp, BORDER_COLOR, RoundedCornerShape(4.dp))
+                .border(1.dp, borderColor, RoundedCornerShape(4.dp))
                 .padding(start = 8.dp, end = 8.dp, top = 10.dp, bottom = 2.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
@@ -216,7 +222,7 @@ private fun JackEditorRow(jack: InputJack) {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text("Min:", fontSize = 11.sp, color = LABEL_COLOR, modifier = Modifier.width(28.dp))
+                Text("Min:", fontSize = 11.sp, color = textColor, modifier = Modifier.width(28.dp))
                 NumberField(
                     value = jack.min,
                     onCommit = { newMin ->
@@ -234,7 +240,7 @@ private fun JackEditorRow(jack: InputJack) {
                     modifier = Modifier.width(80.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Value:", fontSize = 11.sp, color = LABEL_COLOR, modifier = Modifier.width(36.dp))
+                Text("Value:", fontSize = 11.sp, color = textColor, modifier = Modifier.width(36.dp))
                 NumberField(
                     value = currentValue,
                     onCommit = { newValue ->
@@ -248,7 +254,7 @@ private fun JackEditorRow(jack: InputJack) {
                     modifier = Modifier.width(80.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Max:", fontSize = 11.sp, color = LABEL_COLOR, modifier = Modifier.width(28.dp))
+                Text("Max:", fontSize = 11.sp, color = textColor, modifier = Modifier.width(28.dp))
                 NumberField(
                     value = jack.max,
                     onCommit = { newMax ->
@@ -276,7 +282,8 @@ private fun JackEditorRow(jack: InputJack) {
                             isKickable = it
                             jack.isKickable = it
                             FileState.markDirty()
-                        }
+                        },
+                        textColor = textColor
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     var isInteger by remember(jack) { mutableStateOf(jack.isInteger) }
@@ -292,7 +299,8 @@ private fun JackEditorRow(jack: InputJack) {
                                 currentValue = rounded
                             }
                             FileState.markDirty()
-                        }
+                        },
+                        textColor = textColor
                     )
                 }
 
@@ -306,7 +314,8 @@ private fun JackEditorRow(jack: InputJack) {
                             isValueAdded = it
                             jack.isValueAdded = it
                             FileState.markDirty()
-                        }
+                        },
+                        textColor = textColor
                     )
                 }
             }
@@ -342,11 +351,11 @@ private fun JackEditorRow(jack: InputJack) {
         Text(
             text = jack.name,
             fontSize = 11.sp,
-            color = LABEL_COLOR,
+            color = textColor,
             modifier = Modifier
                 .offset(y = -2.dp)
                 .padding(start = 6.dp)
-                .background(PANEL_COLOR)
+                .background(backgroundColor)
                 .padding(horizontal = 4.dp)
         )
     }
