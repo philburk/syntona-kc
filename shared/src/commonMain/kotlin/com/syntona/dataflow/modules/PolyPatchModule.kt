@@ -545,12 +545,6 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
             is OutputModule -> {
                 OutputModule().apply { name = templateModule.name }
             }
-            is SegmentedEnvelopeModule -> {
-                SegmentedEnvelopeModule().apply {
-                    name = templateModule.name
-                    envelope = templateModule.envelope // Share by reference!
-                }
-            }
             is EnvSegModule -> {
                 EnvSegModule().apply {
                     name = templateModule.name

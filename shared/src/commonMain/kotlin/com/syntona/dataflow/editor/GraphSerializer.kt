@@ -15,7 +15,6 @@ import com.syntona.dataflow.modules.PatchModule
 import com.syntona.dataflow.modules.PolyPatchModule
 import com.syntona.dataflow.modules.InputModule
 import com.syntona.dataflow.modules.AudioInputModule
-import com.syntona.dataflow.modules.SegmentedEnvelopeModule
 import com.syntona.dataflow.modules.LinkModule
 import com.syntona.dataflow.modules.KeyMatchModule
 import com.syntona.dataflow.modules.KeyNotesModule
@@ -285,8 +284,8 @@ object GraphSerializer {
                 }
                 append("]")
             }
-            if (module is SegmentedEnvelopeModule || module is EnvSegModule) {
-                val env = if (module is SegmentedEnvelopeModule) module.envelope else (module as EnvSegModule).envelope
+            if (module is EnvSegModule) {
+                val env = module.envelope
                 val data = DoubleArray(env.numFrames * 2)
                 env.read(data)
                 val dataJson = data.joinToString(prefix = "[", postfix = "]") { it.toString() }
@@ -412,11 +411,15 @@ object GraphSerializer {
                 val toIdx = (obj.map["to"] as? JsonValue.Num)?.value?.toInt() ?: continue
                 val toJack = (obj.map["toJack"] as? JsonValue.Str)?.value ?: continue
 
-                val fromType = ((modulesArr.getOrNull(fromIdx) as? JsonValue.Obj)?.map?.get("type") as? JsonValue.Str)?.value?.let { ModuleRegistry.resolveLegacyTypeName(it) }
-                val toType = ((modulesArr.getOrNull(toIdx) as? JsonValue.Obj)?.map?.get("type") as? JsonValue.Str)?.value?.let { ModuleRegistry.resolveLegacyTypeName(it) }
+                val rawFromType = ((modulesArr.getOrNull(fromIdx) as? JsonValue.Obj)?.map?.get("type") as? JsonValue.Str)?.value ?: ""
+                val rawToType = ((modulesArr.getOrNull(toIdx) as? JsonValue.Obj)?.map?.get("type") as? JsonValue.Str)?.value ?: ""
+                val fromType = ModuleRegistry.resolveLegacyTypeName(rawFromType)
+                val toType = ModuleRegistry.resolveLegacyTypeName(rawToType)
 
-                if ((fromType == "segEnv" || fromType == "ksyn.data.segEnv") &&
-                    (toType == "monoRdr" || toType == "ksyn.data.monoRdr") &&
+                val isSegEnv = rawFromType == "segEnv" || rawFromType == "ksyn.data.segEnv" || fromType == "segEnv" || fromType == "ksyn.data.segEnv"
+                val isMonoRdr = rawToType == "monoRdr" || rawToType == "ksyn.data.monoRdr" || toType == "monoRdr" || toType == "ksyn.data.monoRdr"
+
+                if (isSegEnv && isMonoRdr &&
                     (fromJack.equals("out", ignoreCase = true) || fromJack.equals("output", ignoreCase = true)) &&
                     (toJack.equals("data", ignoreCase = true) || toJack.equals("dataQueue", ignoreCase = true))) {
                     monoRdrToSegEnv[toIdx] = fromIdx
@@ -889,7 +892,7 @@ object GraphSerializer {
                     module.resetNextNoteId()
                 }
             }
-            if (module is SegmentedEnvelopeModule || module is EnvSegModule) {
+            if (module is EnvSegModule) {
                 val envDataArr = (obj?.map?.get("envData") as? JsonValue.Arr)?.items
                 if (envDataArr != null) {
                     val doubles = DoubleArray(envDataArr.size) { arrIdx ->
@@ -900,13 +903,9 @@ object GraphSerializer {
                     (obj.map["sustainEnd"] as? JsonValue.Num)?.value?.let { env.sustainEnd = it.toInt() }
                     (obj.map["releaseBegin"] as? JsonValue.Num)?.value?.let { env.releaseBegin = it.toInt() }
                     (obj.map["releaseEnd"] as? JsonValue.Num)?.value?.let { env.releaseEnd = it.toInt() }
-                    if (module is SegmentedEnvelopeModule) {
-                        module.envelope = env
-                    } else if (module is EnvSegModule) {
-                        module.envelope = env
-                    }
+                    module.envelope = env
                 }
-                if (isMergedSegEnv && module is EnvSegModule) {
+                if (isMergedSegEnv) {
                     val incomingJacksToSegEnv = connectionsArr.mapNotNull { connItem ->
                         val connObj = connItem as? JsonValue.Obj ?: return@mapNotNull null
                         val toIdx = (connObj.map["to"] as? JsonValue.Num)?.value?.toInt() ?: return@mapNotNull null

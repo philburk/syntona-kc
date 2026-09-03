@@ -121,7 +121,6 @@ import com.syntona.dataflow.modules.currentAmplitude
 import com.softsynth.ksyn.compose.BlackWhiteKeyboard
 import com.syntona.dataflow.modules.SequenceModule
 import com.syntona.dataflow.modules.ModuloSelectModule
-import com.syntona.dataflow.modules.SegmentedEnvelopeModule
 import com.syntona.dataflow.modules.EnvSegModule
 import com.syntona.dataflow.modules.LinkModule
 import com.syntona.dataflow.modules.KeyMatchModule
@@ -307,7 +306,6 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                         is ScopeModule -> ScopeModuleNode(module, state)
                         is KeyboardModule -> KeyboardModuleNode(module, state)
                         is CommentModule -> CommentModuleNode(module, state)
-                        is SegmentedEnvelopeModule -> SegmentedEnvelopeModuleNode(module, state)
                         is EnvSegModule -> EnvSegModuleNode(module, state)
                         is PianoRollModule -> PianoRollModuleNode(module, state)
                         is KeyMatchModule -> KeyMatchModuleNode(module, state)
@@ -2135,87 +2133,6 @@ fun ScopeModuleNode(module: ScopeModule, state: GraphState) {
                 probe = module.scope,
                 modifier = Modifier.fillMaxSize()
             )
-        }
-    }
-}
-
-@Composable
-fun SegmentedEnvelopeModuleNode(module: SegmentedEnvelopeModule, state: GraphState) {
-    val colors = LocalGraphColors.current
-    val position = state.modulePositions[module] ?: Offset.Zero
-    val mdiState = LocalMdiState.current
-    val density = LocalDensity.current
-    val isSelected = state.selectedModules.contains(module)
-    val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
-    val borderWidth = if (isSelected) 2.dp else 1.dp
-
-    Surface(
-        modifier = Modifier
-            .offset { IntOffset((position.x * density.density).roundToInt(), (position.y * density.density).roundToInt()) }
-            .width(IntrinsicSize.Max)
-            .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
-            .onSizeChanged { size ->
-                state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
-            },
-        shape = RoundedCornerShape(4.dp),
-        color = colors.moduleBackground
-    ) {
-        Column {
-            ModuleHeader(
-                module = module,
-                state = state,
-                headerColor = colors.headerInputOutput,
-                onDoubleTap = {
-                    mdiState.open(
-                        MdiWindowInfo(
-                            id = module,
-                            title = module.name,
-                            position = Offset(
-                                ((state.modulePositions[module]?.x ?: 100f) + 20f) * density.density,
-                                ((state.modulePositions[module]?.y ?: 100f) + 30f) * density.density
-                            ),
-                            graphState = state,
-                            content = {
-                                val localMdi = LocalMdiState.current
-                                val windowInfo = remember { localMdi.windows.find { it.id == module } }
-                                Column(
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(colors.background)
-                                        .padding(12.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    ModuleNameEditor(
-                                        module = module,
-                                        modifier = Modifier.padding(bottom = 4.dp),
-                                        textColor = Color.LightGray,
-                                        borderColor = Color.Gray,
-                                        onNameChanged = { windowInfo?.title = it }
-                                    )
-
-                                    androidx.compose.material3.HorizontalDivider(color = Color.Gray, thickness = 1.dp)
-
-                                    Box(modifier = Modifier.weight(1f)) {
-                                        SegmentedEnvelopeEditor(
-                                            envelope = module.envelope,
-                                            onChanged = {
-                                                state.markChanged()
-                                                FileState.markDirty()
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        )
-                    )
-                }
-            )
-            // Draw jacks.
-            module.inputs.forEach { JackView(it, state, isLeft = true) }
-            if (module.inputs.isNotEmpty() && module.outputs.isNotEmpty()) {
-                HorizontalDivider(color = Color.Black, thickness = 1.dp)
-            }
-            module.outputs.forEach { JackView(it, state, isLeft = false) }
         }
     }
 }

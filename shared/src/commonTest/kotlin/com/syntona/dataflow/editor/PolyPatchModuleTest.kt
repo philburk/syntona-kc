@@ -695,32 +695,23 @@ class PolyPatchModuleTest {
         val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
         engine.generateNextBuffer()
 
-        // 1. Add segEnv and monoRdr inside polyPatch
-        val segEnv = SegmentedEnvelopeModule()
-        val monoRdr = UnitGeneratorModule("monoRdr", com.softsynth.ksyn.unitgen.VariableRateMonoReader())
-        polyPatch.graphState.addModule(segEnv, androidx.compose.ui.geometry.Offset.Zero)
-        polyPatch.graphState.addModule(monoRdr, androidx.compose.ui.geometry.Offset.Zero)
+        // 1. Add envSeg inside polyPatch
+        val envSeg = EnvSegModule()
+        polyPatch.graphState.addModule(envSeg, androidx.compose.ui.geometry.Offset.Zero)
 
-        // 2. Wire on -> segEnv.queueOn, off -> segEnv.queueOff, segEnv.output -> monoRdr.data
+        // 2. Wire on -> envSeg.on, off -> envSeg.off
         val onModule = polyPatch.graphState.modules.find { it.name == "on" }!!
         val offModule = polyPatch.graphState.modules.find { it.name == "off" }!!
         val onOut = onModule.outputs.find { it.name == "out" }!!
         val offOut = offModule.outputs.find { it.name == "out" }!!
 
-        val queueOnIn = segEnv.inputs.find { it.name == "queueOn" }!!
-        val queueOffIn = segEnv.inputs.find { it.name == "queueOff" }!!
-        val segEnvOut = segEnv.outputs.find { it.name == "out" }!!
-        val monoRdrDataIn = monoRdr.inputs.find { it.name == "data" }!!
+        polyPatch.graphState.connect(onOut, envSeg.onIn)
+        polyPatch.graphState.connect(offOut, envSeg.offIn)
 
-        polyPatch.graphState.connect(onOut, queueOnIn)
-        polyPatch.graphState.connect(offOut, queueOffIn)
-        polyPatch.graphState.connect(segEnvOut, monoRdrDataIn)
-
-        // Connect monoRdr output to main output so it is pulled during buffer generation
+        // Connect envSeg output to main output so it is pulled during buffer generation
         val outputModule = polyPatch.graphState.modules.find { it.name == "output" }!!
-        val monoRdrOut = monoRdr.outputs.find { it.name == "out" }!!
         val patchOutIn = outputModule.inputs.find { it.name == "in" }!!
-        polyPatch.graphState.connect(monoRdrOut, patchOutIn)
+        polyPatch.graphState.connect(envSeg.output, patchOutIn)
 
         // 3. Send NoteOn for tag = 10
         polyPatch.voiceInputJack.receive(
@@ -737,12 +728,12 @@ class PolyPatchModuleTest {
         engine.generateNextBuffer()
         polyPatch.polyphonicInstrument!!.getOutputPort().unitGenerator?.pullData(engine.frameCount)
 
-        // Verify that Voice 0's monoRdr receives the queued envelope
+        // Verify that Voice 0's envSeg receives the queued envelope
         val voice0 = polyPatch.voices[0]
-        val voiceMonoRdr = voice0.templateToVoiceMap[monoRdr] as UnitGeneratorModule
-        val rdrUnit = voiceMonoRdr.unit as com.softsynth.ksyn.unitgen.VariableRateMonoReader
+        val voiceEnvSeg = voice0.templateToVoiceMap[envSeg] as EnvSegModule
+        val rdrUnit = voiceEnvSeg.unit
 
-        assertTrue(rdrUnit.output.getValues().any { it > 0.0f }, "monoRdr should produce envelope values > 0 after NOTE_ON triggered segEnv")
+        assertTrue(rdrUnit.output.getValues().any { it > 0.0f }, "envSeg should produce envelope values > 0 after NOTE_ON triggered envSeg")
 
         // 4. Send NoteOff for tag = 10
         polyPatch.voiceInputJack.receive(
@@ -818,24 +809,24 @@ class PolyPatchModuleTest {
         val polyPatch = PolyPatchModule()
         polyPatch.initializeVoices(2)
 
-        val segEnv = SegmentedEnvelopeModule()
+        val envSeg = EnvSegModule()
         val sample = FloatSampleModule()
 
-        polyPatch.graphState.addModule(segEnv, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(envSeg, androidx.compose.ui.geometry.Offset.Zero)
         polyPatch.graphState.addModule(sample, androidx.compose.ui.geometry.Offset.Zero)
 
         val voice0 = polyPatch.voices[0]
         val voice1 = polyPatch.voices[1]
 
-        val voiceSegEnv0 = voice0.templateToVoiceMap[segEnv] as SegmentedEnvelopeModule
-        val voiceSegEnv1 = voice1.templateToVoiceMap[segEnv] as SegmentedEnvelopeModule
+        val voiceEnvSeg0 = voice0.templateToVoiceMap[envSeg] as EnvSegModule
+        val voiceEnvSeg1 = voice1.templateToVoiceMap[envSeg] as EnvSegModule
 
         val voiceSample0 = voice0.templateToVoiceMap[sample] as FloatSampleModule
         val voiceSample1 = voice1.templateToVoiceMap[sample] as FloatSampleModule
 
         // Verify exact object reference identity (shared memory)
-        assertTrue(segEnv.envelope === voiceSegEnv0.envelope)
-        assertTrue(segEnv.envelope === voiceSegEnv1.envelope)
+        assertTrue(envSeg.envelope === voiceEnvSeg0.envelope)
+        assertTrue(envSeg.envelope === voiceEnvSeg1.envelope)
 
         assertTrue(sample.sample === voiceSample0.sample)
         assertTrue(sample.sample === voiceSample1.sample)

@@ -62,10 +62,10 @@ class ModuleRenameTest {
     }
 
     @Test
-    fun testSegmentedEnvelopeRename() {
-        val module = com.syntona.dataflow.modules.SegmentedEnvelopeModule()
-        assertEquals("segEnv", module.type)
-        assertEquals("segEnv", module.name)
+    fun testEnvSegRename() {
+        val module = com.syntona.dataflow.modules.EnvSegModule()
+        assertEquals("envSeg", module.type)
+        assertEquals("envSeg", module.name)
         module.name = "myAmpEnv"
         assertEquals("myAmpEnv", module.name)
     }

@@ -227,9 +227,6 @@ object ModuleRegistry {
         ksynView.modules.add(ModuleEntry("scope") { ScopeModule() })
 
         val data = getOrCreateBundle(ksyn, "data")
-        addKSynModule(data, "monoRdr", ::VariableRateMonoReader)
-        addKSynModule(data, "monoWtr", ::FixedRateMonoWriter)
-        data.modules.add(ModuleEntry("segEnv") { SegmentedEnvelopeModule() })
         data.modules.add(ModuleEntry("envSeg") { EnvSegModule() })
         data.modules.add(ModuleEntry("samplePlayer") { SamplePlayerModule() })
         data.modules.add(ModuleEntry("sample") { FloatSampleModule() })
@@ -322,6 +319,8 @@ object ModuleRegistry {
         "aRanger" -> "range~"
         "delay" -> "delay~"
         "select" -> "select~"
+        "segEnv" -> "envSeg"
+        "monoRdr" -> "envSeg"
         else -> name
     }
 
