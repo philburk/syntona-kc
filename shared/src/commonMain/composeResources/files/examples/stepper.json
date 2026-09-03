@@ -10,7 +10,7 @@
       "y": 299,
       "jacks": {
         "kick": {
-          "v": 52,
+          "v": 179,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -39,7 +39,7 @@
       "y": 563,
       "jacks": {
         "kick": {
-          "v": 52,
+          "v": 179,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -68,7 +68,7 @@
       "y": 372,
       "jacks": {
         "in": {
-          "v": 5,
+          "v": 3,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -128,7 +128,7 @@
       "y": 300,
       "jacks": {
         "flash": {
-          "v": 5,
+          "v": 3,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -156,7 +156,7 @@
       "name": "comment",
       "x": 81.9,
       "y": 43.1,
-      "text": "The stepper module lets you create series of numbers. These can be used to control sequencers.\n\nToDo:\n* Note that the stepper is not responding to the beatClock.\n* Click the \"arm\" button on the \"oneShot\" module.\n* Notice that the clock now drives the stepper.\n* Note that the top stepper fires a few time.  Then it sends a \"done\" message to the next stepper and starts the next sequence.",
+      "text": "The stepper module lets you create series of numbers. These can be used to control sequencers.\n\nToDo:\n* There is no sound in this example.\n* Note that the stepper is not responding to the beatClock.\n* Click the \"arm\" button on the \"oneShot\" module.\n* Notice that the clock now drives the stepper.\n* Note that the top stepper fires a few time.  Then it sends a \"done\" message to the next stepper and starts the next sequence.",
       "w": 636.875,
       "h": 199
     },
@@ -191,7 +191,7 @@
       "y": 335.1,
       "jacks": {
         "in": {
-          "v": 52,
+          "v": 180,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -206,7 +206,7 @@
       "y": 637.1,
       "jacks": {
         "flash": {
-          "v": 52,
+          "v": 180,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -294,8 +294,8 @@
       "toJack": "flash"
     }
   ],
-  "windowX": 38,
-  "windowY": 38,
+  "windowX": 76,
+  "windowY": 76,
   "windowWidth": 1338.37890625,
   "windowHeight": 848.04296875
 }

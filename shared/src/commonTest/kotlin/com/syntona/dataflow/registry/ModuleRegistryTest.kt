@@ -114,5 +114,19 @@ class ModuleRegistryTest {
         assertEquals("aIn1", ModuleRegistry.resolveLegacyModuleName("aIn1"))
         assertEquals("aOut1", ModuleRegistry.resolveLegacyModuleName("aOut1"))
     }
+
+    @Test
+    fun testControlAndSamplingBundles() {
+        assertEquals("ksyn.control.envSeg", ModuleRegistry.getBundlePath("envSeg"))
+        assertEquals("ksyn.sampling.samplePlayer", ModuleRegistry.getBundlePath("samplePlayer"))
+        assertEquals("ksyn.sampling.sample", ModuleRegistry.getBundlePath("sample"))
+        assertEquals("ksyn.sampling.sampleReader", ModuleRegistry.getBundlePath("sampleReader"))
+        assertEquals("ksyn.sampling.sampleWriter", ModuleRegistry.getBundlePath("sampleWriter"))
+        assertEquals("ksyn.sampling.recorder", ModuleRegistry.getBundlePath("recorder"))
+
+        assertNotNull(ModuleRegistry.findCreator("ksyn.data.envSeg"))
+        assertNotNull(ModuleRegistry.findCreator("ksyn.data.segEnv"))
+        assertNotNull(ModuleRegistry.findCreator("ksyn.data.samplePlayer"))
+    }
 }
 

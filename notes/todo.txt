@@ -4,12 +4,6 @@
 Try to save a native signed version.
 
 
-BUG: looping jack on new envSeg in tuna_sandwich does not respond!
-may be related to this:
-BUG: load tuna_sandwich
-Load examples/looper
-Cannot discard old patch!
-
 The "kick" input jacks on the stepper and the toggle should be CommandJacks.
 They should have a button so we can trigger them manually.
 They should have isModuleEditorVisible=false.

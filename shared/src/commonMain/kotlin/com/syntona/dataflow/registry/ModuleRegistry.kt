@@ -172,6 +172,7 @@ object ModuleRegistry {
         val control = getOrCreateBundle(ksyn, "control")
         addKSynModule(control, "envDAHDSR", ::EnvelopeDAHDSR)
         addKSynModule(control, "envAD", ::EnvelopeAttackDecay)
+        control.modules.add(ModuleEntry("envSeg") { EnvSegModule() })
         addKSynModule(control, "latch", ::Latch)
         addKSynModule(control, "latchZeroX", ::LatchZeroCrossing)
         addKSynModule(control, "rampLin", ::LinearRamp)
@@ -226,13 +227,12 @@ object ModuleRegistry {
         val ksynView = getOrCreateBundle(ksyn, "view")
         ksynView.modules.add(ModuleEntry("scope") { ScopeModule() })
 
-        val data = getOrCreateBundle(ksyn, "data")
-        data.modules.add(ModuleEntry("envSeg") { EnvSegModule() })
-        data.modules.add(ModuleEntry("samplePlayer") { SamplePlayerModule() })
-        data.modules.add(ModuleEntry("sample") { FloatSampleModule() })
-        data.modules.add(ModuleEntry("sampleReader", "tutorials/07_audio_input/05_sampleReader.json") { SampleReaderModule() })
-        data.modules.add(ModuleEntry("sampleWriter") { SampleWriterModule() })
-        data.modules.add(ModuleEntry("recorder") { RecorderModule() })
+        val sampling = getOrCreateBundle(ksyn, "sampling")
+        sampling.modules.add(ModuleEntry("samplePlayer") { SamplePlayerModule() })
+        sampling.modules.add(ModuleEntry("sample") { FloatSampleModule() })
+        sampling.modules.add(ModuleEntry("sampleReader", "tutorials/07_audio_input/05_sampleReader.json") { SampleReaderModule() })
+        sampling.modules.add(ModuleEntry("sampleWriter") { SampleWriterModule() })
+        sampling.modules.add(ModuleEntry("recorder") { RecorderModule() })
     }
 
     private data class Candidate(val path: String, val entry: ModuleEntry)
@@ -325,19 +325,20 @@ object ModuleRegistry {
     }
 
     fun resolveLegacyTypeName(rawTypeName: String): String {
-        val mappedVoices = if (rawTypeName.startsWith("music.voices.")) {
-            rawTypeName.replace("music.voices.", "music.midi.")
-        } else {
-            rawTypeName
+        val mappedPrefix = when {
+            rawTypeName.startsWith("music.voices.") -> rawTypeName.replace("music.voices.", "music.midi.")
+            rawTypeName == "ksyn.data.envSeg" || rawTypeName == "ksyn.data.segEnv" -> "ksyn.control.envSeg"
+            rawTypeName.startsWith("ksyn.data.") -> rawTypeName.replace("ksyn.data.", "ksyn.sampling.")
+            else -> rawTypeName
         }
 
-        if (mappedVoices.contains('.')) {
-            val parts = mappedVoices.split('.').toMutableList()
+        if (mappedPrefix.contains('.')) {
+            val parts = mappedPrefix.split('.').toMutableList()
             parts[parts.lastIndex] = resolveLegacyModuleName(parts.last())
             return parts.joinToString(".")
         }
 
-        return resolveLegacyModuleName(mappedVoices)
+        return resolveLegacyModuleName(mappedPrefix)
     }
 
     fun findEntry(typeName: String): ModuleEntry? {
