@@ -94,6 +94,9 @@ object InstrumentRegistry {
         newPatch.resourcePath = resourcePath
         newPatch.filePath = null
         newPatch.graphState.isDeserializing = true
+        if (newPatch is PolyPatchModule) {
+            newPatch.voices.forEach { it.graphState.isDeserializing = true }
+        }
         try {
             newPatch.graphState.removeModulesDirectly(newPatch.graphState.modules.toList())
             if (newPatch is PolyPatchModule) {
@@ -105,6 +108,9 @@ object InstrumentRegistry {
             }
         } finally {
             newPatch.graphState.isDeserializing = false
+            if (newPatch is PolyPatchModule) {
+                newPatch.voices.forEach { it.graphState.isDeserializing = false }
+            }
         }
         newPatch.clearModifiedRecursively()
         return newPatch

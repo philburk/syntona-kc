@@ -172,24 +172,41 @@ object GraphSerializer {
             // almost nothing once the file is compressed for sharing.
             if (module is InputModule) {
                 val jackName = module.name
-                val v = module.patchJack?.getValue() ?: if (module.hasValue) module.defaultValue else 0.0
                 val min = module.patchJack?.min ?: module.defaultMin
                 val max = module.patchJack?.max ?: module.defaultMax
                 val kickable = module.patchJack?.isKickable ?: module.defaultIsKickable
                 val integer = module.patchJack?.isInteger ?: module.defaultIsInteger
+                val fields = mutableListOf<String>()
+                val holdsValue = module.hasValue || (module.patchJack != null && module.patchJack?.lastMessage is Message.FloatValue)
+                if (holdsValue) {
+                    val v = module.patchJack?.getValue() ?: module.defaultValue
+                    fields.add("\"v\":$v")
+                }
+                fields.add("\"min\":$min")
+                fields.add("\"max\":$max")
+                fields.add("\"kickable\":$kickable")
+                if (integer) fields.add("\"integer\":true")
                 append(",\"jacks\":{\"${jackName.jsonEscape}\":{")
-                append("\"v\":$v,\"min\":$min,\"max\":$max,\"kickable\":$kickable")
-                if (integer) append(",\"integer\":true")
+                append(fields.joinToString(","))
                 append("}}")
             } else if (module is AudioInputModule) {
                 val jackName = module.name
-                val v = module.patchJack?.getValue() ?: if (module.hasValue) module.defaultValue else 0.0
                 val min = module.patchJack?.min ?: module.defaultMin
                 val max = module.patchJack?.max ?: module.defaultMax
                 val kickable = module.patchJack?.isKickable ?: module.defaultIsKickable
                 val add = module.patchJack?.isValueAdded ?: module.defaultAdd
+                val fields = mutableListOf<String>()
+                val holdsValue = module.hasValue || (module.patchJack != null && module.patchJack?.lastMessage is Message.FloatValue)
+                if (holdsValue) {
+                    val v = module.patchJack?.getValue() ?: module.defaultValue
+                    fields.add("\"v\":$v")
+                }
+                fields.add("\"min\":$min")
+                fields.add("\"max\":$max")
+                fields.add("\"kickable\":$kickable")
+                fields.add("\"add\":$add")
                 append(",\"jacks\":{\"${jackName.jsonEscape}\":{")
-                append("\"v\":$v,\"min\":$min,\"max\":$max,\"kickable\":$kickable,\"add\":$add")
+                append(fields.joinToString(","))
                 append("}}")
             } else {
                 val valueJacks = module.inputs.filter { it !is CommandJack }

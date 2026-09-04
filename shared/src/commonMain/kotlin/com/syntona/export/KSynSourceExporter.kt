@@ -1,12 +1,18 @@
 package com.syntona.export
 
+import com.softsynth.ksyn.data.SegmentedEnvelope
 import com.softsynth.ksyn.ports.UnitInputPort
-import com.softsynth.ksyn.unitgen.EnvelopeAttackDecay
-import com.softsynth.ksyn.unitgen.EnvelopeDAHDSR
+import com.softsynth.ksyn.ports.UnitOutputPort
+import com.softsynth.ksyn.shared.time.TimeStamp
+import com.softsynth.ksyn.unitgen.*
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.AudioOutputJack
+import com.syntona.dataflow.model.Module
+import com.syntona.dataflow.model.OutputJack
+import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.modules.AudioInputModule
 import com.syntona.dataflow.modules.AudioOutputModule
+import com.syntona.dataflow.modules.EnvSegModule
 import com.syntona.dataflow.modules.FaderModule
 import com.syntona.dataflow.modules.InputModule
 import com.syntona.dataflow.modules.KnobModule
@@ -26,7 +32,7 @@ object KSynSourceExporter {
         val varName: String,
         val className: String,
         val constructorArgs: String = "",
-        val module: UnitGeneratorModule
+        val module: Module
     )
 
     fun export(patch: PatchModule, rawClassName: String, packageName: String = "com.softsynth.ksyn.instruments"): String {
@@ -38,7 +44,6 @@ object KSynSourceExporter {
         val usedVarNames = if (isPoly) mutableSetOf("pitch", "amplitude") else mutableSetOf()
 
         // Find pitchToHz if it was PitchToFrequencyModule or a UnitGeneratorModule
-        // In minimalSaw.json, pitchToHz can be a PitchToFrequencyModule or UnitGeneratorModule
         val p2fModules = patch.graphState.modules.filter {
             it is PitchToFrequencyModule || (it is UnitGeneratorModule && it.unit is com.softsynth.ksyn.unitgen.PitchToFrequency)
         }
@@ -52,6 +57,24 @@ object KSynSourceExporter {
                 val (unitClassName, constructorArgs) = resolveKSynClassAndArgs(module)
                 unitMap[module] = UnitInfo(uniqueVar, unitClassName, constructorArgs, module)
             }
+        }
+
+        // EnvSegModules
+        val envSegModules = patch.graphState.modules.filterIsInstance<EnvSegModule>()
+        val envSegMap = mutableMapOf<EnvSegModule, SourceExporter.EnvSegInfo>()
+        val envSegUnitInfos = mutableMapOf<EnvSegModule, UnitInfo>()
+        for (module in envSegModules) {
+            val baseVar = SourceExporter.sanitizeIdentifier(module.name)
+            val readerVar = SourceExporter.makeUniqueVar(baseVar, usedVarNames)
+            usedVarNames.add(readerVar)
+
+            val baseEnvVar = "${readerVar}Envelope"
+            val envVar = SourceExporter.makeUniqueVar(baseEnvVar, usedVarNames)
+            usedVarNames.add(envVar)
+
+            val envInfo = SourceExporter.EnvSegInfo(readerVar, envVar, module)
+            envSegMap[module] = envInfo
+            envSegUnitInfos[module] = UnitInfo(readerVar, "VariableRateMonoReader", "", module)
         }
 
         // Also if any PitchToFrequencyModule is present, we represent it as KSyn's PitchToFrequency() unit
@@ -81,6 +104,9 @@ object KSynSourceExporter {
         // Package and imports
         sb.appendLine("package $packageName")
         sb.appendLine()
+        if (envSegMap.isNotEmpty()) {
+            sb.appendLine("import com.softsynth.ksyn.data.SegmentedEnvelope")
+        }
         sb.appendLine("import com.softsynth.ksyn.ports.UnitInputPort")
         sb.appendLine("import com.softsynth.ksyn.ports.UnitOutputPort")
         sb.appendLine("import com.softsynth.ksyn.shared.time.TimeStamp")
@@ -109,6 +135,9 @@ object KSynSourceExporter {
         }
         for ((_, varName) in p2fVarMap) {
             sb.appendLine("    private val $varName = PitchToFrequency()")
+        }
+        for ((_, info) in envSegMap) {
+            sb.appendLine("    private val ${info.readerVarName} = VariableRateMonoReader()")
         }
         sb.appendLine()
 
@@ -141,13 +170,16 @@ object KSynSourceExporter {
         for ((_, varName) in p2fVarMap) {
             sb.appendLine("        add($varName)")
         }
+        for ((_, info) in envSegMap) {
+            sb.appendLine("        add(${info.readerVarName})")
+        }
         sb.appendLine()
 
-        // Envelope auto disable
+        // Envelope auto disable & main amp env
         val envelopes = unitMap.values.filter {
             it.className == "EnvelopeDAHDSR" || it.className == "EnvelopeAttackDecay"
         }
-        val mainAmpEnv = SourceExporter.findMainAmpEnvelope(patch, unitMap, { it.className }, { it.varName })
+        val mainAmpEnv = SourceExporter.findMainAmpEnvelope(patch, unitMap, { it.className }, { it.varName }, envSegUnitInfos)
 
         // Wiring connections
         sb.appendLine("        // Wire connections")
@@ -161,8 +193,8 @@ object KSynSourceExporter {
                 continue
             }
 
-            val source = resolveOutputEndpoint(outMod, conn.output, unitMap, p2fVarMap)
-            val dest = resolveInputEndpoint(inMod, conn.input, unitMap, p2fVarMap)
+            val source = resolveOutputEndpoint(outMod, conn.output, unitMap, p2fVarMap, envSegMap)
+            val dest = resolveInputEndpoint(inMod, conn.input, unitMap, p2fVarMap, envSegMap)
 
             if (source != null && dest != null) {
                 if (source.partIndex == 0 && dest.partIndex == 0) {
@@ -197,7 +229,7 @@ object KSynSourceExporter {
             // Setup amplitude port
             val ampInputMod = voiceInputs["amplitude"]
             val outgoingFromAmp = if (ampInputMod != null) connections.filter { it.output.module === ampInputMod } else emptyList()
-            val ampTarget = outgoingFromAmp.firstOrNull()?.let { resolveInputEndpoint(it.input.module, it.input, unitMap, p2fVarMap) }
+            val ampTarget = outgoingFromAmp.firstOrNull()?.let { resolveInputEndpoint(it.input.module, it.input, unitMap, p2fVarMap, envSegMap) }
 
             if (ampTarget != null) {
                 val accessor = if (ampTarget.partIndex == 0) "${ampTarget.varName}.${ampTarget.portName}" else "${ampTarget.varName}.${ampTarget.portName}[${ampTarget.partIndex}]"
@@ -218,10 +250,8 @@ object KSynSourceExporter {
             // Standard patch audio input/output ports
             for (inputMod in audioInputs) {
                 val propName = SourceExporter.sanitizeIdentifier(inputMod.name)
-                // Find what connects to inputMod inside the patch
-                // inputMod.output connects to something
                 val outgoing = connections.filter { it.output.module === inputMod }
-                val target = outgoing.firstOrNull()?.let { resolveInputEndpoint(it.input.module, it.input, unitMap, p2fVarMap) }
+                val target = outgoing.firstOrNull()?.let { resolveInputEndpoint(it.input.module, it.input, unitMap, p2fVarMap, envSegMap) }
                 if (target != null) {
                     val accessor = if (target.partIndex == 0) "${target.varName}.${target.portName}" else "${target.varName}.${target.portName}[${target.partIndex}]"
                     sb.appendLine("        $propName = $accessor")
@@ -233,7 +263,7 @@ object KSynSourceExporter {
             for (outputMod in audioOutputs) {
                 val propName = SourceExporter.sanitizeIdentifier(outputMod.name)
                 val incoming = connections.filter { it.input.module === outputMod }
-                val source = incoming.firstOrNull()?.let { resolveOutputEndpoint(it.output.module, it.output, unitMap, p2fVarMap) }
+                val source = incoming.firstOrNull()?.let { resolveOutputEndpoint(it.output.module, it.output, unitMap, p2fVarMap, envSegMap) }
                 if (source != null) {
                     val accessor = if (source.partIndex == 0) "${source.varName}.${source.portName}" else "${source.varName}.${source.portName}[${source.partIndex}]"
                     sb.appendLine("        $propName = $accessor")
@@ -275,10 +305,21 @@ object KSynSourceExporter {
                 }
             }
         }
+        for ((module, info) in envSegMap) {
+            val minRate = SourceExporter.formatDouble(module.speed.min)
+            val valRate = SourceExporter.formatDouble(module.speed.getValue())
+            val maxRate = SourceExporter.formatDouble(module.speed.max)
+            sb.appendLine("        ${info.readerVarName}.rate.setup($minRate, $valRate, $maxRate)")
+
+            val minAmp = SourceExporter.formatDouble(module.amplitude.min)
+            val valAmp = SourceExporter.formatDouble(module.amplitude.getValue())
+            val maxAmp = SourceExporter.formatDouble(module.amplitude.max)
+            sb.appendLine("        ${info.readerVarName}.amplitude.setup($minAmp, $valAmp, $maxAmp)")
+        }
         sb.appendLine()
 
         // Auto disable
-        if (mainAmpEnv != null) {
+        if (mainAmpEnv != null && (mainAmpEnv.className == "EnvelopeDAHDSR" || mainAmpEnv.className == "EnvelopeAttackDecay")) {
             sb.appendLine("        // Turn off circuit when envelope completes to save CPU")
             sb.appendLine("        ${mainAmpEnv.varName}.setupAutoDisable(this)")
             sb.appendLine()
@@ -293,29 +334,67 @@ object KSynSourceExporter {
         // PitchedVoice methods if poly
         if (isPoly) {
             val offInputMod = voiceInputs["off"]
-            val offTargets = if (offInputMod != null) {
+            val offUnitTargets = if (offInputMod != null) {
                 connections.filter { it.output.module === offInputMod }
-                    .mapNotNull { resolveInputEndpoint(it.input.module, it.input, unitMap, p2fVarMap) }
+                    .mapNotNull { resolveInputEndpoint(it.input.module, it.input, unitMap, p2fVarMap, envSegMap) }
+                    .filter { it.portName != "rate" && it.portName != "amplitude" }
                     .distinctBy { "${it.varName}.${it.portName}[${it.partIndex}]" }
             } else emptyList()
 
+            val offEnvSegTargets = if (offInputMod != null) {
+                connections.filter { it.output.module === offInputMod && it.input.module is EnvSegModule }
+                    .mapNotNull { envSegMap[it.input.module] }
+                    .distinctBy { it.readerVarName }
+            } else emptyList()
+
             sb.appendLine("    override fun noteOff(timeStamp: TimeStamp) {")
-            if (offTargets.isNotEmpty()) {
-                for (target in offTargets) {
+            var hasOff = false
+            for (target in offUnitTargets) {
+                val envInfo = envSegMap.values.firstOrNull { it.readerVarName == target.varName }
+                if (envInfo != null) {
+                    sb.appendLine("        ${envInfo.readerVarName}.dataQueue.queueOff(${envInfo.envelopeVarName}, false, timeStamp)")
+                    hasOff = true
+                } else {
                     val accessor = if (target.partIndex == 0) "${target.varName}.${target.portName}" else "${target.varName}.${target.portName}[${target.partIndex}]"
                     sb.appendLine("        $accessor.off(timeStamp)")
+                    hasOff = true
                 }
-            } else if (mainAmpEnv != null) {
-                sb.appendLine("        ${mainAmpEnv.varName}.input.off(timeStamp)")
+            }
+            for (target in offEnvSegTargets) {
+                if (offUnitTargets.none { it.varName == target.readerVarName }) {
+                    sb.appendLine("        ${target.readerVarName}.dataQueue.queueOff(${target.envelopeVarName}, false, timeStamp)")
+                    hasOff = true
+                }
+            }
+            if (!hasOff) {
+                if (mainAmpEnv != null) {
+                    val envInfo = envSegMap.values.firstOrNull { it.readerVarName == mainAmpEnv.varName }
+                    if (envInfo != null) {
+                        sb.appendLine("        ${envInfo.readerVarName}.dataQueue.queueOff(${envInfo.envelopeVarName}, false, timeStamp)")
+                    } else {
+                        sb.appendLine("        ${mainAmpEnv.varName}.input.off(timeStamp)")
+                    }
+                } else if (envSegMap.isNotEmpty()) {
+                    for (target in envSegMap.values) {
+                        sb.appendLine("        ${target.readerVarName}.dataQueue.queueOff(${target.envelopeVarName}, false, timeStamp)")
+                    }
+                }
             }
             sb.appendLine("    }")
             sb.appendLine()
 
             val onInputMod = voiceInputs["on"]
-            val onTargets = if (onInputMod != null) {
+            val onUnitTargets = if (onInputMod != null) {
                 connections.filter { it.output.module === onInputMod }
-                    .mapNotNull { resolveInputEndpoint(it.input.module, it.input, unitMap, p2fVarMap) }
+                    .mapNotNull { resolveInputEndpoint(it.input.module, it.input, unitMap, p2fVarMap, envSegMap) }
+                    .filter { it.portName != "rate" && it.portName != "amplitude" }
                     .distinctBy { "${it.varName}.${it.portName}[${it.partIndex}]" }
+            } else emptyList()
+
+            val onEnvSegTargets = if (onInputMod != null) {
+                connections.filter { it.output.module === onInputMod && it.input.module is EnvSegModule }
+                    .mapNotNull { envSegMap[it.input.module] }
+                    .distinctBy { it.readerVarName }
             } else emptyList()
 
             sb.appendLine("    override fun noteOn(pitch: Double, amplitude: Double, timeStamp: TimeStamp) {")
@@ -327,13 +406,38 @@ object KSynSourceExporter {
                 sb.appendLine("        this.pitch.set(pitch, timeStamp)")
             }
             sb.appendLine("        this.amplitude.set(amplitude, timeStamp)")
-            if (onTargets.isNotEmpty()) {
-                for (target in onTargets) {
+
+            var hasOn = false
+            for (target in onUnitTargets) {
+                val envInfo = envSegMap.values.firstOrNull { it.readerVarName == target.varName }
+                if (envInfo != null) {
+                    sb.appendLine("        ${envInfo.readerVarName}.dataQueue.queueOn(${envInfo.envelopeVarName}, timeStamp)")
+                    hasOn = true
+                } else {
                     val accessor = if (target.partIndex == 0) "${target.varName}.${target.portName}" else "${target.varName}.${target.portName}[${target.partIndex}]"
                     sb.appendLine("        $accessor.on(timeStamp)")
+                    hasOn = true
                 }
-            } else if (mainAmpEnv != null) {
-                sb.appendLine("        ${mainAmpEnv.varName}.input.on(timeStamp)")
+            }
+            for (target in onEnvSegTargets) {
+                if (onUnitTargets.none { it.varName == target.readerVarName }) {
+                    sb.appendLine("        ${target.readerVarName}.dataQueue.queueOn(${target.envelopeVarName}, timeStamp)")
+                    hasOn = true
+                }
+            }
+            if (!hasOn) {
+                if (mainAmpEnv != null) {
+                    val envInfo = envSegMap.values.firstOrNull { it.readerVarName == mainAmpEnv.varName }
+                    if (envInfo != null) {
+                        sb.appendLine("        ${envInfo.readerVarName}.dataQueue.queueOn(${envInfo.envelopeVarName}, timeStamp)")
+                    } else {
+                        sb.appendLine("        ${mainAmpEnv.varName}.input.on(timeStamp)")
+                    }
+                } else if (envSegMap.isNotEmpty()) {
+                    for (target in envSegMap.values) {
+                        sb.appendLine("        ${target.readerVarName}.dataQueue.queueOn(${target.envelopeVarName}, timeStamp)")
+                    }
+                }
             }
             sb.appendLine("    }")
             sb.appendLine()
@@ -345,7 +449,7 @@ object KSynSourceExporter {
                 connections.firstOrNull { it.input.module === outMod }
             }
             val outEndpoint = if (connToOutput != null) {
-                resolveOutputEndpoint(connToOutput.output.module, connToOutput.output, unitMap, p2fVarMap)
+                resolveOutputEndpoint(connToOutput.output.module, connToOutput.output, unitMap, p2fVarMap, envSegMap)
             } else null
 
             if (outEndpoint != null) {
@@ -377,27 +481,51 @@ object KSynSourceExporter {
 
             // Companion object & VoiceDescription
             sb.appendLine("    companion object {")
+            for (info in envSegMap.values) {
+                val env = info.module.envelope
+                sb.appendLine("        val ${info.envelopeVarName} = SegmentedEnvelope(doubleArrayOf(")
+                sb.appendLine(SourceExporter.formatEnvelopeData(env, indent = "            "))
+                sb.appendLine("        )).apply {")
+                if (env.sustainBegin >= 0) {
+                    sb.appendLine("            sustainBegin = ${env.sustainBegin}")
+                    sb.appendLine("            sustainEnd = ${env.sustainEnd}")
+                }
+                if (env.releaseBegin >= 0) {
+                    sb.appendLine("            releaseBegin = ${env.releaseBegin}")
+                    sb.appendLine("            releaseEnd = ${env.releaseEnd}")
+                }
+                sb.appendLine("        }")
+                sb.appendLine()
+            }
             sb.appendLine("        val presetNames = arrayOf(\"Default\")")
-            sb.appendLine()
-            sb.appendLine("        fun getVoiceDescription(): VoiceDescription {")
-            sb.appendLine("            return MyVoiceDescription")
-            sb.appendLine("        }")
             sb.appendLine("    }")
             sb.appendLine()
-            sb.appendLine("    private object MyVoiceDescription : VoiceDescription(\"$className\", presetNames) {")
-            sb.appendLine("        override val voiceClassName: String")
-            sb.appendLine("            get() = \"$packageName.$className\"")
+            sb.appendLine("    override fun getPresetNames(): Array<String> = presetNames")
             sb.appendLine()
-            sb.appendLine("        private val tags = arrayOf(\"electronic\", \"syntona\")")
-            sb.appendLine()
-            sb.appendLine("        override fun createPitchedVoice(): PitchedVoice {")
-            sb.appendLine("            return $className()")
-            sb.appendLine("        }")
-            sb.appendLine()
-            sb.appendLine("        override fun getTags(presetIndex: Int): Array<String> {")
-            sb.appendLine("            return tags")
-            sb.appendLine("        }")
+            sb.appendLine("    override fun getDescription(): VoiceDescription {")
+            sb.appendLine("        return VoiceDescription(\"$className\", presetNames)")
             sb.appendLine("    }")
+        } else {
+            if (envSegMap.isNotEmpty()) {
+                sb.appendLine("    companion object {")
+                for (info in envSegMap.values) {
+                    val env = info.module.envelope
+                    sb.appendLine("        val ${info.envelopeVarName} = SegmentedEnvelope(doubleArrayOf(")
+                    sb.appendLine(SourceExporter.formatEnvelopeData(env, indent = "            "))
+                    sb.appendLine("        )).apply {")
+                    if (env.sustainBegin >= 0) {
+                        sb.appendLine("            sustainBegin = ${env.sustainBegin}")
+                        sb.appendLine("            sustainEnd = ${env.sustainEnd}")
+                    }
+                    if (env.releaseBegin >= 0) {
+                        sb.appendLine("            releaseBegin = ${env.releaseBegin}")
+                        sb.appendLine("            releaseEnd = ${env.releaseEnd}")
+                    }
+                    sb.appendLine("        }")
+                    sb.appendLine()
+                }
+                sb.appendLine("    }")
+            }
         }
 
         sb.appendLine("}")
@@ -405,10 +533,11 @@ object KSynSourceExporter {
     }
 
     private fun resolveOutputEndpoint(
-        module: com.syntona.dataflow.model.Module,
-        outputJack: com.syntona.dataflow.model.OutputJack,
+        module: Module,
+        outputJack: OutputJack,
         unitMap: Map<UnitGeneratorModule, UnitInfo>,
-        p2fVarMap: Map<PitchToFrequencyModule, String>
+        p2fVarMap: Map<PitchToFrequencyModule, String>,
+        envSegMap: Map<EnvSegModule, SourceExporter.EnvSegInfo> = emptyMap()
     ): SourceExporter.PortEndpoint? {
         if (module is UnitGeneratorModule) {
             val info = unitMap[module] ?: return null
@@ -419,14 +548,20 @@ object KSynSourceExporter {
             val varName = p2fVarMap[module] ?: return null
             return SourceExporter.PortEndpoint(varName, "output", 0)
         }
+        if (module is EnvSegModule) {
+            val info = envSegMap[module] ?: return null
+            val (portName, partIndex) = SourceExporter.resolveOutputJackPortName(outputJack)
+            return SourceExporter.PortEndpoint(info.readerVarName, portName, partIndex)
+        }
         return null
     }
 
     private fun resolveInputEndpoint(
-        module: com.syntona.dataflow.model.Module,
-        inputJack: com.syntona.dataflow.model.InputJack,
+        module: Module,
+        inputJack: InputJack,
         unitMap: Map<UnitGeneratorModule, UnitInfo>,
-        p2fVarMap: Map<PitchToFrequencyModule, String>
+        p2fVarMap: Map<PitchToFrequencyModule, String>,
+        envSegMap: Map<EnvSegModule, SourceExporter.EnvSegInfo> = emptyMap()
     ): SourceExporter.PortEndpoint? {
         if (module is UnitGeneratorModule) {
             val info = unitMap[module] ?: return null
@@ -437,10 +572,13 @@ object KSynSourceExporter {
             val varName = p2fVarMap[module] ?: return null
             return SourceExporter.PortEndpoint(varName, "input", 0)
         }
+        if (module is EnvSegModule) {
+            val info = envSegMap[module] ?: return null
+            val (portName, partIndex) = SourceExporter.resolveJackPortName(inputJack)
+            return SourceExporter.PortEndpoint(info.readerVarName, portName, partIndex)
+        }
         return null
     }
-
-
 
     private fun resolveKSynClassAndArgs(module: UnitGeneratorModule): Pair<String, String> {
         val unit = module.unit

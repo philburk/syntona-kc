@@ -373,6 +373,45 @@ class PolyPatchModuleTest {
     }
 
     @Test
+    fun testEnvelopeStartsOffWhenOffConnectedBeforeOn() = kotlinx.coroutines.runBlocking {
+        val polyPatch = PolyPatchModule()
+        polyPatch.initializeVoices(1)
+        polyPatch.polyphonicInstrument!!.start()
+
+        val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
+        engine.generateNextBuffer()
+
+        val voice0 = polyPatch.voices[0]
+        val onModule = polyPatch.graphState.modules.find { it.name == "on" }!!
+        val offModule = polyPatch.graphState.modules.find { it.name == "off" }!!
+        val outputModule = polyPatch.graphState.modules.find { it.name == "output" }!!
+
+        // Add envDAHDSR module
+        val dahdsrModule = UnitGeneratorModule("envDAHDSR", com.softsynth.ksyn.unitgen.EnvelopeDAHDSR())
+        polyPatch.graphState.addModule(dahdsrModule, androidx.compose.ui.geometry.Offset.Zero)
+        val dahdsrVoiceMod = voice0.templateToVoiceMap[dahdsrModule] as UnitGeneratorModule
+        val dahdsrUnit0 = dahdsrVoiceMod.unit as com.softsynth.ksyn.unitgen.EnvelopeDAHDSR
+
+        // Connect DAHDSR output to main output
+        val dahdsrOutJack = dahdsrModule.outputs.find { it.name == "out" }!!
+        val patchOutInJack = outputModule.inputs.find { it.name == "in" }!!
+        polyPatch.graphState.connect(dahdsrOutJack, patchOutInJack)
+
+        // Connect off FIRST, then on SECOND (matching minimalSaw connection order)
+        val onOutJack = onModule.outputs.find { it.name == "out" }!!
+        val offOutJack = offModule.outputs.find { it.name == "out" }!!
+        val dahdsrOnJack = dahdsrModule.inputs.find { it.name == "on" }!!
+        val dahdsrOffJack = dahdsrModule.inputs.find { it.name == "off" }!!
+        polyPatch.graphState.connect(offOutJack, dahdsrOffJack)
+        polyPatch.graphState.connect(onOutJack, dahdsrOnJack)
+        engine.generateNextBuffer()
+
+        // Prior to the fix, connecting on second triggered the envelope ON. Verify it starts OFF.
+        polyPatch.polyphonicInstrument!!.getOutputPort().unitGenerator?.pullData(engine.frameCount)
+        assertEquals(0.0f, dahdsrUnit0.output.get(0), 1e-4f, "DAHDSR envelope output should be 0 before any noteOn")
+    }
+
+    @Test
     fun testEnsureDefaultModulesExistOnDeserialization() {
         val json = """
             {"modules":[{"id":0,"type":"polyPatch","name":"poly1","x":0.0,"y":0.0,"maxVoices":2,"patch":{"modules":[{"id":0,"type":"aOutput","name":"output","x":400.0,"y":200.0}],"connections":[]}}],"connections":[]}

@@ -414,4 +414,136 @@ class SourceExporterTest {
         assertTrue(jsynCode.contains("bigEnv.setupAutoDisable(this);"), "Should choose bigEnv in JSyn:\n$jsynCode")
         assertFalse(jsynCode.contains("filterEnv.setupAutoDisable(this);"), "Should not choose filterEnv in JSyn")
     }
+
+    @Test
+    fun testValidatePatchWithEnvSegModule() {
+        val patch = PolyPatchModule("envSegPatch")
+        patch.graphState.addModule(com.syntona.dataflow.modules.EnvSegModule(), androidx.compose.ui.geometry.Offset.Zero)
+        val result = SourceExporter.validatePatch(patch)
+        assertTrue(result.isExportable)
+        assertTrue(result.unsupportedModules.isEmpty())
+        assertTrue(result.audioModules.any { it is com.syntona.dataflow.modules.EnvSegModule })
+    }
+
+    @Test
+    fun testKSynExportEnvSeg() {
+        val polyPatch = PolyPatchModule("EnvSegVoice")
+
+        val p2fMod = UnitGeneratorModule("pitchToHz~", PitchToFrequency())
+        val oscMod = UnitGeneratorModule("sawOscBL", SawtoothOscillatorBL())
+        val envSegMod = com.syntona.dataflow.modules.EnvSegModule()
+
+        polyPatch.graphState.addModule(p2fMod, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(oscMod, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(envSegMod, androidx.compose.ui.geometry.Offset.Zero)
+
+        // Wiring
+        val p2fOut = p2fMod.outputs.first { it.name == "out" }
+        val oscFreqIn = oscMod.inputs.first { it.name == "frequency" }
+        polyPatch.graphState.connect(p2fOut, oscFreqIn)
+
+        val oscOut = oscMod.outputs.first { it.name == "out" }
+        val envAmpIn = envSegMod.inputs.first { it.name == "amplitude" }
+        polyPatch.graphState.connect(oscOut, envAmpIn)
+
+        val envOut = envSegMod.outputs.first { it.name == "out" }
+        val outputMod = polyPatch.graphState.modules.filterIsInstance<AudioOutputModule>().first()
+        val outIn = outputMod.inputs.first { it.name == "in" }
+        polyPatch.graphState.connect(envOut, outIn)
+
+        val onMod = polyPatch.graphState.modules.filterIsInstance<InputModule>().first { it.name == "on" }
+        val offMod = polyPatch.graphState.modules.filterIsInstance<InputModule>().first { it.name == "off" }
+        polyPatch.graphState.connect(onMod.output, envSegMod.onIn)
+        polyPatch.graphState.connect(offMod.output, envSegMod.offIn)
+
+        val code = KSynSourceExporter.export(polyPatch, "EnvSegVoice")
+
+        assertTrue(code.contains("import com.softsynth.ksyn.data.SegmentedEnvelope"), "Must import SegmentedEnvelope:\n$code")
+        assertTrue(code.contains("val envSegEnvelope = SegmentedEnvelope(doubleArrayOf("), "Must create SegmentedEnvelope in companion object:\n$code")
+        assertTrue(code.contains("sustainBegin = 2"), "Must set sustainBegin:\n$code")
+        assertTrue(code.contains("sustainEnd = 2"), "Must set sustainEnd:\n$code")
+        assertTrue(code.contains("private val envSeg = VariableRateMonoReader()"), "Must declare VariableRateMonoReader:\n$code")
+        assertTrue(code.contains("add(envSeg)"), "Must add envSeg to circuit:\n$code")
+        assertTrue(code.contains("sawOscBL.output.connect(envSeg.amplitude)"), "Must connect oscillator to envSeg.amplitude:\n$code")
+        assertTrue(code.contains("envSeg.rate.setup(0.0, 1.0, 8.0)"), "Must setup envSeg rate:\n$code")
+        assertTrue(code.contains("envSeg.amplitude.setup(0.0, 1.0, 1.0)"), "Must setup envSeg amplitude:\n$code")
+        assertTrue(code.contains("envSeg.dataQueue.queueOn(envSegEnvelope, timeStamp)"), "Must queueOn envSeg in noteOn:\n$code")
+        assertTrue(code.contains("envSeg.dataQueue.queueOff(envSegEnvelope, false, timeStamp)"), "Must queueOff envSeg in noteOff:\n$code")
+        assertTrue(code.contains("return envSeg.output"), "Must return envSeg.output in getOutputPort:\n$code")
+    }
+
+    @Test
+    fun testJSynExportEnvSeg() {
+        val polyPatch = PolyPatchModule("EnvSegVoice")
+
+        val oscMod = UnitGeneratorModule("sawOscBL", SawtoothOscillatorBL())
+        val envSegMod = com.syntona.dataflow.modules.EnvSegModule()
+
+        polyPatch.graphState.addModule(oscMod, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(envSegMod, androidx.compose.ui.geometry.Offset.Zero)
+
+        val oscOut = oscMod.outputs.first { it.name == "out" }
+        val envAmpIn = envSegMod.inputs.first { it.name == "amplitude" }
+        polyPatch.graphState.connect(oscOut, envAmpIn)
+
+        val envOut = envSegMod.outputs.first { it.name == "out" }
+        val outputMod = polyPatch.graphState.modules.filterIsInstance<AudioOutputModule>().first()
+        val outIn = outputMod.inputs.first { it.name == "in" }
+        polyPatch.graphState.connect(envOut, outIn)
+
+        val onMod = polyPatch.graphState.modules.filterIsInstance<InputModule>().first { it.name == "on" }
+        val offMod = polyPatch.graphState.modules.filterIsInstance<InputModule>().first { it.name == "off" }
+        polyPatch.graphState.connect(onMod.output, envSegMod.onIn)
+        polyPatch.graphState.connect(offMod.output, envSegMod.offIn)
+
+        val code = JSynSourceExporter.export(polyPatch, "EnvSegVoice")
+
+        assertTrue(code.contains("import com.jsyn.data.SegmentedEnvelope;"), "Must import SegmentedEnvelope in JSyn:\n$code")
+        assertTrue(code.contains("private static final SegmentedEnvelope envSegEnvelope;"), "Must declare static SegmentedEnvelope:\n$code")
+        assertTrue(code.contains("envSegEnvelope = new SegmentedEnvelope(envSegEnvelopeData);"), "Must initialize static SegmentedEnvelope:\n$code")
+        assertTrue(code.contains("envSegEnvelope.setSustainBegin(2);"), "Must set sustainBegin in JSyn:\n$code")
+        assertTrue(code.contains("envSegEnvelope.setSustainEnd(2);"), "Must set sustainEnd in JSyn:\n$code")
+        assertTrue(code.contains("private VariableRateMonoReader envSeg;"), "Must declare VariableRateMonoReader in JSyn:\n$code")
+        assertTrue(code.contains("add(envSeg = new VariableRateMonoReader());"), "Must instantiate VariableRateMonoReader in JSyn:\n$code")
+        assertTrue(code.contains("sawOscBL.output.connect(envSeg.amplitude);"), "Must connect oscillator to envSeg.amplitude in JSyn:\n$code")
+        assertTrue(code.contains("envSeg.rate.setup(0.0, 1.0, 8.0);"), "Must setup envSeg rate in JSyn:\n$code")
+        assertTrue(code.contains("envSeg.amplitude.setup(0.0, 1.0, 1.0);"), "Must setup envSeg amplitude in JSyn:\n$code")
+        assertTrue(code.contains("envSeg.dataQueue.queueOn(envSegEnvelope, timeStamp);"), "Must queueOn in JSyn noteOn:\n$code")
+        assertTrue(code.contains("envSeg.dataQueue.queueOff(envSegEnvelope, false, timeStamp);"), "Must queueOff in JSyn noteOff:\n$code")
+        assertTrue(code.contains("return envSeg.output;"), "Must return envSeg.output in JSyn getOutput:\n$code")
+    }
+
+    @Test
+    fun testExportMultipleEnvSegModules() {
+        val polyPatch = PolyPatchModule("MultiEnvSegVoice")
+
+        val envSeg1 = com.syntona.dataflow.modules.EnvSegModule().apply { name = "ampEnv" }
+        val envSeg2 = com.syntona.dataflow.modules.EnvSegModule().apply { name = "filterEnv" }
+
+        polyPatch.graphState.addModule(envSeg1, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(envSeg2, androidx.compose.ui.geometry.Offset.Zero)
+
+        val onMod = polyPatch.graphState.modules.filterIsInstance<InputModule>().first { it.name == "on" }
+        val offMod = polyPatch.graphState.modules.filterIsInstance<InputModule>().first { it.name == "off" }
+        polyPatch.graphState.connect(onMod.output, envSeg1.onIn)
+        polyPatch.graphState.connect(onMod.output, envSeg2.onIn)
+        polyPatch.graphState.connect(offMod.output, envSeg1.offIn)
+        polyPatch.graphState.connect(offMod.output, envSeg2.offIn)
+
+        val ksynCode = KSynSourceExporter.export(polyPatch, "MultiEnvSegVoice")
+        assertTrue(ksynCode.contains("val ampEnvEnvelope = SegmentedEnvelope"), "KSyn must create ampEnvEnvelope:\n$ksynCode")
+        assertTrue(ksynCode.contains("val filterEnvEnvelope = SegmentedEnvelope"), "KSyn must create filterEnvEnvelope:\n$ksynCode")
+        assertTrue(ksynCode.contains("ampEnv.dataQueue.queueOn(ampEnvEnvelope, timeStamp)"), "KSyn noteOn must trigger ampEnv")
+        assertTrue(ksynCode.contains("filterEnv.dataQueue.queueOn(filterEnvEnvelope, timeStamp)"), "KSyn noteOn must trigger filterEnv")
+        assertTrue(ksynCode.contains("ampEnv.dataQueue.queueOff(ampEnvEnvelope, false, timeStamp)"), "KSyn noteOff must trigger ampEnv")
+        assertTrue(ksynCode.contains("filterEnv.dataQueue.queueOff(filterEnvEnvelope, false, timeStamp)"), "KSyn noteOff must trigger filterEnv")
+
+        val jsynCode = JSynSourceExporter.export(polyPatch, "MultiEnvSegVoice")
+        assertTrue(jsynCode.contains("private static final SegmentedEnvelope ampEnvEnvelope;"), "JSyn must declare ampEnvEnvelope:\n$jsynCode")
+        assertTrue(jsynCode.contains("private static final SegmentedEnvelope filterEnvEnvelope;"), "JSyn must declare filterEnvEnvelope:\n$jsynCode")
+        assertTrue(jsynCode.contains("ampEnv.dataQueue.queueOn(ampEnvEnvelope, timeStamp);"), "JSyn noteOn must trigger ampEnv")
+        assertTrue(jsynCode.contains("filterEnv.dataQueue.queueOn(filterEnvEnvelope, timeStamp);"), "JSyn noteOn must trigger filterEnv")
+        assertTrue(jsynCode.contains("ampEnv.dataQueue.queueOff(ampEnvEnvelope, false, timeStamp);"), "JSyn noteOff must trigger ampEnv")
+        assertTrue(jsynCode.contains("filterEnv.dataQueue.queueOff(filterEnvEnvelope, false, timeStamp);"), "JSyn noteOff must trigger filterEnv")
+    }
 }

@@ -1,5 +1,6 @@
 package com.syntona.export
 
+import com.softsynth.ksyn.data.SegmentedEnvelope
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.AudioOutputJack
 import com.syntona.dataflow.model.InputJack
@@ -7,6 +8,7 @@ import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.model.OutputJack
 import com.syntona.dataflow.modules.AudioInputModule
 import com.syntona.dataflow.modules.AudioOutputModule
+import com.syntona.dataflow.modules.EnvSegModule
 import com.syntona.dataflow.modules.FaderModule
 import com.syntona.dataflow.modules.InputModule
 import com.syntona.dataflow.modules.KnobModule
@@ -25,6 +27,12 @@ object SourceExporter {
         val varName: String,
         val portName: String,
         val partIndex: Int = 0
+    )
+
+    data class EnvSegInfo(
+        val readerVarName: String,
+        val envelopeVarName: String,
+        val module: EnvSegModule
     )
 
     data class ExportValidationResult(
@@ -184,7 +192,7 @@ object SourceExporter {
                 is KnobModule, is FaderModule -> {
                     ignored.add(module)
                 }
-                is UnitGeneratorModule, is AudioInputModule, is AudioOutputModule, is PitchToFrequencyModule -> {
+                is UnitGeneratorModule, is AudioInputModule, is AudioOutputModule, is PitchToFrequencyModule, is EnvSegModule -> {
                     audio.add(module)
                 }
                 is InputModule -> {
@@ -236,6 +244,7 @@ object SourceExporter {
      */
     fun normalizeJackPortName(rawName: String): String {
         if (rawName.equals("q", ignoreCase = true)) return "Q"
+        if (rawName.equals("speed", ignoreCase = true)) return "rate"
 
         val inMatch = Regex("^(?i)(?:in|input)([a-zA-Z])$").find(rawName)
         if (inMatch != null) {
@@ -298,8 +307,24 @@ object SourceExporter {
         return Pair(cleanName, partIndex)
     }
 
+    /**
+     * Formats the duration/value pairs of a [SegmentedEnvelope] as source code frames.
+     */
+    fun formatEnvelopeData(envelope: SegmentedEnvelope, indent: String = "        "): String {
+        val data = DoubleArray(envelope.numFrames * 2)
+        envelope.read(data)
+        val sb = StringBuilder()
+        for (i in 0 until envelope.numFrames) {
+            val dur = formatDouble(data[i * 2])
+            val value = formatDouble(data[i * 2 + 1])
+            if (i > 0) sb.append("\n")
+            sb.append("$indent$dur, $value,")
+        }
+        return sb.toString()
+    }
+
     data class EnvelopeCandidate<T>(
-        val module: UnitGeneratorModule,
+        val module: Module,
         val info: T,
         val distanceToOutput: Int,
         val isConnectedToAmplitudePort: Boolean,
@@ -315,18 +340,26 @@ object SourceExporter {
         patch: PatchModule,
         unitMap: Map<UnitGeneratorModule, T>,
         getClassName: (T) -> String,
-        getVarName: (T) -> String
+        getVarName: (T) -> String,
+        envSegMap: Map<EnvSegModule, T> = emptyMap()
     ): T? {
-        val envelopeEntries = unitMap.filter { (_, info) ->
+        val envelopeEntries = mutableMapOf<Module, T>()
+        for ((mod, info) in unitMap) {
             val cls = getClassName(info)
-            cls == "EnvelopeDAHDSR" || cls == "EnvelopeAttackDecay"
+            if (cls == "EnvelopeDAHDSR" || cls == "EnvelopeAttackDecay" || cls == "VariableRateMonoReader") {
+                envelopeEntries[mod] = info
+            }
         }
+        for ((mod, info) in envSegMap) {
+            envelopeEntries[mod] = info
+        }
+
         if (envelopeEntries.isEmpty()) return null
         if (envelopeEntries.size == 1) return envelopeEntries.values.first()
 
         val audioOutputs = patch.graphState.modules.filterIsInstance<AudioOutputModule>()
-        val envelopeDistances = mutableMapOf<UnitGeneratorModule, Int>()
-        val connectsToAmpPort = mutableSetOf<UnitGeneratorModule>()
+        val envelopeDistances = mutableMapOf<Module, Int>()
+        val connectsToAmpPort = mutableSetOf<Module>()
 
         if (audioOutputs.isNotEmpty()) {
             val queue = ArrayDeque<Pair<Module, Int>>()
@@ -339,7 +372,7 @@ object SourceExporter {
             while (queue.isNotEmpty()) {
                 val (currMod, dist) = queue.removeFirst()
 
-                if (currMod is UnitGeneratorModule && currMod in envelopeEntries) {
+                if (currMod in envelopeEntries) {
                     if (!envelopeDistances.containsKey(currMod)) {
                         envelopeDistances[currMod] = dist
                     }
@@ -350,7 +383,7 @@ object SourceExporter {
                 for (conn in incoming) {
                     val upstreamMod = conn.output.module
                     // If upstream is an envelope, check if it connects to an amplitude-related port or multiplier
-                    if (upstreamMod is UnitGeneratorModule && upstreamMod in envelopeEntries) {
+                    if (upstreamMod in envelopeEntries) {
                         val inputPortName = conn.input.name.lowercase()
                         if (inputPortName.contains("amp") || inputPortName == "ina" || inputPortName == "inb" || inputPortName == "inputa" || inputPortName == "inputb") {
                             connectsToAmpPort.add(upstreamMod)

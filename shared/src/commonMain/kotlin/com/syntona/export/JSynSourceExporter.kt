@@ -3,8 +3,13 @@ package com.syntona.export
 import com.softsynth.ksyn.unitgen.EnvelopeAttackDecay
 import com.softsynth.ksyn.unitgen.EnvelopeDAHDSR
 import com.syntona.dataflow.model.AudioInputJack
+import com.syntona.dataflow.model.AudioOutputJack
+import com.syntona.dataflow.model.InputJack
+import com.syntona.dataflow.model.Module
+import com.syntona.dataflow.model.OutputJack
 import com.syntona.dataflow.modules.AudioInputModule
 import com.syntona.dataflow.modules.AudioOutputModule
+import com.syntona.dataflow.modules.EnvSegModule
 import com.syntona.dataflow.modules.FaderModule
 import com.syntona.dataflow.modules.InputModule
 import com.syntona.dataflow.modules.KnobModule
@@ -22,7 +27,7 @@ object JSynSourceExporter {
         val varName: String,
         val className: String,
         val constructorArgs: String = "",
-        val module: UnitGeneratorModule
+        val module: Module
     )
 
     fun export(patch: PatchModule, rawClassName: String, packageName: String = "com.jsyn.instruments"): String {
@@ -52,6 +57,24 @@ object JSynSourceExporter {
             }
         }
 
+        // EnvSegModules
+        val envSegModules = patch.graphState.modules.filterIsInstance<EnvSegModule>()
+        val envSegMap = mutableMapOf<EnvSegModule, SourceExporter.EnvSegInfo>()
+        val envSegUnitInfos = mutableMapOf<EnvSegModule, UnitInfo>()
+        for (module in envSegModules) {
+            val baseVar = SourceExporter.sanitizeIdentifier(module.name)
+            val readerVar = SourceExporter.makeUniqueVar(baseVar, usedVarNames)
+            usedVarNames.add(readerVar)
+
+            val baseEnvVar = "${readerVar}Envelope"
+            val envVar = SourceExporter.makeUniqueVar(baseEnvVar, usedVarNames)
+            usedVarNames.add(envVar)
+
+            val envInfo = SourceExporter.EnvSegInfo(readerVar, envVar, module)
+            envSegMap[module] = envInfo
+            envSegUnitInfos[module] = UnitInfo(readerVar, "VariableRateMonoReader", "", module)
+        }
+
         val voiceInputs = if (isPoly) {
             patch.graphState.modules.filterIsInstance<InputModule>().associateBy { it.name.lowercase() }
         } else {
@@ -66,6 +89,9 @@ object JSynSourceExporter {
         // Package and imports
         sb.appendLine("package $packageName;")
         sb.appendLine()
+        if (envSegMap.isNotEmpty()) {
+            sb.appendLine("import com.jsyn.data.SegmentedEnvelope;")
+        }
         sb.appendLine("import com.jsyn.ports.UnitInputPort;")
         sb.appendLine("import com.jsyn.ports.UnitOutputPort;")
         sb.appendLine("import com.jsyn.unitgen.*;")
@@ -85,9 +111,30 @@ object JSynSourceExporter {
         val inheritance = if (isPoly) "extends Circuit implements UnitVoice" else "extends Circuit"
         sb.appendLine("public class $className $inheritance {")
 
+        // Static envelope data definitions
+        for (info in envSegMap.values) {
+            val env = info.module.envelope
+            sb.appendLine("    private static final SegmentedEnvelope ${info.envelopeVarName};")
+            sb.appendLine()
+            sb.appendLine("    static {")
+            sb.appendLine("        double[] ${info.envelopeVarName}Data = {")
+            sb.appendLine(SourceExporter.formatEnvelopeData(env, indent = "            "))
+            sb.appendLine("        };")
+            sb.appendLine("        ${info.envelopeVarName} = new SegmentedEnvelope(${info.envelopeVarName}Data);")
+            sb.appendLine("        ${info.envelopeVarName}.setSustainBegin(${env.sustainBegin});")
+            sb.appendLine("        ${info.envelopeVarName}.setSustainEnd(${env.sustainEnd});")
+            sb.appendLine("        ${info.envelopeVarName}.setReleaseBegin(${env.releaseBegin});")
+            sb.appendLine("        ${info.envelopeVarName}.setReleaseEnd(${env.releaseEnd});")
+            sb.appendLine("    }")
+            sb.appendLine()
+        }
+
         // Fields
         for ((_, info) in unitMap) {
             sb.appendLine("    private ${info.className} ${info.varName};")
+        }
+        for ((_, info) in envSegMap) {
+            sb.appendLine("    private VariableRateMonoReader ${info.readerVarName};")
         }
         sb.appendLine()
 
@@ -115,12 +162,15 @@ object JSynSourceExporter {
             val args = if (info.constructorArgs.isNotEmpty()) info.constructorArgs else ""
             sb.appendLine("        add(${info.varName} = new ${info.className}($args));")
         }
+        for ((_, info) in envSegMap) {
+            sb.appendLine("        add(${info.readerVarName} = new VariableRateMonoReader());")
+        }
         sb.appendLine()
 
         val envelopes = unitMap.values.filter {
             it.className == "EnvelopeDAHDSR" || it.className == "EnvelopeAttackDecay"
         }
-        val mainAmpEnv = SourceExporter.findMainAmpEnvelope(patch, unitMap, { it.className }, { it.varName })
+        val mainAmpEnv = SourceExporter.findMainAmpEnvelope(patch, unitMap, { it.className }, { it.varName }, envSegUnitInfos)
 
         // Find which oscillator frequency was fed by pitch/p2f in Syntona
         val connections = patch.graphState.connections
@@ -128,7 +178,6 @@ object JSynSourceExporter {
         if (isPoly) {
             // Check connections from pitch input or from p2f to an oscillator
             for (p2fMod in p2fModules) {
-                // Find connection from p2f to destination
                 val fromP2f = connections.filter { it.output.module === p2fMod }
                 for (c in fromP2f) {
                     val destMod = c.input.module
@@ -182,8 +231,8 @@ object JSynSourceExporter {
                 continue
             }
 
-            val source = resolveOutputEndpoint(outMod, conn.output, unitMap)
-            val dest = resolveInputEndpoint(inMod, conn.input, unitMap)
+            val source = resolveOutputEndpoint(outMod, conn.output, unitMap, envSegMap)
+            val dest = resolveInputEndpoint(inMod, conn.input, unitMap, envSegMap)
 
             if (source != null && dest != null) {
                 if (source.partIndex == 0 && dest.partIndex == 0) {
@@ -199,7 +248,7 @@ object JSynSourceExporter {
         if (isPoly) {
             val ampInputMod = voiceInputs["amplitude"]
             val outgoingFromAmp = if (ampInputMod != null) connections.filter { it.output.module === ampInputMod } else emptyList()
-            val ampTarget = outgoingFromAmp.firstOrNull()?.let { resolveInputEndpoint(it.input.module, it.input, unitMap) }
+            val ampTarget = outgoingFromAmp.firstOrNull()?.let { resolveInputEndpoint(it.input.module, it.input, unitMap, envSegMap) }
 
             val amplTarget = if (ampTarget != null) {
                 if (ampTarget.partIndex == 0) "${ampTarget.varName}.${ampTarget.portName}" else "${ampTarget.varName}.${ampTarget.portName}.getPart(${ampTarget.partIndex})"
@@ -224,7 +273,7 @@ object JSynSourceExporter {
             for (inputMod in audioInputs) {
                 val propName = SourceExporter.sanitizeIdentifier(inputMod.name)
                 val outgoing = connections.filter { it.output.module === inputMod }
-                val target = outgoing.firstOrNull()?.let { resolveInputEndpoint(it.input.module, it.input, unitMap) }
+                val target = outgoing.firstOrNull()?.let { resolveInputEndpoint(it.input.module, it.input, unitMap, envSegMap) }
                 if (target != null) {
                     val accessor = if (target.partIndex == 0) "${target.varName}.${target.portName}" else "${target.varName}.${target.portName}.getPart(${target.partIndex})"
                     sb.appendLine("        $propName = $accessor;")
@@ -236,7 +285,7 @@ object JSynSourceExporter {
             for (outputMod in audioOutputs) {
                 val propName = SourceExporter.sanitizeIdentifier(outputMod.name)
                 val incoming = connections.filter { it.input.module === outputMod }
-                val source = incoming.firstOrNull()?.let { resolveOutputEndpoint(it.output.module, it.output, unitMap) }
+                val source = incoming.firstOrNull()?.let { resolveOutputEndpoint(it.output.module, it.output, unitMap, envSegMap) }
                 if (source != null) {
                     val accessor = if (source.partIndex == 0) "${source.varName}.${source.portName}" else "${source.varName}.${source.portName}.getPart(${source.partIndex})"
                     sb.appendLine("        $propName = $accessor;")
@@ -278,10 +327,21 @@ object JSynSourceExporter {
                 }
             }
         }
+        for ((module, info) in envSegMap) {
+            val minRate = SourceExporter.formatDouble(module.speed.min)
+            val valRate = SourceExporter.formatDouble(module.speed.getValue())
+            val maxRate = SourceExporter.formatDouble(module.speed.max)
+            sb.appendLine("        ${info.readerVarName}.rate.setup($minRate, $valRate, $maxRate);")
+
+            val minAmp = SourceExporter.formatDouble(module.amplitude.min)
+            val valAmp = SourceExporter.formatDouble(module.amplitude.getValue())
+            val maxAmp = SourceExporter.formatDouble(module.amplitude.max)
+            sb.appendLine("        ${info.readerVarName}.amplitude.setup($minAmp, $valAmp, $maxAmp);")
+        }
         sb.appendLine()
 
         // Auto disable
-        if (mainAmpEnv != null) {
+        if (mainAmpEnv != null && (mainAmpEnv.className == "EnvelopeDAHDSR" || mainAmpEnv.className == "EnvelopeAttackDecay")) {
             sb.appendLine("        // Turn off circuit when envelope completes to save CPU")
             sb.appendLine("        ${mainAmpEnv.varName}.setupAutoDisable(this);")
             sb.appendLine()
@@ -296,43 +356,106 @@ object JSynSourceExporter {
         // UnitVoice methods
         if (isPoly) {
             val offInputMod = voiceInputs["off"]
-            val offTargets = if (offInputMod != null) {
+            val offUnitTargets = if (offInputMod != null) {
                 connections.filter { it.output.module === offInputMod }
-                    .mapNotNull { resolveInputEndpoint(it.input.module, it.input, unitMap) }
+                    .mapNotNull { resolveInputEndpoint(it.input.module, it.input, unitMap, envSegMap) }
+                    .filter { it.portName != "rate" && it.portName != "amplitude" }
                     .distinctBy { "${it.varName}.${it.portName}[${it.partIndex}]" }
+            } else emptyList()
+
+            val offEnvSegTargets = if (offInputMod != null) {
+                connections.filter { it.output.module === offInputMod && it.input.module is EnvSegModule }
+                    .mapNotNull { envSegMap[it.input.module] }
+                    .distinctBy { it.readerVarName }
             } else emptyList()
 
             sb.appendLine("    @Override")
             sb.appendLine("    public void noteOff(TimeStamp timeStamp) {")
-            if (offTargets.isNotEmpty()) {
-                for (target in offTargets) {
+            var hasOff = false
+            for (target in offUnitTargets) {
+                val envInfo = envSegMap.values.firstOrNull { it.readerVarName == target.varName }
+                if (envInfo != null) {
+                    sb.appendLine("        ${envInfo.readerVarName}.dataQueue.queueOff(${envInfo.envelopeVarName}, false, timeStamp);")
+                    hasOff = true
+                } else {
                     val accessor = if (target.partIndex == 0) "${target.varName}.${target.portName}" else "${target.varName}.${target.portName}.getPart(${target.partIndex})"
                     sb.appendLine("        $accessor.off(timeStamp);")
+                    hasOff = true
                 }
-            } else if (mainAmpEnv != null) {
-                sb.appendLine("        ${mainAmpEnv.varName}.input.off(timeStamp);")
+            }
+            for (target in offEnvSegTargets) {
+                if (offUnitTargets.none { it.varName == target.readerVarName }) {
+                    sb.appendLine("        ${target.readerVarName}.dataQueue.queueOff(${target.envelopeVarName}, false, timeStamp);")
+                    hasOff = true
+                }
+            }
+            if (!hasOff) {
+                if (mainAmpEnv != null) {
+                    val envInfo = envSegMap.values.firstOrNull { it.readerVarName == mainAmpEnv.varName }
+                    if (envInfo != null) {
+                        sb.appendLine("        ${envInfo.readerVarName}.dataQueue.queueOff(${envInfo.envelopeVarName}, false, timeStamp);")
+                    } else {
+                        sb.appendLine("        ${mainAmpEnv.varName}.input.off(timeStamp);")
+                    }
+                } else if (envSegMap.isNotEmpty()) {
+                    for (target in envSegMap.values) {
+                        sb.appendLine("        ${target.readerVarName}.dataQueue.queueOff(${target.envelopeVarName}, false, timeStamp);")
+                    }
+                }
             }
             sb.appendLine("    }")
             sb.appendLine()
 
             val onInputMod = voiceInputs["on"]
-            val onTargets = if (onInputMod != null) {
+            val onUnitTargets = if (onInputMod != null) {
                 connections.filter { it.output.module === onInputMod }
-                    .mapNotNull { resolveInputEndpoint(it.input.module, it.input, unitMap) }
+                    .mapNotNull { resolveInputEndpoint(it.input.module, it.input, unitMap, envSegMap) }
+                    .filter { it.portName != "rate" && it.portName != "amplitude" }
                     .distinctBy { "${it.varName}.${it.portName}[${it.partIndex}]" }
+            } else emptyList()
+
+            val onEnvSegTargets = if (onInputMod != null) {
+                connections.filter { it.output.module === onInputMod && it.input.module is EnvSegModule }
+                    .mapNotNull { envSegMap[it.input.module] }
+                    .distinctBy { it.readerVarName }
             } else emptyList()
 
             sb.appendLine("    @Override")
             sb.appendLine("    public void noteOn(double freq, double ampl, TimeStamp timeStamp) {")
             sb.appendLine("        frequency.set(freq, timeStamp);")
             sb.appendLine("        amplitude.set(ampl, timeStamp);")
-            if (onTargets.isNotEmpty()) {
-                for (target in onTargets) {
+
+            var hasOn = false
+            for (target in onUnitTargets) {
+                val envInfo = envSegMap.values.firstOrNull { it.readerVarName == target.varName }
+                if (envInfo != null) {
+                    sb.appendLine("        ${envInfo.readerVarName}.dataQueue.queueOn(${envInfo.envelopeVarName}, timeStamp);")
+                    hasOn = true
+                } else {
                     val accessor = if (target.partIndex == 0) "${target.varName}.${target.portName}" else "${target.varName}.${target.portName}.getPart(${target.partIndex})"
                     sb.appendLine("        $accessor.on(timeStamp);")
+                    hasOn = true
                 }
-            } else if (mainAmpEnv != null) {
-                sb.appendLine("        ${mainAmpEnv.varName}.input.on(timeStamp);")
+            }
+            for (target in onEnvSegTargets) {
+                if (onUnitTargets.none { it.varName == target.readerVarName }) {
+                    sb.appendLine("        ${target.readerVarName}.dataQueue.queueOn(${target.envelopeVarName}, timeStamp);")
+                    hasOn = true
+                }
+            }
+            if (!hasOn) {
+                if (mainAmpEnv != null) {
+                    val envInfo = envSegMap.values.firstOrNull { it.readerVarName == mainAmpEnv.varName }
+                    if (envInfo != null) {
+                        sb.appendLine("        ${envInfo.readerVarName}.dataQueue.queueOn(${envInfo.envelopeVarName}, timeStamp);")
+                    } else {
+                        sb.appendLine("        ${mainAmpEnv.varName}.input.on(timeStamp);")
+                    }
+                } else if (envSegMap.isNotEmpty()) {
+                    for (target in envSegMap.values) {
+                        sb.appendLine("        ${target.readerVarName}.dataQueue.queueOn(${target.envelopeVarName}, timeStamp);")
+                    }
+                }
             }
             sb.appendLine("    }")
             sb.appendLine()
@@ -344,7 +467,7 @@ object JSynSourceExporter {
                 connections.firstOrNull { it.input.module === outMod }
             }
             val outEndpoint = if (connToOutput != null) {
-                resolveOutputEndpoint(connToOutput.output.module, connToOutput.output, unitMap)
+                resolveOutputEndpoint(connToOutput.output.module, connToOutput.output, unitMap, envSegMap)
             } else null
 
             if (outEndpoint != null) {
@@ -406,32 +529,42 @@ object JSynSourceExporter {
     }
 
     private fun resolveOutputEndpoint(
-        module: com.syntona.dataflow.model.Module,
-        outputJack: com.syntona.dataflow.model.OutputJack,
-        unitMap: Map<UnitGeneratorModule, UnitInfo>
+        module: Module,
+        outputJack: OutputJack,
+        unitMap: Map<UnitGeneratorModule, UnitInfo>,
+        envSegMap: Map<EnvSegModule, SourceExporter.EnvSegInfo> = emptyMap()
     ): SourceExporter.PortEndpoint? {
         if (module is UnitGeneratorModule) {
             val info = unitMap[module] ?: return null
             val (portName, partIndex) = SourceExporter.resolveOutputJackPortName(outputJack)
             return SourceExporter.PortEndpoint(info.varName, portName, partIndex)
         }
+        if (module is EnvSegModule) {
+            val info = envSegMap[module] ?: return null
+            val (portName, partIndex) = SourceExporter.resolveOutputJackPortName(outputJack)
+            return SourceExporter.PortEndpoint(info.readerVarName, portName, partIndex)
+        }
         return null
     }
 
     private fun resolveInputEndpoint(
-        module: com.syntona.dataflow.model.Module,
-        inputJack: com.syntona.dataflow.model.InputJack,
-        unitMap: Map<UnitGeneratorModule, UnitInfo>
+        module: Module,
+        inputJack: InputJack,
+        unitMap: Map<UnitGeneratorModule, UnitInfo>,
+        envSegMap: Map<EnvSegModule, SourceExporter.EnvSegInfo> = emptyMap()
     ): SourceExporter.PortEndpoint? {
         if (module is UnitGeneratorModule) {
             val info = unitMap[module] ?: return null
             val (portName, partIndex) = SourceExporter.resolveJackPortName(inputJack)
             return SourceExporter.PortEndpoint(info.varName, portName, partIndex)
         }
+        if (module is EnvSegModule) {
+            val info = envSegMap[module] ?: return null
+            val (portName, partIndex) = SourceExporter.resolveJackPortName(inputJack)
+            return SourceExporter.PortEndpoint(info.readerVarName, portName, partIndex)
+        }
         return null
     }
-
-
 
     private fun resolveJSynClassAndArgs(module: UnitGeneratorModule): Pair<String, String> {
         val unit = module.unit

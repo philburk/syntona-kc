@@ -75,6 +75,19 @@ class JackRoundTripTest {
     }
 
     @Test
+    fun anUntouchedInputModuleIsNotGivenAValue() {
+        // Writing "v" for an untouched InputModule (such as event inputs "on" and "off")
+        // marks hasValue = true on load and can inadvertently trigger modules on connection.
+        val inMod = com.syntona.dataflow.modules.InputModule()
+        inMod.name = "on"
+        val state = GraphState()
+        state.addModule(inMod, Offset.Zero)
+        val json = GraphSerializer.serialize(state, state.modules.toList(), 1f, 0f, 0f, 800f, 600f)
+        val onJack = GraphSerializer.minifyJson(json).substringAfter("\"on\":{").substringBefore("}")
+        assertEquals(false, onJack.contains("\"v\""), "unexpected value in: $onJack")
+    }
+
+    @Test
     fun inputModuleJackPropertiesSurvivePatchSerialization() {
         val patch = com.syntona.dataflow.modules.PatchModule("myPatch")
         val inMod = com.syntona.dataflow.modules.InputModule()

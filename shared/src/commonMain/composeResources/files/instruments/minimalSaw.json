@@ -1,6 +1,6 @@
 {
-  "version": "0.6.1 beta",
-  "versionCode": 393217,
+  "version": "0.7.0 beta",
+  "versionCode": 458752,
   "type": "core.polyPatch",
   "maxVoices": 4,
   "patch": {
@@ -45,7 +45,7 @@
           "pitch": {
             "v": 60,
             "min": 0,
-            "max": 100,
+            "max": 127,
             "kickable": false
           }
         }
@@ -186,33 +186,22 @@
       },
       {
         "id": 8,
-        "type": "core.math.pitchToHz",
-        "name": "pitchToHz",
-        "x": 148.1,
-        "y": 172.9,
+        "type": "ksyn.math.pitchToHz~",
+        "name": "pitchToHz~",
+        "x": 138.9,
+        "y": 118,
         "jacks": {
           "in": {
             "v": 60,
             "min": 0,
-            "max": 100,
-            "kickable": true
+            "max": 127,
+            "kickable": false,
+            "add": false
           }
         }
       }
     ],
     "connections": [
-      {
-        "from": 2,
-        "fromJack": "out",
-        "to": 8,
-        "toJack": "in"
-      },
-      {
-        "from": 8,
-        "fromJack": "out",
-        "to": 6,
-        "toJack": "frequency"
-      },
       {
         "from": 3,
         "fromJack": "out",
@@ -242,6 +231,18 @@
         "fromJack": "out",
         "to": 7,
         "toJack": "on"
+      },
+      {
+        "from": 2,
+        "fromJack": "out",
+        "to": 8,
+        "toJack": "in"
+      },
+      {
+        "from": 8,
+        "fromJack": "out",
+        "to": 6,
+        "toJack": "frequency"
       }
     ]
   }

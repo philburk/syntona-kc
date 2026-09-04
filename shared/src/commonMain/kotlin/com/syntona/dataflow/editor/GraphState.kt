@@ -13,6 +13,7 @@ import com.syntona.dataflow.engine.EngineAware
 import com.syntona.dataflow.model.AdoptsRememberedDefaults
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.AudioOutputJack
+import com.syntona.dataflow.model.CommandJack
 import com.syntona.dataflow.model.DataQueueInputJack
 import com.syntona.dataflow.model.DataQueueOutputJack
 import com.syntona.dataflow.model.InputJack
@@ -142,7 +143,8 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
                 is com.syntona.dataflow.modules.InputModule -> if (m.hasValue) m.defaultValue else null
                 else -> if (output.getValue() != 0.0) output.getValue() else null
             }
-            if (currentValue != null) {
+            // Propagate continuous parameter values, but never kick command jacks or kickable inputs on connection
+            if (currentValue != null && input !is CommandJack && !input.isKickable) {
                 input.receive(Message.FloatValue(com.syntona.core.model.ScoreTime.Zero, currentValue))
             }
         }
@@ -479,57 +481,61 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
 
         when (val m = output.module) {
             is FaderModule -> {
-                if (connected.size == 1) {
-                    val target = connected.first().input
+                val nonCommand = connected.filter { it.input !is CommandJack && !it.input.isKickable }
+                if (nonCommand.size == 1) {
+                    val target = nonCommand.first().input
                     m.valueIn.min = target.min
                     m.valueIn.max = target.max
                     val low = minOf(target.min, target.max)
                     val high = maxOf(target.min, target.max)
                     m.setValue(target.getValue().coerceIn(low, high))
-                } else {
-                    m.valueIn.min = connected.minOf { it.input.min }
-                    m.valueIn.max = connected.maxOf { it.input.max }
+                } else if (nonCommand.size > 1) {
+                    m.valueIn.min = nonCommand.minOf { it.input.min }
+                    m.valueIn.max = nonCommand.maxOf { it.input.max }
                 }
             }
             is KnobModule -> {
-                if (connected.size == 1) {
-                    val target = connected.first().input
+                val nonCommand = connected.filter { it.input !is CommandJack && !it.input.isKickable }
+                if (nonCommand.size == 1) {
+                    val target = nonCommand.first().input
                     m.valueIn.min = target.min
                     m.valueIn.max = target.max
                     val low = minOf(target.min, target.max)
                     val high = maxOf(target.min, target.max)
                     m.setValue(target.getValue().coerceIn(low, high))
-                } else {
-                    m.valueIn.min = connected.minOf { it.input.min }
-                    m.valueIn.max = connected.maxOf { it.input.max }
+                } else if (nonCommand.size > 1) {
+                    m.valueIn.min = nonCommand.minOf { it.input.min }
+                    m.valueIn.max = nonCommand.maxOf { it.input.max }
                 }
             }
             is InputModule -> {
-                if (connected.size == 1) {
-                    val target = connected.first().input
+                val nonCommand = connected.filter { it.input !is CommandJack && !it.input.isKickable }
+                if (nonCommand.size == 1) {
+                    val target = nonCommand.first().input
                     m.defaultMin = target.min
                     m.defaultMax = target.max
                     m.defaultIsInteger = target.isInteger
                     val low = minOf(target.min, target.max)
                     val high = maxOf(target.min, target.max)
                     m.defaultValue = target.getValue().coerceIn(low, high)
-                } else {
-                    m.defaultMin = connected.minOf { it.input.min }
-                    m.defaultMax = connected.maxOf { it.input.max }
-                    m.defaultIsInteger = connected.all { it.input.isInteger }
+                } else if (nonCommand.size > 1) {
+                    m.defaultMin = nonCommand.minOf { it.input.min }
+                    m.defaultMax = nonCommand.maxOf { it.input.max }
+                    m.defaultIsInteger = nonCommand.all { it.input.isInteger }
                 }
             }
             is AudioInputModule -> {
-                if (connected.size == 1) {
-                    val target = connected.first().input
+                val nonCommand = connected.filter { it.input !is CommandJack && !it.input.isKickable }
+                if (nonCommand.size == 1) {
+                    val target = nonCommand.first().input
                     m.defaultMin = target.min
                     m.defaultMax = target.max
                     val low = minOf(target.min, target.max)
                     val high = maxOf(target.min, target.max)
                     m.defaultValue = target.getValue().coerceIn(low, high)
-                } else {
-                    m.defaultMin = connected.minOf { it.input.min }
-                    m.defaultMax = connected.maxOf { it.input.max }
+                } else if (nonCommand.size > 1) {
+                    m.defaultMin = nonCommand.minOf { it.input.min }
+                    m.defaultMax = nonCommand.maxOf { it.input.max }
                 }
             }
             else -> return

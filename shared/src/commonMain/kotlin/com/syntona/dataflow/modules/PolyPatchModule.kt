@@ -462,6 +462,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
             val voiceInMod = voice.templateToVoiceMap[inMod] ?: continue
             val voiceOutJack = findMatchingOutputJack(voiceOutMod, outputJack) ?: continue
             val voiceInJack = findMatchingInputJack(voiceInMod, inputJack) ?: continue
+            voice.graphState.isDeserializing = graphState.isDeserializing
             voice.graphState.connectDirectly(voiceOutJack, voiceInJack)
         }
     }
@@ -629,7 +630,9 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                 }
                 voiceJack.min = templateJack.min
                 voiceJack.max = templateJack.max
-                voiceJack.setValue(templateJack.getValue())
+                if (voiceJack !is CommandJack && !voiceJack.isKickable) {
+                    voiceJack.setValue(templateJack.getValue())
+                }
             }
         }
         return voiceModule

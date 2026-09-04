@@ -37,6 +37,7 @@ help/music/input/pianoRoll.json
 instruments/minimalSaw.json
 instruments/sawBasic.json
 instruments/sawLowPass.json
+instruments/sawTremolo.json
 instruments/twoOpFM.json
 sounds/chuff.json
 sounds/drumFM.json

@@ -36,6 +36,11 @@ class PolyPatchVoice(
         if (outputPassThrough.isStartRequired) outputPassThrough.start()
     }
 
+    override fun onChildModuleAdded(module: Module) {
+        module.parentPatch = this
+        // PolyPatchVoice is an internal voice execution container; it does not expose outer patch jacks
+    }
+
     override fun getOutputPort(): UnitOutputPort {
         return outputPassThrough.output
     }

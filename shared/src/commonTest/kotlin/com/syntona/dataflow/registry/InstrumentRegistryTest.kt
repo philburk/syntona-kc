@@ -2,6 +2,9 @@ package com.syntona.dataflow.registry
 
 import com.syntona.dataflow.modules.PatchModule
 import com.syntona.dataflow.modules.PolyPatchModule
+import com.syntona.dataflow.modules.UnitGeneratorModule
+import com.syntona.dataflow.model.AudioInputJack
+import com.syntona.dataflow.model.AudioOutputJack
 import kotlinx.coroutines.runBlocking
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -121,6 +124,64 @@ class InstrumentRegistryTest {
                 )
             )
             engine.generateNextBuffer()
+        } finally {
+            if (engine.isRunning) engine.stop()
+        }
+    }
+
+    @Test
+    fun testMinimalSawStartsOff() = runBlocking {
+        val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
+        if (!engine.isRunning) engine.start()
+        try {
+            InstrumentRegistry.loadInstrumentsIndex()
+            val music = ModuleRegistry.root.subBundles.find { it.name == "music" }!!
+            val instruments = music.subBundles.find { it.name == "instruments" }!!
+            val entry = instruments.modules.find { it.name == "minimalSaw" }
+            assertNotNull(entry, "minimalSaw should be registered")
+
+            val minimalSaw = entry.creator() as PolyPatchModule
+            assertTrue(minimalSaw.isInitialized)
+
+            // Check the envDAHDSR in voice 0
+            val voice0 = minimalSaw.voices[0]
+            val dahdsrTemplate = minimalSaw.graphState.modules.find { it.name == "envDAHDSR" } as? UnitGeneratorModule
+            assertNotNull(dahdsrTemplate, "envDAHDSR should be in template")
+            val dahdsrVoice = voice0.templateToVoiceMap[dahdsrTemplate] as? UnitGeneratorModule
+            assertNotNull(dahdsrVoice, "envDAHDSR should be in voice0")
+            val dahdsrUnit = dahdsrVoice.unit as com.softsynth.ksyn.unitgen.EnvelopeDAHDSR
+
+            engine.generateNextBuffer()
+
+            val rootGraph = com.syntona.dataflow.editor.GraphState()
+            rootGraph.addModule(minimalSaw, androidx.compose.ui.geometry.Offset.Zero)
+
+            val lineOut = UnitGeneratorModule("lineOut", com.softsynth.ksyn.unitgen.LineOut())
+            rootGraph.addModule(lineOut, androidx.compose.ui.geometry.Offset(200f, 0f))
+
+            val sawOutJack = minimalSaw.outputs.find { it.name == "output" } as AudioOutputJack
+            val lineInJack = lineOut.inputs.find { it.name == "in0" } as AudioInputJack
+            rootGraph.connect(sawOutJack, lineInJack)
+
+            engine.generateNextBuffer()
+            val outVal = minimalSaw.polyphonicInstrument!!.getOutputPort().get(0)
+
+            assertEquals(0.0f, dahdsrUnit.output.get(0), 1e-4f, "DAHDSR envelope output should be 0 before any noteOn")
+            assertEquals(0.0f, outVal, 1e-4f, "minimalSaw output should be 0 before any noteOn")
+
+            // Now play a note and verify it produces sound
+            minimalSaw.voiceInputJack.receive(
+                com.syntona.dataflow.model.Message.VoiceMessage(
+                    com.syntona.core.model.ScoreTime.Zero,
+                    com.syntona.dataflow.model.Message.VoiceOpcode.NOTE_ON,
+                    tag = 10,
+                    value = 60.0,
+                    extra = 0.8
+                )
+            )
+            engine.generateNextBuffer()
+            val noteOnOut = minimalSaw.polyphonicInstrument!!.getOutputPort().get(0)
+            assertTrue(kotlin.math.abs(noteOnOut) > 0.01f || kotlin.math.abs(dahdsrUnit.output.get(0)) > 0.01f, "minimalSaw should make sound after noteOn")
         } finally {
             if (engine.isRunning) engine.stop()
         }
