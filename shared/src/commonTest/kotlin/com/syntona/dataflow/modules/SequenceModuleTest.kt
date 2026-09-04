@@ -154,9 +154,26 @@ class SequenceModuleTest {
         assertTrue(module is SequenceModule)
         assertEquals(16, module.numOutputs)
         assertEquals("out", module.mainOutput.name)
-        assertEquals("out", module.allOutput.name)
         assertEquals("kick", module.kick.name)
         assertEquals("kick", module.increment.name)
+        assertTrue(module.kick is com.syntona.dataflow.model.CommandJack)
+        assertTrue(module.reset is com.syntona.dataflow.model.CommandJack)
+        assertFalse(module.kick.isModuleEditorVisible)
+        assertFalse(module.reset.isModuleEditorVisible)
+    }
+
+    @Test
+    fun testCounterAndRandomCommandJacks() {
+        val counter = CounterModule()
+        assertTrue(counter.kick is com.syntona.dataflow.model.CommandJack)
+        assertTrue(counter.increment is com.syntona.dataflow.model.CommandJack)
+        assertTrue(counter.reset is com.syntona.dataflow.model.CommandJack)
+        assertFalse(counter.kick.isModuleEditorVisible)
+        assertFalse(counter.reset.isModuleEditorVisible)
+
+        val random = RandomModule()
+        assertTrue(random.kick is com.syntona.dataflow.model.CommandJack)
+        assertFalse(random.kick.isModuleEditorVisible)
     }
 
     @Test

@@ -304,9 +304,13 @@ class LogicModulesTest {
         assertEquals("toggle", toggle.name)
         assertEquals(2, toggle.inputs.size)
         assertEquals("reset", toggle.inputs[0].name)
+        assertTrue(toggle.reset is com.syntona.dataflow.model.CommandJack, "reset should be a CommandJack")
         assertTrue(toggle.inputs[0].isKickable, "reset should be kickable")
+        assertFalse(toggle.reset.isModuleEditorVisible, "reset should have isModuleEditorVisible=false")
         assertEquals("kick", toggle.inputs[1].name)
+        assertTrue(toggle.kick is com.syntona.dataflow.model.CommandJack, "kick should be a CommandJack")
         assertTrue(toggle.inputs[1].isKickable, "kick should be kickable")
+        assertFalse(toggle.kick.isModuleEditorVisible, "kick should have isModuleEditorVisible=false")
 
         assertEquals(2, toggle.outputs.size)
         assertEquals("out0", toggle.outputs[0].name)

@@ -8,8 +8,9 @@ import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.model.OutputJack
 
 class CounterModule() : Module("counter") {
-    val reset = addInput("reset", isKickable = true)
-    val increment = addInput("kick", isKickable = true)
+    val reset = addCommandInput("reset")
+    val increment = addCommandInput("kick")
+    val kick get() = increment
     val output = addOutput("out")
     var count = 0
 
@@ -111,8 +112,8 @@ abstract class StepValueModule(
 }
 
 open class SequenceModule(numOutputs: Int) : StepValueModule("seq$numOutputs", numOutputs, mainOutputName = "out") {
-    val reset = addInput("reset", isKickable = true)
-    val kick = addInput("kick", isKickable = true)
+    val reset = addCommandInput("reset")
+    val kick = addCommandInput("kick")
 
     /** Alias for backward compatibility */
     val increment get() = kick
@@ -147,8 +148,10 @@ internal fun parseSequenceValueList(text: String): List<Double> {
 }
 
 open class ModuloSelectModule(val numOutputs: Int) : Module("mod" + numOutputs) {
-    val reset = addInput("reset", isKickable = true)
-    val increment = addInput("in", isKickable = true)
+    val input = addIntegerInput("in", isKickable = true)
+
+    /** Alias for backward compatibility */
+    val increment get() = input
 
     val stepOutputs = List(numOutputs) { index ->
         addOutput("out$index")
@@ -159,11 +162,7 @@ open class ModuloSelectModule(val numOutputs: Int) : Module("mod" + numOutputs) 
     }
 
     override fun execute(triggerMessage: Message) {
-        val valToUse = if (reset.isKicked) {
-            0.0
-        } else {
-            increment.getDoubleValue()
-        }
+        val valToUse = input.getDoubleValue()
         val moduloValue = ((valToUse % numOutputs) + numOutputs) % numOutputs
         val activeIndex = kotlin.math.floor(moduloValue).toInt().coerceIn(0, numOutputs - 1)
 

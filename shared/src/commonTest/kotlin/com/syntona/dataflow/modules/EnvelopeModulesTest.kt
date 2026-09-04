@@ -24,19 +24,29 @@ class EnvelopeModulesTest {
         val legacyCreator = ModuleRegistry.findCreator("DAHDSR")
         assertNotNull(legacyCreator, "Legacy DAHDSR should resolve")
 
-        // First input must be "trigger" of type CommandJack at the top
-        assertTrue(dahdsrMod.inputs.isNotEmpty())
-        val firstInput = dahdsrMod.inputs[0]
-        assertEquals("trigger", firstInput.name)
-        assertTrue(firstInput is CommandJack)
-        assertTrue(firstInput.isKickable)
+        // First two inputs must be "on" and "off" of type CommandJack at the top
+        assertTrue(dahdsrMod.inputs.size >= 2)
+        val onJack = dahdsrMod.inputs[0]
+        assertEquals("on", onJack.name)
+        assertTrue(onJack is CommandJack)
+        assertTrue(onJack.isKickable)
+
+        val offJack = dahdsrMod.inputs[1]
+        assertEquals("off", offJack.name)
+        assertTrue(offJack is CommandJack)
+        assertTrue(offJack.isKickable)
+
+        // Verify there is NO trigger jack on envDAHDSR
+        val triggerPort = dahdsrMod.inputs.find { it.name == "trigger" }
+        kotlin.test.assertNull(triggerPort, "envDAHDSR should not have a trigger jack")
 
         // Verify "in" is present as an AudioInputJack (coerced from input)
         val inPort = dahdsrMod.inputs.find { it.name == "in" }
         assertNotNull(inPort, "Input port should be coerced to 'in'")
 
-        // Triggering the command jack triggers the envelope
-        firstInput.receive(Message.FloatValue(ScoreTime.Zero, 1.0))
+        // Triggering the on and off command jacks
+        onJack.receive(Message.FloatValue(ScoreTime.Zero, 1.0))
+        offJack.receive(Message.FloatValue(ScoreTime.Zero, 0.0))
     }
 
     @Test

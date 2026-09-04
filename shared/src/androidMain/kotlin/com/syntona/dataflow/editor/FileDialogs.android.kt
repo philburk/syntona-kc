@@ -10,6 +10,13 @@ actual fun isSaveAsResourceAvailable(): Boolean = false
 
 actual fun showSaveAsResourceFileDialog(content: String, defaultName: String, onSaved: (path: String) -> Unit) {}
 
+actual fun showExportSourceFileDialog(
+    defaultName: String,
+    extension: String,
+    dialogTitle: String,
+    onChosen: (path: String) -> Unit
+) {}
+
 actual fun saveFileDirect(path: String, content: String) {}
 
 actual fun saveResourceFileDirect(relativePath: String, content: String) {}

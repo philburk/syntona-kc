@@ -4,6 +4,9 @@
 Try to save a native signed version.
 
 
+BUG: envDAHDSR toggle jack does not work, does on envAD, resolve API
+Maybe envDAHDSR needs on/off jacks.
+
 The "kick" input jacks on the stepper and the toggle should be CommandJacks.
 They should have a button so we can trigger them manually.
 They should have isModuleEditorVisible=false.
@@ -14,8 +17,6 @@ Write tests in KSyn and Syntona.
 
 The orange MIDI jacks and the yellow SequentialData jacks look too similar.
 
-BUG: envDAHDSR toggle jack does not work, does on envAD, resolve API
-Maybe envDAHDSR needs on/off jacks.
 
 BUG: deleting modules using BACKSPACE or DELETE key sometimes does not work. Edit menu Cut always works.
 Need repro steps.

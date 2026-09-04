@@ -201,7 +201,18 @@
             "name": "segEnv",
             "x": 173.9,
             "y": 272,
-            "envData": [0.019999999552965164, 0.8999999761581421, 0.43833333253860474, 0.4127516746520996, 0.1874999701976776, 0.2751677930355072, 0.2951388657093048, 0, 0.4375, 0],
+            "envData": [
+              0.019999999552965164,
+              0.8999999761581421,
+              0.43833333253860474,
+              0.4127516746520996,
+              0.1874999701976776,
+              0.2751677930355072,
+              0.2951388657093048,
+              0,
+              0.4375,
+              0
+            ],
             "sustainBegin": 2,
             "sustainEnd": 2,
             "releaseBegin": -1,
@@ -993,25 +1004,25 @@
                   "from": 0,
                   "fromJack": "output",
                   "to": 7,
-                  "toJack": "input"
+                  "toJack": "on"
                 },
                 {
                   "from": 1,
                   "fromJack": "output",
                   "to": 7,
-                  "toJack": "input"
+                  "toJack": "off"
                 },
                 {
                   "from": 0,
                   "fromJack": "output",
                   "to": 6,
-                  "toJack": "input"
+                  "toJack": "on"
                 },
                 {
                   "from": 1,
                   "fromJack": "output",
                   "to": 6,
-                  "toJack": "input"
+                  "toJack": "off"
                 },
                 {
                   "from": 8,
@@ -1621,13 +1632,13 @@
                   "from": 0,
                   "fromJack": "output",
                   "to": 9,
-                  "toJack": "input"
+                  "toJack": "on"
                 },
                 {
                   "from": 1,
                   "fromJack": "output",
                   "to": 9,
-                  "toJack": "input"
+                  "toJack": "off"
                 },
                 {
                   "from": 3,
@@ -1719,7 +1730,16 @@
                 "kickable": false
               }
             },
-            "stepValues": ["0.123", "2.322,99.77", "3.0", "4.0", "0.0", "6.0", "7.0", "8.765"]
+            "stepValues": [
+              "0.123",
+              "2.322,99.77",
+              "3.0",
+              "4.0",
+              "0.0",
+              "6.0",
+              "7.0",
+              "8.765"
+            ]
           },
           {
             "id": 7,

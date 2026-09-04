@@ -18,7 +18,7 @@ import com.syntona.dataflow.model.Module
 class StepperModule : Module("stepper"), CommandJackBadge {
     val start = addCommandInput("start")
     val stop = addCommandInput("stop")
-    val kick = addInput("kick", isKickable = true)
+    val kick = addCommandInput("kick")
     val limit = addIntegerInput("N").also {
         it.min = 1.0
         it.max = 128.0

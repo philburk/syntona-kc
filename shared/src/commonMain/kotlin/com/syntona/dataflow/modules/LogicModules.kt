@@ -161,8 +161,8 @@ class PassModule : Module("pass") {
  * A [reset] message sets the state back to 0 (so the next kick outputs to [out0]).
  */
 class ToggleModule : Module("toggle") {
-    val reset = addInput("reset", isKickable = true)
-    val kick = addInput("kick", isKickable = true)
+    val reset = addCommandInput("reset")
+    val kick = addCommandInput("kick")
 
     val out0 = addOutput("out0")
     val out1 = addOutput("out1")

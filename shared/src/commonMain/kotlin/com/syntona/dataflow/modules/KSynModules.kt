@@ -23,13 +23,27 @@ open class UnitGeneratorModule(name: String, val unit: UnitGenerator) : Module(n
     override val isAllowedInPolyPatch: Boolean
         get() = unit !is com.softsynth.ksyn.unitgen.LineIn && unit !is com.softsynth.ksyn.unitgen.LineOut
 
+    val onJack: com.syntona.dataflow.model.CommandJack?
+    val offJack: com.syntona.dataflow.model.CommandJack?
     val triggerJack: com.syntona.dataflow.model.CommandJack?
 
     init {
         SynthKSyn.synth.add(unit)
-        if (unit is com.softsynth.ksyn.unitgen.UnitGate) {
+        if (unit is com.softsynth.ksyn.unitgen.EnvelopeDAHDSR) {
+            onJack = addCommandInput("on")
+            offJack = addCommandInput("off")
+            triggerJack = null
+        } else if (unit is com.softsynth.ksyn.unitgen.EnvelopeAttackDecay) {
             triggerJack = addCommandInput("trigger")
+            onJack = null
+            offJack = null
+        } else if (unit is com.softsynth.ksyn.unitgen.UnitGate) {
+            onJack = addCommandInput("on")
+            offJack = addCommandInput("off")
+            triggerJack = null
         } else {
+            onJack = null
+            offJack = null
             triggerJack = null
         }
         for (port in unit.getPorts()) {
@@ -64,6 +78,12 @@ open class UnitGeneratorModule(name: String, val unit: UnitGenerator) : Module(n
     }
 
     override fun execute(triggerMessage: Message) {
+        if (onJack != null && onJack.isKicked) {
+            (unit as? com.softsynth.ksyn.unitgen.UnitGate)?.input?.on()
+        }
+        if (offJack != null && offJack.isKicked) {
+            (unit as? com.softsynth.ksyn.unitgen.UnitGate)?.input?.off()
+        }
         if (triggerJack != null && triggerJack.isKicked) {
             (unit as? com.softsynth.ksyn.unitgen.UnitGate)?.input?.trigger()
         }

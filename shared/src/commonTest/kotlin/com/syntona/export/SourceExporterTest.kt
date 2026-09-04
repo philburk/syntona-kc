@@ -359,6 +359,27 @@ class SourceExporterTest {
     }
 
     @Test
+    fun testExportWithDirectOnOffJackConnections() {
+        val polyPatch = PolyPatchModule("SawVoice")
+        val envMod = UnitGeneratorModule("ampEnv", EnvelopeDAHDSR())
+        polyPatch.graphState.addModule(envMod, androidx.compose.ui.geometry.Offset.Zero)
+
+        val onMod = polyPatch.graphState.modules.filterIsInstance<InputModule>().first { it.name == "on" }
+        val offMod = polyPatch.graphState.modules.filterIsInstance<InputModule>().first { it.name == "off" }
+
+        polyPatch.graphState.connect(onMod.output, envMod.inputs.first { it.name == "on" })
+        polyPatch.graphState.connect(offMod.output, envMod.inputs.first { it.name == "off" })
+
+        val ksynCode = KSynSourceExporter.export(polyPatch, "SawVoice")
+        assertTrue(ksynCode.contains("ampEnv.input.on(timeStamp)"), "KSyn noteOn should trigger ampEnv via on jack")
+        assertTrue(ksynCode.contains("ampEnv.input.off(timeStamp)"), "KSyn noteOff should trigger ampEnv via off jack")
+
+        val jsynCode = JSynSourceExporter.export(polyPatch, "SawVoice")
+        assertTrue(jsynCode.contains("ampEnv.input.on(timeStamp);"), "JSyn noteOn should trigger ampEnv via on jack")
+        assertTrue(jsynCode.contains("ampEnv.input.off(timeStamp);"), "JSyn noteOff should trigger ampEnv via off jack")
+    }
+
+    @Test
     fun testAutoDisableSelectsClosestEnvelopeToOutput() {
         val polyPatch = PolyPatchModule("multiEnvVoice")
 

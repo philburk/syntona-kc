@@ -14,6 +14,7 @@ import com.syntona.dataflow.modules.ScopeModule
 import com.syntona.dataflow.modules.PatchModule
 import com.syntona.dataflow.modules.PolyPatchModule
 import com.syntona.dataflow.modules.InputModule
+import com.syntona.dataflow.modules.UnitGeneratorModule
 import com.syntona.dataflow.modules.AudioInputModule
 import com.syntona.dataflow.modules.LinkModule
 import com.syntona.dataflow.modules.KeyMatchModule
@@ -33,6 +34,7 @@ import com.syntona.dataflow.modules.KnobModule
 import com.syntona.dataflow.modules.FaderModule
 import com.syntona.dataflow.modules.SequenceModule
 import com.syntona.dataflow.modules.StepValueModule
+import com.syntona.dataflow.modules.ModuloSelectModule
 import com.syntona.dataflow.modules.EquationModule
 import com.syntona.dataflow.modules.ScaleModule
 import com.syntona.dataflow.modules.BeatClockModule
@@ -1233,6 +1235,12 @@ internal fun resolveLegacyInputJack(module: Module, serializedName: String): com
     if (module is SequenceModule && (serializedName == "in" || serializedName == "kick")) {
         return module.kick
     }
+    if (module is UnitGeneratorModule && module.unit is com.softsynth.ksyn.unitgen.UnitGate) {
+        if (serializedName.equals("trigger", ignoreCase = true)) {
+            module.triggerJack?.let { return it }
+            module.onJack?.let { return it }
+        }
+    }
     if (module is ClockDividerModule && (serializedName.equals("N", ignoreCase = true) || serializedName.equals("divisor", ignoreCase = true))) {
         return module.divisor
     }
@@ -1241,6 +1249,9 @@ internal fun resolveLegacyInputJack(module: Module, serializedName: String): com
     }
     if (module is PassModule && (serializedName.equals("enable", ignoreCase = true) || serializedName.equals("enabled", ignoreCase = true))) {
         return module.enabled
+    }
+    if (module is ModuloSelectModule && (serializedName.equals("in", ignoreCase = true) || serializedName.equals("inc", ignoreCase = true) || serializedName.equals("kick", ignoreCase = true))) {
+        return module.input
     }
 
     return null

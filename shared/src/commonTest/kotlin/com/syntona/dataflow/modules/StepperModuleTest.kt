@@ -43,8 +43,10 @@ class StepperModuleTest {
         assertTrue(stepper.stop.isKickable)
 
         assertEquals("kick", stepper.kick.name)
+        assertTrue(stepper.kick is com.syntona.dataflow.model.CommandJack)
         assertTrue(stepper.kick.isKickable)
         assertFalse(stepper.kick.isInteger)
+        assertFalse(stepper.kick.isModuleEditorVisible)
 
         assertEquals("N", stepper.limit.name)
         assertTrue(stepper.limit.isInteger)

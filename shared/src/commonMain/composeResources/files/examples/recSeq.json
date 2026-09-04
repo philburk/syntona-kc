@@ -276,7 +276,16 @@
           "kickable": false
         }
       },
-      "stepValues": ["36.0", "0.0", "0.0", "0.0", "41.0", "0.0", "0.0", "0.0"]
+      "stepValues": [
+        "36.0",
+        "0.0",
+        "0.0",
+        "0.0",
+        "41.0",
+        "0.0",
+        "0.0",
+        "0.0"
+      ]
     },
     {
       "id": 10,
@@ -564,13 +573,13 @@
             "from": 0,
             "fromJack": "output",
             "to": 9,
-            "toJack": "input"
+            "toJack": "on"
           },
           {
             "from": 1,
             "fromJack": "output",
             "to": 9,
-            "toJack": "input"
+            "toJack": "off"
           },
           {
             "from": 3,

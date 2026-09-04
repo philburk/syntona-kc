@@ -311,6 +311,68 @@ class PolyPatchModuleTest {
     }
 
     @Test
+    fun testOnOffDirectToEnvelopeOnOffJacks() = kotlinx.coroutines.runBlocking {
+        val polyPatch = PolyPatchModule()
+        polyPatch.initializeVoices(1)
+        polyPatch.polyphonicInstrument!!.start()
+
+        val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
+        engine.generateNextBuffer()
+
+        val voice0 = polyPatch.voices[0]
+        val onModule = polyPatch.graphState.modules.find { it.name == "on" }!!
+        val offModule = polyPatch.graphState.modules.find { it.name == "off" }!!
+        val outputModule = polyPatch.graphState.modules.find { it.name == "output" }!!
+
+        // Add envDAHDSR module
+        val dahdsrModule = UnitGeneratorModule("envDAHDSR", com.softsynth.ksyn.unitgen.EnvelopeDAHDSR())
+        polyPatch.graphState.addModule(dahdsrModule, androidx.compose.ui.geometry.Offset.Zero)
+        val dahdsrVoiceMod = voice0.templateToVoiceMap[dahdsrModule] as UnitGeneratorModule
+        val dahdsrUnit0 = dahdsrVoiceMod.unit as com.softsynth.ksyn.unitgen.EnvelopeDAHDSR
+
+        // Connect DAHDSR output to main output
+        val dahdsrOutJack = dahdsrModule.outputs.find { it.name == "out" }!!
+        val patchOutInJack = outputModule.inputs.find { it.name == "in" }!!
+        polyPatch.graphState.connect(dahdsrOutJack, patchOutInJack)
+        engine.generateNextBuffer()
+
+        // Connect on.out -> envDAHDSR.on and off.out -> envDAHDSR.off directly
+        val onOutJack = onModule.outputs.find { it.name == "out" }!!
+        val offOutJack = offModule.outputs.find { it.name == "out" }!!
+        val dahdsrOnJack = dahdsrModule.inputs.find { it.name == "on" }!!
+        val dahdsrOffJack = dahdsrModule.inputs.find { it.name == "off" }!!
+        polyPatch.graphState.connect(onOutJack, dahdsrOnJack)
+        polyPatch.graphState.connect(offOutJack, dahdsrOffJack)
+        engine.generateNextBuffer()
+
+        // NoteOn should trigger DAHDSR via on jack
+        polyPatch.voiceInputJack.receive(
+            Message.VoiceMessage(
+                com.syntona.core.model.ScoreTime.Zero,
+                Message.VoiceOpcode.NOTE_ON,
+                tag = 10,
+                value = 60.0,
+                extra = 1.0
+            )
+        )
+        engine.generateNextBuffer()
+        polyPatch.polyphonicInstrument!!.getOutputPort().unitGenerator?.pullData(engine.frameCount)
+        assertTrue(dahdsrUnit0.output.getValues().any { it > 0.0f }, "DAHDSR envelope output should be > 0 after noteOn with on jack connected")
+
+        // NoteOff should release DAHDSR via off jack
+        polyPatch.voiceInputJack.receive(
+            Message.VoiceMessage(
+                com.syntona.core.model.ScoreTime.Zero,
+                Message.VoiceOpcode.NOTE_OFF,
+                tag = 10,
+                value = 60.0,
+                extra = 0.0
+            )
+        )
+        engine.generateNextBuffer()
+    }
+
+    @Test
     fun testEnsureDefaultModulesExistOnDeserialization() {
         val json = """
             {"modules":[{"id":0,"type":"polyPatch","name":"poly1","x":0.0,"y":0.0,"maxVoices":2,"patch":{"modules":[{"id":0,"type":"aOutput","name":"output","x":400.0,"y":200.0}],"connections":[]}}],"connections":[]}
@@ -472,22 +534,22 @@ class PolyPatchModuleTest {
         val mod = ModuloSelectModule(8)
         rootGraph.addModule(mod, androidx.compose.ui.geometry.Offset.Zero)
 
+        // Verify only 1 input ("in") and it is an IntegerInputJack
+        assertEquals(1, mod.inputs.size)
+        assertEquals("in", mod.inputs[0].name)
+        assertTrue(mod.input is com.syntona.dataflow.model.IntegerInputJack)
+        assertTrue(mod.input.isInteger)
+
         // Initial highlighted jack is output 0
         assertTrue(mod.stepOutputs[0].isHighlighted)
 
-        // Send value 10.5 to 'in'
-        mod.increment.receive(Message.FloatValue(com.syntona.core.model.ScoreTime.Zero, 10.5))
+        // Send value 10.0 to 'in'
+        mod.input.receive(Message.FloatValue(com.syntona.core.model.ScoreTime.Zero, 10.0))
 
-        // Modulo 8 of 10.5 is 2.5, which floors to index 2
-        assertEquals(2.5, mod.stepOutputs[2].getValue())
+        // Modulo 8 of 10 is 2
+        assertEquals(2.0, mod.stepOutputs[2].getValue())
         assertTrue(mod.stepOutputs[2].isHighlighted)
         kotlin.test.assertFalse(mod.stepOutputs[0].isHighlighted)
-
-        // Send reset signal
-        mod.reset.receive(Message.FloatValue(com.syntona.core.model.ScoreTime.Zero, 1.0))
-        assertEquals(0.0, mod.stepOutputs[0].getValue())
-        assertTrue(mod.stepOutputs[0].isHighlighted)
-        kotlin.test.assertFalse(mod.stepOutputs[2].isHighlighted)
 
         // Serialize
         val json = GraphSerializer.serialize(rootGraph, rootGraph.modules)

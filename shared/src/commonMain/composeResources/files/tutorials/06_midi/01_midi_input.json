@@ -491,25 +491,25 @@
             "from": 0,
             "fromJack": "output",
             "to": 7,
-            "toJack": "input"
+            "toJack": "on"
           },
           {
             "from": 1,
             "fromJack": "output",
             "to": 7,
-            "toJack": "input"
+            "toJack": "off"
           },
           {
             "from": 0,
             "fromJack": "output",
             "to": 6,
-            "toJack": "input"
+            "toJack": "on"
           },
           {
             "from": 1,
             "fromJack": "output",
             "to": 6,
-            "toJack": "input"
+            "toJack": "off"
           },
           {
             "from": 8,

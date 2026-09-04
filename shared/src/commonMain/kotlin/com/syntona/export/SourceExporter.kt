@@ -247,7 +247,8 @@ object SourceExporter {
             return "output${outMatch.groupValues[1].uppercase()}"
         }
 
-        if (rawName.equals("in", ignoreCase = true) || rawName.equals("input", ignoreCase = true)) {
+        if (rawName.equals("in", ignoreCase = true) || rawName.equals("input", ignoreCase = true)
+            || rawName.equals("on", ignoreCase = true) || rawName.equals("off", ignoreCase = true)) {
             return "input"
         }
         if (rawName.equals("out", ignoreCase = true) || rawName.equals("output", ignoreCase = true)) {

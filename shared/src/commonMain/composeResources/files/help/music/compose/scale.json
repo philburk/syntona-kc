@@ -414,13 +414,13 @@
               "from": 0,
               "fromJack": "output",
               "to": 9,
-              "toJack": "input"
+              "toJack": "on"
             },
             {
               "from": 1,
               "fromJack": "output",
               "to": 9,
-              "toJack": "input"
+              "toJack": "off"
             },
             {
               "from": 3,

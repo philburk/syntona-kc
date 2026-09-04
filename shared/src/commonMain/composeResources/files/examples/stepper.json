@@ -10,7 +10,7 @@
       "y": 299,
       "jacks": {
         "kick": {
-          "v": 179,
+          "v": 494,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -39,7 +39,7 @@
       "y": 563,
       "jacks": {
         "kick": {
-          "v": 179,
+          "v": 494,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -79,21 +79,6 @@
       "id": 3,
       "type": "core.view.show",
       "name": "show",
-      "x": 717.9,
-      "y": 427,
-      "jacks": {
-        "in": {
-          "v": 1,
-          "min": 0,
-          "max": 100,
-          "kickable": true
-        }
-      }
-    },
-    {
-      "id": 4,
-      "type": "core.view.show",
-      "name": "show",
       "x": 660.9,
       "y": 622,
       "jacks": {
@@ -106,22 +91,7 @@
       }
     },
     {
-      "id": 5,
-      "type": "core.view.show",
-      "name": "show",
-      "x": 721.9,
-      "y": 681,
-      "jacks": {
-        "in": {
-          "v": 1,
-          "min": 0,
-          "max": 100,
-          "kickable": true
-        }
-      }
-    },
-    {
-      "id": 6,
+      "id": 4,
       "type": "core.view.flash",
       "name": "flash",
       "x": 635.9,
@@ -136,7 +106,7 @@
       }
     },
     {
-      "id": 7,
+      "id": 5,
       "type": "core.view.flash",
       "name": "flash",
       "x": 650,
@@ -151,7 +121,7 @@
       }
     },
     {
-      "id": 8,
+      "id": 6,
       "type": "core.input.comment",
       "name": "comment",
       "x": 81.9,
@@ -161,7 +131,7 @@
       "h": 199
     },
     {
-      "id": 9,
+      "id": 7,
       "type": "music.compose.beatClock",
       "name": "beatClock",
       "x": 197.9,
@@ -177,21 +147,51 @@
       "division": "1/1"
     },
     {
-      "id": 10,
+      "id": 8,
       "type": "core.input.onLoad",
       "name": "onLoad",
       "x": 72.9,
       "y": 358.9
     },
     {
-      "id": 11,
+      "id": 9,
       "type": "core.basic.oneShot",
       "name": "oneShot",
       "x": 350.9,
       "y": 335.1,
       "jacks": {
         "in": {
-          "v": 180,
+          "v": 494,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "core.view.flash",
+      "name": "flash",
+      "x": 368,
+      "y": 648.1,
+      "jacks": {
+        "flash": {
+          "v": 494,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 11,
+      "type": "core.view.flash",
+      "name": "flash",
+      "x": 636.9,
+      "y": 472,
+      "jacks": {
+        "flash": {
+          "v": 1,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -202,11 +202,11 @@
       "id": 12,
       "type": "core.view.flash",
       "name": "flash",
-      "x": 285,
-      "y": 637.1,
+      "x": 652.9,
+      "y": 726,
       "jacks": {
         "flash": {
-          "v": 180,
+          "v": 1,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -228,68 +228,68 @@
       "toJack": "in"
     },
     {
-      "from": 0,
-      "fromJack": "done",
+      "from": 1,
+      "fromJack": "index",
       "to": 3,
       "toJack": "in"
     },
     {
-      "from": 1,
-      "fromJack": "index",
-      "to": 4,
-      "toJack": "in"
-    },
-    {
       "from": 0,
       "fromJack": "index",
-      "to": 6,
+      "to": 4,
       "toJack": "flash"
     },
     {
       "from": 1,
       "fromJack": "index",
-      "to": 7,
+      "to": 5,
       "toJack": "flash"
     },
     {
-      "from": 1,
-      "fromJack": "done",
-      "to": 5,
-      "toJack": "in"
-    },
-    {
-      "from": 9,
+      "from": 7,
       "fromJack": "out",
       "to": 0,
       "toJack": "kick"
     },
     {
-      "from": 9,
+      "from": 7,
       "fromJack": "out",
       "to": 1,
       "toJack": "kick"
     },
     {
-      "from": 10,
+      "from": 8,
       "fromJack": "kick",
-      "to": 9,
+      "to": 7,
       "toJack": "start"
     },
     {
-      "from": 9,
+      "from": 7,
       "fromJack": "out",
-      "to": 11,
+      "to": 9,
       "toJack": "in"
     },
     {
-      "from": 11,
+      "from": 9,
       "fromJack": "out",
       "to": 0,
       "toJack": "start"
     },
     {
-      "from": 9,
+      "from": 7,
       "fromJack": "out",
+      "to": 10,
+      "toJack": "flash"
+    },
+    {
+      "from": 0,
+      "fromJack": "done",
+      "to": 11,
+      "toJack": "flash"
+    },
+    {
+      "from": 1,
+      "fromJack": "done",
       "to": 12,
       "toJack": "flash"
     }

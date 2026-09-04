@@ -235,13 +235,13 @@
         "from": 1,
         "fromJack": "out",
         "to": 7,
-        "toJack": "in"
+        "toJack": "off"
       },
       {
         "from": 0,
         "fromJack": "out",
         "to": 7,
-        "toJack": "in"
+        "toJack": "on"
       }
     ]
   }
