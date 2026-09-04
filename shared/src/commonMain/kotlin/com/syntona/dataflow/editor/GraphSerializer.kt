@@ -629,6 +629,41 @@ object GraphSerializer {
                 }
             }
 
+            if (module is EnvSegModule) {
+                val envDataArr = (obj?.map?.get("envData") as? JsonValue.Arr)?.items
+                if (envDataArr != null) {
+                    val doubles = DoubleArray(envDataArr.size) { arrIdx ->
+                        (envDataArr[arrIdx] as? JsonValue.Num)?.value ?: 0.0
+                    }
+                    val env = SegmentedEnvelope(doubles)
+                    (obj.map["sustainBegin"] as? JsonValue.Num)?.value?.let { env.sustainBegin = it.toInt() }
+                    (obj.map["sustainEnd"] as? JsonValue.Num)?.value?.let { env.sustainEnd = it.toInt() }
+                    (obj.map["releaseBegin"] as? JsonValue.Num)?.value?.let { env.releaseBegin = it.toInt() }
+                    (obj.map["releaseEnd"] as? JsonValue.Num)?.value?.let { env.releaseEnd = it.toInt() }
+                    module.envelope = env
+                }
+                if (isMergedSegEnv) {
+                    val incomingJacksToSegEnv = connectionsArr.mapNotNull { connItem ->
+                        val connObj = connItem as? JsonValue.Obj ?: return@mapNotNull null
+                        val toIdx = (connObj.map["to"] as? JsonValue.Num)?.value?.toInt() ?: return@mapNotNull null
+                        val toJack = (connObj.map["toJack"] as? JsonValue.Str)?.value ?: return@mapNotNull null
+                        if (toIdx == idx) toJack else null
+                    }
+                    val hasQueue = incomingJacksToSegEnv.any { it.equals("queue", ignoreCase = true) }
+                    val hasOtherCommand = incomingJacksToSegEnv.any {
+                        it.equals("queueOn", ignoreCase = true) ||
+                        it.equals("queueOff", ignoreCase = true) ||
+                        it.equals("loop", ignoreCase = true) ||
+                        it.equals("queueLoop", ignoreCase = true)
+                    }
+                    if (hasQueue && !hasOtherCommand) {
+                        module.envelope.sustainBegin = -1
+                        module.envelope.sustainEnd = -1
+                        module.isLooping = false
+                    }
+                }
+            }
+
             // x/y are stored as dp; store directly in GraphState
             graphState.addModule(module, Offset(x + offset.x, y + offset.y))
             jacks?.map?.forEach { (jackName, jackValue) ->
@@ -909,40 +944,6 @@ object GraphSerializer {
                         }
                     }
                     module.resetNextNoteId()
-                }
-            }
-            if (module is EnvSegModule) {
-                val envDataArr = (obj?.map?.get("envData") as? JsonValue.Arr)?.items
-                if (envDataArr != null) {
-                    val doubles = DoubleArray(envDataArr.size) { arrIdx ->
-                        (envDataArr[arrIdx] as? JsonValue.Num)?.value ?: 0.0
-                    }
-                    val env = SegmentedEnvelope(doubles)
-                    (obj.map["sustainBegin"] as? JsonValue.Num)?.value?.let { env.sustainBegin = it.toInt() }
-                    (obj.map["sustainEnd"] as? JsonValue.Num)?.value?.let { env.sustainEnd = it.toInt() }
-                    (obj.map["releaseBegin"] as? JsonValue.Num)?.value?.let { env.releaseBegin = it.toInt() }
-                    (obj.map["releaseEnd"] as? JsonValue.Num)?.value?.let { env.releaseEnd = it.toInt() }
-                    module.envelope = env
-                }
-                if (isMergedSegEnv) {
-                    val incomingJacksToSegEnv = connectionsArr.mapNotNull { connItem ->
-                        val connObj = connItem as? JsonValue.Obj ?: return@mapNotNull null
-                        val toIdx = (connObj.map["to"] as? JsonValue.Num)?.value?.toInt() ?: return@mapNotNull null
-                        val toJack = (connObj.map["toJack"] as? JsonValue.Str)?.value ?: return@mapNotNull null
-                        if (toIdx == idx) toJack else null
-                    }
-                    val hasQueue = incomingJacksToSegEnv.any { it.equals("queue", ignoreCase = true) }
-                    val hasOtherCommand = incomingJacksToSegEnv.any {
-                        it.equals("queueOn", ignoreCase = true) ||
-                        it.equals("queueOff", ignoreCase = true) ||
-                        it.equals("loop", ignoreCase = true) ||
-                        it.equals("queueLoop", ignoreCase = true)
-                    }
-                    if (hasQueue && !hasOtherCommand) {
-                        module.envelope.sustainBegin = -1
-                        module.envelope.sustainEnd = -1
-                        module.isLooping = false
-                    }
                 }
             }
             created.add(module)

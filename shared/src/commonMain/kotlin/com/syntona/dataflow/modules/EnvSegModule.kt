@@ -24,7 +24,7 @@ import com.syntona.dataflow.model.Module
 class EnvSegModule : Module("envSeg") {
     val unit = VariableRateMonoReader()
 
-    var envelope: SegmentedEnvelope by mutableStateOf(
+    private var _envelope by mutableStateOf(
         SegmentedEnvelope(
             doubleArrayOf(
                 0.02, 0.9, // duration,value pair 0, "attack"
@@ -36,6 +36,13 @@ class EnvSegModule : Module("envSeg") {
             sustainEnd = 2
         }
     )
+    var envelope: SegmentedEnvelope
+        get() = _envelope
+        set(value) {
+            _envelope = value
+            val poly = parentPatch as? PolyPatchModule
+            poly?.syncEnvSegEnvelope(this, value)
+        }
 
     var isLooping: Boolean
         get() = loopInput.isChecked

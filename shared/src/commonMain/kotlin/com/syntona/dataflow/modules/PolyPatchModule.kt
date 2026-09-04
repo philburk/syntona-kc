@@ -638,6 +638,14 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
         return voiceModule
     }
 
+    fun syncEnvSegEnvelope(templateMod: EnvSegModule, newEnvelope: com.softsynth.ksyn.data.SegmentedEnvelope) {
+        if (!isInitialized) return
+        for (voice in voices) {
+            val voiceMod = voice.templateToVoiceMap[templateMod] as? EnvSegModule ?: continue
+            voiceMod.envelope = newEnvelope
+        }
+    }
+
     fun onAudioInputNameChanged(module: AudioInputModule, newName: String) {
         if (!isInitialized) return
         for (voice in voices) {

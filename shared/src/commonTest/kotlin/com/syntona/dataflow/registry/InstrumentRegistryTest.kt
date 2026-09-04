@@ -186,4 +186,29 @@ class InstrumentRegistryTest {
             if (engine.isRunning) engine.stop()
         }
     }
+
+    @Test
+    fun testSawTremoloEnvelopeSharedWithVoices() = runBlocking {
+        InstrumentRegistry.loadInstrumentsIndex()
+        val music = ModuleRegistry.root.subBundles.find { it.name == "music" }!!
+        val instruments = music.subBundles.find { it.name == "instruments" }!!
+        val entry = instruments.modules.find { it.name == "sawTremolo" }
+        assertNotNull(entry, "sawTremolo should be registered")
+
+        val sawTremolo = entry.creator() as PolyPatchModule
+        assertTrue(sawTremolo.isInitialized)
+
+        val templateEnvSeg = sawTremolo.graphState.modules.find { it is com.syntona.dataflow.modules.EnvSegModule } as? com.syntona.dataflow.modules.EnvSegModule
+        assertNotNull(templateEnvSeg, "template should have EnvSegModule")
+        assertEquals(2, templateEnvSeg.envelope.sustainBegin)
+        assertEquals(5, templateEnvSeg.envelope.sustainEnd)
+
+        for (voice in sawTremolo.voices) {
+            val voiceEnvSeg = voice.templateToVoiceMap[templateEnvSeg] as? com.syntona.dataflow.modules.EnvSegModule
+            assertNotNull(voiceEnvSeg, "voice should have EnvSegModule")
+            assertTrue(templateEnvSeg.envelope === voiceEnvSeg.envelope, "voice EnvSegModule must share envelope by reference")
+            assertEquals(2, voiceEnvSeg.envelope.sustainBegin)
+            assertEquals(5, voiceEnvSeg.envelope.sustainEnd)
+        }
+    }
 }
