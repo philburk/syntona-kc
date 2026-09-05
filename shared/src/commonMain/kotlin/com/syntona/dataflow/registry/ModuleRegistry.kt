@@ -226,6 +226,8 @@ object ModuleRegistry {
 
         val ksynView = getOrCreateBundle(ksyn, "view")
         ksynView.modules.add(ModuleEntry("scope") { ScopeModule() })
+        ksynView.modules.add(ModuleEntry("vu1") { VuMeterModule(1) })
+        ksynView.modules.add(ModuleEntry("vu2") { VuMeterModule(2) })
 
         val sampling = getOrCreateBundle(ksyn, "sampling")
         sampling.modules.add(ModuleEntry("samplePlayer") { SamplePlayerModule() })

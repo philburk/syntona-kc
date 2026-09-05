@@ -65,6 +65,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -109,6 +110,11 @@ import com.syntona.dataflow.modules.OutputModule
 import com.syntona.dataflow.modules.PatchModule
 import com.syntona.dataflow.modules.PolyPatchModule
 import com.syntona.dataflow.modules.ScopeModule
+import com.syntona.dataflow.modules.VuMeterModule
+import com.syntona.dataflow.modules.amplitudeToGraphicFraction
+import com.syntona.dataflow.modules.VU_METER_CLIP_HOLD_TICKS
+import com.syntona.dataflow.modules.VU_METER_ORANGE_THRESHOLD_FRACTION
+import com.syntona.dataflow.modules.VU_METER_RED_THRESHOLD_FRACTION
 import com.syntona.dataflow.modules.ShowModule
 import com.syntona.dataflow.modules.GlowModule
 import com.syntona.dataflow.modules.FlashModule
@@ -304,6 +310,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                         is AudioInputModule -> ModuleNode(module, state, headerColor = colors.headerAudio, label = module.name)
                         is AudioOutputModule -> ModuleNode(module, state, headerColor = colors.headerAudio, label = module.name)
                         is ScopeModule -> ScopeModuleNode(module, state)
+                        is VuMeterModule -> VuMeterModuleNode(module, state)
                         is KeyboardModule -> KeyboardModuleNode(module, state)
                         is CommentModule -> CommentModuleNode(module, state)
                         is EnvSegModule -> EnvSegModuleNode(module, state)
@@ -2143,6 +2150,237 @@ fun ScopeModuleNode(module: ScopeModule, state: GraphState) {
                 modifier = Modifier.fillMaxSize()
             )
         }
+    }
+}
+
+@Composable
+fun VuMeterModuleNode(module: VuMeterModule, state: GraphState) {
+    val colors = LocalGraphColors.current
+    val position = state.modulePositions[module] ?: Offset.Zero
+    val isSelected = state.selectedModules.contains(module)
+    val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
+    val borderWidth = if (isSelected) 2.dp else 1.dp
+
+    var levels by remember(module) { mutableStateOf(FloatArray(module.numChannels)) }
+    var clipHoldTicks by remember(module) { mutableStateOf(IntArray(module.numChannels)) }
+    var clipPeakLevels by remember(module) { mutableStateOf(FloatArray(module.numChannels)) }
+
+    LaunchedEffect(module) {
+        val ticks = IntArray(module.numChannels)
+        val peaks = FloatArray(module.numChannels)
+        while (true) {
+            delay(30)
+            val snapshot = FloatArray(module.numChannels) { ch ->
+                if (ch < module.followers.size) module.followers[ch].current.value else 0f
+            }
+            for (ch in 0 until module.numChannels) {
+                val jack = module.inputs.getOrNull(ch)
+                val max = jack?.max?.toFloat()?.takeIf { it > 0f } ?: 1.0f
+                val currentVal = snapshot[ch]
+                if (currentVal > max) {
+                    ticks[ch] = VU_METER_CLIP_HOLD_TICKS // 50 ticks * 30 ms = 1.5 s hold
+                    peaks[ch] = maxOf(peaks[ch], currentVal)
+                } else if (ticks[ch] > 0) {
+                    ticks[ch]--
+                    if (ticks[ch] == 0) {
+                        peaks[ch] = 0f
+                    }
+                }
+            }
+            levels = snapshot
+            clipHoldTicks = ticks.copyOf()
+            clipPeakLevels = peaks.copyOf()
+        }
+    }
+
+    val width = if (module.numChannels == 1) 56.dp else 76.dp
+
+    Surface(
+        modifier = Modifier
+            .offset { IntOffset((position.x * density).roundToInt(), (position.y * density).roundToInt()) }
+            .width(width)
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
+            .onSizeChanged { size ->
+                state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
+            },
+        shape = RoundedCornerShape(4.dp),
+        color = colors.moduleBackground
+    ) {
+        Column {
+            ModuleHeader(module = module, state = state, headerColor = colors.headerAudio)
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(140.dp)
+                    .padding(horizontal = 4.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // One unlabelled audio "in" jack per channel on the side of the display
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.SpaceEvenly,
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .padding(end = 4.dp)
+                ) {
+                    module.inputs.forEach { jack ->
+                        CompactJackConnector(jack, state, isLeft = true)
+                    }
+                }
+
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight(),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    for (ch in 0 until module.numChannels) {
+                        val jack = module.inputs.getOrNull(ch)
+                        val max = jack?.max?.toFloat()?.takeIf { it > 0f } ?: 1.0f
+                        val level = levels.getOrElse(ch) { 0f }
+                        VuMeterBar(
+                            level = level,
+                            max = max,
+                            isOverRange = clipHoldTicks.getOrElse(ch) { 0 } > 0,
+                            overRangePeak = clipPeakLevels.getOrElse(ch) { 0f },
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxHeight()
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun VuMeterBar(
+    level: Float,
+    max: Float,
+    isOverRange: Boolean = false,
+    overRangePeak: Float = 0f,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val fraction = amplitudeToGraphicFraction(level, max)
+
+        val orangeThreshold = VU_METER_ORANGE_THRESHOLD_FRACTION
+        val redThreshold = VU_METER_RED_THRESHOLD_FRACTION
+
+        // Background track
+        drawRoundRect(
+            color = Color(0xFF141414),
+            cornerRadius = CornerRadius(2.dp.toPx(), 2.dp.toPx())
+        )
+
+        // Dimmed unlit region indicators
+        // Top region (> 0 dB up to +12 dB, over-range): y from 0 to (1 - redThreshold) * h
+        drawRect(
+            color = Color(0x33FF1744),
+            topLeft = Offset(0f, 0f),
+            size = Size(w, (1f - redThreshold) * h)
+        )
+        // Middle region (-12 dB to 0 dB / max): y from (1 - redThreshold) * h to (1 - orangeThreshold) * h
+        drawRect(
+            color = Color(0x33FFA000),
+            topLeft = Offset(0f, (1f - redThreshold) * h),
+            size = Size(w, (redThreshold - orangeThreshold) * h)
+        )
+        // Bottom region (< -12 dB): y from (1 - orangeThreshold) * h to h
+        drawRect(
+            color = Color(0x3300E676),
+            topLeft = Offset(0f, (1f - orangeThreshold) * h),
+            size = Size(w, orangeThreshold * h)
+        )
+
+        // Helper to draw a lit vertical slice [fLow, fHigh]
+        fun drawLitFractionRange(fLow: Float, fHigh: Float, color: Color) {
+            if (fHigh > fLow) {
+                val yBottom = h * (1f - fLow)
+                val yTop = h * (1f - fHigh)
+                drawRect(
+                    color = color,
+                    topLeft = Offset(0f, yTop),
+                    size = Size(w, yBottom - yTop)
+                )
+            }
+        }
+
+        // 1. Bottom region (green) up to min(fraction, orangeThreshold)
+        if (fraction > 0f) {
+            drawLitFractionRange(0f, minOf(fraction, orangeThreshold), Color(0xFF00E676))
+        }
+
+        // 2. Middle region (orange) from orangeThreshold up to min(fraction, redThreshold)
+        if (fraction > orangeThreshold) {
+            drawLitFractionRange(orangeThreshold, minOf(fraction, redThreshold), Color(0xFFFF9100))
+        }
+
+        // 3. Top region (red / over-range) from redThreshold up to min(fraction, 1.0)
+        if (fraction > redThreshold) {
+            drawLitFractionRange(redThreshold, minOf(fraction, 1f), Color(0xFFFF1744))
+        }
+
+        // Over-range persistence (1.5 s hold on clip condition)
+        if (isOverRange) {
+            // Clip cap at top of meter stays solidly lit red
+            drawRect(
+                color = Color(0xFFFF1744),
+                topLeft = Offset(0f, 0f),
+                size = Size(w, 4.dp.toPx())
+            )
+            // Held red peak line at the highest over-range level reached
+            val heldPeakF = amplitudeToGraphicFraction(overRangePeak, max)
+            if (heldPeakF > redThreshold) {
+                val yPeak = h * (1f - heldPeakF)
+                drawLine(
+                    color = Color(0xFFFF5252),
+                    start = Offset(0f, yPeak),
+                    end = Offset(w, yPeak),
+                    strokeWidth = 2.dp.toPx()
+                )
+            }
+        }
+
+        // Horizontal segment divider lines for classic LED VU meter look
+        val segmentHeightPx = 5.dp.toPx()
+        var yTick = segmentHeightPx
+        while (yTick < h) {
+            drawLine(
+                color = Color(0x44000000),
+                start = Offset(0f, yTick),
+                end = Offset(w, yTick),
+                strokeWidth = 1.dp.toPx()
+            )
+            yTick += segmentHeightPx
+        }
+
+        // Clear regional divider line at -12 dB (green to orange)
+        drawLine(
+            color = Color(0x88000000),
+            start = Offset(0f, (1f - orangeThreshold) * h),
+            end = Offset(w, (1f - orangeThreshold) * h),
+            strokeWidth = 1.5.dp.toPx()
+        )
+
+        // Highlighted 0 dB / MAX divider line (orange to red over-range)
+        drawLine(
+            color = Color(0xCCFFFFFF),
+            start = Offset(0f, (1f - redThreshold) * h),
+            end = Offset(w, (1f - redThreshold) * h),
+            strokeWidth = 1.5.dp.toPx()
+        )
+
+        // Subtle outer border
+        drawRoundRect(
+            color = Color(0xFF333333),
+            cornerRadius = CornerRadius(2.dp.toPx(), 2.dp.toPx()),
+            style = Stroke(width = 1.dp.toPx())
+        )
     }
 }
 
