@@ -1,8 +1,12 @@
 {
-  "version": "0.6.1 beta",
-  "versionCode": 393217,
+  "version": "0.7.0 beta",
+  "versionCode": 458752,
   "type": "core.polyPatch",
   "maxVoices": 6,
+  "windowX": 38,
+  "windowY": 38,
+  "windowWidth": 984.875,
+  "windowHeight": 660,
   "patch": {
     "modules": [
       {

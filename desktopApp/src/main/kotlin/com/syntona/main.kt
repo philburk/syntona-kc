@@ -167,8 +167,9 @@ fun main() {
                                 val parsed = try { JsonParser(content).parse() as? JsonValue.Obj } catch (_: Exception) { null }
                                 if (parsed != null) {
                                     val fileType = (parsed.map["type"] as? JsonValue.Str)?.value ?: "patch"
+                                    val isPoly = fileType == "polyPatch" || fileType == "core.polyPatch"
                                     val fileName = path.substringAfterLast('/').substringAfterLast('\\').substringBeforeLast(SYNTONA_FILE_SUFFIX)
-                                    val newPatch = if (fileType == "polyPatch") {
+                                    val newPatch = if (isPoly) {
                                         val poly = PolyPatchModule(fileName)
                                         val maxV = (parsed.map["maxVoices"] as? JsonValue.Num)?.value?.toInt() ?: 4
                                         poly.initializeVoices(maxV)
@@ -176,6 +177,10 @@ fun main() {
                                     } else {
                                         PatchModule(fileName)
                                     }
+                                    (parsed.map["windowX"] as? JsonValue.Num)?.value?.let { newPatch.windowX = it.toFloat() }
+                                    (parsed.map["windowY"] as? JsonValue.Num)?.value?.let { newPatch.windowY = it.toFloat() }
+                                    (parsed.map["windowWidth"] as? JsonValue.Num)?.value?.let { newPatch.windowWidth = it.toFloat() }
+                                    (parsed.map["windowHeight"] as? JsonValue.Num)?.value?.let { newPatch.windowHeight = it.toFloat() }
                                     newPatch.filePath = path
                                     newPatch.clearModifiedRecursively()
 
@@ -357,6 +362,16 @@ fun main() {
                             showSaveFileDialog(json, defaultName) { path ->
                                 target.filePath = path
                                 target.clearModifiedRecursively()
+                                val rPath = com.syntona.dataflow.editor.resourceRelativePath(path)
+                                if (rPath != null) {
+                                    if (rPath.startsWith("instruments/")) {
+                                        val instrumentName = rPath.substringAfterLast('/').substringBeforeLast(".json").substringBeforeLast(SYNTONA_FILE_SUFFIX)
+                                        com.syntona.dataflow.registry.InstrumentRegistry.registerInstrument(instrumentName, json, path)
+                                    } else if (rPath.startsWith("sounds/")) {
+                                        val soundName = rPath.substringAfterLast('/').substringBeforeLast(".json").substringBeforeLast(SYNTONA_FILE_SUFFIX)
+                                        com.syntona.dataflow.registry.SoundRegistry.registerSound(soundName, json, path)
+                                    }
+                                }
                                 val rootPatch = FileState.activeDocument?.rootPatch
                                 if (target === rootPatch) {
                                     FileState.markSaved(path)
@@ -375,6 +390,16 @@ fun main() {
                                 showSaveAsResourceFileDialog(json, defaultName) { path ->
                                     target.filePath = path
                                     target.clearModifiedRecursively()
+                                    val rPath = com.syntona.dataflow.editor.resourceRelativePath(path)
+                                    if (rPath != null) {
+                                        if (rPath.startsWith("instruments/")) {
+                                            val instrumentName = rPath.substringAfterLast('/').substringBeforeLast(".json").substringBeforeLast(SYNTONA_FILE_SUFFIX)
+                                            com.syntona.dataflow.registry.InstrumentRegistry.registerInstrument(instrumentName, json, path)
+                                        } else if (rPath.startsWith("sounds/")) {
+                                            val soundName = rPath.substringAfterLast('/').substringBeforeLast(".json").substringBeforeLast(SYNTONA_FILE_SUFFIX)
+                                            com.syntona.dataflow.registry.SoundRegistry.registerSound(soundName, json, path)
+                                        }
+                                    }
                                     val rootPatch = FileState.activeDocument?.rootPatch
                                     if (target === rootPatch) {
                                         FileState.markSaved(path)

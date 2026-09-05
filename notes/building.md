@@ -1,4 +1,4 @@
-## Build and Deploy to Website on SoftSynth.com
+## How to Build and Deploy to Website on SoftSynth.com
 
 1. cd ~/work/syntona-kc
 1. ./gradlew :webApp:wasmJsBrowserDistribution

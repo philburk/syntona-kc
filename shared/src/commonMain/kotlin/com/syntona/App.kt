@@ -116,6 +116,7 @@ fun restoreWindowStates(
                         module.windowWidth = window.width.value
                         module.windowHeight = window.height.value
                     }
+                    window.onGeometryChanged?.invoke()
                     mdiState.open(window)
                 }
                 traverse(module.graphState)
@@ -716,18 +717,23 @@ fun App(
                                                            showOpenFileDialog { path, content ->
                                                                val parsed = try { JsonParser(content).parse() as? JsonValue.Obj } catch (_: Exception) { null }
                                                                if (parsed != null) {
-                                                                   val fileType = (parsed.map["type"] as? JsonValue.Str)?.value ?: "patch"
-                                                                   val fileName = path.substringAfterLast('/').substringAfterLast('\\').substringBeforeLast(SYNTONA_FILE_SUFFIX)
-                                                                   val newPatch = if (fileType == "polyPatch") {
-                                                                       val poly = PolyPatchModule(fileName)
-                                                                       val maxV = (parsed.map["maxVoices"] as? JsonValue.Num)?.value?.toInt() ?: 4
-                                                                       poly.initializeVoices(maxV)
-                                                                       poly
-                                                                   } else {
-                                                                       PatchModule(fileName)
-                                                                   }
-                                                                   newPatch.filePath = path
-                                                                   newPatch.clearModifiedRecursively()
+                                                                    val fileType = (parsed.map["type"] as? JsonValue.Str)?.value ?: "patch"
+                                                                    val isPoly = fileType == "polyPatch" || fileType == "core.polyPatch"
+                                                                    val fileName = path.substringAfterLast('/').substringAfterLast('\\').substringBeforeLast(SYNTONA_FILE_SUFFIX)
+                                                                    val newPatch = if (isPoly) {
+                                                                        val poly = PolyPatchModule(fileName)
+                                                                        val maxV = (parsed.map["maxVoices"] as? JsonValue.Num)?.value?.toInt() ?: 4
+                                                                        poly.initializeVoices(maxV)
+                                                                        poly
+                                                                    } else {
+                                                                        PatchModule(fileName)
+                                                                    }
+                                                                    (parsed.map["windowX"] as? JsonValue.Num)?.value?.let { newPatch.windowX = it.toFloat() }
+                                                                    (parsed.map["windowY"] as? JsonValue.Num)?.value?.let { newPatch.windowY = it.toFloat() }
+                                                                    (parsed.map["windowWidth"] as? JsonValue.Num)?.value?.let { newPatch.windowWidth = it.toFloat() }
+                                                                    (parsed.map["windowHeight"] as? JsonValue.Num)?.value?.let { newPatch.windowHeight = it.toFloat() }
+                                                                    newPatch.filePath = path
+                                                                    newPatch.clearModifiedRecursively()
 
                                                                    newPatch.graphState.isDeserializing = true
                                                                    try {
@@ -971,6 +977,16 @@ fun App(
                                                               saveFileDirect(path, finalJson)
                                                               target.filePath = path
                                                               target.clearModifiedRecursively()
+                                                              val rPath = resourceRelativePath(path)
+                                                              if (rPath != null) {
+                                                                  if (rPath.startsWith("instruments/")) {
+                                                                      val instrumentName = rPath.substringAfterLast('/').substringBeforeLast(".json").substringBeforeLast(SYNTONA_FILE_SUFFIX)
+                                                                      com.syntona.dataflow.registry.InstrumentRegistry.registerInstrument(instrumentName, finalJson, path)
+                                                                  } else if (rPath.startsWith("sounds/")) {
+                                                                      val soundName = rPath.substringAfterLast('/').substringBeforeLast(".json").substringBeforeLast(SYNTONA_FILE_SUFFIX)
+                                                                      com.syntona.dataflow.registry.SoundRegistry.registerSound(soundName, finalJson, path)
+                                                                  }
+                                                              }
                                                               if (target === docRoot) {
                                                                   FileState.markSaved(path)
                                                               }
@@ -994,6 +1010,16 @@ fun App(
                                                                   saveFileDirect(path, finalJson)
                                                                   target.filePath = path
                                                                   target.clearModifiedRecursively()
+                                                                  val rPath = resourceRelativePath(path)
+                                                                  if (rPath != null) {
+                                                                      if (rPath.startsWith("instruments/")) {
+                                                                          val instrumentName = rPath.substringAfterLast('/').substringBeforeLast(".json").substringBeforeLast(SYNTONA_FILE_SUFFIX)
+                                                                          com.syntona.dataflow.registry.InstrumentRegistry.registerInstrument(instrumentName, finalJson, path)
+                                                                      } else if (rPath.startsWith("sounds/")) {
+                                                                          val soundName = rPath.substringAfterLast('/').substringBeforeLast(".json").substringBeforeLast(SYNTONA_FILE_SUFFIX)
+                                                                          com.syntona.dataflow.registry.SoundRegistry.registerSound(soundName, finalJson, path)
+                                                                      }
+                                                                  }
                                                                   if (target === docRoot) {
                                                                       FileState.markSaved(path)
                                                                   }

@@ -3,20 +3,10 @@
 
 Try to save a native signed version.
 
-
-BUG: envDAHDSR toggle jack does not work, does on envAD, resolve API
-Maybe envDAHDSR needs on/off jacks.
-
-The "kick" input jacks on the stepper and the toggle should be CommandJacks.
-They should have a button so we can trigger them manually.
-They should have isModuleEditorVisible=false.
-Any other candidates for CommandJacks that are called "kick" or "incr"?
-
 Use envelopes to gate off the pull to reduce CPU load for silent patches.
 Write tests in KSyn and Syntona.
 
 The orange MIDI jacks and the yellow SequentialData jacks look too similar.
-
 
 BUG: deleting modules using BACKSPACE or DELETE key sometimes does not work. Edit menu Cut always works.
 Need repro steps.
@@ -125,17 +115,12 @@ Change keyboard13 so we can drag between notes for legato sweeps. ON/ON/OFF/OFF.
 
 Maybe be able to click on wires to select and disconnect by BACKSPACE.
 
-
-Combine segEnv and monoRdr?
-
 Move mixers to their own bundle.
 Maybe add a MixerSend and then have a separate mixer panel separate from the dataflow.
 That will be useful if we support a more DAW-like interface.,
 
 Seq8 should support feedback cycle.
 seq16
-
-Possible bug the CMR knob on the drum rhythm for it does not seem to affect the sound! Kickable?
 
 Convert Syntona timestamps to KSyn timestamps and apply small "advance-time" for jitter reduction.
 
@@ -145,7 +130,7 @@ Add Gaussian distribution and histogram.
 
 Add amplitude/velocity editing in pianoRoll editor. Bottom panel?
 
-Note processing elements. scaleAmp, transpose.
+Need VoiceMessage processing elements. scaleAmp, transpose.
 
 Why is Web CPU usages is so much higher for WASM.
 On WASM, can run 120 * (red + red + squareBL + biquad)

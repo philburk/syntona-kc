@@ -376,5 +376,51 @@ class PatchFileReferenceTest {
         root.graphState.addModule(polyPatch, Offset.Zero)
         assertFalse(polyPatch.isRoot, "PolyPatch added to root graph should have isRoot == false")
     }
+
+    @Test
+    fun testSerializePatchRetainsWindowGeometry() {
+        val patch = PolyPatchModule("sawLowPass")
+        patch.windowX = 100f
+        patch.windowY = 150f
+        patch.windowWidth = 1020f
+        patch.windowHeight = 600f
+
+        val json = GraphSerializer.serializePatch(patch)
+        assertTrue(json.contains("\"windowWidth\": 1020"))
+        assertTrue(json.contains("\"windowHeight\": 600"))
+        assertTrue(json.contains("\"windowX\": 100"))
+        assertTrue(json.contains("\"windowY\": 150"))
+
+        val targetPatch = PolyPatchModule("reloaded")
+        GraphSerializer.deserialize(targetPatch.graphState, json)
+        assertEquals(1020f, targetPatch.windowWidth)
+        assertEquals(600f, targetPatch.windowHeight)
+        assertEquals(100f, targetPatch.windowX)
+        assertEquals(150f, targetPatch.windowY)
+    }
+
+    @Test
+    fun testInstrumentRegistryLoadsWindowGeometry() {
+        val json = """
+            {
+              "type": "core.polyPatch",
+              "maxVoices": 6,
+              "windowWidth": 1020,
+              "windowHeight": 600,
+              "patch": {
+                "modules": [],
+                "connections": []
+              }
+            }
+        """.trimIndent()
+
+        val module = com.syntona.dataflow.registry.InstrumentRegistry.createInstrumentPatch(
+            "testSaw", json, "instruments/testSaw.json"
+        )
+        assertTrue(module is PolyPatchModule)
+        assertEquals(1020f, module.windowWidth)
+        assertEquals(600f, module.windowHeight)
+    }
 }
+
 

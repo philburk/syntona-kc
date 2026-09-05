@@ -20,7 +20,7 @@ private val RESOURCE_FOLDERS = listOf("examples/", "tutorials/", "help/", "instr
  * an ordinary document: its title kept the extension, and its recorded path was rewritten to
  * .sntn while the file on disk was .json.
  */
-internal fun resourceRelativePath(path: String?): String? {
+fun resourceRelativePath(path: String?): String? {
     val normalized = path?.replace('\\', '/') ?: return null
     val marker = normalized.indexOf(RESOURCE_ROOT_MARKER)
     if (marker >= 0) return normalized.substring(marker + RESOURCE_ROOT_MARKER.length)

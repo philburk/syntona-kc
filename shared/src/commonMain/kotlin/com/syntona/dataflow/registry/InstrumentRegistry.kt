@@ -46,7 +46,7 @@ object InstrumentRegistry {
 
                     instrumentsBundle.modules.add(
                         ModuleRegistry.ModuleEntry(instrumentName) {
-                            createInstrumentPatch(instrumentName, jsonContent, path)
+                            createInstrumentPatch(instrumentName, instrumentJsonCache[instrumentName] ?: jsonContent, path)
                         }
                     )
                 } catch (e: Exception) {
@@ -91,6 +91,10 @@ object InstrumentRegistry {
         } else {
             PatchModule(name)
         }
+        (parsed?.map?.get("windowX") as? JsonValue.Num)?.value?.let { newPatch.windowX = it.toFloat() }
+        (parsed?.map?.get("windowY") as? JsonValue.Num)?.value?.let { newPatch.windowY = it.toFloat() }
+        (parsed?.map?.get("windowWidth") as? JsonValue.Num)?.value?.let { newPatch.windowWidth = it.toFloat() }
+        (parsed?.map?.get("windowHeight") as? JsonValue.Num)?.value?.let { newPatch.windowHeight = it.toFloat() }
         newPatch.resourcePath = resourcePath
         newPatch.filePath = null
         newPatch.graphState.isDeserializing = true

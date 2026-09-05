@@ -46,7 +46,7 @@ object SoundRegistry {
 
                     soundsBundle.modules.add(
                         ModuleRegistry.ModuleEntry(soundName) {
-                            createSoundPatch(soundName, jsonContent, path)
+                            createSoundPatch(soundName, soundJsonCache[soundName] ?: jsonContent, path)
                         }
                     )
                 } catch (e: Exception) {
@@ -91,9 +91,16 @@ object SoundRegistry {
         } else {
             PatchModule(name)
         }
+        (parsed?.map?.get("windowX") as? JsonValue.Num)?.value?.let { newPatch.windowX = it.toFloat() }
+        (parsed?.map?.get("windowY") as? JsonValue.Num)?.value?.let { newPatch.windowY = it.toFloat() }
+        (parsed?.map?.get("windowWidth") as? JsonValue.Num)?.value?.let { newPatch.windowWidth = it.toFloat() }
+        (parsed?.map?.get("windowHeight") as? JsonValue.Num)?.value?.let { newPatch.windowHeight = it.toFloat() }
         newPatch.resourcePath = resourcePath
         newPatch.filePath = null
         newPatch.graphState.isDeserializing = true
+        if (newPatch is PolyPatchModule) {
+            newPatch.voices.forEach { it.graphState.isDeserializing = true }
+        }
         try {
             newPatch.graphState.removeModulesDirectly(newPatch.graphState.modules.toList())
             if (newPatch is PolyPatchModule) {
@@ -105,6 +112,9 @@ object SoundRegistry {
             }
         } finally {
             newPatch.graphState.isDeserializing = false
+            if (newPatch is PolyPatchModule) {
+                newPatch.voices.forEach { it.graphState.isDeserializing = false }
+            }
         }
         newPatch.clearModifiedRecursively()
         return newPatch

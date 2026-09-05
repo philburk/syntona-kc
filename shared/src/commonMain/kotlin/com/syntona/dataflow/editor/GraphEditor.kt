@@ -1615,11 +1615,20 @@ fun PatchModuleNode(module: PatchModule, state: GraphState) {
                         content = { GraphEditor(state = module.graphState) }
                     )
                     window.onGeometryChanged = {
-                        module.windowX = window.position.x / density.density
-                        module.windowY = window.position.y / density.density
-                        module.windowWidth = window.width.value
-                        module.windowHeight = window.height.value
+                        val newX = window.position.x / density.density
+                        val newY = window.position.y / density.density
+                        val newW = window.width.value
+                        val newH = window.height.value
+                        if (module.windowWidth != null && (module.windowWidth != newW || module.windowHeight != newH)) {
+                            module.isModified = true
+                            module.parentPatch?.graphState?.markChanged()
+                        }
+                        module.windowX = newX
+                        module.windowY = newY
+                        module.windowWidth = newW
+                        module.windowHeight = newH
                     }
+                    window.onGeometryChanged?.invoke()
                     mdiState.open(window)
                 },
                 trailingContent = {

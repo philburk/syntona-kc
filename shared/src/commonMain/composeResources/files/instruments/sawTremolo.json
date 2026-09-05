@@ -3,6 +3,10 @@
   "versionCode": 458752,
   "type": "core.polyPatch",
   "maxVoices": 4,
+  "windowX": 38,
+  "windowY": 38,
+  "windowWidth": 669.875,
+  "windowHeight": 484,
   "patch": {
     "modules": [
       {

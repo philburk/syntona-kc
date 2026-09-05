@@ -3,6 +3,10 @@
   "versionCode": 458752,
   "type": "core.polyPatch",
   "maxVoices": 4,
+  "windowX": 38,
+  "windowY": 38,
+  "windowWidth": 617,
+  "windowHeight": 495.875,
   "patch": {
     "modules": [
       {
@@ -100,8 +104,8 @@
         "id": 6,
         "type": "ksyn.sources.sawOscBL",
         "name": "sawOscBL",
-        "x": 257.9,
-        "y": 144,
+        "x": 259.9,
+        "y": 209,
         "jacks": {
           "frequency": {
             "v": 440,
@@ -188,8 +192,8 @@
         "id": 8,
         "type": "ksyn.math.pitchToHz~",
         "name": "pitchToHz~",
-        "x": 138.9,
-        "y": 118,
+        "x": 141.9,
+        "y": 178,
         "jacks": {
           "in": {
             "v": 60,

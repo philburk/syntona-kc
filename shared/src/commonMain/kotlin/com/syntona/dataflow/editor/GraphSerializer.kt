@@ -137,6 +137,10 @@ object GraphSerializer {
         if (patch is PolyPatchModule) {
             merged["maxVoices"] = JsonValue.Num(patch.maxVoices.toDouble())
         }
+        patch.windowX?.let { merged["windowX"] = JsonValue.Num(it.toDouble()) }
+        patch.windowY?.let { merged["windowY"] = JsonValue.Num(it.toDouble()) }
+        patch.windowWidth?.let { merged["windowWidth"] = JsonValue.Num(it.toDouble()) }
+        patch.windowHeight?.let { merged["windowHeight"] = JsonValue.Num(it.toDouble()) }
         merged["patch"] = parsed
         return JsonValue.Obj(merged).stringify(0)
     }
@@ -391,6 +395,13 @@ object GraphSerializer {
         } ?: return emptyList()
         val type = (rootVal.map["type"] as? JsonValue.Str)?.value
         val finalType = type?.substringAfterLast('.')
+        val patch = graphState.parentPatch
+        if (patch != null) {
+            (rootVal.map["windowX"] as? JsonValue.Num)?.value?.let { patch.windowX = it.toFloat() }
+            (rootVal.map["windowY"] as? JsonValue.Num)?.value?.let { patch.windowY = it.toFloat() }
+            (rootVal.map["windowWidth"] as? JsonValue.Num)?.value?.let { patch.windowWidth = it.toFloat() }
+            (rootVal.map["windowHeight"] as? JsonValue.Num)?.value?.let { patch.windowHeight = it.toFloat() }
+        }
         val result = if (finalType == "patch" || finalType == "polyPatch") {
             val innerPatchObj = rootVal.map["patch"] as? JsonValue.Obj
             if (innerPatchObj != null) {
@@ -812,6 +823,12 @@ object GraphSerializer {
                         if (fileContent != null) {
                             val childRootVal = try { JsonParser(fileContent).parse() as? JsonValue.Obj } catch (_: Exception) { null }
                             if (childRootVal != null) {
+                                if (module.windowWidth == null) {
+                                    (childRootVal.map["windowWidth"] as? JsonValue.Num)?.value?.let { module.windowWidth = it.toFloat() }
+                                    (childRootVal.map["windowHeight"] as? JsonValue.Num)?.value?.let { module.windowHeight = it.toFloat() }
+                                    (childRootVal.map["windowX"] as? JsonValue.Num)?.value?.let { module.windowX = it.toFloat() }
+                                    (childRootVal.map["windowY"] as? JsonValue.Num)?.value?.let { module.windowY = it.toFloat() }
+                                }
                                 module.graphState.isDeserializing = true
                                 try {
                                     module.graphState.removeModulesDirectly(module.graphState.modules.toList())
@@ -841,6 +858,12 @@ object GraphSerializer {
                     if (fileContent != null) {
                         val childRootVal = try { JsonParser(fileContent).parse() as? JsonValue.Obj } catch (_: Exception) { null }
                         if (childRootVal != null) {
+                            if (module.windowWidth == null) {
+                                (childRootVal.map["windowWidth"] as? JsonValue.Num)?.value?.let { module.windowWidth = it.toFloat() }
+                                (childRootVal.map["windowHeight"] as? JsonValue.Num)?.value?.let { module.windowHeight = it.toFloat() }
+                                (childRootVal.map["windowX"] as? JsonValue.Num)?.value?.let { module.windowX = it.toFloat() }
+                                (childRootVal.map["windowY"] as? JsonValue.Num)?.value?.let { module.windowY = it.toFloat() }
+                            }
                             module.graphState.isDeserializing = true
                             try {
                                 module.graphState.removeModulesDirectly(module.graphState.modules.toList())
