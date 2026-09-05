@@ -3,6 +3,8 @@
 
 Try to save a native signed version.
 
+Add VU meters for recording.
+
 Use envelopes to gate off the pull to reduce CPU load for silent patches.
 Write tests in KSyn and Syntona.
 

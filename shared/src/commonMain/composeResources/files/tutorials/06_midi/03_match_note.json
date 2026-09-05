@@ -1,6 +1,6 @@
 {
-  "version": "0.6.1 beta",
-  "versionCode": 393217,
+  "version": "0.7.0 beta",
+  "versionCode": 458752,
   "modules": [
     {
       "id": 0,
@@ -71,7 +71,7 @@
           "kickable": true
         },
         "tag": {
-          "v": 80,
+          "v": -1,
           "min": -1,
           "max": 127,
           "kickable": false,
@@ -92,7 +92,7 @@
           "kickable": true
         },
         "tag": {
-          "v": 82,
+          "v": -1,
           "min": -1,
           "max": 127,
           "kickable": false,
@@ -157,7 +157,7 @@
           },
           {
             "id": 1,
-            "type": "ksyn.data.envSeg",
+            "type": "ksyn.control.envSeg",
             "name": "ampEnv",
             "x": 143.9,
             "y": 45,
@@ -244,7 +244,7 @@
           },
           {
             "id": 4,
-            "type": "ksyn.data.envSeg",
+            "type": "ksyn.control.envSeg",
             "name": "modEnv",
             "x": 420.9,
             "y": 235,
@@ -489,7 +489,7 @@
           },
           {
             "id": 1,
-            "type": "ksyn.data.envSeg",
+            "type": "ksyn.control.envSeg",
             "name": "ampEnv",
             "x": 143.9,
             "y": 45,
@@ -576,7 +576,7 @@
           },
           {
             "id": 4,
-            "type": "ksyn.data.envSeg",
+            "type": "ksyn.control.envSeg",
             "name": "modEnv",
             "x": 420.9,
             "y": 235,
