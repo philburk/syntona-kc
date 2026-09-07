@@ -1,9 +1,19 @@
 
+# ------------- For Nicks class
+
+Add "Save Complete File As..." to File menu so students
+can deliver a file that does not reference missing files.
+Does URL include the referenced patch. No!!! BUG: fix it.
+Web cannot expand external file reference in a patch!
+
+Clean up syntona website
+
+Add "min" and "max" modules to the basic.math bundle.
+
 # ----------------------------------------------- HIGH PRIORITY
 
 Try to save a native signed version.
 
-Add "min" and "max" modules to the basic.math bundle.
 
 Time
 Great. I need to do some operations involving time in Syntona. One module, maybe call it "grabTime", takes any incoming message and sends out the Score time as a double value in seconds.
@@ -22,6 +32,31 @@ BUG: deleting modules using BACKSPACE or DELETE key sometimes does not work. Edi
 Need repro steps.
 
 # ----------------------------------------------- MEDIUM PRIORITY
+
+Add XY display to scope for Lissajous curves
+
+Indicate whether an Audio port is in Add? mode.
+
+Add CrossFade KSyn module
+
+Getting Started video on YouTube
+
+Add CI to GitHub
+
+Add hierarchy editor
+
+Add one line help popup
+
+Add scripting: https://github.com/philburk/syntona/issues/53
+
+Nick: Suggest an Input Wizard for a patch.
+      Run the Wizard and it sees all unconnected inputs and presents a dialog showing all of them by unit name and port name.
+      For each, radio buttons let you select whether you want a scrollbar, knob, or a double input for it (or none)
+      Wizard then creates the inputs and connects them
+
+NoiseGate - implement using modules as a patch?
+
+Show units in one line help, eg. seconds
 
 Composing Tutorial
 * beatClock
