@@ -1,6 +1,6 @@
 {
-  "version": "0.6.1 beta",
-  "versionCode": 393217,
+  "version": "0.7.1 beta",
+  "versionCode": 458753,
   "modules": [
     {
       "id": 0,
@@ -8,16 +8,16 @@
       "name": "comment",
       "x": 18.9,
       "y": 8,
-      "text": "Click on the first knob and drag up to increase the amplitude (volume).\nClick on the second knob and drag to control the oscillator frequency.\nDouble click on the \"segEnv\" header to open the segmented envelope editor.\nThe clock is triggering note on and off events by turning on the envelope.",
-      "w": 570.1186,
-      "h": 83.28953
+      "text": "Click on the first knob and drag up to increase the amplitude (volume).\nClick on the second knob and drag to control the oscillator frequency.\nDouble click on the \"envSeg\" header to open the segmented envelope editor.\nThe clock is triggering note on and off events by turning on the envelope.\nClick the purple \">>Next\" link to move to the next page.",
+      "w": 579.9936,
+      "h": 106.28953
     },
     {
       "id": 1,
       "type": "ksyn.sources.sawOscBL",
       "name": "sawOscBL",
-      "x": 505.9,
-      "y": 204,
+      "x": 509.9,
+      "y": 245,
       "jacks": {
         "frequency": {
           "v": 305.5713195800781,
@@ -39,8 +39,8 @@
       "id": 2,
       "type": "ksyn.lineOut",
       "name": "lineOut",
-      "x": 630.9,
-      "y": 197.9,
+      "x": 634.9,
+      "y": 238.9,
       "jacks": {
         "in0": {
           "v": 0,
@@ -62,8 +62,8 @@
       "id": 3,
       "type": "core.input.knob",
       "name": "knob",
-      "x": 366.9,
-      "y": 158,
+      "x": 379.9,
+      "y": 184,
       "jacks": {
         "kick": {
           "min": 0,
@@ -80,8 +80,8 @@
     },
     {
       "id": 4,
-      "type": "ksyn.data.envSeg",
-      "name": "segEnv",
+      "type": "ksyn.control.envSeg",
+      "name": "envSeg",
       "x": 279.9,
       "y": 258,
       "jacks": {
@@ -131,8 +131,8 @@
       "id": 6,
       "type": "core.input.knob",
       "name": "knob",
-      "x": 111,
-      "y": 142.9,
+      "x": 138,
+      "y": 145.9,
       "jacks": {
         "kick": {
           "min": 0,
@@ -158,8 +158,8 @@
       "id": 8,
       "type": "core.basic.link",
       "name": "link",
-      "x": 549.9,
-      "y": 136,
+      "x": 553.9,
+      "y": 177,
       "filePath": "tutorials/02_editing/01_connections.json",
       "buttonText": ">> Next, editing connections"
     },
@@ -170,16 +170,12 @@
       "x": 194.9,
       "y": 294,
       "jacks": {
-        "reset": {
-          "min": 0,
-          "max": 100,
-          "kickable": true
-        },
         "in": {
-          "v": 92,
+          "v": 148,
           "min": 0,
           "max": 100,
-          "kickable": true
+          "kickable": true,
+          "integer": true
         }
       }
     }
