@@ -81,8 +81,14 @@ object JSynSourceExporter {
             emptyMap()
         }
 
-        val audioInputs = patch.graphState.modules.filterIsInstance<AudioInputModule>()
         val audioOutputs = patch.graphState.modules.filterIsInstance<AudioOutputModule>()
+
+        val customInputs = SourceExporter.resolveCustomAudioInputs(
+            patch = patch,
+            isPoly = isPoly,
+            usedVarNames = usedVarNames,
+            resolveTarget = { mod, jack -> resolveInputEndpoint(mod, jack, unitMap, envSegMap) }
+        )
 
         val sb = StringBuilder()
 
@@ -136,17 +142,22 @@ object JSynSourceExporter {
         for ((_, info) in envSegMap) {
             sb.appendLine("    private VariableRateMonoReader ${info.readerVarName};")
         }
+        for (info in customInputs) {
+            if (info.passThroughVarName != null) {
+                sb.appendLine("    private PassThrough ${info.passThroughVarName};")
+            }
+        }
         sb.appendLine()
 
         // Ports
         if (isPoly) {
             sb.appendLine("    public UnitInputPort frequency;")
             sb.appendLine("    public UnitInputPort amplitude;")
-        } else {
-            for (inputMod in audioInputs) {
-                val propName = SourceExporter.sanitizeIdentifier(inputMod.name)
-                sb.appendLine("    public UnitInputPort $propName;")
-            }
+        }
+        for (info in customInputs) {
+            sb.appendLine("    public UnitInputPort ${info.varName};")
+        }
+        if (!isPoly) {
             for (outputMod in audioOutputs) {
                 val propName = SourceExporter.sanitizeIdentifier(outputMod.name)
                 sb.appendLine("    public UnitOutputPort $propName;")
@@ -164,6 +175,11 @@ object JSynSourceExporter {
         }
         for ((_, info) in envSegMap) {
             sb.appendLine("        add(${info.readerVarName} = new VariableRateMonoReader());")
+        }
+        for (info in customInputs) {
+            if (info.passThroughVarName != null) {
+                sb.appendLine("        add(${info.passThroughVarName} = new PassThrough());")
+            }
         }
         sb.appendLine()
 
@@ -242,6 +258,17 @@ object JSynSourceExporter {
                 }
             }
         }
+        for (info in customInputs) {
+            if (info.passThroughVarName != null) {
+                for (target in info.targets) {
+                    if (target.partIndex == 0) {
+                        sb.appendLine("        ${info.passThroughVarName}.output.connect(${target.varName}.${target.portName});")
+                    } else {
+                        sb.appendLine("        ${info.passThroughVarName}.output.connect(0, ${target.varName}.${target.portName}, ${target.partIndex});")
+                    }
+                }
+            }
+        }
         sb.appendLine()
 
         // Expose ports
@@ -269,18 +296,32 @@ object JSynSourceExporter {
                 sb.appendLine("        addPort(frequency = new UnitInputPort(\"Frequency\"));")
             }
             sb.appendLine()
-        } else {
-            for (inputMod in audioInputs) {
-                val propName = SourceExporter.sanitizeIdentifier(inputMod.name)
-                val outgoing = connections.filter { it.output.module === inputMod }
-                val target = outgoing.firstOrNull()?.let { resolveInputEndpoint(it.input.module, it.input, unitMap, envSegMap) }
-                if (target != null) {
+
+            for (info in customInputs) {
+                if (info.passThroughVarName != null) {
+                    sb.appendLine("        addPort(${info.varName} = ${info.passThroughVarName}.input, \"${info.portName}\");")
+                } else if (info.targets.size == 1) {
+                    val target = info.targets[0]
                     val accessor = if (target.partIndex == 0) "${target.varName}.${target.portName}" else "${target.varName}.${target.portName}.getPart(${target.partIndex})"
-                    sb.appendLine("        $propName = $accessor;")
+                    sb.appendLine("        addPort(${info.varName} = $accessor, \"${info.portName}\");")
                 } else {
-                    sb.appendLine("        $propName = new UnitInputPort(\"${inputMod.name}\");")
+                    sb.appendLine("        addPort(${info.varName} = new UnitInputPort(\"${info.portName}\"), \"${info.portName}\");")
                 }
-                sb.appendLine("        addPort($propName, \"${inputMod.name}\");")
+            }
+            if (customInputs.isNotEmpty()) {
+                sb.appendLine()
+            }
+        } else {
+            for (info in customInputs) {
+                if (info.passThroughVarName != null) {
+                    sb.appendLine("        addPort(${info.varName} = ${info.passThroughVarName}.input, \"${info.portName}\");")
+                } else if (info.targets.size == 1) {
+                    val target = info.targets[0]
+                    val accessor = if (target.partIndex == 0) "${target.varName}.${target.portName}" else "${target.varName}.${target.portName}.getPart(${target.partIndex})"
+                    sb.appendLine("        addPort(${info.varName} = $accessor, \"${info.portName}\");")
+                } else {
+                    sb.appendLine("        addPort(${info.varName} = new UnitInputPort(\"${info.portName}\"), \"${info.portName}\");")
+                }
             }
             for (outputMod in audioOutputs) {
                 val propName = SourceExporter.sanitizeIdentifier(outputMod.name)

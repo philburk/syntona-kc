@@ -35,6 +35,63 @@ object SourceExporter {
         val module: EnvSegModule
     )
 
+    data class CustomInputInfo(
+        val module: AudioInputModule,
+        val varName: String,
+        val portName: String,
+        val targets: List<PortEndpoint>,
+        val passThroughVarName: String?
+    )
+
+    private val STANDARD_VOICE_INPUT_NAMES = setOf("on", "off", "pitch", "amplitude", "pressure")
+
+    fun isStandardVoiceInput(name: String): Boolean =
+        name.trim().lowercase() in STANDARD_VOICE_INPUT_NAMES
+
+    fun resolveCustomAudioInputs(
+        patch: PatchModule,
+        isPoly: Boolean,
+        usedVarNames: MutableSet<String>,
+        resolveTarget: (Module, InputJack) -> PortEndpoint?
+    ): List<CustomInputInfo> {
+        val audioInputs = patch.graphState.modules.filterIsInstance<AudioInputModule>()
+        val filtered = if (isPoly) {
+            audioInputs.filter { !isStandardVoiceInput(it.name) }
+        } else {
+            audioInputs
+        }
+
+        val result = mutableListOf<CustomInputInfo>()
+        for (module in filtered) {
+            val baseVar = sanitizeIdentifier(module.name)
+            val varName = makeUniqueVar(baseVar, usedVarNames)
+            usedVarNames.add(varName)
+
+            val outgoing = patch.graphState.connections.filter { it.output.module === module }
+            val targets = outgoing.mapNotNull { resolveTarget(it.input.module, it.input) }
+                .distinctBy { "${it.varName}.${it.portName}[${it.partIndex}]" }
+
+            val passThroughVar = if (targets.size > 1) {
+                val ptVar = makeUniqueVar("${varName}PassThrough", usedVarNames)
+                usedVarNames.add(ptVar)
+                ptVar
+            } else {
+                null
+            }
+
+            result.add(
+                CustomInputInfo(
+                    module = module,
+                    varName = varName,
+                    portName = module.name,
+                    targets = targets,
+                    passThroughVarName = passThroughVar
+                )
+            )
+        }
+        return result
+    }
+
     data class ExportValidationResult(
         val isExportable: Boolean,
         val unsupportedModules: List<Module>,

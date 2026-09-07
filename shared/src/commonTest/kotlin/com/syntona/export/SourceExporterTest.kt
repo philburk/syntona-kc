@@ -546,4 +546,88 @@ class SourceExporterTest {
         assertTrue(jsynCode.contains("ampEnv.dataQueue.queueOff(ampEnvEnvelope, false, timeStamp);"), "JSyn noteOff must trigger ampEnv")
         assertTrue(jsynCode.contains("filterEnv.dataQueue.queueOff(filterEnvEnvelope, false, timeStamp);"), "JSyn noteOff must trigger filterEnv")
     }
+
+    @Test
+    fun testExportCustomInputPortsSingleConnection() {
+        val polyPatch = PolyPatchModule("FMPair")
+
+        val modOsc = UnitGeneratorModule("modOsc", com.softsynth.ksyn.unitgen.SineOscillator())
+        val divide = UnitGeneratorModule("divide", com.softsynth.ksyn.unitgen.Divide())
+        val fcfmRatioIn = AudioInputModule().apply { name = "fcfmRatio" }
+        val modAmpIn = AudioInputModule().apply { name = "modAmp" }
+
+        polyPatch.graphState.addModule(modOsc, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(divide, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(fcfmRatioIn, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(modAmpIn, androidx.compose.ui.geometry.Offset.Zero)
+
+        // Connect fcfmRatio -> divide.inB
+        polyPatch.graphState.connect(fcfmRatioIn.output, divide.inputs.first { it.name.startsWith("inB", ignoreCase = true) })
+        // Connect modAmp -> modOsc.amplitude
+        polyPatch.graphState.connect(modAmpIn.output, modOsc.inputs.first { it.name == "amplitude" })
+
+        val ksynCode = KSynSourceExporter.export(polyPatch, "FMPair")
+        assertTrue(ksynCode.contains("val fcfmRatio: UnitInputPort"), "KSyn must declare fcfmRatio port:\n$ksynCode")
+        assertTrue(ksynCode.contains("val modAmp: UnitInputPort"), "KSyn must declare modAmp port:\n$ksynCode")
+        assertTrue(ksynCode.contains("fcfmRatio = divide.inputB"), "KSyn must set fcfmRatio = divide.inputB:\n$ksynCode")
+        assertTrue(ksynCode.contains("addPort(fcfmRatio, \"fcfmRatio\")"), "KSyn must addPort fcfmRatio:\n$ksynCode")
+        assertTrue(ksynCode.contains("modAmp = modOsc.amplitude"), "KSyn must set modAmp = modOsc.amplitude:\n$ksynCode")
+        assertTrue(ksynCode.contains("addPort(modAmp, \"modAmp\")"), "KSyn must addPort modAmp:\n$ksynCode")
+
+        val jsynCode = JSynSourceExporter.export(polyPatch, "FMPair")
+        assertTrue(jsynCode.contains("public UnitInputPort fcfmRatio;"), "JSyn must declare fcfmRatio port:\n$jsynCode")
+        assertTrue(jsynCode.contains("public UnitInputPort modAmp;"), "JSyn must declare modAmp port:\n$jsynCode")
+        assertTrue(jsynCode.contains("addPort(fcfmRatio = divide.inputB, \"fcfmRatio\");"), "JSyn must addPort fcfmRatio:\n$jsynCode")
+        assertTrue(jsynCode.contains("addPort(modAmp = modOsc.amplitude, \"modAmp\");"), "JSyn must addPort modAmp:\n$jsynCode")
+    }
+
+    @Test
+    fun testExportCustomInputPortsFanOutWithPassThrough() {
+        val polyPatch = PolyPatchModule("FanOutVoice")
+
+        val osc1 = UnitGeneratorModule("osc1", com.softsynth.ksyn.unitgen.SineOscillator())
+        val osc2 = UnitGeneratorModule("osc2", com.softsynth.ksyn.unitgen.SineOscillator())
+        val vibratoIn = AudioInputModule().apply { name = "vibrato" }
+
+        polyPatch.graphState.addModule(osc1, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(osc2, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(vibratoIn, androidx.compose.ui.geometry.Offset.Zero)
+
+        // Connect vibratoIn -> osc1.frequency AND osc2.frequency
+        polyPatch.graphState.connect(vibratoIn.output, osc1.inputs.first { it.name == "frequency" })
+        polyPatch.graphState.connect(vibratoIn.output, osc2.inputs.first { it.name == "frequency" })
+
+        val ksynCode = KSynSourceExporter.export(polyPatch, "FanOutVoice")
+        assertTrue(ksynCode.contains("private val vibratoPassThrough = PassThrough()"), "KSyn must declare PassThrough for fan-out:\n$ksynCode")
+        assertTrue(ksynCode.contains("val vibrato: UnitInputPort"), "KSyn must declare vibrato port:\n$ksynCode")
+        assertTrue(ksynCode.contains("add(vibratoPassThrough)"), "KSyn must add PassThrough to circuit:\n$ksynCode")
+        assertTrue(ksynCode.contains("vibratoPassThrough.output.connect(osc1.frequency)"), "KSyn must connect PassThrough to osc1:\n$ksynCode")
+        assertTrue(ksynCode.contains("vibratoPassThrough.output.connect(osc2.frequency)"), "KSyn must connect PassThrough to osc2:\n$ksynCode")
+        assertTrue(ksynCode.contains("vibrato = vibratoPassThrough.input"), "KSyn must bind port to passThrough.input:\n$ksynCode")
+        assertTrue(ksynCode.contains("addPort(vibrato, \"vibrato\")"), "KSyn must expose vibrato port:\n$ksynCode")
+
+        val jsynCode = JSynSourceExporter.export(polyPatch, "FanOutVoice")
+        assertTrue(jsynCode.contains("private PassThrough vibratoPassThrough;"), "JSyn must declare PassThrough for fan-out:\n$jsynCode")
+        assertTrue(jsynCode.contains("public UnitInputPort vibrato;"), "JSyn must declare vibrato port:\n$jsynCode")
+        assertTrue(jsynCode.contains("add(vibratoPassThrough = new PassThrough());"), "JSyn must add PassThrough in constructor:\n$jsynCode")
+        assertTrue(jsynCode.contains("vibratoPassThrough.output.connect(osc1.frequency);"), "JSyn must connect PassThrough to osc1:\n$jsynCode")
+        assertTrue(jsynCode.contains("vibratoPassThrough.output.connect(osc2.frequency);"), "JSyn must connect PassThrough to osc2:\n$jsynCode")
+        assertTrue(jsynCode.contains("addPort(vibrato = vibratoPassThrough.input, \"vibrato\");"), "JSyn must expose vibrato port:\n$jsynCode")
+    }
+
+    @Test
+    fun testExportCustomInputPortsUnconnected() {
+        val polyPatch = PolyPatchModule("UnconnectedVoice")
+        val extraIn = AudioInputModule().apply { name = "extraIn" }
+        polyPatch.graphState.addModule(extraIn, androidx.compose.ui.geometry.Offset.Zero)
+
+        val ksynCode = KSynSourceExporter.export(polyPatch, "UnconnectedVoice")
+        assertTrue(ksynCode.contains("val extraIn: UnitInputPort"), "KSyn must declare extraIn port:\n$ksynCode")
+        assertTrue(ksynCode.contains("extraIn = UnitInputPort(\"extraIn\")"), "KSyn must initialize new UnitInputPort:\n$ksynCode")
+        assertTrue(ksynCode.contains("addPort(extraIn, \"extraIn\")"), "KSyn must add extraIn port:\n$ksynCode")
+
+        val jsynCode = JSynSourceExporter.export(polyPatch, "UnconnectedVoice")
+        assertTrue(jsynCode.contains("public UnitInputPort extraIn;"), "JSyn must declare extraIn port:\n$jsynCode")
+        assertTrue(jsynCode.contains("addPort(extraIn = new UnitInputPort(\"extraIn\"), \"extraIn\");"), "JSyn must add new UnitInputPort:\n$jsynCode")
+    }
 }
