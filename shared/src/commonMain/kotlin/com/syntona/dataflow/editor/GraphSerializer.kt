@@ -900,6 +900,9 @@ object GraphSerializer {
                                 module.graphState.isDeserializing = false
                             }
                         }
+                        if (com.syntona.getPlatform().isWeb) {
+                            module.detachFile()
+                        }
                     }
                     module.isModified = false
                 } else {

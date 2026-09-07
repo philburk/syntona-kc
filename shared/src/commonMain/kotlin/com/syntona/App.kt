@@ -748,6 +748,9 @@ fun App(
                                                                    } finally {
                                                                        newPatch.graphState.isDeserializing = false
                                                                    }
+                                                                   if (getPlatform().isWeb) {
+                                                                       newPatch.detachFile()
+                                                                   }
                                                                    newPatch.clearModifiedRecursively()
 
                                                                    activeGs.addModule(newPatch, Offset(100f, 100f))
@@ -975,8 +978,6 @@ fun App(
                                                           showSaveFileDialog(json, defaultName) { path ->
                                                               val finalJson = GraphSerializer.serializePatch(target, appDensity, path)
                                                               saveFileDirect(path, finalJson)
-                                                              target.filePath = path
-                                                              target.clearModifiedRecursively()
                                                               val rPath = resourceRelativePath(path)
                                                               if (rPath != null) {
                                                                   if (rPath.startsWith("instruments/")) {
@@ -988,7 +989,13 @@ fun App(
                                                                   }
                                                               }
                                                               if (target === docRoot) {
+                                                                  target.filePath = path
+                                                                  target.clearModifiedRecursively()
                                                                   FileState.markSaved(path)
+                                                              } else {
+                                                                  target.detachFile()
+                                                                  target.clearModifiedRecursively()
+                                                                  target.parentPatch?.graphState?.markChanged()
                                                               }
                                                           }
                                                       }
@@ -1035,8 +1042,7 @@ fun App(
                                                         fileExpanded = false
                                                         val target = mdiState.activeGraphState?.parentPatch
                                                         if (target != null) {
-                                                            target.filePath = null
-                                                            target.resourcePath = null
+                                                            target.detachFile()
                                                         }
                                                     }
                                                 )

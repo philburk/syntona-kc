@@ -9,6 +9,8 @@ class JsPlatform: Platform {
     override val name: String = userAgent.findAnyOf(browserList, ignoreCase = true)
             ?.let { (startIndex) -> userAgent.substring(startIndex).substringBefore(" ") }
             ?: "Unknown"
+
+    override val isWeb: Boolean = true
 }
 
 actual fun getPlatform(): Platform = JsPlatform()

@@ -360,8 +360,6 @@ fun main() {
                                 p.substringAfterLast('/').substringAfterLast('\\').ifEmpty { p }
                             } ?: "${target.name}$SYNTONA_FILE_SUFFIX"
                             showSaveFileDialog(json, defaultName) { path ->
-                                target.filePath = path
-                                target.clearModifiedRecursively()
                                 val rPath = com.syntona.dataflow.editor.resourceRelativePath(path)
                                 if (rPath != null) {
                                     if (rPath.startsWith("instruments/")) {
@@ -374,7 +372,13 @@ fun main() {
                                 }
                                 val rootPatch = FileState.activeDocument?.rootPatch
                                 if (target === rootPatch) {
+                                    target.filePath = path
+                                    target.clearModifiedRecursively()
                                     FileState.markSaved(path)
+                                } else {
+                                    target.detachFile()
+                                    target.clearModifiedRecursively()
+                                    target.parentPatch?.graphState?.markChanged()
                                 }
                             }
                         }
@@ -414,8 +418,7 @@ fun main() {
                     ) {
                         val target = state.activeGraphState?.parentPatch
                         if (target != null) {
-                            target.filePath = null
-                            target.resourcePath = null
+                            target.detachFile()
                         }
                     }
                     val activePatch = state.activeGraphState?.parentPatch

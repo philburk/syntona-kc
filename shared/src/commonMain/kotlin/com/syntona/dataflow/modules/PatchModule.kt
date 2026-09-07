@@ -117,6 +117,11 @@ open class PatchModule(name: String = "patch", type: String = "patch") : Module(
         }
     }
 
+    fun detachFile() {
+        filePath = null
+        resourcePath = null
+    }
+
     override fun setEngine(engine: DataFlowEngine) {
         graphState.engine = engine
     }

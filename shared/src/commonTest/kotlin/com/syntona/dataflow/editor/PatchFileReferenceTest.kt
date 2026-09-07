@@ -421,6 +421,46 @@ class PatchFileReferenceTest {
         assertEquals(1020f, module.windowWidth)
         assertEquals(600f, module.windowHeight)
     }
+
+    @Test
+    fun testDetachFileClearsPaths() {
+        val patch = PatchModule("myPatch")
+        patch.filePath = "/path/to/patch.sntn"
+        patch.resourcePath = "instruments/patch.json"
+
+        patch.detachFile()
+
+        assertEquals(null, patch.filePath)
+        assertEquals(null, patch.resourcePath)
+    }
+
+    @Test
+    fun testDetachedChildPatchSerializesExpandedInParent() {
+        val root = PatchModule("root")
+        val child = PatchModule("child")
+        root.graphState.addModule(child, Offset.Zero)
+
+        val counter = CounterModule()
+        child.graphState.addModule(counter, Offset.Zero)
+
+        // Initially attach to an external file and mark clean
+        child.filePath = "/path/to/child.sntn"
+        child.isModified = false
+
+        // When attached and clean, root serializes only the filePath reference, not the patch
+        val jsonAttached = GraphSerializer.serialize(root.graphState, root.graphState.modules)
+        assertTrue(jsonAttached.contains("\"filePath\": \"/path/to/child.sntn\""))
+        assertFalse(jsonAttached.contains("\"patch\":"))
+
+        // Now detach the child patch (as done when loading on web or saving as a file)
+        child.detachFile()
+
+        // When detached, even if isModified is false, root MUST serialize the child patch fully expanded
+        val jsonDetached = GraphSerializer.serialize(root.graphState, root.graphState.modules)
+        assertFalse(jsonDetached.contains("\"filePath\":"))
+        assertTrue(jsonDetached.contains("\"patch\":"))
+        assertTrue(jsonDetached.contains("counter"))
+    }
 }
 
 
