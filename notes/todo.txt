@@ -3,17 +3,15 @@
 
 Try to save a native signed version.
 
+Add "min" and "max" modules to the basic.math bundle.
 
-Add VU meters for monitoring audio levels.
-Display orientation is vertical.
-The input jacks should have a default min/mac of 0.0 to 1.0.
-The maximum can be increased using the "Edit Jacks" menu items.
-The region at the top should be red when it is >=90% of max.
-The middle region should be orange for 80-90% of max.
-The bottom region should be green.
-Has one unlabelled audio "in" jack per channel on the side of the display.
-Use a KSyn PeakFollower to track the amplitudes.
-Create two modules in ksyn.view bundle, "vu1" for mono and "vu2" for stereo.
+Time
+Great. I need to do some operations involving time in Syntona. One module, maybe call it "grabTime", takes any incoming message and sends out the Score time as a double value in seconds.
+The second module will output the current ScoreTime when 
+
+SPACE bar should play the pianoRoll (maybe)
+
+Add onLoad to sequencer tutorial.
 
 Use envelopes to gate off the pull to reduce CPU load for silent patches.
 Write tests in KSyn and Syntona.

@@ -121,7 +121,7 @@ private external fun jsSaveFileWithPicker(content: String, defaultName: String, 
 
 @JsFun("""(content, filename) => {
     function fallbackDownload() {
-        var blob = new Blob([content], {type: 'application/json'});
+        var blob = new Blob([content], {type: 'text/plain'});
         var url = URL.createObjectURL(blob);
         var a = document.createElement('a');
         a.href = url;
@@ -248,17 +248,84 @@ actual fun showSaveFileDialog(content: String, defaultName: String, onSaved: (pa
     jsSaveFileWithPicker(content, defaultName, onSaved)
 }
 
+@JsFun("""(defaultName, extension, dialogTitle, callback) => {
+    var cleanExt = extension.replace(/^\./, '');
+    var initialName = defaultName.endsWith('.' + cleanExt) ? defaultName : defaultName + '.' + cleanExt;
+
+    function fallback() {
+        callback(initialName);
+    }
+
+    if (typeof window !== 'undefined' && window.showSaveFilePicker) {
+        var desc = 'Source files (*.' + cleanExt + ')';
+        if (cleanExt === 'kt') {
+            desc = 'Kotlin source files (*.kt)';
+        } else if (cleanExt === 'java') {
+            desc = 'Java source files (*.java)';
+        }
+        var acceptTypes = {};
+        acceptTypes['text/plain'] = ['.' + cleanExt];
+
+        window.showSaveFilePicker({
+            suggestedName: initialName,
+            types: [{
+                description: desc,
+                accept: acceptTypes
+            }]
+        }).then(async function(handle) {
+            if (!handle) return;
+            try {
+                var req = indexedDB.open("syntona_fs", 1);
+                req.onupgradeneeded = function(e) {
+                    var db = e.target.result;
+                    if (!db.objectStoreNames.contains("file_handles")) {
+                        db.createObjectStore("file_handles");
+                    }
+                };
+                req.onsuccess = function(e) {
+                    var db = e.target.result;
+                    var tx = db.transaction("file_handles", "readwrite");
+                    tx.objectStore("file_handles").put(handle, handle.name);
+                    tx.oncomplete = function() {
+                        callback(handle.name);
+                    };
+                    tx.onerror = function(err) {
+                        console.warn("Failed to store export handle in IndexedDB:", err);
+                        callback(handle.name);
+                    };
+                };
+                req.onerror = function(err) {
+                    console.warn("Failed to open IndexedDB for export:", err);
+                    callback(handle.name);
+                };
+            } catch (e) {
+                console.warn("Failed to persist export file handle in IndexedDB:", e);
+                callback(handle.name);
+            }
+        }).catch(function(err) {
+            if (err.name !== 'AbortError') {
+                console.error("Export save file picker failed, falling back:", err);
+                fallback();
+            }
+        });
+    } else {
+        fallback();
+    }
+}""")
+private external fun jsExportSourceFilePicker(
+    defaultName: String,
+    extension: String,
+    dialogTitle: String,
+    callback: (String) -> Unit
+)
+
 actual fun showExportSourceFileDialog(
     defaultName: String,
     extension: String,
     dialogTitle: String,
     onChosen: (path: String) -> Unit
 ) {
-    val cleanExt = extension.removePrefix(".")
-    val defaultWithExt = if (defaultName.endsWith(".$cleanExt")) defaultName else "$defaultName.$cleanExt"
-    val name = jsPrompt() ?: defaultWithExt
-    val cleanName = if (name.endsWith(".$cleanExt")) name else "$name.$cleanExt"
-    onChosen(cleanName)
+    jsExportSourceFilePicker(defaultName, extension, dialogTitle, onChosen)
 }
 
 actual fun isSaveAsResourceAvailable(): Boolean = false
