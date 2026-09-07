@@ -15,9 +15,24 @@ Add "min" and "max" modules to the basic.math bundle.
 Try to save a native signed version.
 
 
-Time
-Great. I need to do some operations involving time in Syntona. One module, maybe call it "grabTime", takes any incoming message and sends out the Score time as a double value in seconds.
-The second module will output the current ScoreTime when 
+EnvelopeEditor "sustain loop" checkbox is low contrast.
+
+segEnv should not have to end on y==0, may want to queue an upward ramp of frequency.
+BUG: EnvelopeEditor, points at end or added to the end cannot be moved up or deleted. See midi_driven.sntn.
+EnvelopeEditor needs axis labels, time extend at right edge (KSyn)
+
+On FireFox plug in MIDI hardware before running Syntona.
+Install the MIDI Add-on.
+
+Timeline - show time as a popup when dragging.
+
+I need to do some operations involving time in Syntona.
+One module, maybe call it "grabTime", takes any incoming message, extracts the
+timestamp then sends it out as a double value in seconds.
+The second module will simply output the current ScoreTime when kicked.
+Audio units need a way to call a lambda from the audio domain on a coroutine
+scope so that the lambda can send Syntona events. Use for edge detector with the guitar analyzer.
+Convert Syntona timestamps to KSyn timestamps and apply small "advance-time" for jitter reduction.
 
 SPACE bar should play the pianoRoll (maybe)
 
@@ -83,10 +98,6 @@ Add multiTrack module like a DAW, + button for MIDI or Audio or composable Patch
 Audio tracks have audio in/out, MIDI tracks have VoiceMessage in/out.
 Support quantization based on tempo, save original content for requantization.
 Save audio in adjacent /audio/ folder. What does Logic do?
-
-segEnv should not have to end on y==0, may want to queue an upward ramp of frequency.
-BUG: EnvelopeEditor, points at end or added to the end cannot be moved up or deleted. See midi_driven.sntn.
-EnvelopeEditor needs axis labels, time extend at right edge (KSyn)
 
 add *= or a ranger module for easy scaling of knobs to frequency.
 
@@ -166,8 +177,6 @@ That will be useful if we support a more DAW-like interface.,
 
 Seq8 should support feedback cycle.
 seq16
-
-Convert Syntona timestamps to KSyn timestamps and apply small "advance-time" for jitter reduction.
 
 Add Granular synthesis.
 
