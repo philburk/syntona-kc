@@ -171,6 +171,7 @@ object ModuleRegistry {
         addKSynModule(analysis, "peakFollower", ::PeakFollower)
         addKSynModule(analysis, "pitchDetector", ::PitchDetector)
         addKSynModule(analysis, "schmittTrigger", ::SchmittTrigger)
+        analysis.modules.add(ModuleEntry("zeroCrossing") { ZeroCrossingModule() })
 
         val control = getOrCreateBundle(ksyn, "control")
         addKSynModule(control, "envDAHDSR", ::EnvelopeDAHDSR)

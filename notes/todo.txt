@@ -1,27 +1,20 @@
 
 # ------------- For Nicks class
 
-In the keyNotes module we currently have two octaves with 12 notes each.
-But the problems is that some notes do not play, eg. 'A'.
-So let's change it to play 4 octaves of diatonic scales.
-Each row of the keyboard will have 7 notes plus the octave.
-So use:
-12345678
-qwertyui
-asdfghjk
-zxcvbnm,
-Don't worry about backwards compatibility when reading the letter strings from the JSON file.
-It is too hard to convert.
-
-
 On FireFox plug in MIDI hardware before running Syntona.
 Install the MIDI Add-on.
+
+Timeline - show time as a popup when dragging.
+
+A stepper that fires all values immediately when kicked.
+No "looping" start or stop jack.
+Just a trigger jack.
+
+Change stepper "N" jack to "limit"?
 
 # ----------------------------------------------- HIGH PRIORITY
 
 Try to save a native signed version.
-
-Timeline - show time as a popup when dragging.
 
 A seq with numeric fields or knobs or horizontal faders that can be swept quickly to make a shape.
 
@@ -29,8 +22,23 @@ I need to do some operations involving time in Syntona.
 One module, maybe call it "grabTime", takes any incoming message, extracts the
 timestamp then sends it out as a double value in seconds.
 The second module will simply output the current ScoreTime when kicked.
+
+Need a dynamic array or list class with some basic operations.
+add: add value from incoming message to the end
+size or length: fires when changed
+get: get value at index
+set: set value at index
+index: index of element to use with get/set
+clear: clear all elements
+capacity: maximum size
+Should the capacity be the preallocated memory size? More data will require reallocation?
+Or should it be a hard limit on the size?
+Should this be stored as an array or as a list for better real-time?
+
+
 Audio units need a way to call a lambda from the audio domain on a coroutine
 scope so that the lambda can send Syntona events. Use for edge detector with the guitar analyzer.
+
 Convert Syntona timestamps to KSyn timestamps and apply small "advance-time" for jitter reduction.
 
 SPACE bar should play the pianoRoll (maybe)
