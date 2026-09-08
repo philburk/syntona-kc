@@ -31,7 +31,7 @@ class BeatClockModuleTest {
     fun testModuleCreationAndPorts() {
         val module = BeatClockModule()
         assertEquals("beatClock", module.name)
-        assertEquals("1/1", module.division)
+        assertEquals("1:1", module.division)
 
         val startInput = module.inputs.find { it.name == "start" }
         assertNotNull(startInput)
@@ -58,35 +58,42 @@ class BeatClockModuleTest {
     @Test
     fun testWholeNoteMultipliers() {
         val module = BeatClockModule()
-        module.division = "1/4"
-        assertEquals("1/4", module.division)
+        module.division = "1:4"
+        assertEquals("1:4", module.division)
 
-        module.division = "1/3"
-        assertEquals("1/3", module.division)
+        module.division = "1:3"
+        assertEquals("1:3", module.division)
 
-        module.division = "1/2"
-        assertEquals("1/2", module.division)
+        module.division = "1:2"
+        assertEquals("1:2", module.division)
     }
 
     @Test
     fun testGetDivisionValue() {
         val module = BeatClockModule()
-        assertEquals(4.0, module.getDivisionValue("1/4"))
-        assertEquals(3.0, module.getDivisionValue("1/3"))
-        assertEquals(2.0, module.getDivisionValue("1/2"))
-        assertEquals(1.0, module.getDivisionValue("1/1"))
-        assertEquals(0.5, module.getDivisionValue("2/1"))
+        // Colon format
+        assertEquals(4.0, module.getDivisionValue("1:4"))
+        assertEquals(3.0, module.getDivisionValue("1:3"))
+        assertEquals(2.0, module.getDivisionValue("1:2"))
+        assertEquals(1.0, module.getDivisionValue("1:1"))
+        assertEquals(0.5, module.getDivisionValue("2:1"))
+        assertEquals(3.0 / 8.0, module.getDivisionValue("8:3"))
+        assertEquals(0.25, module.getDivisionValue("4:1"))
+        assertEquals(3.0 / 16.0, module.getDivisionValue("16:3"))
+        assertEquals(0.125, module.getDivisionValue("8:1"))
+        assertEquals(1.0 / 16.0, module.getDivisionValue("16:1"))
+        assertEquals(1.0 / 32.0, module.getDivisionValue("32:1"))
+        assertEquals(1.0 / 3.0, module.getDivisionValue("3:1"))
+        assertEquals(1.0 / 6.0, module.getDivisionValue("6:1"))
+        assertEquals(1.0 / 12.0, module.getDivisionValue("12:1"))
+        assertEquals(0.2, module.getDivisionValue("5:1"))
+        assertEquals(0.1, module.getDivisionValue("10:1"))
+
+        // Slash format backwards compatibility
         assertEquals(3.0 / 8.0, module.getDivisionValue("8/3"))
-        assertEquals(0.25, module.getDivisionValue("4/1"))
         assertEquals(3.0 / 16.0, module.getDivisionValue("16/3"))
-        assertEquals(0.125, module.getDivisionValue("8/1"))
-        assertEquals(1.0 / 16.0, module.getDivisionValue("16/1"))
-        assertEquals(1.0 / 32.0, module.getDivisionValue("32/1"))
-        assertEquals(1.0 / 3.0, module.getDivisionValue("3/1"))
-        assertEquals(1.0 / 6.0, module.getDivisionValue("6/1"))
-        assertEquals(1.0 / 12.0, module.getDivisionValue("12/1"))
-        assertEquals(0.2, module.getDivisionValue("5/1"))
-        assertEquals(0.1, module.getDivisionValue("10/1"))
+        assertEquals(4.0, module.getDivisionValue("1/4"))
+        assertEquals(0.25, module.getDivisionValue("4/1"))
     }
 
     @Test
@@ -101,23 +108,23 @@ class BeatClockModuleTest {
     fun testSerializationAndDeserialization() {
         val graphState = GraphState()
         val module = BeatClockModule()
-        module.division = "8/3"
+        module.division = "8:3"
         graphState.addModule(module, androidx.compose.ui.geometry.Offset.Zero)
 
         val jsonStr = GraphSerializer.serialize(graphState, graphState.modules)
-        assertTrue(jsonStr.contains("\"division\": \"8/3\"") || jsonStr.contains("\"division\":\"8/3\""))
+        assertTrue(jsonStr.contains("\"division\": \"8:3\"") || jsonStr.contains("\"division\":\"8:3\""))
 
         val newGraphState = GraphState()
         GraphSerializer.deserialize(newGraphState, jsonStr)
         val deserialized = newGraphState.modules.find { it.name == "beatClock" } as? BeatClockModule
         assertNotNull(deserialized)
-        assertEquals("8/3", deserialized.division)
+        assertEquals("8:3", deserialized.division)
     }
 
     @Test
     fun testLegacyDeserializationReversesDivision() {
-        // Version 0.7.2 legacy JSON: division should be reversed
-        val legacyJson072 = """
+        // Version 0.7.2 legacy JSON with slash: division should be reversed and normalized to colon
+        val legacyJson072Slash = """
             {
               "version": "0.7.2 beta",
               "versionCode": 458754,
@@ -133,9 +140,30 @@ class BeatClockModuleTest {
         """.trimIndent()
 
         val state1 = GraphState()
-        GraphSerializer.deserialize(state1, legacyJson072)
+        GraphSerializer.deserialize(state1, legacyJson072Slash)
         val clock1 = state1.modules.first() as BeatClockModule
-        assertEquals("16/3", clock1.division)
+        assertEquals("16:3", clock1.division)
+
+        // Version 0.7.2 legacy JSON with colon: division should also be reversed
+        val legacyJson072Colon = """
+            {
+              "version": "0.7.2 beta",
+              "versionCode": 458754,
+              "modules": [
+                {
+                  "type": "beatClock",
+                  "name": "beatClock",
+                  "division": "3:16"
+                }
+              ],
+              "connections": []
+            }
+        """.trimIndent()
+
+        val state2 = GraphState()
+        GraphSerializer.deserialize(state2, legacyJson072Colon)
+        val clock2 = state2.modules.first() as BeatClockModule
+        assertEquals("16:3", clock2.division)
 
         // Version 0.6.1 legacy JSON
         val legacyJson061 = """
@@ -153,10 +181,10 @@ class BeatClockModuleTest {
             }
         """.trimIndent()
 
-        val state2 = GraphState()
-        GraphSerializer.deserialize(state2, legacyJson061)
-        val clock2 = state2.modules.first() as BeatClockModule
-        assertEquals("1/4", clock2.division)
+        val state3 = GraphState()
+        GraphSerializer.deserialize(state3, legacyJson061)
+        val clock3 = state3.modules.first() as BeatClockModule
+        assertEquals("1:4", clock3.division)
 
         // Unversioned legacy JSON
         val unversionedJson = """
@@ -172,13 +200,13 @@ class BeatClockModuleTest {
             }
         """.trimIndent()
 
-        val state3 = GraphState()
-        GraphSerializer.deserialize(state3, unversionedJson)
-        val clock3 = state3.modules.first() as BeatClockModule
-        assertEquals("8/3", clock3.division)
+        val state4 = GraphState()
+        GraphSerializer.deserialize(state4, unversionedJson)
+        val clock4 = state4.modules.first() as BeatClockModule
+        assertEquals("8:3", clock4.division)
 
-        // Version 0.7.3+ current JSON: division should NOT be reversed
-        val modernJson = """
+        // Version 0.7.3 JSON (already reversed, but had slash): division should NOT be reversed, normalized to colon
+        val version073Json = """
             {
               "version": "0.7.3 beta",
               "versionCode": 458755,
@@ -193,10 +221,31 @@ class BeatClockModuleTest {
             }
         """.trimIndent()
 
-        val state4 = GraphState()
-        GraphSerializer.deserialize(state4, modernJson)
-        val clock4 = state4.modules.first() as BeatClockModule
-        assertEquals("16/3", clock4.division)
+        val state5 = GraphState()
+        GraphSerializer.deserialize(state5, version073Json)
+        val clock5 = state5.modules.first() as BeatClockModule
+        assertEquals("16:3", clock5.division)
+
+        // Version 0.7.4+ current JSON: division should NOT be reversed
+        val modernJson = """
+            {
+              "version": "0.7.4 beta",
+              "versionCode": 458756,
+              "modules": [
+                {
+                  "type": "beatClock",
+                  "name": "beatClock",
+                  "division": "16:3"
+                }
+              ],
+              "connections": []
+            }
+        """.trimIndent()
+
+        val state6 = GraphState()
+        GraphSerializer.deserialize(state6, modernJson)
+        val clock6 = state6.modules.first() as BeatClockModule
+        assertEquals("16:3", clock6.division)
     }
 
     @Test
@@ -218,9 +267,9 @@ class BeatClockModuleTest {
         module.countOut.connect(receiver.input)
 
         // Set tempo to 120 bpm -> 1 beat = 0.5s = 500,000,000 ns.
-        // Set division to 3/1 (3 kicks/beat) -> interval = 166,666,666.666... ns.
+        // Set division to 3:1 (3 kicks/beat) -> interval = 166,666,666.666... ns.
         module.tempo.setValue(120.0)
-        module.division = "3/1"
+        module.division = "3:1"
 
         // 1. Kick start
         val startTime = ScoreClock.now()

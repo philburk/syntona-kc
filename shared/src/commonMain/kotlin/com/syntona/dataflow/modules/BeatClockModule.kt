@@ -23,7 +23,7 @@ class BeatClockModule : Module("beatClock"), EngineAware {
     }
     val countOut = addOutput("out")
 
-    var division by mutableStateOf("1/1")
+    var division by mutableStateOf("1:1")
 
     private var engine: DataFlowEngine? = null
     private var pendingEvent: ScheduledEvent? = null
@@ -73,25 +73,26 @@ class BeatClockModule : Module("beatClock"), EngineAware {
     }
 
     fun getDivisionValue(div: String): Double {
-        return when (div) {
-            "1/4" -> 4.0
-            "1/3" -> 3.0
-            "1/2" -> 2.0
-            "1/1" -> 1.0
-            "2/1" -> 0.5
-            "8/3" -> 3.0 / 8.0
-            "4/1" -> 0.25
-            "16/3" -> 3.0 / 16.0
-            "8/1" -> 0.125
-            "16/1" -> 1.0 / 16.0
-            "32/1" -> 1.0 / 32.0
-            "3/1" -> 1.0 / 3.0
-            "6/1" -> 1.0 / 6.0
-            "12/1" -> 1.0 / 12.0
-            "5/1" -> 0.2
-            "10/1" -> 0.1
+        val normalized = div.replace('/', ':')
+        return when (normalized) {
+            "1:4" -> 4.0
+            "1:3" -> 3.0
+            "1:2" -> 2.0
+            "1:1" -> 1.0
+            "2:1" -> 0.5
+            "8:3" -> 3.0 / 8.0
+            "4:1" -> 0.25
+            "16:3" -> 3.0 / 16.0
+            "8:1" -> 0.125
+            "16:1" -> 1.0 / 16.0
+            "32:1" -> 1.0 / 32.0
+            "3:1" -> 1.0 / 3.0
+            "6:1" -> 1.0 / 6.0
+            "12:1" -> 1.0 / 12.0
+            "5:1" -> 0.2
+            "10:1" -> 0.1
             else -> {
-                val parts = div.split('/')
+                val parts = normalized.split(':')
                 if (parts.size == 2) {
                     val num = parts[0].toDoubleOrNull() ?: 1.0
                     val den = parts[1].toDoubleOrNull() ?: 1.0
@@ -102,10 +103,19 @@ class BeatClockModule : Module("beatClock"), EngineAware {
     }
 
     companion object {
+        fun normalizeDivision(div: String): String {
+            return div.replace('/', ':')
+        }
+
         fun reverseDivision(div: String): String {
-            val parts = div.split('/')
-            return if (parts.size == 2) {
-                "${parts[1]}/${parts[0]}"
+            val delimiter = if (div.contains(':')) ':' else if (div.contains('/')) '/' else null
+            return if (delimiter != null) {
+                val parts = div.split(delimiter)
+                if (parts.size == 2) {
+                    "${parts[1]}:${parts[0]}"
+                } else {
+                    div.replace('/', ':')
+                }
             } else {
                 div
             }

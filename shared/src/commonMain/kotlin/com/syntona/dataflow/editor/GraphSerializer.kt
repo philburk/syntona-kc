@@ -378,17 +378,17 @@ object GraphSerializer {
         return root.stringify(0)
     }
 
-    private fun isVersionAtMost0_7_2(rootObj: JsonValue.Obj, parentIsLegacy: Boolean? = null): Boolean {
+    private fun isVersionBefore0_7_3(rootObj: JsonValue.Obj, parentIsLegacy: Boolean? = null): Boolean {
         val versionCode = (rootObj.map["versionCode"] as? JsonValue.Num)?.value?.toInt()
-        val maxLegacyCode = (0 shl 24) + (7 shl 16) + 2 // 0.7.2
+        val version073Code = (0 shl 24) + (7 shl 16) + 3 // 0.7.3
         if (versionCode != null) {
-            return versionCode <= maxLegacyCode
+            return versionCode < version073Code
         }
         val versionStr = (rootObj.map["version"] as? JsonValue.Str)?.value
         if (versionStr != null) {
             val parsed = parseVersionToCode(versionStr)
             if (parsed != null) {
-                return parsed <= maxLegacyCode
+                return parsed < version073Code
             }
         }
         if (parentIsLegacy != null) {
@@ -429,7 +429,7 @@ object GraphSerializer {
             (rootVal.map["windowWidth"] as? JsonValue.Num)?.value?.let { patch.windowWidth = it.toFloat() }
             (rootVal.map["windowHeight"] as? JsonValue.Num)?.value?.let { patch.windowHeight = it.toFloat() }
         }
-        val isLegacyVersion = isVersionAtMost0_7_2(rootVal)
+        val isLegacyVersion = isVersionBefore0_7_3(rootVal)
         val result = if (finalType == "patch" || finalType == "polyPatch") {
             val innerPatchObj = rootVal.map["patch"] as? JsonValue.Obj
             if (innerPatchObj != null) {
@@ -587,7 +587,11 @@ object GraphSerializer {
             }
             if (module is BeatClockModule) {
                 (obj?.map?.get("division") as? JsonValue.Str)?.value?.let { rawDiv ->
-                    module.division = if (isLegacyVersion) BeatClockModule.reverseDivision(rawDiv) else rawDiv
+                    module.division = if (isLegacyVersion) {
+                        BeatClockModule.reverseDivision(rawDiv)
+                    } else {
+                        BeatClockModule.normalizeDivision(rawDiv)
+                    }
                 }
             }
             if (module is TimelineModule) {
@@ -866,7 +870,7 @@ object GraphSerializer {
                                     if (module is PolyPatchModule) {
                                         module.clearVoices()
                                     }
-                                    val childIsLegacy = isVersionAtMost0_7_2(childRootVal, parentIsLegacy = isLegacyVersion)
+                                    val childIsLegacy = isVersionBefore0_7_3(childRootVal, parentIsLegacy = isLegacyVersion)
                                     val innerPatchObj = childRootVal.map["patch"] as? JsonValue.Obj
                                     if (innerPatchObj != null) {
                                         deserializeObj(module.graphState, innerPatchObj, Offset.Zero, density, problems, resolvedFilePath ?: effectiveBasePath, childIsLegacy)
@@ -902,7 +906,7 @@ object GraphSerializer {
                                 if (module is PolyPatchModule) {
                                     module.clearVoices()
                                 }
-                                val childIsLegacy = isVersionAtMost0_7_2(childRootVal, parentIsLegacy = isLegacyVersion)
+                                val childIsLegacy = isVersionBefore0_7_3(childRootVal, parentIsLegacy = isLegacyVersion)
                                 val innerPatchObj = childRootVal.map["patch"] as? JsonValue.Obj
                                 if (innerPatchObj != null) {
                                     deserializeObj(module.graphState, innerPatchObj, Offset.Zero, density, problems, resolvedFilePath, childIsLegacy)

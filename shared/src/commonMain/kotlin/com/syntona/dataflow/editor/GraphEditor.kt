@@ -660,10 +660,10 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color? = null, la
                             onDismissRequest = { expanded = false }
                         ) {
                             val divisions = listOf(
-                                "1/4", "1/2", "1/1", "2/1", "4/1", "8/1", "16/1", "32/1",
-                                "1/3", "8/3", "16/3",
-                                "3/1", "6/1", "12/1",
-                                "5/1", "10/1"
+                                "1:4", "1:2", "1:1", "2:1", "4:1", "8:1", "16:1", "32:1",
+                                "1:3", "8:3", "16:3",
+                                "3:1", "6:1", "12:1",
+                                "5:1", "10:1"
                             )
                             divisions.forEach { div ->
                                 androidx.compose.material3.DropdownMenuItem(

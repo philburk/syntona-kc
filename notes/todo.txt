@@ -1,13 +1,17 @@
 
 # ------------- For Nicks class
 
-Add "min" and "max" modules to the basic.math bundle.
-
-Do not connect a blue event-type port to an orange VoiceMessage port, or vice versa.
-Except for the input of a showMany, or an addTime, which can accept any type of message.
-Are there any other input ports that can accept any type of message?
-Maybe we should give those universal inputs a different color, like white signifying, all colors.
-What do you think? Please propose a design.
+In the keyNotes module we currently have two octaves with 12 notes each.
+But the problems is that some notes do not play, eg. 'A'.
+So let's change it to play 4 octaves of diatonic scales.
+Each row of the keyboard will have 7 notes plus the octave.
+So use:
+12345678
+qwertyui
+asdfghjk
+zxcvbnm,
+Don't worry about backwards compatibily when reading the letter strings from the JSON file.
+It is too hard to convert.
 
 
 On FireFox plug in MIDI hardware before running Syntona.
