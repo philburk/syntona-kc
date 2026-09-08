@@ -10,7 +10,7 @@
       "y": 112,
       "jacks": {
         "in": {
-          "v": -0.24446603655815125,
+          "v": 0.24966256320476532,
           "min": 0,
           "max": 1,
           "kickable": false,
@@ -23,10 +23,10 @@
           "kickable": false,
           "add": false
         },
-        "holdOff": {
-          "v": 0,
-          "min": 0,
-          "max": 1,
+        "holdOffMs": {
+          "v": 40,
+          "min": 10,
+          "max": 1000,
           "kickable": false,
           "add": false
         }
@@ -40,7 +40,7 @@
       "y": 304.9,
       "jacks": {
         "flash": {
-          "v": 12,
+          "v": 10,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -60,7 +60,7 @@
           "kickable": true
         },
         "in": {
-          "v": -0.24446603655815125,
+          "v": 0.24966256320476532,
           "min": -1,
           "max": 1,
           "kickable": false
