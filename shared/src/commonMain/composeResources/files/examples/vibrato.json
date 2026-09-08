@@ -1,4 +1,6 @@
 {
+  "version": "0.7.2 beta",
+  "versionCode": 458754,
   "modules": [
     {
       "id": 0,
@@ -7,14 +9,14 @@
       "x": 767.9,
       "y": 123,
       "jacks": {
-        "input0": {
+        "in0": {
           "v": 0,
           "min": 0,
           "max": 1,
           "kickable": false,
           "add": false
         },
-        "input1": {
+        "in1": {
           "v": 0,
           "min": 0,
           "max": 1,
@@ -60,7 +62,8 @@
           "v": -1,
           "min": -1,
           "max": 127,
-          "kickable": false
+          "kickable": false,
+          "integer": true
         }
       }
     },
@@ -105,7 +108,8 @@
           "v": 5,
           "min": 2,
           "max": 8,
-          "kickable": false
+          "kickable": false,
+          "integer": true
         }
       },
       "w": 460.75,
@@ -167,44 +171,79 @@
             "type": "core.input",
             "name": "on",
             "x": 50,
-            "y": 60
+            "y": 60,
+            "jacks": {
+              "on": {
+                "min": 0,
+                "max": 100,
+                "kickable": false
+              }
+            }
           },
           {
             "id": 1,
             "type": "core.input",
             "name": "off",
             "x": 50,
-            "y": 130
+            "y": 130,
+            "jacks": {
+              "off": {
+                "min": 0,
+                "max": 100,
+                "kickable": false
+              }
+            }
           },
           {
             "id": 2,
             "type": "core.input",
             "name": "pitch",
             "x": 50,
-            "y": 200
+            "y": 200,
+            "jacks": {
+              "pitch": {
+                "min": 0,
+                "max": 100,
+                "kickable": false
+              }
+            }
           },
           {
             "id": 3,
             "type": "core.input",
             "name": "amplitude",
             "x": 50,
-            "y": 270
+            "y": 270,
+            "jacks": {
+              "amplitude": {
+                "min": 0,
+                "max": 100,
+                "kickable": false
+              }
+            }
           },
           {
             "id": 4,
             "type": "core.input",
             "name": "pressure",
             "x": 45,
-            "y": 331
+            "y": 331,
+            "jacks": {
+              "pressure": {
+                "min": 0,
+                "max": 100,
+                "kickable": false
+              }
+            }
           },
           {
             "id": 5,
-            "type": "ksyn.aOutput",
+            "type": "ksyn.output~",
             "name": "output",
-            "x": 499,
-            "y": 106,
+            "x": 562,
+            "y": 120,
             "jacks": {
-              "input": {
+              "in": {
                 "v": 0,
                 "min": 0,
                 "max": 1,
@@ -215,12 +254,12 @@
           },
           {
             "id": 6,
-            "type": "ksyn.math.ap2f",
-            "name": "ap2f",
+            "type": "ksyn.math.pitchToHz~",
+            "name": "pitchToHz~",
             "x": 266.9,
             "y": 23.1,
             "jacks": {
-              "input": {
+              "in": {
                 "v": 60,
                 "min": 0,
                 "max": 127,
@@ -233,8 +272,8 @@
             "id": 7,
             "type": "ksyn.sources.sawOscDPW",
             "name": "sawOscDPW",
-            "x": 344,
-            "y": 75.9,
+            "x": 405,
+            "y": 143.9,
             "jacks": {
               "frequency": {
                 "v": 440,
@@ -254,12 +293,12 @@
           },
           {
             "id": 8,
-            "type": "ksyn.control.DAHDSR",
-            "name": "DAHDSR",
-            "x": 162.9,
-            "y": 89,
+            "type": "ksyn.control.envDAHDSR",
+            "name": "envDAHDSR",
+            "x": 236.9,
+            "y": 123,
             "jacks": {
-              "input": {
+              "in": {
                 "v": 0,
                 "min": 0,
                 "max": 1,
@@ -319,60 +358,68 @@
           },
           {
             "id": 9,
-            "type": "ksyn.aInput",
+            "type": "ksyn.input~",
             "name": "vibrato",
             "x": 47.9,
-            "y": 393
+            "y": 393,
+            "jacks": {
+              "vibrato": {
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            }
           }
         ],
         "connections": [
           {
             "from": 6,
-            "fromJack": "output",
+            "fromJack": "out",
             "to": 7,
             "toJack": "frequency"
           },
           {
             "from": 8,
-            "fromJack": "output",
+            "fromJack": "out",
             "to": 7,
             "toJack": "amplitude"
           },
           {
             "from": 2,
-            "fromJack": "output",
+            "fromJack": "out",
             "to": 6,
-            "toJack": "input"
+            "toJack": "in"
           },
           {
             "from": 0,
-            "fromJack": "output",
+            "fromJack": "out",
             "to": 8,
             "toJack": "on"
           },
           {
             "from": 1,
-            "fromJack": "output",
+            "fromJack": "out",
             "to": 8,
             "toJack": "off"
           },
           {
             "from": 3,
-            "fromJack": "output",
+            "fromJack": "out",
             "to": 8,
             "toJack": "amplitude"
           },
           {
             "from": 7,
-            "fromJack": "output",
+            "fromJack": "out",
             "to": 5,
-            "toJack": "input"
+            "toJack": "in"
           },
           {
             "from": 9,
-            "fromJack": "output",
+            "fromJack": "out",
             "to": 6,
-            "toJack": "input"
+            "toJack": "in"
           }
         ]
       }
@@ -411,7 +458,7 @@
     },
     {
       "from": 6,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 7,
       "toJack": "vibrato"
     },
@@ -419,7 +466,7 @@
       "from": 7,
       "fromJack": "output",
       "to": 0,
-      "toJack": "input1"
+      "toJack": "in1"
     }
   ],
   "windowX": 10,
