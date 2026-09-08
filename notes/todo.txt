@@ -10,7 +10,7 @@ So use:
 qwertyui
 asdfghjk
 zxcvbnm,
-Don't worry about backwards compatibily when reading the letter strings from the JSON file.
+Don't worry about backwards compatibility when reading the letter strings from the JSON file.
 It is too hard to convert.
 
 

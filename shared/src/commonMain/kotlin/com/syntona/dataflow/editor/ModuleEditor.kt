@@ -614,63 +614,60 @@ private fun KeyMatchModuleEditor(module: KeyMatchModule) {
 
 @Composable
 private fun KeyNotesModuleEditor(module: KeyNotesModule) {
-    var bottomKeysText by remember(module) { mutableStateOf(module.bottomOctaveKeys) }
-    var topKeysText by remember(module) { mutableStateOf(module.topOctaveKeys) }
+    var row1Text by remember(module) { mutableStateOf(module.row1Keys) }
+    var row2Text by remember(module) { mutableStateOf(module.row2Keys) }
+    var row3Text by remember(module) { mutableStateOf(module.row3Keys) }
+    var row4Text by remember(module) { mutableStateOf(module.row4Keys) }
+
+    @Composable
+    fun RowKeyField(label: String, value: String, onValueChange: (String) -> Unit) {
+        Column {
+            Text(label, fontSize = 12.sp, color = LABEL_COLOR)
+            Spacer(modifier = Modifier.height(4.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, BORDER_COLOR, RoundedCornerShape(4.dp))
+                    .background(Color.White)
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+            ) {
+                androidx.compose.foundation.text.BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp)
+                )
+            }
+        }
+    }
 
     Column(
         modifier = Modifier.padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Column {
-            Text("Top Octave Keys:", fontSize = 12.sp, color = LABEL_COLOR)
-            Spacer(modifier = Modifier.height(4.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, BORDER_COLOR, RoundedCornerShape(4.dp))
-                    .background(Color.White)
-                    .padding(horizontal = 8.dp, vertical = 6.dp)
-            ) {
-                androidx.compose.foundation.text.BasicTextField(
-                    value = topKeysText,
-                    onValueChange = {
-                        topKeysText = it
-                        module.topOctaveKeys = it
-                        FileState.markDirty()
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp)
-                )
-            }
+        RowKeyField("Row 1 Keys (highest):", row1Text) {
+            row1Text = it
+            module.row1Keys = it
+            FileState.markDirty()
         }
-
-        Column {
-            Text("Bottom Octave Keys:", fontSize = 12.sp, color = LABEL_COLOR)
-            Spacer(modifier = Modifier.height(4.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, BORDER_COLOR, RoundedCornerShape(4.dp))
-                    .background(Color.White)
-                    .padding(horizontal = 8.dp, vertical = 6.dp)
-            ) {
-                androidx.compose.foundation.text.BasicTextField(
-                    value = bottomKeysText,
-                    onValueChange = {
-                        bottomKeysText = it
-                        module.bottomOctaveKeys = it
-                        FileState.markDirty()
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp)
-                )
-            }
+        RowKeyField("Row 2 Keys:", row2Text) {
+            row2Text = it
+            module.row2Keys = it
+            FileState.markDirty()
+        }
+        RowKeyField("Row 3 Keys:", row3Text) {
+            row3Text = it
+            module.row3Keys = it
+            FileState.markDirty()
+        }
+        RowKeyField("Row 4 Keys (lowest):", row4Text) {
+            row4Text = it
+            module.row4Keys = it
+            FileState.markDirty()
         }
 
         androidx.compose.material3.HorizontalDivider(color = BORDER_COLOR, thickness = 1.dp)
 
-        // The octave jack replaced the old "Starting Midi Note" field: the lowest key sounds
-        // at 12 * octave.
         module.inputs.filter { it.isModuleEditorVisible }.forEach { jack ->
             JackEditorRow(jack)
         }

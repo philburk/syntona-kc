@@ -19,6 +19,9 @@ import com.syntona.dataflow.modules.AudioInputModule
 import com.syntona.dataflow.modules.LinkModule
 import com.syntona.dataflow.modules.KeyMatchModule
 import com.syntona.dataflow.modules.KeyNotesModule
+import com.syntona.dataflow.modules.DEFAULT_KEY_OFFSET
+import com.syntona.dataflow.modules.MIN_KEY_OFFSET
+import com.syntona.dataflow.modules.MAX_KEY_OFFSET
 import com.syntona.dataflow.modules.MidiInModule
 import com.syntona.dataflow.modules.MidiOutModule
 import com.syntona.dataflow.modules.LEGACY_KEY_BASE_PITCH
@@ -291,8 +294,10 @@ object GraphSerializer {
                 append("]")
             }
             if (module is KeyNotesModule) {
-                append(",\"bottomOctaveKeys\":\"${module.bottomOctaveKeys.jsonEscape}\"")
-                append(",\"topOctaveKeys\":\"${module.topOctaveKeys.jsonEscape}\"")
+                append(",\"row1Keys\":\"${module.row1Keys.jsonEscape}\"")
+                append(",\"row2Keys\":\"${module.row2Keys.jsonEscape}\"")
+                append(",\"row3Keys\":\"${module.row3Keys.jsonEscape}\"")
+                append(",\"row4Keys\":\"${module.row4Keys.jsonEscape}\"")
             }
             if (module is PianoRollModule) {
                 append(",\"playStart\":${module.playStartTicks}")
@@ -614,16 +619,21 @@ object GraphSerializer {
                 }
             }
             if (module is KeyNotesModule) {
-                (obj?.map?.get("bottomOctaveKeys") as? JsonValue.Str)?.value?.let { module.bottomOctaveKeys = it }
-                (obj?.map?.get("topOctaveKeys") as? JsonValue.Str)?.value?.let { module.topOctaveKeys = it }
-                (obj?.map?.get("mappingString") as? JsonValue.Str)?.value?.let { oldMap ->
-                    val commaIdx = oldMap.indexOf(',')
-                    if (commaIdx >= 0) {
-                        module.bottomOctaveKeys = oldMap.substring(0, commaIdx + 1)
-                        module.topOctaveKeys = oldMap.substring(commaIdx + 1)
-                    } else {
-                        module.bottomOctaveKeys = oldMap.take(13)
-                        module.topOctaveKeys = oldMap.drop(13)
+                (obj?.map?.get("row1Keys") as? JsonValue.Str)?.value?.let { module.row1Keys = it }
+                (obj?.map?.get("row2Keys") as? JsonValue.Str)?.value?.let { module.row2Keys = it }
+                (obj?.map?.get("row3Keys") as? JsonValue.Str)?.value?.let { module.row3Keys = it }
+                (obj?.map?.get("row4Keys") as? JsonValue.Str)?.value?.let { module.row4Keys = it }
+
+                val jacksMap = jacks?.map
+                if (jacksMap?.containsKey("offset") != true) {
+                    if (jacksMap?.containsKey("octave") == true) {
+                        val octaveVal = ((jacksMap["octave"] as? JsonValue.Obj)?.map?.get("v") as? JsonValue.Num)?.value
+                        if (octaveVal != null) {
+                            module.offsetIn.setValue((octaveVal * SEMITONES_PER_OCTAVE).coerceIn(MIN_KEY_OFFSET, MAX_KEY_OFFSET))
+                        }
+                    } else if (obj?.map?.containsKey("startingNote") == true) {
+                        val legacyBase = (obj.map["startingNote"] as? JsonValue.Num)?.value ?: DEFAULT_KEY_OFFSET.toDouble()
+                        module.offsetIn.setValue(legacyBase.coerceIn(MIN_KEY_OFFSET, MAX_KEY_OFFSET))
                     }
                 }
             }

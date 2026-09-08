@@ -82,15 +82,17 @@
           "max": 1,
           "kickable": false
         },
-        "octave": {
-          "v": 4,
-          "min": 2,
-          "max": 8,
+        "offset": {
+          "v": 48,
+          "min": 0,
+          "max": 80,
           "kickable": false
         }
       },
-      "bottomOctaveKeys": "zsxdcvgbhnjm,",
-      "topOctaveKeys": "q2w3er5t6y7ui9o0p"
+      "row1Keys": "12345678",
+      "row2Keys": "qwertyui",
+      "row3Keys": "asdfghjk",
+      "row4Keys": "zxcvbnm,"
     },
     {
       "id": 5,
