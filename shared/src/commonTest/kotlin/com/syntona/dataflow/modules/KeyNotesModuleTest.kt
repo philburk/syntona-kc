@@ -50,7 +50,7 @@ class KeyNotesModuleTest {
 
         var lastMessage: Message? = null
         val receiver = object : com.syntona.dataflow.model.Module("receiver") {
-            val input = addInput("in", isKickable = true)
+            val input = addVoiceInput("in", isKickable = true)
             override fun execute(triggerMessage: Message) {
                 lastMessage = triggerMessage
             }
@@ -123,7 +123,7 @@ class KeyNotesModuleTest {
 
         var lastMessage: Message? = null
         val receiver = object : com.syntona.dataflow.model.Module("receiver") {
-            val input = addInput("in", isKickable = true)
+            val input = addVoiceInput("in", isKickable = true)
             override fun execute(triggerMessage: Message) {
                 lastMessage = triggerMessage
             }
@@ -156,7 +156,7 @@ class KeyNotesModuleTest {
 
         var lastMessage: Message? = null
         val receiver = object : com.syntona.dataflow.model.Module("receiver") {
-            val input = addInput("in", isKickable = true)
+            val input = addVoiceInput("in", isKickable = true)
             override fun execute(triggerMessage: Message) {
                 lastMessage = triggerMessage
             }
@@ -184,7 +184,7 @@ class KeyNotesModuleTest {
 
         var lastMessage: Message? = null
         val receiver = object : com.syntona.dataflow.model.Module("receiver") {
-            val input = addInput("in", isKickable = true)
+            val input = addVoiceInput("in", isKickable = true)
             override fun execute(triggerMessage: Message) {
                 lastMessage = triggerMessage
             }
@@ -211,7 +211,7 @@ class KeyNotesModuleTest {
 
         var lastMessage: Message? = null
         val receiver = object : com.syntona.dataflow.model.Module("receiver") {
-            val input = addInput("in", isKickable = true)
+            val input = addVoiceInput("in", isKickable = true)
             override fun execute(triggerMessage: Message) {
                 lastMessage = triggerMessage
             }

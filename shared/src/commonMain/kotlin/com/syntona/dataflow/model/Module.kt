@@ -131,6 +131,18 @@ abstract class Module(val type: String) {
         return jack
     }
 
+    protected fun addUniversalInput(name: String, isKickable: Boolean = false): UniversalInputJack {
+        val jack = UniversalInputJack(name, this, isKickable)
+        _inputs.add(jack)
+        return jack
+    }
+
+    protected fun addUniversalOutput(name: String): UniversalOutputJack {
+        val jack = UniversalOutputJack(name, this)
+        _outputs.add(jack)
+        return jack
+    }
+
     /**
      * Called when any [InputJack] receives a message.
      * If the jack is kickable, [execute] is called.

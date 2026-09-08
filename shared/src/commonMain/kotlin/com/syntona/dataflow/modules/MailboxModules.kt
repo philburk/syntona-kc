@@ -5,7 +5,7 @@ import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.model.MailboxManager
 
 class SendModule : Module("send") {
-    val inJack = addInput("in", isKickable = true)
+    val inJack = addUniversalInput("in", isKickable = true)
 
     override var name: String
         get() = super.name
@@ -34,7 +34,7 @@ class SendModule : Module("send") {
 }
 
 class ReceiveModule : Module("receive") {
-    val outJack = addOutput("out")
+    val outJack = addUniversalOutput("out")
 
     override var name: String
         get() = super.name

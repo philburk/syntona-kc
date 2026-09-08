@@ -20,6 +20,10 @@ import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Jack
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.model.OutputJack
+import com.syntona.dataflow.model.UniversalInputJack
+import com.syntona.dataflow.model.UniversalOutputJack
+import com.syntona.dataflow.model.VoiceInputJack
+import com.syntona.dataflow.model.VoiceOutputJack
 import com.syntona.dataflow.modules.AudioInputModule
 import com.syntona.dataflow.modules.FaderModule
 import com.syntona.dataflow.modules.InputModule
@@ -143,8 +147,8 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
                 is com.syntona.dataflow.modules.InputModule -> if (m.hasValue) m.defaultValue else null
                 else -> if (output.getValue() != 0.0) output.getValue() else null
             }
-            // Propagate continuous parameter values, but never kick command jacks or kickable inputs on connection
-            if (currentValue != null && input !is CommandJack && !input.isKickable) {
+            // Propagate continuous parameter values, but never kick command jacks, kickable inputs, or universal/voice inputs on connection
+            if (currentValue != null && input !is CommandJack && !input.isKickable && input !is UniversalInputJack && input !is VoiceInputJack) {
                 input.receive(Message.FloatValue(com.syntona.core.model.ScoreTime.Zero, currentValue))
             }
         }
@@ -452,11 +456,42 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
         draggedModuleCreator = null
     }
 
+    /**
+     * Determines whether [output] can legally connect to [input] based on port types.
+     */
+    fun canConnect(output: OutputJack, input: InputJack): Boolean {
+        // Audio-rate: Audio out only to Audio in
+        if (output is AudioOutputJack && input !is AudioInputJack) return false
+        // Non-audio output can connect to AudioInputJack for parameter control,
+        // EXCEPT VoiceOutputJack which carries compound voice messages
+        if (input is AudioInputJack && output is VoiceOutputJack) return false
+
+        // DataQueue: Strictly DataQueue to DataQueue
+        if (output is DataQueueOutputJack && input !is DataQueueInputJack) return false
+        if (input is DataQueueInputJack && output !is DataQueueOutputJack) return false
+
+        // Universal input accepts any message (event or voice), but not Audio-rate or DataQueue
+        if (input is UniversalInputJack) {
+            return output !is AudioOutputJack && output !is DataQueueOutputJack
+        }
+
+        // Universal output can connect to Event input, Voice input, or Universal input,
+        // but not DataQueue or Audio
+        if (output is UniversalOutputJack) {
+            return input !is DataQueueInputJack && input !is AudioInputJack
+        }
+
+        // Voice output can ONLY connect to Voice input (or Universal input handled above)
+        if (output is VoiceOutputJack && input !is VoiceInputJack) return false
+
+        // Voice input can ONLY accept Voice output (or Universal output handled above)
+        if (input is VoiceInputJack && output !is VoiceOutputJack) return false
+
+        return true
+    }
+
     fun connect(output: OutputJack, input: InputJack) {
-        // Audio-rate outputs carry no messages — block connection to non-audio inputs
-        if (output is AudioOutputJack && input !is AudioInputJack) return
-        if (output is DataQueueOutputJack && input !is DataQueueInputJack) return
-        if (input is DataQueueInputJack && output !is DataQueueOutputJack) return
+        if (!canConnect(output, input)) return
         output.connect(input)
         if (connections.none { it.output == output && it.input == input }) {
             connections.add(UIConnection(output, input))
@@ -481,7 +516,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
 
         when (val m = output.module) {
             is FaderModule -> {
-                val nonCommand = connected.filter { it.input !is CommandJack && !it.input.isKickable }
+                val nonCommand = connected.filter { it.input !is CommandJack && !it.input.isKickable && it.input !is UniversalInputJack && it.input !is VoiceInputJack }
                 if (nonCommand.size == 1) {
                     val target = nonCommand.first().input
                     m.valueIn.min = target.min
@@ -495,7 +530,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
                 }
             }
             is KnobModule -> {
-                val nonCommand = connected.filter { it.input !is CommandJack && !it.input.isKickable }
+                val nonCommand = connected.filter { it.input !is CommandJack && !it.input.isKickable && it.input !is UniversalInputJack && it.input !is VoiceInputJack }
                 if (nonCommand.size == 1) {
                     val target = nonCommand.first().input
                     m.valueIn.min = target.min
@@ -509,7 +544,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
                 }
             }
             is InputModule -> {
-                val nonCommand = connected.filter { it.input !is CommandJack && !it.input.isKickable }
+                val nonCommand = connected.filter { it.input !is CommandJack && !it.input.isKickable && it.input !is UniversalInputJack && it.input !is VoiceInputJack }
                 if (nonCommand.size == 1) {
                     val target = nonCommand.first().input
                     m.defaultMin = target.min
@@ -525,7 +560,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
                 }
             }
             is AudioInputModule -> {
-                val nonCommand = connected.filter { it.input !is CommandJack && !it.input.isKickable }
+                val nonCommand = connected.filter { it.input !is CommandJack && !it.input.isKickable && it.input !is UniversalInputJack && it.input !is VoiceInputJack }
                 if (nonCommand.size == 1) {
                     val target = nonCommand.first().input
                     m.defaultMin = target.min
@@ -603,14 +638,15 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
     }
 
     private fun findInputJackAt(offset: Offset): InputJack? {
+        val draggingOutput = draggingWireByOutput
         val hit = jackBounds.entries
-            .filter { it.key is InputJack }
+            .filter { it.key is InputJack && (draggingOutput == null || canConnect(draggingOutput, it.key as InputJack)) }
             .firstOrNull { it.value.inflate(8f).contains(offset) }
             ?.key as? InputJack
         if (hit != null) return hit
 
         return jackOffsets.entries
-            .filter { it.key is InputJack }
+            .filter { it.key is InputJack && (draggingOutput == null || canConnect(draggingOutput, it.key as InputJack)) }
             .minByOrNull { (it.value - offset).getDistance() }
             ?.takeIf { (it.value - offset).getDistance() < 30f }
             ?.key as? InputJack

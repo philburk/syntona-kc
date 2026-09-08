@@ -8,8 +8,8 @@ import com.syntona.dataflow.model.Module
 
 class OneShotModule : Module("oneShot") {
     val armInput = addCommandInput("arm")
-    val kickInput = addInput("in", isKickable = true)
-    val output = addOutput("out")
+    val kickInput = addUniversalInput("in", isKickable = true)
+    val output = addUniversalOutput("out")
 
     var isArmed by mutableStateOf(false)
 

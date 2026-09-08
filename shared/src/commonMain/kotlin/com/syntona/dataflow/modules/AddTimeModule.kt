@@ -7,12 +7,12 @@ import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
 
 class AddTimeModule : Module("addTime"), EngineAware {
-    val input = addInput("in", isKickable = true)
+    val input = addUniversalInput("in", isKickable = true)
     val delayMs = addInput("delayMs").also {
         it.min = 0.0
         it.max = 60_000.0
     }
-    val output = addOutput("out")
+    val output = addUniversalOutput("out")
 
     private var engine: DataFlowEngine? = null
 

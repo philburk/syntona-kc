@@ -384,6 +384,7 @@ fun WireRenderer(state: GraphState) {
                     is AudioOutputJack -> colors.wireAudio
                     is VoiceOutputJack -> colors.wireVoice
                     is DataQueueOutputJack -> colors.wireDataQueue
+                    is UniversalOutputJack -> colors.wireUniversal
                     else -> colors.wireDefault
                 }
                 val path = Path().apply {
@@ -411,6 +412,7 @@ fun WireRenderer(state: GraphState) {
                     is AudioOutputJack -> colors.wireAudio
                     is VoiceOutputJack -> colors.wireVoice
                     is DataQueueOutputJack -> colors.wireDataQueue
+                    is UniversalOutputJack -> colors.wireUniversal
                     else -> colors.wireDragging
                 }
                 drawLine(
@@ -1056,6 +1058,7 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
         jack is AudioInputJack || jack is AudioOutputJack -> colors.jackBgAudio
         jack is VoiceInputJack || jack is VoiceOutputJack -> colors.jackBgVoice
         jack is DataQueueInputJack || jack is DataQueueOutputJack -> colors.jackBgDataQueue
+        jack is UniversalInputJack || jack is UniversalOutputJack -> colors.jackBgUniversal
         else -> colors.jackBgDefault
     }
 
@@ -1435,16 +1438,25 @@ fun CommandOutputJackView(jack: CommandOutputJack, state: GraphState, isLeft: Bo
 @Composable
 private fun JackMarker(jack: Jack, squareSize: Dp = 8.dp) {
     val colors = LocalGraphColors.current
+    val isUniversal = jack is UniversalInputJack || jack is UniversalOutputJack
     val typeColor = when {
         jack is AudioInputJack || jack is AudioOutputJack -> colors.jackAudio
         jack is VoiceInputJack || jack is VoiceOutputJack -> colors.jackVoice
         jack is DataQueueInputJack || jack is DataQueueOutputJack -> colors.jackDataQueue
+        isUniversal -> colors.jackUniversal
         else -> colors.jackDefault
     }
     val kickColor = colors.jackKickable
     val markerShape = if (jack.isInteger) RectangleShape else RoundedCornerShape(2.dp)
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(modifier = Modifier.size(squareSize).background(typeColor, shape = markerShape))
+        val boxModifier = Modifier
+            .size(squareSize)
+            .background(typeColor, shape = markerShape)
+            .then(
+                if (isUniversal) Modifier.border(1.dp, colors.jackUniversalBorder, shape = markerShape)
+                else Modifier
+            )
+        Box(modifier = boxModifier)
         if (jack is InputJack && jack.isKickable) {
             Canvas(modifier = Modifier.size(width = squareSize / 2, height = squareSize)) {
                 drawPath(

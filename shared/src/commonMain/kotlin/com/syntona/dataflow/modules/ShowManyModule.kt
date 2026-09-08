@@ -8,7 +8,7 @@ import com.syntona.dataflow.model.Module
  * A module that keeps a scrolling list of the last [capacity] messages received.
  */
 class ShowManyModule : Module("showMany") {
-    val input = addInput("in", isKickable = true)
+    val input = addUniversalInput("in", isKickable = true)
 
     val capacity = 30
     val messages = mutableStateListOf<String>()

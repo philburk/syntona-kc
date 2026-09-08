@@ -88,8 +88,8 @@ open class BranchModule(val numOutputs: Int) : Module("branch$numOutputs") {
         it.min = 0.0
         it.max = maxOf(0.0, (numOutputs - 1).toDouble())
     }
-    val input = addInput("in", isKickable = true)
-    val stepOutputs = List(numOutputs) { addOutput("out$it") }
+    val input = addUniversalInput("in", isKickable = true)
+    val stepOutputs = List(numOutputs) { addUniversalOutput("out$it") }
 
     override fun execute(triggerMessage: Message) {
         if (input.isKicked) {
@@ -116,8 +116,8 @@ open class SelectModule(val numInputs: Int) : Module("select$numInputs") {
         it.min = 0.0
         it.max = maxOf(0.0, (numInputs - 1).toDouble())
     }
-    val stepInputs = List(numInputs) { addInput("in$it", isKickable = true) }
-    val output = addOutput("out")
+    val stepInputs = List(numInputs) { addUniversalInput("in$it", isKickable = true) }
+    val output = addUniversalOutput("out")
 
     override fun execute(triggerMessage: Message) {
         val idx = indexIn.getDoubleValue().toInt()
@@ -140,8 +140,8 @@ class PassModule : Module("pass") {
     val enabled = addBooleanInput("enabled", isKickable = false)
     val enable: BooleanInputJack get() = enabled
 
-    val input = addInput("in", isKickable = true)
-    val output = addOutput("out")
+    val input = addUniversalInput("in", isKickable = true)
+    val output = addUniversalOutput("out")
 
     init {
         enabled.setValue(1.0)

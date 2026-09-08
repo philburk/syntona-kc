@@ -251,3 +251,21 @@ class VoiceOutputJack(name: String, module: Module) : OutputJack(name, module) {
     override val isModuleEditorVisible: Boolean get() = false
 }
 
+/**
+ * An input port that accepts any message type (e.g. VoiceMessage, FloatValue, DataQueueMessage).
+ */
+class UniversalInputJack(name: String, module: Module, isKickable: Boolean = false) : InputJack(name, module, isKickable) {
+    override val isDisplayableValue: Boolean get() = false
+    override val isValueDraggable: Boolean get() = false
+    override val isModuleEditorVisible: Boolean get() = false
+}
+
+/**
+ * An output port that can send any message type (e.g. from pass-through or delay modules).
+ */
+class UniversalOutputJack(name: String, module: Module) : OutputJack(name, module) {
+    override val isDisplayableValue: Boolean get() = false
+    override val isValueDraggable: Boolean get() = false
+    override val isModuleEditorVisible: Boolean get() = false
+}
+

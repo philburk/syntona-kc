@@ -35,12 +35,15 @@ data class GraphColors(
     val jackAudio: Color,
     val jackVoice: Color,
     val jackDataQueue: Color,
+    val jackUniversal: Color,
+    val jackUniversalBorder: Color,
 
     // Jack background pads
     val jackBgDefault: Color,
     val jackBgAudio: Color,
     val jackBgVoice: Color,
     val jackBgDataQueue: Color,
+    val jackBgUniversal: Color,
     val jackBgHighlighted: Color,
     /** Fill for a command button whose module is armed and waiting for input. */
     val buttonBgArmed: Color,
@@ -50,6 +53,7 @@ data class GraphColors(
     val wireAudio: Color,
     val wireVoice: Color,
     val wireDataQueue: Color,
+    val wireUniversal: Color,
     val wireDragging: Color,
 
     // Fader specifics
@@ -84,11 +88,14 @@ val DarkGraphColors = GraphColors(
     jackAudio = Color(0xFF44DD44),
     jackVoice = Color(0xFFFFA500),
     jackDataQueue = Color.Yellow,
+    jackUniversal = Color.White,
+    jackUniversalBorder = Color(0xFFAAAAAA),
 
     jackBgDefault = Color.DarkGray,
     jackBgAudio = Color(0xFF1A3A1A),
     jackBgVoice = Color(0xFF4E3610),
     jackBgDataQueue = Color(0xFF3A3A1A),
+    jackBgUniversal = Color(0xFF333333),
     jackBgHighlighted = Color(180, 170, 130),
     buttonBgArmed = Color(0xFFFF8C00),
 
@@ -96,6 +103,7 @@ val DarkGraphColors = GraphColors(
     wireAudio = Color(0xFF44DD44),
     wireVoice = Color(0xFFD0A500),
     wireDataQueue = Color.Yellow,
+    wireUniversal = Color.White,
     wireDragging = Color.Yellow,
 
     faderGrip = Color(0xFF888888)
@@ -129,11 +137,14 @@ val LightGraphColors = GraphColors(
     jackAudio = Color(0xFF388E3C),
     jackVoice = Color(0xFFF57C00),
     jackDataQueue = Color(0xFFFBC02D),
+    jackUniversal = Color.White,
+    jackUniversalBorder = Color(0xFF606060),
 
     jackBgDefault = Color(0xFFECEFF1),
     jackBgAudio = Color(0xFFC8E6C9),
     jackBgVoice = Color(0xFFFFE0B2),
     jackBgDataQueue = Color(0xFFFFF9C4),
+    jackBgUniversal = Color(0xFFE0E0E0),
     jackBgHighlighted = Color(220, 210, 160),
     buttonBgArmed = Color(0xFFF57C00),
 
@@ -141,6 +152,7 @@ val LightGraphColors = GraphColors(
     wireAudio = Color(0xFF388E3C),
     wireVoice = Color(0xFFF57C00),
     wireDataQueue = Color(0xFFFBC02D),
+    wireUniversal = Color(0xFF546E7A),
     wireDragging = Color(0xFFFBC02D),
 
     faderGrip = Color(0xFF78909C)
