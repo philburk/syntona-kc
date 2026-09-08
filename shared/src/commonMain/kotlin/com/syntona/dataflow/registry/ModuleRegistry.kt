@@ -58,9 +58,12 @@ object ModuleRegistry {
         math.modules.add(ModuleEntry("-") { SubtractModule() })
         math.modules.add(ModuleEntry("*") { MultiplyModule() })
         math.modules.add(ModuleEntry("/") { DivideModule() })
+        math.modules.add(ModuleEntry("abs") { AbsModule() })
         math.modules.add(ModuleEntry("compare") { CompareModule() })
         math.modules.add(ModuleEntry("cos") { CosineModule() })
         math.modules.add(ModuleEntry("floor") { FloorModule() })
+        math.modules.add(ModuleEntry("max") { MaxModule() })
+        math.modules.add(ModuleEntry("min") { MinModule() })
         math.modules.add(ModuleEntry("mod") { ModModule() })
         math.modules.add(ModuleEntry("random") { RandomModule() })
         math.modules.add(ModuleEntry("round") { RoundModule() })
@@ -328,6 +331,7 @@ object ModuleRegistry {
 
     fun resolveLegacyTypeName(rawTypeName: String): String {
         val mappedPrefix = when {
+            rawTypeName.startsWith("basic.math.") -> rawTypeName.replace("basic.math.", "core.math.")
             rawTypeName.startsWith("music.voices.") -> rawTypeName.replace("music.voices.", "music.midi.")
             rawTypeName == "ksyn.data.envSeg" || rawTypeName == "ksyn.data.segEnv" -> "ksyn.control.envSeg"
             rawTypeName.startsWith("ksyn.data.") -> rawTypeName.replace("ksyn.data.", "ksyn.sampling.")

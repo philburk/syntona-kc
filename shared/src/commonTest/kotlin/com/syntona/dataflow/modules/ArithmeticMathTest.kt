@@ -77,4 +77,131 @@ class ArithmeticMathTest {
         val mathBundle = ksynBundle?.subBundles?.find { it.name == "math" }
         assertNotNull(mathBundle?.modules?.find { it.name == "pitchToHz~" }, "pitchToHz~ should be in ksyn.math")
     }
+
+    @Test
+    fun testMinModuleExecution() {
+        val minMod = MinModule()
+        var received = 0.0
+
+        val receiver = object : com.syntona.dataflow.model.Module("receiver") {
+            val inJack = addInput("in", isKickable = true)
+            override fun execute(triggerMessage: Message) {
+                if (triggerMessage is Message.FloatValue) {
+                    received = triggerMessage.value
+                }
+            }
+        }
+
+        val graph = GraphState()
+        graph.addModule(minMod, androidx.compose.ui.geometry.Offset.Zero)
+        graph.addModule(receiver, androidx.compose.ui.geometry.Offset.Zero)
+        graph.connect(minMod.output, receiver.inJack)
+
+        // Set B = 5.0, send A = 3.0 -> min is 3.0
+        minMod.inputB.setValue(5.0)
+        minMod.inputA.receive(Message.FloatValue(ScoreTime.Zero, 3.0))
+        assertEquals(3.0, received, 1e-6)
+
+        // Set B = 5.0, send A = 8.0 -> min is 5.0
+        minMod.inputA.receive(Message.FloatValue(ScoreTime.Zero, 8.0))
+        assertEquals(5.0, received, 1e-6)
+
+        // Negative numbers: B = -2.0, send A = -10.0 -> min is -10.0
+        minMod.inputB.setValue(-2.0)
+        minMod.inputA.receive(Message.FloatValue(ScoreTime.Zero, -10.0))
+        assertEquals(-10.0, received, 1e-6)
+    }
+
+    @Test
+    fun testMaxModuleExecution() {
+        val maxMod = MaxModule()
+        var received = 0.0
+
+        val receiver = object : com.syntona.dataflow.model.Module("receiver") {
+            val inJack = addInput("in", isKickable = true)
+            override fun execute(triggerMessage: Message) {
+                if (triggerMessage is Message.FloatValue) {
+                    received = triggerMessage.value
+                }
+            }
+        }
+
+        val graph = GraphState()
+        graph.addModule(maxMod, androidx.compose.ui.geometry.Offset.Zero)
+        graph.addModule(receiver, androidx.compose.ui.geometry.Offset.Zero)
+        graph.connect(maxMod.output, receiver.inJack)
+
+        // Set B = 5.0, send A = 3.0 -> max is 5.0
+        maxMod.inputB.setValue(5.0)
+        maxMod.inputA.receive(Message.FloatValue(ScoreTime.Zero, 3.0))
+        assertEquals(5.0, received, 1e-6)
+
+        // Set B = 5.0, send A = 8.0 -> max is 8.0
+        maxMod.inputA.receive(Message.FloatValue(ScoreTime.Zero, 8.0))
+        assertEquals(8.0, received, 1e-6)
+
+        // Negative numbers: B = -2.0, send A = -10.0 -> max is -2.0
+        maxMod.inputB.setValue(-2.0)
+        maxMod.inputA.receive(Message.FloatValue(ScoreTime.Zero, -10.0))
+        assertEquals(-2.0, received, 1e-6)
+    }
+
+    @Test
+    fun testAbsModuleExecution() {
+        val absMod = AbsModule()
+        var received = 0.0
+
+        val receiver = object : com.syntona.dataflow.model.Module("receiver") {
+            val inJack = addInput("in", isKickable = true)
+            override fun execute(triggerMessage: Message) {
+                if (triggerMessage is Message.FloatValue) {
+                    received = triggerMessage.value
+                }
+            }
+        }
+
+        val graph = GraphState()
+        graph.addModule(absMod, androidx.compose.ui.geometry.Offset.Zero)
+        graph.addModule(receiver, androidx.compose.ui.geometry.Offset.Zero)
+        graph.connect(absMod.output, receiver.inJack)
+
+        absMod.input.receive(Message.FloatValue(ScoreTime.Zero, -7.5))
+        assertEquals(7.5, received, 1e-6)
+
+        absMod.input.receive(Message.FloatValue(ScoreTime.Zero, 4.2))
+        assertEquals(4.2, received, 1e-6)
+
+        absMod.input.receive(Message.FloatValue(ScoreTime.Zero, 0.0))
+        assertEquals(0.0, received, 1e-6)
+    }
+
+    @Test
+    fun testMinMaxAbsRegistryResolution() {
+        // Short names
+        val minCreator = ModuleRegistry.findCreator("min")
+        assertNotNull(minCreator)
+        assertTrue(minCreator() is MinModule)
+
+        val maxCreator = ModuleRegistry.findCreator("max")
+        assertNotNull(maxCreator)
+        assertTrue(maxCreator() is MaxModule)
+
+        val absCreator = ModuleRegistry.findCreator("abs")
+        assertNotNull(absCreator)
+        assertTrue(absCreator() is AbsModule)
+
+        // Exact path
+        assertEquals("core.math.min", ModuleRegistry.getBundlePath("min"))
+        assertEquals("core.math.max", ModuleRegistry.getBundlePath("max"))
+        assertEquals("core.math.abs", ModuleRegistry.getBundlePath("abs"))
+
+        assertTrue(ModuleRegistry.findCreator("core.math.min")?.invoke() is MinModule)
+        assertTrue(ModuleRegistry.findCreator("core.math.max")?.invoke() is MaxModule)
+        assertTrue(ModuleRegistry.findCreator("core.math.abs")?.invoke() is AbsModule)
+
+        // Legacy / alias basic.math prefix
+        assertTrue(ModuleRegistry.findCreator("basic.math.min")?.invoke() is MinModule)
+        assertTrue(ModuleRegistry.findCreator("basic.math.max")?.invoke() is MaxModule)
+        assertTrue(ModuleRegistry.findCreator("basic.math.abs")?.invoke() is AbsModule)
+    }
 }

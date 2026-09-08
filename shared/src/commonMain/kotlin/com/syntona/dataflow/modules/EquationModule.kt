@@ -119,7 +119,7 @@ class EquationModule(type: String) : Module(type) {
                 validateAst(node.arg)
             }
             is BinaryNode -> {
-                val allowed = listOf("+", "-", "*", "/", "^", "power")
+                val allowed = listOf("+", "-", "*", "/", "^", "power", "min", "max")
                 if (node.operation !in allowed) {
                     throw IllegalArgumentException("Unknown operator: ${node.operation}")
                 }
@@ -174,6 +174,8 @@ class EquationModule(type: String) : Module(type) {
                     "*" -> l * r
                     "/" -> l / r
                     "^", "power" -> l.pow(r)
+                    "min" -> kotlin.math.min(l, r)
+                    "max" -> kotlin.math.max(l, r)
                     else -> throw IllegalArgumentException("Unknown binary operation: ${node.operation}")
                 }
             }
@@ -310,13 +312,28 @@ class SimpleExpressionParser(val input: String) {
                 pos++ // consume ')'
                 return NullaryNode(name)
             }
-            val arg = parseExpression()
+            val args = mutableListOf<ExpressionNode>()
+            args.add(parseExpression())
             skipWhitespace()
+            while (pos < input.length && input[pos] == ',') {
+                pos++ // consume ','
+                skipWhitespace()
+                args.add(parseExpression())
+                skipWhitespace()
+            }
             if (pos >= input.length || input[pos] != ')') {
                 throw IllegalArgumentException("Expected ')' after function argument")
             }
             pos++ // consume ')'
-            return UnaryNode(name, arg)
+            return when {
+                (name == "min" || name == "max") && args.size < 2 ->
+                    throw IllegalArgumentException("Function '$name' requires at least 2 arguments")
+                name == "min" || name == "max" ->
+                    args.reduce { acc, node -> BinaryNode(name, acc, node) }
+                args.size == 1 -> UnaryNode(name, args[0])
+                args.size == 2 -> BinaryNode(name, args[0], args[1])
+                else -> throw IllegalArgumentException("Function '$name' does not accept ${args.size} arguments")
+            }
         }
         // It's a variable/symbol
         return VariableNode(name)

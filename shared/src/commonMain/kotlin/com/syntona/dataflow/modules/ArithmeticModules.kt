@@ -1,5 +1,8 @@
 package com.syntona.dataflow.modules
 
+import kotlin.math.abs
+import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.sin
 import kotlin.math.cos
 import com.syntona.dataflow.model.Message
@@ -124,3 +127,25 @@ class PitchToFrequencyModule : UnaryOperatorModule("pitchToHz") {
         output.send(Message.FloatValue(triggerMessage.time, result))
     }
 }
+
+class MinModule : BinaryOperatorModule("min") {
+    override fun execute(triggerMessage: Message) {
+        val result = min(inputA.getDoubleValue(), inputB.getDoubleValue())
+        output.send(Message.FloatValue(triggerMessage.time, result))
+    }
+}
+
+class MaxModule : BinaryOperatorModule("max") {
+    override fun execute(triggerMessage: Message) {
+        val result = max(inputA.getDoubleValue(), inputB.getDoubleValue())
+        output.send(Message.FloatValue(triggerMessage.time, result))
+    }
+}
+
+class AbsModule : UnaryOperatorModule("abs") {
+    override fun execute(triggerMessage: Message) {
+        val result = abs(input.getDoubleValue())
+        output.send(Message.FloatValue(triggerMessage.time, result))
+    }
+}
+

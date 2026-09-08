@@ -264,5 +264,57 @@ class EquationModuleTest {
         assertTrue(mod.height >= mod.minHeight, "Height should be clamped to minHeight")
         assertEquals(60f, mod.height, "f(x,y) height should be clamped to 60f to keep Y jack visible")
     }
+
+    @Test
+    fun testAbsFunction() {
+        assertEquals(5.0, evaluateFormula("abs(x)", x = -5.0))
+        assertEquals(5.0, evaluateFormula("abs(x)", x = 5.0))
+        assertEquals(0.0, evaluateFormula("abs(x)", x = 0.0))
+        assertEquals(12.3, evaluateFormula("abs(x)", x = -12.3), 1e-6)
+    }
+
+    @Test
+    fun testMinAndMaxFunctions() {
+        // min binary
+        assertEquals(3.0, evaluateFormula("min(x, y)", x = 3.0, y = 7.0))
+        assertEquals(3.0, evaluateFormula("min(x, y)", x = 7.0, y = 3.0))
+        assertEquals(-5.0, evaluateFormula("min(x, y)", x = -5.0, y = 2.0))
+        assertEquals(4.0, evaluateFormula("min(x, 4)", x = 9.0))
+        assertEquals(0.0, evaluateFormula("min(x, 4)", x = 0.0))
+
+        // max binary
+        assertEquals(7.0, evaluateFormula("max(x, y)", x = 3.0, y = 7.0))
+        assertEquals(7.0, evaluateFormula("max(x, y)", x = 7.0, y = 3.0))
+        assertEquals(2.0, evaluateFormula("max(x, y)", x = -5.0, y = 2.0))
+        assertEquals(10.0, evaluateFormula("max(x, 10)", x = 2.0))
+        assertEquals(15.0, evaluateFormula("max(x, 10)", x = 15.0))
+    }
+
+    @Test
+    fun testMinAndMaxMultiArgAndCompound() {
+        // 3 args
+        assertEquals(1.0, evaluateFormula("min(x, y, z)", x = 5.0, y = 1.0, z = 8.0))
+        assertEquals(8.0, evaluateFormula("max(x, y, z)", x = 5.0, y = 1.0, z = 8.0))
+
+        // 4 args
+        assertEquals(2.0, evaluateFormula("min(10, 4, 2, 7)"))
+        assertEquals(10.0, evaluateFormula("max(10, 4, 2, 7)"))
+
+        // Compound: min with abs and max
+        assertEquals(3.0, evaluateFormula("min(abs(x), max(y, z))", x = -3.0, y = 10.0, z = 5.0))
+        assertEquals(5.0, evaluateFormula("max(abs(x), min(y, z))", x = -5.0, y = 1.0, z = 2.0))
+    }
+
+    @Test
+    fun testMinMaxArgErrors() {
+        val mod = EquationModule("f(x)")
+        val compileMinSingleArg = mod.compile("min(x)")
+        kotlin.test.assertFalse(compileMinSingleArg, "min with single arg should fail compilation")
+        assertTrue(mod.errorMessage?.contains("requires at least 2 arguments") == true)
+
+        val compileMaxSingleArg = mod.compile("max(x)")
+        kotlin.test.assertFalse(compileMaxSingleArg, "max with single arg should fail compilation")
+        assertTrue(mod.errorMessage?.contains("requires at least 2 arguments") == true)
+    }
 }
 

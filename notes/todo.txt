@@ -3,7 +3,12 @@
 
 Add "min" and "max" modules to the basic.math bundle.
 
-Do not connect a blue port to an orange port or vice versa.
+Do not connect a blue event-type port to an orange VoiceMessage port, or vice versa.
+Except for the input of a showMany, or an addTime, which can accept any type of message.
+Are there any other input ports that can accept any type of message?
+Maybe we should give those universal inputs a different color, like white signifying, all colors.
+What do you think? Please propose a design.
+
 
 On FireFox plug in MIDI hardware before running Syntona.
 Install the MIDI Add-on.
