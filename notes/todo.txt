@@ -1,15 +1,9 @@
 
 # ------------- For Nicks class
 
-Fix WAV load and sav dialogs.
-
 Add "min" and "max" modules to the basic.math bundle.
 
-EnvelopeEditor "sustain loop" checkbox is low contrast.
-
-segEnv should not have to end on y==0, may want to queue an upward ramp of frequency.
-BUG: EnvelopeEditor, points at end or added to the end cannot be moved up or deleted. See midi_driven.sntn.
-EnvelopeEditor needs axis labels, time extend at right edge (KSyn)
+Do not connect a blue port to an orange port or vice versa.
 
 On FireFox plug in MIDI hardware before running Syntona.
 Install the MIDI Add-on.
@@ -19,6 +13,8 @@ Install the MIDI Add-on.
 Try to save a native signed version.
 
 Timeline - show time as a popup when dragging.
+
+A seq with numeric fields or knobs or horizontal faders that can be swept quickly to make a shape.
 
 I need to do some operations involving time in Syntona.
 One module, maybe call it "grabTime", takes any incoming message, extracts the

@@ -72,25 +72,43 @@ class BeatClockModule : Module("beatClock"), EngineAware {
         return (divVal * 60_000_000_000.0 / t).coerceAtLeast(1_000_000.0)
     }
 
-    private fun getDivisionValue(div: String): Double {
+    fun getDivisionValue(div: String): Double {
         return when (div) {
-            "4/1" -> 4.0
-            "3/1" -> 3.0
-            "2/1" -> 2.0
+            "1/4" -> 4.0
+            "1/3" -> 3.0
+            "1/2" -> 2.0
             "1/1" -> 1.0
-            "1/2" -> 0.5
-            "3/8" -> 3.0 / 8.0
-            "1/4" -> 0.25
-            "3/16" -> 3.0 / 16.0
-            "1/8" -> 0.125
-            "1/16" -> 1.0 / 16.0
-            "1/32" -> 1.0 / 32.0
-            "1/3" -> 1.0 / 3.0
-            "1/6" -> 1.0 / 6.0
-            "1/12" -> 1.0 / 12.0
-            "1/5" -> 0.2
-            "1/10" -> 0.1
-            else -> 1.0
+            "2/1" -> 0.5
+            "8/3" -> 3.0 / 8.0
+            "4/1" -> 0.25
+            "16/3" -> 3.0 / 16.0
+            "8/1" -> 0.125
+            "16/1" -> 1.0 / 16.0
+            "32/1" -> 1.0 / 32.0
+            "3/1" -> 1.0 / 3.0
+            "6/1" -> 1.0 / 6.0
+            "12/1" -> 1.0 / 12.0
+            "5/1" -> 0.2
+            "10/1" -> 0.1
+            else -> {
+                val parts = div.split('/')
+                if (parts.size == 2) {
+                    val num = parts[0].toDoubleOrNull() ?: 1.0
+                    val den = parts[1].toDoubleOrNull() ?: 1.0
+                    if (num != 0.0) den / num else 1.0
+                } else 1.0
+            }
+        }
+    }
+
+    companion object {
+        fun reverseDivision(div: String): String {
+            val parts = div.split('/')
+            return if (parts.size == 2) {
+                "${parts[1]}/${parts[0]}"
+            } else {
+                div
+            }
         }
     }
 

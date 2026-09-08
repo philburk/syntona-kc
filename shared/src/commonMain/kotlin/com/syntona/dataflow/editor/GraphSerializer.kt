@@ -378,6 +378,33 @@ object GraphSerializer {
         return root.stringify(0)
     }
 
+    private fun isVersionAtMost0_7_2(rootObj: JsonValue.Obj, parentIsLegacy: Boolean? = null): Boolean {
+        val versionCode = (rootObj.map["versionCode"] as? JsonValue.Num)?.value?.toInt()
+        val maxLegacyCode = (0 shl 24) + (7 shl 16) + 2 // 0.7.2
+        if (versionCode != null) {
+            return versionCode <= maxLegacyCode
+        }
+        val versionStr = (rootObj.map["version"] as? JsonValue.Str)?.value
+        if (versionStr != null) {
+            val parsed = parseVersionToCode(versionStr)
+            if (parsed != null) {
+                return parsed <= maxLegacyCode
+            }
+        }
+        if (parentIsLegacy != null) {
+            return parentIsLegacy
+        }
+        return true
+    }
+
+    private fun parseVersionToCode(versionStr: String): Int? {
+        val match = Regex("""^(\d+)\.(\d+)(?:\.(\d+))?""").find(versionStr.trim()) ?: return null
+        val major = match.groupValues[1].toIntOrNull() ?: return null
+        val minor = match.groupValues[2].toIntOrNull() ?: return null
+        val rev = match.groupValues.getOrNull(3)?.toIntOrNull() ?: 0
+        return (major shl 24) + (minor shl 16) + rev
+    }
+
     fun deserialize(
         graphState: GraphState,
         json: String,
@@ -402,15 +429,16 @@ object GraphSerializer {
             (rootVal.map["windowWidth"] as? JsonValue.Num)?.value?.let { patch.windowWidth = it.toFloat() }
             (rootVal.map["windowHeight"] as? JsonValue.Num)?.value?.let { patch.windowHeight = it.toFloat() }
         }
+        val isLegacyVersion = isVersionAtMost0_7_2(rootVal)
         val result = if (finalType == "patch" || finalType == "polyPatch") {
             val innerPatchObj = rootVal.map["patch"] as? JsonValue.Obj
             if (innerPatchObj != null) {
-                deserializeObj(graphState, innerPatchObj, offset, density, problemsList, basePath)
+                deserializeObj(graphState, innerPatchObj, offset, density, problemsList, basePath, isLegacyVersion)
             } else {
-                deserializeObj(graphState, rootVal, offset, density, problemsList, basePath)
+                deserializeObj(graphState, rootVal, offset, density, problemsList, basePath, isLegacyVersion)
             }
         } else {
-            deserializeObj(graphState, rootVal, offset, density, problemsList, basePath)
+            deserializeObj(graphState, rootVal, offset, density, problemsList, basePath, isLegacyVersion)
         }
         if (problemsList.isNotEmpty()) {
             FileState.loadingProblemsReport = problemsList.joinToString("\n")
@@ -424,7 +452,8 @@ object GraphSerializer {
         offset: Offset,
         density: Float = 1f,
         problems: MutableList<String>,
-        basePath: String? = null
+        basePath: String? = null,
+        isLegacyVersion: Boolean = false
     ): List<Module> {
         val effectiveBasePath = basePath ?: graphState.parentPatch?.filePath ?: FileState.currentFilePath
         graphState.isDeserializing = true
@@ -557,7 +586,9 @@ object GraphSerializer {
                 (obj?.map?.get("channel") as? JsonValue.Num)?.value?.toInt()?.let { module.selectChannel(it) }
             }
             if (module is BeatClockModule) {
-                (obj?.map?.get("division") as? JsonValue.Str)?.value?.let { module.division = it }
+                (obj?.map?.get("division") as? JsonValue.Str)?.value?.let { rawDiv ->
+                    module.division = if (isLegacyVersion) BeatClockModule.reverseDivision(rawDiv) else rawDiv
+                }
             }
             if (module is TimelineModule) {
                 (obj?.map?.get("width") as? JsonValue.Num)?.value?.let { module.width = it }
@@ -810,7 +841,7 @@ object GraphSerializer {
                             if (module is PolyPatchModule) {
                                 module.clearVoices()
                             }
-                            deserializeObj(module.graphState, patchObj, Offset.Zero, density, problems, resolvedFilePath ?: effectiveBasePath)
+                            deserializeObj(module.graphState, patchObj, Offset.Zero, density, problems, resolvedFilePath ?: effectiveBasePath, isLegacyVersion)
                             if (module is PolyPatchModule) {
                                 module.ensureDefaultModulesExist()
                             }
@@ -835,11 +866,12 @@ object GraphSerializer {
                                     if (module is PolyPatchModule) {
                                         module.clearVoices()
                                     }
+                                    val childIsLegacy = isVersionAtMost0_7_2(childRootVal, parentIsLegacy = isLegacyVersion)
                                     val innerPatchObj = childRootVal.map["patch"] as? JsonValue.Obj
                                     if (innerPatchObj != null) {
-                                        deserializeObj(module.graphState, innerPatchObj, Offset.Zero, density, problems, resolvedFilePath ?: effectiveBasePath)
+                                        deserializeObj(module.graphState, innerPatchObj, Offset.Zero, density, problems, resolvedFilePath ?: effectiveBasePath, childIsLegacy)
                                     } else {
-                                        deserializeObj(module.graphState, childRootVal, Offset.Zero, density, problems, resolvedFilePath ?: effectiveBasePath)
+                                        deserializeObj(module.graphState, childRootVal, Offset.Zero, density, problems, resolvedFilePath ?: effectiveBasePath, childIsLegacy)
                                     }
                                     if (module is PolyPatchModule) {
                                         module.ensureDefaultModulesExist()
@@ -870,11 +902,12 @@ object GraphSerializer {
                                 if (module is PolyPatchModule) {
                                     module.clearVoices()
                                 }
+                                val childIsLegacy = isVersionAtMost0_7_2(childRootVal, parentIsLegacy = isLegacyVersion)
                                 val innerPatchObj = childRootVal.map["patch"] as? JsonValue.Obj
                                 if (innerPatchObj != null) {
-                                    deserializeObj(module.graphState, innerPatchObj, Offset.Zero, density, problems, resolvedFilePath)
+                                    deserializeObj(module.graphState, innerPatchObj, Offset.Zero, density, problems, resolvedFilePath, childIsLegacy)
                                 } else {
-                                    deserializeObj(module.graphState, childRootVal, Offset.Zero, density, problems, resolvedFilePath)
+                                    deserializeObj(module.graphState, childRootVal, Offset.Zero, density, problems, resolvedFilePath, childIsLegacy)
                                 }
                                 if (module is PolyPatchModule) {
                                     module.ensureDefaultModulesExist()
@@ -892,7 +925,7 @@ object GraphSerializer {
                                 if (module is PolyPatchModule) {
                                     module.clearVoices()
                                 }
-                                deserializeObj(module.graphState, patchObj, Offset.Zero, density, problems, resolvedFilePath)
+                                deserializeObj(module.graphState, patchObj, Offset.Zero, density, problems, resolvedFilePath, isLegacyVersion)
                                 if (module is PolyPatchModule) {
                                     module.ensureDefaultModulesExist()
                                 }
@@ -914,7 +947,7 @@ object GraphSerializer {
                             if (module is PolyPatchModule) {
                                 module.clearVoices()
                             }
-                            deserializeObj(module.graphState, patchObj, Offset.Zero, density, problems, effectiveBasePath)
+                            deserializeObj(module.graphState, patchObj, Offset.Zero, density, problems, effectiveBasePath, isLegacyVersion)
                             if (module is PolyPatchModule) {
                                 module.ensureDefaultModulesExist()
                             }

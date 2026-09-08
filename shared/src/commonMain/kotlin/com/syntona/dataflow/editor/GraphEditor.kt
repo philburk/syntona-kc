@@ -614,55 +614,67 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color? = null, la
             module.inputs.forEach { JackView(it, state, isLeft = true) }
             if (module is BeatClockModule) {
                 HorizontalDivider(color = Color.Black, thickness = 1.dp)
-                Box(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 8.dp, vertical = 4.dp),
-                    contentAlignment = Alignment.Center
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    var expanded by remember { mutableStateOf(false) }
+                    Text(
+                        text = "kicks/beat",
+                        color = Color.Gray,
+                        fontSize = 10.sp
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Box(
-                        modifier = Modifier
-                            .border(1.dp, Color.Gray, RoundedCornerShape(4.dp))
-                            .background(Color(0xFFE0E0E0))
-                            .clickable { expanded = true }
-                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                        contentAlignment = Alignment.Center
                     ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        var expanded by remember { mutableStateOf(false) }
+                        Box(
+                            modifier = Modifier
+                                .border(1.dp, Color.Gray, RoundedCornerShape(4.dp))
+                                .background(Color(0xFFE0E0E0))
+                                .clickable { expanded = true }
+                                .padding(horizontal = 12.dp, vertical = 4.dp)
                         ) {
-                            Text(
-                                text = module.division,
-                                color = Color.Black,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                            DropdownArrow(
-                                color = Color.Gray,
-                                size = 7.dp
-                            )
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Text(
+                                    text = module.division,
+                                    color = Color.Black,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                DropdownArrow(
+                                    color = Color.Gray,
+                                    size = 7.dp
+                                )
+                            }
                         }
-                    }
-                    androidx.compose.material3.DropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { expanded = false }
-                    ) {
-                        val divisions = listOf(
-                            "4/1", "3/1", "2/1", "1/1", "1/2", "3/8", "1/4", "3/16",
-                            "1/8", "1/16", "1/32", "1/3", "1/6", "1/12", "1/5", "1/10"
-                        )
-                        divisions.forEach { div ->
-                            androidx.compose.material3.DropdownMenuItem(
-                                text = { Text(div, fontSize = 12.sp) },
-                                onClick = {
-                                    module.division = div
-                                    FileState.markDirty()
-                                    expanded = false
-                                },
-                                modifier = Modifier.height(28.dp),
-                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                        androidx.compose.material3.DropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false }
+                        ) {
+                            val divisions = listOf(
+                                "1/4", "1/2", "1/1", "2/1", "4/1", "8/1", "16/1", "32/1",
+                                "1/3", "8/3", "16/3",
+                                "3/1", "6/1", "12/1",
+                                "5/1", "10/1"
                             )
+                            divisions.forEach { div ->
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { Text(div, fontSize = 12.sp) },
+                                    onClick = {
+                                        module.division = div
+                                        FileState.markDirty()
+                                        expanded = false
+                                    },
+                                    modifier = Modifier.height(28.dp),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                )
+                            }
                         }
                     }
                 }
