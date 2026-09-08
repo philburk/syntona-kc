@@ -1,7 +1,7 @@
 ## How to Build and Deploy to Website on SoftSynth.com
 
 1. cd ~/work/syntona-kc
-1. ./gradlew :webApp:wasmJsBrowserDistribution
+1. ./gradlew clean :webApp:wasmJsBrowserDistribution
 1. open /Users/phil/Work/softsynth.github.io/src/syntona/
 1. delete contents of the test folder
 1. open webApp/build/dist/wasmJs/productionExecutable

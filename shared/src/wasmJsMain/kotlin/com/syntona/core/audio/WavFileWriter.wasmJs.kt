@@ -6,17 +6,87 @@ import org.khronos.webgl.Int8Array
 import org.khronos.webgl.set
 
 @JsFun("""(array, filename) => {
-    var blob = new Blob([array], {type: 'audio/wav'});
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    function fallbackDownload() {
+        var blob = new Blob([array], {type: 'audio/wav'});
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    var key = filename.split('/').pop().split('\\').pop();
+    var handle = (typeof window !== 'undefined' && window._syntona_file_handles && window._syntona_file_handles[key]) || null;
+    if (handle) {
+        (async function() {
+            try {
+                var perm = await handle.queryPermission({ mode: 'readwrite' });
+                if (perm !== 'granted') {
+                    perm = await handle.requestPermission({ mode: 'readwrite' });
+                }
+                if (perm === 'granted') {
+                    var writable = await handle.createWritable();
+                    await writable.write(array);
+                    await writable.close();
+                    return;
+                }
+            } catch (err) {
+                console.warn("Direct write to wav file handle failed, downloading instead:", err);
+            }
+            fallbackDownload();
+        })();
+        return;
+    }
+
+    try {
+        var req = indexedDB.open("syntona_fs", 1);
+        req.onupgradeneeded = function(e) {
+            var db = e.target.result;
+            if (!db.objectStoreNames.contains("file_handles")) {
+                db.createObjectStore("file_handles");
+            }
+        };
+        req.onsuccess = function(e) {
+            var db = e.target.result;
+            if (!db.objectStoreNames.contains("file_handles")) {
+                fallbackDownload();
+                return;
+            }
+            var tx = db.transaction("file_handles", "readonly");
+            var getReq = tx.objectStore("file_handles").get(key);
+            getReq.onsuccess = async function() {
+                var idbHandle = getReq.result;
+                if (!idbHandle) {
+                    fallbackDownload();
+                    return;
+                }
+                try {
+                    var perm = await idbHandle.queryPermission({ mode: 'readwrite' });
+                    if (perm !== 'granted') {
+                        perm = await idbHandle.requestPermission({ mode: 'readwrite' });
+                    }
+                    if (perm === 'granted') {
+                        var writable = await idbHandle.createWritable();
+                        await writable.write(array);
+                        await writable.close();
+                        return;
+                    }
+                } catch (err) {
+                    console.warn("Direct write to IndexedDB wav handle failed, downloading instead:", err);
+                }
+                fallbackDownload();
+            };
+            getReq.onerror = function() { fallbackDownload(); };
+        };
+        req.onerror = function() { fallbackDownload(); };
+    } catch (e) {
+        fallbackDownload();
+    }
 }""")
-private external fun jsDownloadWav(array: Int8Array, filename: String)
+private external fun jsSaveOrDownloadWav(array: Int8Array, filename: String)
 
 actual class WavFileWriter actual constructor(
     private val filePath: String,
@@ -105,7 +175,22 @@ actual class WavFileWriter actual constructor(
             jsArray[writeIdx] = 0
         }
 
-        // Download the file!
-        jsDownloadWav(jsArray, filePath)
+        val fullWavBytes = ByteArray(totalSize)
+        for (i in 0 until 44) {
+            fullWavBytes[i] = header[i]
+        }
+        var writeIdx2 = 44
+        for (chunk in chunks) {
+            for (b in chunk) {
+                fullWavBytes[writeIdx2++] = b
+            }
+        }
+        if (isOdd) {
+            fullWavBytes[writeIdx2] = 0
+        }
+        com.syntona.dataflow.editor.cacheBinaryFile(filePath, fullWavBytes)
+
+        // Save to file handle or download the file!
+        jsSaveOrDownloadWav(jsArray, filePath)
     }
 }

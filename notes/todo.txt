@@ -1,19 +1,9 @@
 
 # ------------- For Nicks class
 
-Add "Save Complete File As..." to File menu so students
-can deliver a file that does not reference missing files.
-Does URL include the referenced patch. No!!! BUG: fix it.
-Web cannot expand external file reference in a patch!
-
-Clean up syntona website
+Fix WAV load and sav dialogs.
 
 Add "min" and "max" modules to the basic.math bundle.
-
-# ----------------------------------------------- HIGH PRIORITY
-
-Try to save a native signed version.
-
 
 EnvelopeEditor "sustain loop" checkbox is low contrast.
 
@@ -23,6 +13,10 @@ EnvelopeEditor needs axis labels, time extend at right edge (KSyn)
 
 On FireFox plug in MIDI hardware before running Syntona.
 Install the MIDI Add-on.
+
+# ----------------------------------------------- HIGH PRIORITY
+
+Try to save a native signed version.
 
 Timeline - show time as a popup when dragging.
 

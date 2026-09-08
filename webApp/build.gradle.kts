@@ -40,14 +40,7 @@ tasks.named("wasmJsProcessResources") {
 tasks.matching {
     it.name == "wasmJsProductionExecutableCompileSync" || it.name == "wasmJsDevelopmentExecutableCompileSync"
 }.configureEach {
-    val buildDir = layout.buildDirectory.get().asFile
-    doLast {
-        val destDir = File(buildDir, "wasm/packages/SyntonaKC-webApp/kotlin")
-        val skikoSrcDir = File(buildDir, "wasm/packages_imported/skiko-js-wasm-runtime")
-        if (skikoSrcDir.exists()) {
-            skikoSrcDir.walkTopDown().filter { it.isFile && (it.name.endsWith(".mjs") || it.name.endsWith(".wasm")) }.forEach { file ->
-                file.copyTo(File(destDir, file.name), overwrite = true)
-            }
-        }
-    }
+    val processSkiko = tasks.named("processSkikoRuntimeForKWasm")
+    dependsOn(processSkiko)
+    (this as? org.jetbrains.kotlin.gradle.targets.js.ir.DefaultIncrementalSyncTask)?.from?.from(processSkiko)
 }

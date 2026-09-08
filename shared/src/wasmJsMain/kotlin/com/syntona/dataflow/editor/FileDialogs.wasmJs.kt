@@ -3,6 +3,8 @@
 package com.syntona.dataflow.editor
 
 import com.syntona.SYNTONA_FILE_SUFFIX
+import org.khronos.webgl.Int8Array
+import org.khronos.webgl.get
 
 @JsFun("""(callback) => {
     function fallbackInput() {
@@ -342,28 +344,165 @@ actual fun readRecentPatchFile(path: String, onResult: (content: String?) -> Uni
     jsReadRecentFileFromDisk(path, onResult)
 }
 
-@JsFun("() => { return prompt('Enter filename for recording:', 'recording.wav'); }")
-private external fun jsPrompt(): String?
+private val binaryFileCache = mutableMapOf<String, ByteArray>()
 
-actual fun chooseWavRecordFile(defaultName: String, onSelected: (path: String) -> Unit) {
-    val name = jsPrompt()
-    if (name != null && name.isNotBlank()) {
-        val cleanName = if (name.endsWith(".wav")) name else "$name.wav"
-        onSelected(cleanName)
-    }
+fun cacheBinaryFile(path: String, bytes: ByteArray) {
+    binaryFileCache[path] = bytes
+    val key = path.substringAfterLast('/').substringAfterLast('\\')
+    binaryFileCache[key] = bytes
 }
 
+@JsFun("""(defaultName, callback) => {
+    var cleanName = defaultName.endsWith('.wav') ? defaultName : defaultName + '.wav';
+
+    function fallback() {
+        callback(cleanName);
+    }
+
+    if (typeof window !== 'undefined' && window.showSaveFilePicker) {
+        window.showSaveFilePicker({
+            suggestedName: cleanName,
+            types: [{
+                description: 'WAV audio files (*.wav)',
+                accept: {
+                    'audio/wav': ['.wav']
+                }
+            }]
+        }).then(async function(handle) {
+            if (!handle) return;
+            try {
+                window._syntona_file_handles = window._syntona_file_handles || {};
+                window._syntona_file_handles[handle.name] = handle;
+
+                var req = indexedDB.open("syntona_fs", 1);
+                req.onupgradeneeded = function(e) {
+                    var db = e.target.result;
+                    if (!db.objectStoreNames.contains("file_handles")) {
+                        db.createObjectStore("file_handles");
+                    }
+                };
+                req.onsuccess = function(e) {
+                    var db = e.target.result;
+                    var tx = db.transaction("file_handles", "readwrite");
+                    tx.objectStore("file_handles").put(handle, handle.name);
+                    tx.oncomplete = function() {
+                        callback(handle.name);
+                    };
+                    tx.onerror = function(err) {
+                        console.warn("Failed to store wav handle in IndexedDB:", err);
+                        callback(handle.name);
+                    };
+                };
+                req.onerror = function(err) {
+                    console.warn("Failed to open IndexedDB for wav save:", err);
+                    callback(handle.name);
+                };
+            } catch (e) {
+                console.warn("Failed to persist wav file handle:", e);
+                callback(handle.name);
+            }
+        }).catch(function(err) {
+            if (err.name !== 'AbortError') {
+                console.error("WAV save file picker failed, falling back:", err);
+                fallback();
+            }
+        });
+    } else {
+        fallback();
+    }
+}""")
+private external fun jsChooseWavRecordFile(defaultName: String, callback: (String) -> Unit)
+
+actual fun chooseWavRecordFile(defaultName: String, onSelected: (path: String) -> Unit) {
+    jsChooseWavRecordFile(defaultName, onSelected)
+}
+
+@JsFun("""(callback) => {
+    function handleFile(file) {
+        var reader = new FileReader();
+        reader.onload = function(ev) {
+            var array = new Int8Array(ev.target.result);
+            callback(file.name, array);
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    function fallbackInput() {
+        var input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.wav,audio/wav';
+        input.onchange = function(e) {
+            var file = e.target.files[0];
+            if (!file) return;
+            handleFile(file);
+        };
+        input.click();
+    }
+
+    if (typeof window !== 'undefined' && window.showOpenFilePicker) {
+        window.showOpenFilePicker({
+            types: [{
+                description: 'WAV audio files (*.wav)',
+                accept: {
+                    'audio/wav': ['.wav']
+                }
+            }],
+            multiple: false
+        }).then(async function(handles) {
+            if (!handles || handles.length === 0) return;
+            var handle = handles[0];
+            try {
+                window._syntona_file_handles = window._syntona_file_handles || {};
+                window._syntona_file_handles[handle.name] = handle;
+
+                var req = indexedDB.open("syntona_fs", 1);
+                req.onupgradeneeded = function(e) {
+                    var db = e.target.result;
+                    if (!db.objectStoreNames.contains("file_handles")) {
+                        db.createObjectStore("file_handles");
+                    }
+                };
+                req.onsuccess = function(e) {
+                    var db = e.target.result;
+                    var tx = db.transaction("file_handles", "readwrite");
+                    tx.objectStore("file_handles").put(handle, handle.name);
+                };
+            } catch (e) {
+                console.warn("Failed to persist opened wav handle in IndexedDB:", e);
+            }
+            var file = await handle.getFile();
+            var buffer = await file.arrayBuffer();
+            var array = new Int8Array(buffer);
+            callback(handle.name, array);
+        }).catch(function(err) {
+            if (err.name !== 'AbortError') {
+                console.error("Open WAV file picker failed, trying fallback:", err);
+                fallbackInput();
+            }
+        });
+    } else {
+        fallbackInput();
+    }
+}""")
+private external fun jsOpenWavFilePicker(callback: (String, Int8Array) -> Unit)
+
 actual fun chooseWavOpenFile(onSelected: (path: String) -> Unit) {
-    val name = jsPrompt()
-    if (name != null && name.isNotBlank()) {
-        val cleanName = if (name.endsWith(".wav")) name else "$name.wav"
-        onSelected(cleanName)
+    jsOpenWavFilePicker { fileName, jsArray ->
+        val bytes = ByteArray(jsArray.length)
+        for (i in 0 until jsArray.length) {
+            bytes[i] = jsArray[i]
+        }
+        cacheBinaryFile(fileName, bytes)
+        onSelected(fileName)
     }
 }
 
 actual fun readFileDirect(path: String): String? = null
 
-actual fun readBinaryFileDirect(path: String): ByteArray? = null
+actual fun readBinaryFileDirect(path: String): ByteArray? {
+    val key = path.substringAfterLast('/').substringAfterLast('\\')
+    return binaryFileCache[path] ?: binaryFileCache[key]
+}
 
 actual fun readResourceFileDirect(relativePath: String): String? {
     val stem = relativePath.substringAfterLast('/').substringBeforeLast(".json").substringBeforeLast(SYNTONA_FILE_SUFFIX)
