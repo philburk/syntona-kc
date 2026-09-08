@@ -44,3 +44,7 @@ tasks.matching {
     dependsOn(processSkiko)
     (this as? org.jetbrains.kotlin.gradle.targets.js.ir.DefaultIncrementalSyncTask)?.from?.from(processSkiko)
 }
+
+tasks.named<Delete>("clean") {
+    delete(rootProject.layout.buildDirectory.dir("wasm/packages/SyntonaKC-webApp"))
+}
