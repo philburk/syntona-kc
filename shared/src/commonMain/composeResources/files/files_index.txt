@@ -27,6 +27,7 @@ examples/sampleWriter.json
 examples/saw_noise.json
 examples/stepper.json
 examples/timeline.json
+examples/valueList.json
 examples/vibrato.json
 examples/wavey_square.json
 examples/zeroCrossing.json

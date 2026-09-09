@@ -1,0 +1,221 @@
+{
+  "version": "0.7.5 beta",
+  "versionCode": 458757,
+  "modules": [
+    {
+      "id": 0,
+      "type": "core.basic.valueList",
+      "name": "valueList",
+      "x": 370.9,
+      "y": 339,
+      "jacks": {
+        "add": {
+          "v": 271,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "get": {
+          "v": 1,
+          "min": 0,
+          "max": 65535,
+          "kickable": true,
+          "integer": true
+        },
+        "set": {
+          "v": 198,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "index": {
+          "v": 1,
+          "min": 0,
+          "max": 65535,
+          "kickable": false,
+          "integer": true
+        },
+        "capacity": {
+          "v": 1024,
+          "min": 1,
+          "max": 65536,
+          "kickable": false,
+          "integer": true
+        }
+      }
+    },
+    {
+      "id": 1,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 531.9,
+      "y": 620,
+      "jacks": {
+        "in": {
+          "v": 3,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 522.9,
+      "y": 508,
+      "jacks": {
+        "in": {
+          "v": 198,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "core.input.number",
+      "name": "number",
+      "x": 146.9,
+      "y": 406.1,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 1,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "core.input.number",
+      "name": "number",
+      "x": 139.9,
+      "y": 326.1,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 271,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "core.view.flash",
+      "name": "flash",
+      "x": 572.9,
+      "y": 418,
+      "jacks": {
+        "flash": {
+          "v": 198,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "core.input.number",
+      "name": "number",
+      "x": 150,
+      "y": 564.1,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 1,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "core.input.number",
+      "name": "number",
+      "x": 149.9,
+      "y": 482,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 198,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        }
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": 0,
+      "fromJack": "size",
+      "to": 1,
+      "toJack": "in"
+    },
+    {
+      "from": 0,
+      "fromJack": "out",
+      "to": 2,
+      "toJack": "in"
+    },
+    {
+      "from": 3,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "get"
+    },
+    {
+      "from": 4,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "add"
+    },
+    {
+      "from": 0,
+      "fromJack": "out",
+      "to": 5,
+      "toJack": "flash"
+    },
+    {
+      "from": 6,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "index"
+    },
+    {
+      "from": 7,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "set"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 1263.8924560546875,
+  "windowHeight": 813.936279296875
+}

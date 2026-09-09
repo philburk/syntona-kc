@@ -42,6 +42,7 @@ object ModuleRegistry {
         basic.modules.add(ModuleEntry("addTime") { AddTimeModule() })
         basic.modules.add(ModuleEntry("grabTime") { GrabTimeModule() })
         basic.modules.add(ModuleEntry("timeNow") { TimeNowModule() })
+        basic.modules.add(ModuleEntry("valueList") { ValueListModule() })
         basic.modules.add(ModuleEntry("counter") { CounterModule() })
         basic.modules.add(ModuleEntry("seq2") { SequenceModule(2) })
         basic.modules.add(ModuleEntry("seq8") { SequenceModule(8) })
