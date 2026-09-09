@@ -62,11 +62,11 @@ class ZeroCrossingModule : Module("zeroCrossing"), EngineAware {
         output = addAudioOutput("out", detector.output, 0)
         trigger = addOutput("trigger")
 
-        detector.onZeroCrossing = { _, count ->
+        detector.onZeroCrossing = { synthTime, _ ->
             val e = engine
             if (e != null) {
                 val now = ScoreClock.now()
-                e.post(SendOutputCommand(trigger, Message.FloatValue(now, count.toDouble())))
+                e.post(SendOutputCommand(trigger, Message.FloatValue(now, synthTime)))
             }
         }
     }

@@ -24,16 +24,15 @@ timestamp then sends it out as a double value in seconds.
 The second module will simply output the current ScoreTime when kicked.
 
 Need a dynamic array or list class with some basic operations.
-add: add value from incoming message to the end
-size or length: fires when changed
-get: get value at index
-set: set value at index
-index: index of element to use with get/set
-clear: clear all elements
-capacity: maximum size
-Should the capacity be the preallocated memory size? More data will require reallocation?
-Or should it be a hard limit on the size?
-Should this be stored as an array or as a list for better real-time?
+    index: index of element to use with get/set
+    get: get value at index
+    set: set incoming value at index
+    add: add value from incoming message to the end
+    size or length: fires when changed by add or clear
+    clear: clear all elements
+    capacity: maximum size that the list can grow to
+    out: value from the get operation
+Should this be stored as an array or as a list for better real-time performance?
 
 
 Audio units need a way to call a lambda from the audio domain on a coroutine

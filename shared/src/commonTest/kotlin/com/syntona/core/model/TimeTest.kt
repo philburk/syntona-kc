@@ -24,6 +24,16 @@ class TimeTest {
     }
 
     @Test
+    fun scoreTimeSecondsConversion() {
+        val t = ScoreTime(1_500_000_000L)
+        assertEquals(1.5, t.seconds)
+
+        val fromSec = ScoreTime.fromSeconds(2.75)
+        assertEquals(2_750_000_000L, fromSec.nanoseconds)
+        assertEquals(2.75, fromSec.seconds)
+    }
+
+    @Test
     fun queueOneEvent() {
         val queue = ScheduledQueue<TestEvent>()
         queue.add(ScoreTime(100), TestEvent(555))

@@ -132,10 +132,10 @@ class ZeroCrossingDetectorTest {
         detector.hysteresis.set(0.01)
         detector.holdOffMs.set(0.0)
 
-        var callbackSampleIndex = -1
+        var callbackTime = -1.0
         var callbackCount = -1L
-        detector.onZeroCrossing = { idx, count ->
-            callbackSampleIndex = idx
+        detector.onZeroCrossing = { time, count ->
+            callbackTime = time
             callbackCount = count
         }
 
@@ -143,7 +143,8 @@ class ZeroCrossingDetectorTest {
         val blockWithCrossing = floatArrayOf(-0.2f, -0.1f, 0.3f, 0.4f, 0.5f, 0.6f, 0.7f, 0.8f)
         detector.pump(blockWithCrossing)
 
-        assertEquals(2, callbackSampleIndex)
+        val expectedTime = 2 * detector.framePeriod
+        assertEquals(expectedTime, callbackTime, 1e-9)
         assertEquals(1L, callbackCount)
     }
 

@@ -37,10 +37,10 @@ class ZeroCrossingDetector : UnitGenerator() {
     /**
      * Callback invoked synchronously on the audio thread/coroutine when a crossing occurs.
      * Arguments:
-     * - `sampleIndex`: frame index within the 8-frame block (0 until Synthesizer.FRAMES_PER_BLOCK)
+     * - `sampleIndex`: frame index of the zero crossing frame
      * - `count`: cumulative crossing count
      */
-    var onZeroCrossing: ((sampleIndex: Int, count: Long) -> Unit)? = null
+    var onZeroCrossing: ((synthTime: Double, count: Long) -> Unit)? = null
 
     private var armed = false
     private var framesSinceTrigger = Int.MAX_VALUE / 2
@@ -86,7 +86,9 @@ class ZeroCrossingDetector : UnitGenerator() {
                     impulse = 1.0f
                     count++
                     framesSinceTrigger = 0
-                    onZeroCrossing?.invoke(i, count)
+                    val frame = (synthesisEngine?.frameCount ?: 0L) + i
+                    val time = frame * framePeriod
+                    onZeroCrossing?.invoke(time, count)
                 }
                 armed = false
             }

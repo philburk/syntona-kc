@@ -1,6 +1,6 @@
 {
-  "version": "0.7.4 beta",
-  "versionCode": 458756,
+  "version": "0.7.5 beta",
+  "versionCode": 458757,
   "modules": [
     {
       "id": 0,
@@ -10,7 +10,7 @@
       "y": 112,
       "jacks": {
         "in": {
-          "v": 0.24966256320476532,
+          "v": 1,
           "min": 0,
           "max": 1,
           "kickable": false,
@@ -36,11 +36,11 @@
       "id": 1,
       "type": "core.view.flash",
       "name": "flash",
-      "x": 447.9,
-      "y": 304.9,
+      "x": 172.9,
+      "y": 356.9,
       "jacks": {
         "flash": {
-          "v": 10,
+          "v": 307.13866666666667,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -60,7 +60,7 @@
           "kickable": true
         },
         "in": {
-          "v": 0.24966256320476532,
+          "v": 1,
           "min": -1,
           "max": 1,
           "kickable": false
@@ -71,8 +71,8 @@
       "id": 3,
       "type": "ksyn.lineOut",
       "name": "lineOut",
-      "x": 768.9,
-      "y": 153,
+      "x": 800.9,
+      "y": 74,
       "jacks": {
         "in0": {
           "v": 0,
@@ -94,8 +94,8 @@
       "id": 4,
       "type": "ksyn.sources.sineOsc",
       "name": "sineOsc",
-      "x": 503.9,
-      "y": 55,
+      "x": 551.9,
+      "y": 40,
       "jacks": {
         "frequency": {
           "v": 440,
@@ -117,8 +117,8 @@
       "id": 5,
       "type": "ksyn.control.envAD",
       "name": "envAD",
-      "x": 674.9,
-      "y": 101,
+      "x": 681.9,
+      "y": 40,
       "jacks": {
         "in": {
           "v": 0,
@@ -149,6 +149,87 @@
           "add": false
         }
       }
+    },
+    {
+      "id": 6,
+      "type": "core.basic.grabTime",
+      "name": "grabTime",
+      "x": 426,
+      "y": 338.9,
+      "jacks": {
+        "in": {
+          "v": 307.13866666666667,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 539.9,
+      "y": 379.9,
+      "jacks": {
+        "in": {
+          "v": 308.023584709,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 533.9,
+      "y": 213.9,
+      "jacks": {
+        "in": {
+          "v": 307.13866666666667,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 9,
+      "type": "core.math.-",
+      "name": "-",
+      "x": 705.9,
+      "y": 269.9,
+      "jacks": {
+        "A": {
+          "v": 308.023584709,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "B": {
+          "v": 307.13866666666667,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 767.9,
+      "y": 283.9,
+      "jacks": {
+        "in": {
+          "v": 0.884918042333311,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
     }
   ],
   "connections": [
@@ -165,12 +246,6 @@
       "toJack": "in"
     },
     {
-      "from": 0,
-      "fromJack": "out",
-      "to": 5,
-      "toJack": "in"
-    },
-    {
       "from": 4,
       "fromJack": "out",
       "to": 5,
@@ -181,6 +256,48 @@
       "fromJack": "out",
       "to": 3,
       "toJack": "in0"
+    },
+    {
+      "from": 6,
+      "fromJack": "out",
+      "to": 7,
+      "toJack": "in"
+    },
+    {
+      "from": 0,
+      "fromJack": "out",
+      "to": 5,
+      "toJack": "in"
+    },
+    {
+      "from": 0,
+      "fromJack": "trigger",
+      "to": 9,
+      "toJack": "B"
+    },
+    {
+      "from": 0,
+      "fromJack": "trigger",
+      "to": 6,
+      "toJack": "in"
+    },
+    {
+      "from": 6,
+      "fromJack": "out",
+      "to": 9,
+      "toJack": "A"
+    },
+    {
+      "from": 9,
+      "fromJack": "out",
+      "to": 10,
+      "toJack": "in"
+    },
+    {
+      "from": 0,
+      "fromJack": "trigger",
+      "to": 8,
+      "toJack": "in"
     }
   ],
   "windowX": 10,
