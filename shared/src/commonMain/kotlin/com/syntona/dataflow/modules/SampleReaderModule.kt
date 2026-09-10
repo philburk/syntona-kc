@@ -46,6 +46,7 @@ class SampleReaderModule : Module("sampleReader") {
     val startIn: CommandJack
     val stopIn: CommandJack
     val offset: InputJack
+    val offsetSec: InputJack
     val durationMs: InputJack
     val loopInput: com.syntona.dataflow.model.BooleanInputJack
     val looping: com.syntona.dataflow.model.BooleanInputJack get() = loopInput
@@ -75,6 +76,11 @@ class SampleReaderModule : Module("sampleReader") {
             max = 1.0
             setValue(0.0)
         }
+        offsetSec = addInput("offsetSec", isKickable = true).apply {
+            min = 0.0
+            max = 600.0
+            setValue(0.0)
+        }
         durationMs = addInput("durationMs", isKickable = true).apply {
             min = 0.0
             max = 10000.0
@@ -91,7 +97,7 @@ class SampleReaderModule : Module("sampleReader") {
             max = 1.0
             setValue(1.0)
         }
-        output = addAudioOutput("out", unit.output!!, 0)
+        output = addAudioOutput("out", unit.output, 0)
     }
 
     override fun onMessageReceived(jack: InputJack, msg: Message) {
@@ -109,7 +115,7 @@ class SampleReaderModule : Module("sampleReader") {
                 isPlayingLoop = false
                 unit.dataQueue.clear(SynthKSyn.synth.createTimeStamp())
             }
-            offset, durationMs -> {
+            offset, offsetSec, durationMs -> {
                 val shouldLoop = isLooping || loopInput.getClippedDoubleValue() >= 0.5
                 if (shouldLoop && (isPlayingLoop || unit.dataQueue.hasMore())) {
                     triggerSlice(immediate = false, skipIfOthers = true)
@@ -129,9 +135,12 @@ class SampleReaderModule : Module("sampleReader") {
         rateMultiplier.inputB.set(sampleFrameRate.toFloat())
 
         val offsetNorm = offset.getClippedDoubleValue().coerceIn(0.0, 1.0)
+        val offsetSecVal = offsetSec.getDoubleValue().coerceAtLeast(0.0)
         val durationMsVal = durationMs.getClippedDoubleValue()
 
-        val startFrame = (offsetNorm * totalFrames).toInt().coerceIn(0, (totalFrames - 1).coerceAtLeast(0))
+        val startFrameFromNorm = (offsetNorm * totalFrames).toInt()
+        val startFrameFromSec = (offsetSecVal * sampleFrameRate).toInt()
+        val startFrame = (startFrameFromNorm + startFrameFromSec).coerceIn(0, (totalFrames - 1).coerceAtLeast(0))
         val maxAvailable = totalFrames - startFrame
 
         val numFrames = if (durationMsVal <= 0.0) {

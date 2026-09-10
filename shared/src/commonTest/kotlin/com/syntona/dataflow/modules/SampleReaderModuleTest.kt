@@ -24,7 +24,7 @@ class SampleReaderModuleTest {
         val module = SampleReaderModule()
         assertEquals("sampleReader", module.name)
 
-        assertEquals(8, module.inputs.size)
+        assertEquals(9, module.inputs.size)
         assertEquals("data", module.inputs[0].name)
         assertTrue(module.inputs[0] is DataQueueInputJack)
         assertFalse(module.inputs[0].isValueDraggable)
@@ -36,17 +36,19 @@ class SampleReaderModuleTest {
         assertTrue(module.inputs[2] is CommandJack)
         assertEquals("offset", module.inputs[3].name)
         assertTrue(module.inputs[3].isKickable)
-        assertEquals("durationMs", module.inputs[4].name)
+        assertEquals("offsetSec", module.inputs[4].name)
         assertTrue(module.inputs[4].isKickable)
-        assertEquals("looping", module.inputs[5].name)
-        assertTrue(module.inputs[5] is com.syntona.dataflow.model.BooleanInputJack)
-        assertFalse(module.inputs[5].isValueDraggable)
-        assertFalse(module.inputs[5].isDisplayableValue)
-        assertFalse(module.inputs[5].isModuleEditorVisible)
-        assertEquals("speed", module.inputs[6].name)
-        assertTrue(module.inputs[6] is AudioInputJack)
-        assertEquals("amplitude", module.inputs[7].name)
+        assertEquals("durationMs", module.inputs[5].name)
+        assertTrue(module.inputs[5].isKickable)
+        assertEquals("looping", module.inputs[6].name)
+        assertTrue(module.inputs[6] is com.syntona.dataflow.model.BooleanInputJack)
+        assertFalse(module.inputs[6].isValueDraggable)
+        assertFalse(module.inputs[6].isDisplayableValue)
+        assertFalse(module.inputs[6].isModuleEditorVisible)
+        assertEquals("speed", module.inputs[7].name)
         assertTrue(module.inputs[7] is AudioInputJack)
+        assertEquals("amplitude", module.inputs[8].name)
+        assertTrue(module.inputs[8] is AudioInputJack)
 
         assertEquals(1, module.outputs.size)
         assertEquals("out", module.outputs[0].name)
@@ -80,6 +82,36 @@ class SampleReaderModuleTest {
 
         // Change durationMs while looping - should re-queue immediate loop
         readerModule.durationMs.setValue(100.0)
+
+        // Stop
+        readerModule.stopIn.receive(Message.FloatValue(ScoreTime.Zero, 0.0))
+
+        sampleModule.teardown()
+        readerModule.teardown()
+    }
+
+    @Test
+    fun testOffsetSecChangeWhileLoopingRetriggersLoop() = kotlinx.coroutines.runBlocking {
+        val sampleModule = FloatSampleModule()
+        val readerModule = SampleReaderModule()
+
+        // Give reader sample data
+        readerModule.dataInput.receive(Message.DataQueueMessage(ScoreClock.now(), sampleModule.sample, Message.DataQueueOpcode.QUEUE))
+
+        // Set looping on
+        readerModule.loopInput.setValue(1.0)
+        readerModule.offsetSec.setValue(0.1)
+        readerModule.durationMs.setValue(500.0)
+
+        // Start playback
+        readerModule.startIn.receive(Message.FloatValue(ScoreTime.Zero, 0.0))
+
+        // Simulate engine tick to process queued start
+        (SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine).generateNextBuffer()
+        assertTrue(readerModule.unit.dataQueue.hasMore())
+
+        // Change offsetSec while looping - should re-queue immediate loop
+        readerModule.offsetSec.setValue(0.5)
 
         // Stop
         readerModule.stopIn.receive(Message.FloatValue(ScoreTime.Zero, 0.0))
