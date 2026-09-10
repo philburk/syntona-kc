@@ -4,6 +4,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.softsynth.ksyn.data.SegmentedEnvelope
+import com.softsynth.ksyn.ports.QueueDataEvent
+import com.softsynth.ksyn.ports.UnitDataQueueCallback
+import com.softsynth.ksyn.unitgen.UnitGenerator
 import com.softsynth.ksyn.unitgen.VariableRateMonoReader
 import com.syntona.core.audio.SynthKSyn
 import com.syntona.dataflow.model.AudioInputJack
@@ -23,6 +26,16 @@ import com.syntona.dataflow.model.Module
  */
 class EnvSegModule : Module("envSeg") {
     val unit = VariableRateMonoReader()
+
+    var autoDisableVoice: com.syntona.dataflow.model.AutoDisableVoiceMode = com.syntona.dataflow.model.AutoDisableVoiceMode.AUTO
+
+    fun setupAutoDisable(target: UnitGenerator) {
+        unit.setupAutoDisable(target)
+    }
+
+    fun setAutoDisableEnabled(enabled: Boolean) {
+        unit.setAutoDisableEnabled(enabled)
+    }
 
     private var _envelope by mutableStateOf(
         SegmentedEnvelope(
@@ -101,6 +114,7 @@ class EnvSegModule : Module("envSeg") {
     override fun execute(triggerMessage: Message) {}
 
     override fun teardown() {
+        unit.setAutoDisableEnabled(false)
         if (unit.isStartRequired) {
             unit.stop()
         }

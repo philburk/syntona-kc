@@ -4,6 +4,7 @@ import com.syntona.SyntonaVersion
 import com.syntona.dataflow.editor.FileState
 import androidx.compose.ui.geometry.Offset
 import com.syntona.dataflow.model.AudioInputJack
+import com.syntona.dataflow.model.AutoDisableVoiceMode
 import com.syntona.dataflow.model.CommandJack
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
@@ -322,6 +323,12 @@ object GraphSerializer {
                 append(",\"sustainEnd\":${env.sustainEnd}")
                 append(",\"releaseBegin\":${env.releaseBegin}")
                 append(",\"releaseEnd\":${env.releaseEnd}")
+            }
+            if (module is UnitGeneratorModule && module.autoDisableVoice != AutoDisableVoiceMode.AUTO) {
+                append(",\"autoDisableVoice\":\"${module.autoDisableVoice.name}\"")
+            }
+            if (module is EnvSegModule && module.autoDisableVoice != AutoDisableVoiceMode.AUTO) {
+                append(",\"autoDisableVoice\":\"${module.autoDisableVoice.name}\"")
             }
             if (module is PolyPatchModule) {
                 append(",\"maxVoices\":${module.maxVoices}")
@@ -717,6 +724,18 @@ object GraphSerializer {
                         module.envelope.sustainEnd = -1
                         module.isLooping = false
                     }
+                }
+            }
+
+            (obj?.map?.get("autoDisableVoice") as? JsonValue.Str)?.value?.let { modeStr ->
+                val mode = try {
+                    AutoDisableVoiceMode.valueOf(modeStr.uppercase())
+                } catch (_: Exception) {
+                    null
+                }
+                if (mode != null) {
+                    if (module is UnitGeneratorModule) module.autoDisableVoice = mode
+                    if (module is EnvSegModule) module.autoDisableVoice = mode
                 }
             }
 

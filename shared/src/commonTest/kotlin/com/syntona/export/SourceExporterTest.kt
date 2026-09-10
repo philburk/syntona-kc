@@ -416,6 +416,71 @@ class SourceExporterTest {
     }
 
     @Test
+    fun testAutoDisablePrefersAmplitudePortOverCloserFilterCutoff() {
+        val polyPatch = PolyPatchModule("filterAfterAmpVoice")
+
+        // Topology: osc -> ampEnv (VCA) -> filter -> outputMod
+        // filter.frequency <- filterEnv
+        // Here, filter is 1 hop from output, so filterEnv is 2 hops from output.
+        // ampEnv is 2 hops from filter (3 hops from output).
+        // ampEnv modulates amplitude; filterEnv modulates frequency.
+        // The heuristic MUST choose ampEnv!
+        val osc = UnitGeneratorModule("osc", SawtoothOscillatorBL())
+        val ampEnv = UnitGeneratorModule("myEnvelope", EnvelopeDAHDSR())
+        val filter = UnitGeneratorModule("filter", com.softsynth.ksyn.unitgen.FilterLowPass())
+        val filterEnv = UnitGeneratorModule("cutoffModEnv", EnvelopeDAHDSR())
+        val outputMod = polyPatch.graphState.modules.filterIsInstance<AudioOutputModule>().first()
+
+        polyPatch.graphState.addModule(osc, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(ampEnv, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(filter, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(filterEnv, androidx.compose.ui.geometry.Offset.Zero)
+
+        // osc -> ampEnv.amplitude
+        polyPatch.graphState.connect(osc.outputs.first { it.name == "out" }, ampEnv.inputs.first { it.name == "amplitude" })
+        // ampEnv -> filter.in
+        polyPatch.graphState.connect(ampEnv.outputs.first { it.name == "out" }, filter.inputs.first { it.name == "in" })
+        // filterEnv -> filter.frequency
+        polyPatch.graphState.connect(filterEnv.outputs.first { it.name == "out" }, filter.inputs.first { it.name == "frequency" })
+        // filter -> outputMod.in
+        polyPatch.graphState.connect(filter.outputs.first { it.name == "out" }, outputMod.inputs.first { it.name == "in" })
+
+        val ksynCode = KSynSourceExporter.export(polyPatch, "FilterAfterAmpVoice")
+        assertTrue(ksynCode.contains("myEnvelope.setupAutoDisable(this)"), "Should choose myEnvelope (amplitude port):\n$ksynCode")
+        assertFalse(ksynCode.contains("cutoffModEnv.setupAutoDisable(this)"), "Should not choose cutoffModEnv")
+    }
+
+    @Test
+    fun testAutoDisableExplicitYesAndNoModes() {
+        val polyPatch = PolyPatchModule("explicitModesVoice")
+
+        val osc = UnitGeneratorModule("osc", SawtoothOscillatorBL())
+        val envA = UnitGeneratorModule("envA", EnvelopeDAHDSR())
+        val envB = UnitGeneratorModule("envB", EnvelopeDAHDSR())
+        val outputMod = polyPatch.graphState.modules.filterIsInstance<AudioOutputModule>().first()
+
+        polyPatch.graphState.addModule(osc, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(envA, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(envB, androidx.compose.ui.geometry.Offset.Zero)
+
+        // envA is connected directly to output
+        polyPatch.graphState.connect(envA.outputs.first { it.name == "out" }, outputMod.inputs.first { it.name == "in" })
+
+        // 1. Explicit NO on envA forces it to be excluded even though it connects to output
+        envA.autoDisableVoice = com.syntona.dataflow.model.AutoDisableVoiceMode.NO
+        envB.autoDisableVoice = com.syntona.dataflow.model.AutoDisableVoiceMode.YES
+
+        val ksynCode1 = KSynSourceExporter.export(polyPatch, "ExplicitVoice1")
+        assertTrue(ksynCode1.contains("envB.setupAutoDisable(this)"), "Should choose envB due to explicit YES:\n$ksynCode1")
+        assertFalse(ksynCode1.contains("envA.setupAutoDisable(this)"), "Should not choose envA due to explicit NO")
+
+        // 2. Both set to NO -> no auto-disable line generated
+        envB.autoDisableVoice = com.syntona.dataflow.model.AutoDisableVoiceMode.NO
+        val ksynCode2 = KSynSourceExporter.export(polyPatch, "ExplicitVoice2")
+        assertFalse(ksynCode2.contains("setupAutoDisable"), "Neither should be chosen when both are NO:\n$ksynCode2")
+    }
+
+    @Test
     fun testValidatePatchWithEnvSegModule() {
         val patch = PolyPatchModule("envSegPatch")
         patch.graphState.addModule(com.syntona.dataflow.modules.EnvSegModule(), androidx.compose.ui.geometry.Offset.Zero)
@@ -545,6 +610,54 @@ class SourceExporterTest {
         assertTrue(jsynCode.contains("filterEnv.dataQueue.queueOn(filterEnvEnvelope, timeStamp);"), "JSyn noteOn must trigger filterEnv")
         assertTrue(jsynCode.contains("ampEnv.dataQueue.queueOff(ampEnvEnvelope, false, timeStamp);"), "JSyn noteOff must trigger ampEnv")
         assertTrue(jsynCode.contains("filterEnv.dataQueue.queueOff(filterEnvEnvelope, false, timeStamp);"), "JSyn noteOff must trigger filterEnv")
+    }
+
+    @Test
+    fun testAutoDisableWhenEnvSegAndEnvDAHDSRBothInAutoMode() {
+        val polyPatch = PolyPatchModule("EnvSegAndDAHDSRVoice")
+
+        val osc = UnitGeneratorModule("osc", SawtoothOscillatorBL())
+        val envSeg = com.syntona.dataflow.modules.EnvSegModule().apply { name = "ampEnv" }
+        val filter = UnitGeneratorModule("filter", com.softsynth.ksyn.unitgen.FilterLowPass())
+        val filterEnv = UnitGeneratorModule("filterEnv", EnvelopeDAHDSR())
+        val outputMod = polyPatch.graphState.modules.filterIsInstance<AudioOutputModule>().first()
+
+        polyPatch.graphState.addModule(osc, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(envSeg, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(filter, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(filterEnv, androidx.compose.ui.geometry.Offset.Zero)
+
+        // osc -> envSeg.amplitude -> filter.in -> outputMod.in
+        polyPatch.graphState.connect(osc.outputs.first { it.name == "out" }, envSeg.inputs.first { it.name == "amplitude" })
+        polyPatch.graphState.connect(envSeg.outputs.first { it.name == "out" }, filter.inputs.first { it.name == "in" })
+        polyPatch.graphState.connect(filter.outputs.first { it.name == "out" }, outputMod.inputs.first { it.name == "in" })
+
+        // filterEnv -> filter.frequency
+        polyPatch.graphState.connect(filterEnv.outputs.first { it.name == "out" }, filter.inputs.first { it.name == "frequency" })
+
+        // Both envSeg and filterEnv start in AutoDisableVoiceMode.AUTO
+        assertEquals(com.syntona.dataflow.model.AutoDisableVoiceMode.AUTO, envSeg.autoDisableVoice)
+        assertEquals(com.syntona.dataflow.model.AutoDisableVoiceMode.AUTO, filterEnv.autoDisableVoice)
+
+        // 1. In Auto mode, KSyn exported code now calls setupAutoDisable(this) directly on ampEnv (VariableRateMonoReader)
+        // because KSyn now natively supports setupAutoDisable on SequentialDataReader/VariableRateMonoReader!
+        val ksynCode = KSynSourceExporter.export(polyPatch, "EnvSegAndDAHDSRVoice")
+        assertTrue(ksynCode.contains("ampEnv.setupAutoDisable(this)"), "KSyn must call setupAutoDisable on ampEnv in Auto mode:\n$ksynCode")
+        assertFalse(ksynCode.contains("filterEnv.setupAutoDisable(this)"), "KSyn should not call setupAutoDisable on filterEnv when ampEnv is main amp env:\n$ksynCode")
+
+        // JSyn does not support setupAutoDisable on VariableRateMonoReader, so it falls back to filterEnv
+        val jsynCode = JSynSourceExporter.export(polyPatch, "EnvSegAndDAHDSRVoice")
+        assertTrue(jsynCode.contains("filterEnv.setupAutoDisable(this);"), "JSyn must fall back to filterEnv in Auto mode:\n$jsynCode")
+
+        // 2. If envSeg is set to NO, KSyn falls back to filterEnv
+        envSeg.autoDisableVoice = com.syntona.dataflow.model.AutoDisableVoiceMode.NO
+        val ksynCodeEnvSegNo = KSynSourceExporter.export(polyPatch, "EnvSegAndDAHDSRVoice")
+        assertTrue(ksynCodeEnvSegNo.contains("filterEnv.setupAutoDisable(this)"), "Should fall back to filterEnv when envSeg is NO:\n$ksynCodeEnvSegNo")
+
+        // 3. If both are set to NO, neither is called
+        filterEnv.autoDisableVoice = com.syntona.dataflow.model.AutoDisableVoiceMode.NO
+        val ksynCodeNo = KSynSourceExporter.export(polyPatch, "EnvSegAndDAHDSRVoice")
+        assertFalse(ksynCodeNo.contains("setupAutoDisable"), "No setupAutoDisable when both are NO:\n$ksynCodeNo")
     }
 
     @Test

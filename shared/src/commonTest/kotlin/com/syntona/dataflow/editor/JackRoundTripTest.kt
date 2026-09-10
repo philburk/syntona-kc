@@ -235,5 +235,18 @@ class JackRoundTripTest {
         assertEquals(true, loadedKeyboard.octaveIn.isInteger, "keyboard25.octave should remain true by default")
         assertEquals(false, loadedKnob.inputs.first { it.name == "in" }.isInteger, "knob.in should remain false by default")
     }
+
+    @Test
+    fun autoDisableVoiceSurvivesSaveAndLoad() {
+        val dahdsr = com.syntona.dataflow.modules.UnitGeneratorModule("envDAHDSR", com.softsynth.ksyn.unitgen.EnvelopeDAHDSR())
+        dahdsr.autoDisableVoice = com.syntona.dataflow.model.AutoDisableVoiceMode.YES
+        val backDahdsr = roundTrip(dahdsr) as com.syntona.dataflow.modules.UnitGeneratorModule
+        assertEquals(com.syntona.dataflow.model.AutoDisableVoiceMode.YES, backDahdsr.autoDisableVoice)
+
+        val envSeg = com.syntona.dataflow.modules.EnvSegModule()
+        envSeg.autoDisableVoice = com.syntona.dataflow.model.AutoDisableVoiceMode.NO
+        val backEnvSeg = roundTrip(envSeg) as com.syntona.dataflow.modules.EnvSegModule
+        assertEquals(com.syntona.dataflow.model.AutoDisableVoiceMode.NO, backEnvSeg.autoDisableVoice)
+    }
 }
 

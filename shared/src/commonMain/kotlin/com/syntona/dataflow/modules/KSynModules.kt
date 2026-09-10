@@ -23,6 +23,11 @@ open class UnitGeneratorModule(name: String, val unit: UnitGenerator) : Module(n
     override val isAllowedInPolyPatch: Boolean
         get() = unit !is com.softsynth.ksyn.unitgen.LineIn && unit !is com.softsynth.ksyn.unitgen.LineOut
 
+    val isEnvelope: Boolean
+        get() = unit is com.softsynth.ksyn.unitgen.UnitGate
+
+    var autoDisableVoice: com.syntona.dataflow.model.AutoDisableVoiceMode = com.syntona.dataflow.model.AutoDisableVoiceMode.AUTO
+
     val onJack: com.syntona.dataflow.model.CommandJack?
     val offJack: com.syntona.dataflow.model.CommandJack?
     val triggerJack: com.syntona.dataflow.model.CommandJack?

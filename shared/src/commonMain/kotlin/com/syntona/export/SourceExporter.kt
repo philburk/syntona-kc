@@ -3,6 +3,7 @@ package com.syntona.export
 import com.softsynth.ksyn.data.SegmentedEnvelope
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.AudioOutputJack
+import com.syntona.dataflow.model.AutoDisableVoiceMode
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.model.OutputJack
@@ -385,13 +386,14 @@ object SourceExporter {
         val info: T,
         val distanceToOutput: Int,
         val isConnectedToAmplitudePort: Boolean,
-        val nameContainsAmp: Boolean
+        val nameContainsAmp: Boolean,
+        val autoDisableMode: AutoDisableVoiceMode = AutoDisableVoiceMode.AUTO
     )
 
     /**
      * Identifies the primary amplitude envelope in a patch.
      * Traces backwards from AudioOutputModule to find the envelope most closely connected
-     * to the audio output path (closest distance, amplitude port connection, or "amp" naming).
+     * to the audio output path (explicit YES setting, amplitude port connection, "amp" naming, or closest distance).
      */
     fun <T> findMainAmpEnvelope(
         patch: PatchModule,
@@ -412,7 +414,6 @@ object SourceExporter {
         }
 
         if (envelopeEntries.isEmpty()) return null
-        if (envelopeEntries.size == 1) return envelopeEntries.values.first()
 
         val audioOutputs = patch.graphState.modules.filterIsInstance<AudioOutputModule>()
         val envelopeDistances = mutableMapOf<Module, Int>()
@@ -439,10 +440,14 @@ object SourceExporter {
                 val incoming = patch.graphState.connections.filter { it.input.module === currMod }
                 for (conn in incoming) {
                     val upstreamMod = conn.output.module
-                    // If upstream is an envelope, check if it connects to an amplitude-related port or multiplier
+                    // If upstream is an envelope, check if it connects to an amplitude-related port, multiplier, or output
                     if (upstreamMod in envelopeEntries) {
                         val inputPortName = conn.input.name.lowercase()
-                        if (inputPortName.contains("amp") || inputPortName == "ina" || inputPortName == "inb" || inputPortName == "inputa" || inputPortName == "inputb") {
+                        if (conn.input.module is AudioOutputModule ||
+                            inputPortName.contains("amp") ||
+                            inputPortName == "ina" || inputPortName == "inb" ||
+                            inputPortName == "inputa" || inputPortName == "inputb"
+                        ) {
                             connectsToAmpPort.add(upstreamMod)
                         }
                     }
@@ -458,15 +463,38 @@ object SourceExporter {
             val dist = envelopeDistances[mod] ?: Int.MAX_VALUE
             val toAmpPort = connectsToAmpPort.contains(mod)
             val nameHasAmp = getVarName(info).contains("amp", ignoreCase = true)
-            EnvelopeCandidate(mod, info, dist, toAmpPort, nameHasAmp)
+            val mode = when (mod) {
+                is UnitGeneratorModule -> mod.autoDisableVoice
+                is EnvSegModule -> mod.autoDisableVoice
+                else -> AutoDisableVoiceMode.AUTO
+            }
+            EnvelopeCandidate(mod, info, dist, toAmpPort, nameHasAmp, mode)
         }
 
-        val bestCandidate = candidates.minWithOrNull(
-            compareBy<EnvelopeCandidate<T>> { it.distanceToOutput }
-                .thenByDescending { it.isConnectedToAmplitudePort }
+        // 1. Any candidate explicitly marked YES takes highest precedence
+        val yesCandidates = candidates.filter { it.autoDisableMode == AutoDisableVoiceMode.YES }
+        if (yesCandidates.isNotEmpty()) {
+            val bestYes = yesCandidates.minWithOrNull(
+                compareByDescending<EnvelopeCandidate<T>> { it.isConnectedToAmplitudePort }
+                    .thenByDescending { it.nameContainsAmp }
+                    .thenBy { it.distanceToOutput }
+            )
+            return bestYes?.info
+        }
+
+        // 2. Filter out any candidate explicitly marked NO
+        val eligibleCandidates = candidates.filter { it.autoDisableMode != AutoDisableVoiceMode.NO }
+        if (eligibleCandidates.isEmpty()) {
+            return null
+        }
+
+        // 3. Select best among remaining candidates
+        val bestCandidate = eligibleCandidates.minWithOrNull(
+            compareByDescending<EnvelopeCandidate<T>> { it.isConnectedToAmplitudePort }
                 .thenByDescending { it.nameContainsAmp }
+                .thenBy { it.distanceToOutput }
         )
 
-        return bestCandidate?.info ?: envelopeEntries.values.first()
+        return bestCandidate?.info ?: eligibleCandidates.first().info
     }
 }

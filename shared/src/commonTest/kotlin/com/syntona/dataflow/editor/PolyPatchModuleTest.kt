@@ -992,5 +992,124 @@ class PolyPatchModuleTest {
         val outFreqs = ap2fUnit0.output.getValues()
         assertTrue(outFreqs.all { it > 200.0f && it < 350.0f }, "ap2f output frequencies should be in the ~261 Hz range with pitch 60 added to triOsc")
     }
+
+    @Test
+    fun testPolyPatchVoiceCircuitAutoDisableLifecycle() = kotlinx.coroutines.runBlocking {
+        val polyPatch = PolyPatchModule("autoDisableTest")
+        polyPatch.initializeVoices(2)
+
+        val osc = UnitGeneratorModule("sawOscBL", com.softsynth.ksyn.unitgen.SawtoothOscillatorBL()).apply { name = "osc" }
+        val env = UnitGeneratorModule("envDAHDSR", com.softsynth.ksyn.unitgen.EnvelopeDAHDSR()).apply { name = "ampEnv" }
+        val out = polyPatch.graphState.modules.filterIsInstance<AudioOutputModule>().first()
+        val onIn = polyPatch.graphState.modules.first { it is InputModule && it.name == "on" }
+
+        polyPatch.graphState.addModule(osc, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(env, androidx.compose.ui.geometry.Offset.Zero)
+
+        // Connect osc -> env.amplitude -> out.in
+        polyPatch.graphState.connect(osc.outputs.first { it.name == "out" }, env.inputs.first { it.name == "amplitude" })
+        polyPatch.graphState.connect(env.outputs.first { it.name == "out" }, out.inputs.first { it.name == "in" })
+        polyPatch.graphState.connect(onIn.outputs.first { it.name == "out" }, env.inputs.first { it.name == "on" })
+
+        val voice0 = polyPatch.voices[0]
+        val voice1 = polyPatch.voices[1]
+
+        // AutoDisable should have automatically wired to both voice circuits and disabled them while idle
+        assertEquals(false, voice0.voiceCircuit.isEnabled, "Voice 0 circuit should start disabled when idle")
+        assertEquals(false, voice1.voiceCircuit.isEnabled, "Voice 1 circuit should start disabled when idle")
+
+        // Trigger note on voice 0
+        val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
+        polyPatch.voiceInputJack.receive(
+            Message.VoiceMessage(
+                com.syntona.core.model.ScoreTime.Zero,
+                Message.VoiceOpcode.NOTE_ON,
+                tag = 10,
+                value = 60.0,
+                extra = 1.0
+            )
+        )
+        engine.generateNextBuffer()
+
+        // The allocated voice circuit should wake up (isEnabled = true)
+        val activeVoice = if (voice0.voiceCircuit.isEnabled) voice0 else voice1
+        assertTrue(activeVoice.voiceCircuit.isEnabled, "Active voice circuit should be enabled after noteOn")
+
+        // Explicitly set AutoDisableVoiceMode.NO on the envelope
+        polyPatch.syncAutoDisableVoice(env, AutoDisableVoiceMode.NO)
+
+        // Both voice circuits should now be enabled because no envelope is auto-disabling them
+        assertTrue(voice0.voiceCircuit.isEnabled, "Voice 0 circuit should be enabled when auto-disable is NO")
+        assertTrue(voice1.voiceCircuit.isEnabled, "Voice 1 circuit should be enabled when auto-disable is NO")
+
+        // Explicitly set AutoDisableVoiceMode.YES
+        polyPatch.syncAutoDisableVoice(env, AutoDisableVoiceMode.YES)
+        assertEquals(false, voice0.voiceCircuit.isEnabled, "Voice 0 circuit should be auto-disabled again when set to YES")
+        assertEquals(false, voice1.voiceCircuit.isEnabled, "Voice 1 circuit should be auto-disabled again when set to YES")
+    }
+
+    @Test
+    fun testPolyPatchVoiceCircuitAutoDisableLifecycleWithEnvSeg() = kotlinx.coroutines.runBlocking {
+        val polyPatch = PolyPatchModule("autoDisableEnvSegTest")
+        polyPatch.initializeVoices(2)
+        polyPatch.polyphonicInstrument!!.start()
+
+        val osc = UnitGeneratorModule("sawOscBL", com.softsynth.ksyn.unitgen.SawtoothOscillatorBL()).apply { name = "osc" }
+        val env = EnvSegModule().apply { name = "envSeg" }
+        val out = polyPatch.graphState.modules.filterIsInstance<AudioOutputModule>().first()
+        val onIn = polyPatch.graphState.modules.first { it is InputModule && it.name == "on" }
+        val offIn = polyPatch.graphState.modules.first { it is InputModule && it.name == "off" }
+
+        polyPatch.graphState.addModule(osc, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(env, androidx.compose.ui.geometry.Offset.Zero)
+
+        // Connect osc -> env.amplitude -> out.in
+        polyPatch.graphState.connect(osc.outputs.first { it.name == "out" }, env.inputs.first { it.name == "amplitude" })
+        polyPatch.graphState.connect(env.outputs.first { it.name == "out" }, out.inputs.first { it.name == "in" })
+        polyPatch.graphState.connect(onIn.outputs.first { it.name == "out" }, env.inputs.first { it.name == "on" })
+        polyPatch.graphState.connect(offIn.outputs.first { it.name == "out" }, env.inputs.first { it.name == "off" })
+
+        val voice0 = polyPatch.voices[0]
+        val voice1 = polyPatch.voices[1]
+
+        // AutoDisable should have automatically wired to both voice circuits and disabled them while idle
+        assertEquals(false, voice0.voiceCircuit.isEnabled, "Voice 0 circuit should start disabled when idle")
+        assertEquals(false, voice1.voiceCircuit.isEnabled, "Voice 1 circuit should start disabled when idle")
+
+        val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
+
+        // Trigger noteOn
+        polyPatch.voiceInputJack.receive(
+            Message.VoiceMessage(
+                com.syntona.core.model.ScoreTime.Zero,
+                Message.VoiceOpcode.NOTE_ON,
+                tag = 10,
+                value = 60.0,
+                extra = 1.0
+            )
+        )
+        engine.generateNextBuffer()
+
+        val activeVoice = if (voice0.voiceCircuit.isEnabled) voice0 else voice1
+        assertTrue(activeVoice.voiceCircuit.isEnabled, "Active voice circuit should be enabled after noteOn")
+
+        // Trigger noteOff
+        polyPatch.voiceInputJack.receive(
+            Message.VoiceMessage(
+                com.syntona.core.model.ScoreTime.Zero,
+                Message.VoiceOpcode.NOTE_OFF,
+                tag = 10,
+                value = 60.0,
+                extra = 0.0
+            )
+        )
+        // Run enough buffers for the release segment to finish (0.5s release -> at 44100Hz/64 ~ 350-500 buffers)
+        for (i in 0 until 600) {
+            engine.generateNextBuffer()
+        }
+
+        // Voice circuit should now be disabled after release completes!
+        assertEquals(false, activeVoice.voiceCircuit.isEnabled, "Active voice circuit should be disabled after envelope release completes")
+    }
 }
 

@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -26,11 +27,15 @@ import androidx.compose.ui.input.key.onKeyEvent
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.CommandJack
 import com.syntona.dataflow.model.InputJack
+import com.syntona.dataflow.model.AutoDisableVoiceMode
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.modules.AudioInputModule
+import com.syntona.dataflow.modules.EnvSegModule
 import com.syntona.dataflow.modules.InputModule
 import com.syntona.dataflow.modules.LinkModule
+import com.syntona.dataflow.modules.PolyPatchModule
+import com.syntona.dataflow.modules.UnitGeneratorModule
 import com.syntona.dataflow.modules.KeyMatchModule
 import com.syntona.dataflow.modules.KeyNotesModule
 import com.syntona.dataflow.modules.MidiInModule
@@ -126,6 +131,11 @@ fun ModuleEditor(module: Module, onDismiss: () -> Unit, modifier: Modifier = Mod
                     textColor = LABEL_COLOR,
                     borderColor = BORDER_COLOR
                 )
+
+                if ((module is UnitGeneratorModule && module.isEnvelope) || module is EnvSegModule) {
+                    androidx.compose.material3.HorizontalDivider(color = BORDER_COLOR, thickness = 1.dp)
+                    EnvelopeAutoDisableVoiceEditor(module)
+                }
 
                 androidx.compose.material3.HorizontalDivider(color = BORDER_COLOR, thickness = 1.dp)
 
@@ -769,6 +779,70 @@ private fun MidiOutModuleEditor(module: MidiOutModule) {
         androidx.compose.material3.HorizontalDivider(color = BORDER_COLOR, thickness = 1.dp)
         module.inputs.filter { it !== module.channelIn && it.isModuleEditorVisible }.forEach { jack ->
             JackEditorRow(jack)
+        }
+    }
+}
+
+@Composable
+internal fun EnvelopeAutoDisableVoiceEditor(
+    module: Module,
+    textColor: Color = LABEL_COLOR
+) {
+    val currentMode = when (module) {
+        is UnitGeneratorModule -> module.autoDisableVoice
+        is EnvSegModule -> module.autoDisableVoice
+        else -> AutoDisableVoiceMode.AUTO
+    }
+    var selectedMode by remember(module) { mutableStateOf(currentMode) }
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp)
+    ) {
+        Text(
+            "Disable Voice When This Envelope is Done:",
+            fontSize = 12.sp,
+            color = textColor,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+        )
+
+        AutoDisableVoiceMode.values().forEach { mode ->
+            val label = when (mode) {
+                AutoDisableVoiceMode.AUTO -> "Auto"
+                AutoDisableVoiceMode.YES -> "Yes"
+                AutoDisableVoiceMode.NO -> "No"
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                modifier = Modifier.clickable {
+                    selectedMode = mode
+                    when (module) {
+                        is UnitGeneratorModule -> module.autoDisableVoice = mode
+                        is EnvSegModule -> module.autoDisableVoice = mode
+                    }
+                    (module.parentPatch as? PolyPatchModule)?.syncAutoDisableVoice(module, mode)
+                    FileState.markDirty()
+                }
+            ) {
+                CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
+                    RadioButton(
+                        selected = (selectedMode == mode),
+                        onClick = {
+                            selectedMode = mode
+                            when (module) {
+                                is UnitGeneratorModule -> module.autoDisableVoice = mode
+                                is EnvSegModule -> module.autoDisableVoice = mode
+                            }
+                            (module.parentPatch as? PolyPatchModule)?.syncAutoDisableVoice(module, mode)
+                            FileState.markDirty()
+                        },
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+                Text(label, fontSize = 12.sp, color = textColor)
+            }
         }
     }
 }

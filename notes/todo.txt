@@ -1,5 +1,5 @@
 
-# ------------- For Nicks class
+# ----------------------------------------------- HIGH PRIORITY
 
 On FireFox plug in MIDI hardware before running Syntona.
 Install the MIDI Add-on.
@@ -12,27 +12,12 @@ Just a trigger jack.
 
 Change stepper "N" jack to "limit"?
 
-# ----------------------------------------------- HIGH PRIORITY
-
 Try to save a native signed version.
 
 A seq with numeric fields or knobs or horizontal faders that can be swept quickly to make a shape.
 
-I need to do some operations involving time in Syntona.
-One module, maybe call it "grabTime", takes any incoming message, extracts the
-timestamp then sends it out as a double value in seconds.
-The second module will simply output the current ScoreTime when kicked.
 
-Need a dynamic array or list class with some basic operations.
-    index: index of element to use with get/set
-    get: get value at index
-    set: set incoming value at index
-    add: add value from incoming message to the end
-    size or length: fires when changed by add or clear
-    clear: clear all elements
-    capacity: maximum size that the list can grow to
-    out: value from the get operation
-Should this be stored as an array or as a list for better real-time performance?
+
 
 
 Audio units need a way to call a lambda from the audio domain on a coroutine

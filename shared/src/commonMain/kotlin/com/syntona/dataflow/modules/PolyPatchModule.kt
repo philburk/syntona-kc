@@ -4,9 +4,11 @@ import com.softsynth.ksyn.ports.UnitInputPort
 import com.softsynth.ksyn.ports.UnitOutputPort
 import com.softsynth.ksyn.shared.time.TimeStamp
 import com.softsynth.ksyn.unitgen.PassThrough
+import com.softsynth.ksyn.unitgen.UnitGate
 import com.softsynth.ksyn.voices.PitchedVoice
 import com.softsynth.ksyn.voices.PolyphonicInstrument
 import com.syntona.core.audio.SynthKSyn
+import com.syntona.export.SourceExporter
 import com.syntona.dataflow.engine.DataFlowEngine
 import com.syntona.dataflow.model.*
 import com.syntona.dataflow.registry.ModuleRegistry
@@ -150,6 +152,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
         for (conn in graphState.connections) {
             syncConnectionAdded(conn.output, conn.input)
         }
+        updateAutoDisableBindings()
     }
 
     fun ensureDefaultModulesExist() {
@@ -269,6 +272,15 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
         for (voice in voices) {
             voice.templateToVoiceMap.clear()
             voice.voiceToTemplateMap.clear()
+            for (m in voice.graphState.modules) {
+                when (m) {
+                    is UnitGeneratorModule -> voice.removeVoiceUnit(m.unit)
+                    is EnvSegModule -> voice.removeVoiceUnit(m.unit)
+                    is AudioOutputModule -> voice.removeVoiceUnit(m.passThrough)
+                    is AudioInputModule -> voice.removeVoiceUnit(m.passThrough)
+                    is GrabAudioModule -> voice.removeVoiceUnit(m.unit)
+                }
+            }
             voice.graphState.removeModulesDirectly(voice.graphState.modules.toList())
             voice.graphState.connections.clear()
         }
@@ -366,11 +378,21 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                     module.passThrough.output.connect(voiceInMod.passThrough.input)
                 }
             }
+
+            // Register voice units in voice.voiceCircuit
+            when (voiceModule) {
+                is UnitGeneratorModule -> voice.addVoiceUnit(voiceModule.unit)
+                is EnvSegModule -> voice.addVoiceUnit(voiceModule.unit)
+                is AudioOutputModule -> voice.addVoiceUnit(voiceModule.passThrough)
+                is AudioInputModule -> voice.addVoiceUnit(voiceModule.passThrough)
+                is GrabAudioModule -> voice.addVoiceUnit(voiceModule.unit)
+            }
         }
 
         if (module is AudioOutputModule && module.name != "output") {
             syncAuxOutputAdded(module)
         }
+        updateAutoDisableBindings()
     }
 
     private fun getOrCreateAuxMixer(portName: String): PassThrough {
@@ -447,8 +469,17 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                 }
             }
 
+            when (voiceModule) {
+                is UnitGeneratorModule -> voice.removeVoiceUnit(voiceModule.unit)
+                is EnvSegModule -> voice.removeVoiceUnit(voiceModule.unit)
+                is AudioOutputModule -> voice.removeVoiceUnit(voiceModule.passThrough)
+                is AudioInputModule -> voice.removeVoiceUnit(voiceModule.passThrough)
+                is GrabAudioModule -> voice.removeVoiceUnit(voiceModule.unit)
+            }
+
             voice.graphState.removeModulesDirectly(listOf(voiceModule))
         }
+        updateAutoDisableBindings()
     }
 
     private fun syncConnectionAdded(outputJack: OutputJack, inputJack: InputJack) {
@@ -465,6 +496,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
             voice.graphState.isDeserializing = graphState.isDeserializing
             voice.graphState.connectDirectly(voiceOutJack, voiceInJack)
         }
+        updateAutoDisableBindings()
     }
 
     private fun syncConnectionRemoved(outputJack: OutputJack, inputJack: InputJack) {
@@ -480,6 +512,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
             val voiceInJack = findMatchingInputJack(voiceInMod, inputJack) ?: continue
             voice.graphState.disconnect(voiceOutJack, voiceInJack)
         }
+        updateAutoDisableBindings()
     }
 
     fun findMatchingInputJack(targetModule: Module, templateJack: InputJack): InputJack? {
@@ -551,6 +584,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                     name = templateModule.name
                     envelope = templateModule.envelope // Share by reference!
                     isLooping = templateModule.isLooping
+                    autoDisableVoice = templateModule.autoDisableVoice
                 }
             }
             is FloatSampleModule -> {
@@ -605,12 +639,20 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
             }
             is UnitGeneratorModule -> {
                 val resolvedType = ModuleRegistry.resolveLegacyTypeName(templateModule.type)
-                val factory = ModuleRegistry.ksynFactories[templateModule.type] ?: ModuleRegistry.ksynFactories[resolvedType]
-                if (factory != null) {
-                    UnitGeneratorModule(templateModule.name, factory())
+                val factory = ModuleRegistry.ksynFactories[templateModule.type]
+                    ?: ModuleRegistry.ksynFactories[resolvedType]
+                    ?: ModuleRegistry.ksynClassFactories[templateModule.unit::class]
+                val mod = if (factory != null) {
+                    UnitGeneratorModule(templateModule.type, factory()).apply {
+                        name = templateModule.name
+                    }
                 } else {
                     ModuleRegistry.findCreator(templateModule.type)?.invoke() ?: templateModule
                 }
+                if (mod is UnitGeneratorModule) {
+                    mod.autoDisableVoice = templateModule.autoDisableVoice
+                }
+                mod
             }
             is GrabAudioModule -> {
                 GrabAudioModule().apply { name = templateModule.name }
@@ -668,6 +710,69 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
             voiceMod.name = newName
         }
         module.patchJack?.name = newName
+    }
+
+    fun syncAutoDisableVoice(templateModule: Module, mode: com.syntona.dataflow.model.AutoDisableVoiceMode) {
+        if (templateModule is UnitGeneratorModule) {
+            templateModule.autoDisableVoice = mode
+        } else if (templateModule is EnvSegModule) {
+            templateModule.autoDisableVoice = mode
+        }
+        if (!isInitialized) return
+        for (voice in voices) {
+            val voiceMod = voice.templateToVoiceMap[templateModule]
+            if (voiceMod is UnitGeneratorModule) {
+                voiceMod.autoDisableVoice = mode
+            } else if (voiceMod is EnvSegModule) {
+                voiceMod.autoDisableVoice = mode
+            }
+        }
+        updateAutoDisableBindings()
+    }
+
+    fun updateAutoDisableBindings() {
+        if (!isInitialized) return
+
+        val unitMap: Map<UnitGeneratorModule, Module> = graphState.modules.filterIsInstance<UnitGeneratorModule>().associateWith { it }
+        val envSegMap: Map<EnvSegModule, Module> = graphState.modules.filterIsInstance<EnvSegModule>().associateWith { it }
+
+        val mainEnvModule = SourceExporter.findMainAmpEnvelope(
+            patch = this,
+            unitMap = unitMap,
+            getClassName = { mod ->
+                when (mod) {
+                    is UnitGeneratorModule -> mod.unit::class.simpleName ?: ""
+                    is EnvSegModule -> "VariableRateMonoReader"
+                    else -> ""
+                }
+            },
+            getVarName = { it.name },
+            envSegMap = envSegMap
+        )
+
+        for (voice in voices) {
+            // First, clear autoDisable on all voice envelopes so stale bindings don't linger
+            for (m in voice.graphState.modules) {
+                if (m is UnitGeneratorModule && m.unit is UnitGate) {
+                    m.unit.input.setAutoDisableEnabled(false)
+                } else if (m is EnvSegModule) {
+                    m.setAutoDisableEnabled(false)
+                }
+            }
+
+            if (mainEnvModule != null) {
+                val voiceEnvModule = voice.templateToVoiceMap[mainEnvModule]
+                if (voiceEnvModule is UnitGeneratorModule && voiceEnvModule.unit is UnitGate) {
+                    voiceEnvModule.unit.setupAutoDisable(voice.voiceCircuit)
+                } else if (voiceEnvModule is EnvSegModule) {
+                    voiceEnvModule.setupAutoDisable(voice.voiceCircuit)
+                } else {
+                    voice.voiceCircuit.isEnabled = true
+                }
+            } else {
+                voice.voiceCircuit.isEnabled = true
+            }
+        }
     }
 
     override fun teardown() {

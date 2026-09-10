@@ -4,7 +4,9 @@ import com.softsynth.ksyn.AudioSample
 import com.softsynth.ksyn.ports.UnitInputPort
 import com.softsynth.ksyn.ports.UnitOutputPort
 import com.softsynth.ksyn.shared.time.TimeStamp
+import com.softsynth.ksyn.unitgen.Circuit
 import com.softsynth.ksyn.unitgen.PassThrough
+import com.softsynth.ksyn.unitgen.UnitGenerator
 import com.softsynth.ksyn.voices.PitchedVoice
 import com.syntona.core.audio.SynthKSyn
 import com.syntona.core.model.ScoreClock
@@ -25,6 +27,7 @@ class PolyPatchVoice(
     val templateToVoiceMap = mutableMapOf<Module, Module>()
     val voiceToTemplateMap = mutableMapOf<Module, Module>()
 
+    val voiceCircuit = Circuit()
     val outputPassThrough = PassThrough()
 
     var currentPitch: Double = 60.0
@@ -32,8 +35,23 @@ class PolyPatchVoice(
     var pitchBend: Double = 0.0
 
     init {
-        SynthKSyn.synth.add(outputPassThrough)
-        if (outputPassThrough.isStartRequired) outputPassThrough.start()
+        voiceCircuit.add(outputPassThrough)
+    }
+
+    fun addVoiceUnit(unit: UnitGenerator) {
+        if (unit.circuit === voiceCircuit) return
+        if (unit.circuit != null) {
+            (unit.circuit as? Circuit)?.remove(unit)
+            unit.setCircuit(null)
+        }
+        SynthKSyn.synth.remove(unit)
+        voiceCircuit.add(unit)
+    }
+
+    fun removeVoiceUnit(unit: UnitGenerator) {
+        if (unit.circuit === voiceCircuit) {
+            voiceCircuit.remove(unit)
+        }
     }
 
     override fun onChildModuleAdded(module: Module) {
@@ -45,8 +63,8 @@ class PolyPatchVoice(
         return outputPassThrough.output
     }
 
-    override fun getUnitGenerator(): com.softsynth.ksyn.unitgen.UnitGenerator {
-        return outputPassThrough
+    override fun getUnitGenerator(): UnitGenerator {
+        return voiceCircuit
     }
 
     override fun getPitchPort(): UnitInputPort? {
@@ -55,6 +73,7 @@ class PolyPatchVoice(
     }
 
     override fun noteOn(pitch: Double, amplitude: Double, timeStamp: TimeStamp) {
+        voiceCircuit.isEnabled = true
         this.currentPitch = pitch
         this.currentAmplitude = amplitude
         val now = ScoreClock.now()
@@ -148,10 +167,9 @@ class PolyPatchVoice(
     }
 
     override fun teardown() {
-        if (outputPassThrough.isStartRequired) {
-            outputPassThrough.stop()
+        for (unit in voiceCircuit.getUnits()) {
+            voiceCircuit.remove(unit)
         }
-        SynthKSyn.synth.remove(outputPassThrough)
         super.teardown()
     }
 }

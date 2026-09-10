@@ -4,6 +4,7 @@ import com.softsynth.ksyn.unitgen.EnvelopeAttackDecay
 import com.softsynth.ksyn.unitgen.EnvelopeDAHDSR
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.AudioOutputJack
+import com.syntona.dataflow.model.AutoDisableVoiceMode
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.model.OutputJack
@@ -382,9 +383,28 @@ object JSynSourceExporter {
         sb.appendLine()
 
         // Auto disable
-        if (mainAmpEnv != null && (mainAmpEnv.className == "EnvelopeDAHDSR" || mainAmpEnv.className == "EnvelopeAttackDecay")) {
+        val autoDisableEnv = if (mainAmpEnv != null && (mainAmpEnv.className == "EnvelopeDAHDSR" || mainAmpEnv.className == "EnvelopeAttackDecay")) {
+            mainAmpEnv
+        } else {
+            val explicitYesExists = patch.graphState.modules.any {
+                (it is EnvSegModule && it.autoDisableVoice == AutoDisableVoiceMode.YES) ||
+                (it is UnitGeneratorModule && it.autoDisableVoice == AutoDisableVoiceMode.YES)
+            }
+            if (explicitYesExists) {
+                null
+            } else {
+                SourceExporter.findMainAmpEnvelope(
+                    patch = patch,
+                    unitMap = unitMap,
+                    getClassName = { it.className },
+                    getVarName = { it.varName }
+                )
+            }
+        }
+
+        if (autoDisableEnv != null && (autoDisableEnv.className == "EnvelopeDAHDSR" || autoDisableEnv.className == "EnvelopeAttackDecay")) {
             sb.appendLine("        // Turn off circuit when envelope completes to save CPU")
-            sb.appendLine("        ${mainAmpEnv.varName}.setupAutoDisable(this);")
+            sb.appendLine("        ${autoDisableEnv.varName}.setupAutoDisable(this);")
             sb.appendLine()
         }
 

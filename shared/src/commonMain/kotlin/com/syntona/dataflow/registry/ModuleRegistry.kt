@@ -10,6 +10,7 @@ import com.syntona.dataflow.modules.*
 object ModuleRegistry {
 
     val ksynFactories = mutableMapOf<String, () -> UnitGenerator>()
+    val ksynClassFactories = mutableMapOf<kotlin.reflect.KClass<out UnitGenerator>, () -> UnitGenerator>()
 
     data class ModuleEntry(
         val name: String,
@@ -408,13 +409,14 @@ object ModuleRegistry {
             ?: Bundle(name).also { parent.subBundles.add(it) }
     }
 
-    private fun addKSynModule(
+    private inline fun <reified T : UnitGenerator> addKSynModule(
         bundle: Bundle,
         name: String,
-        unitFactory: () -> UnitGenerator,
+        noinline unitFactory: () -> T,
         helpResourcePath: String? = null
     ) {
         ksynFactories[name] = unitFactory
+        ksynClassFactories[T::class] = unitFactory
         bundle.modules.add(ModuleEntry(name, helpResourcePath) { UnitGeneratorModule(name, unitFactory()) })
     }
 }
