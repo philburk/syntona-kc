@@ -104,6 +104,7 @@ class RecorderModule : Module("recorder"), EngineAware {
                 unit.seek(0)
                 unit.record()
                 startReplenishing()
+                sendData()
             }
             playIn.isKicked -> {
                 pendingStopEvent?.cancel()
@@ -126,13 +127,11 @@ class RecorderModule : Module("recorder"), EngineAware {
                     pendingStopEvent = e.schedule(fireTime) {
                         pendingStopEvent = null
                         unit.pause()
-                        sendData()
                     }
                 } else {
-                    val wasRecording = unit.isRecording
                     unit.pause()
-                    if (wasRecording) sendData()
                 }
+                sendData()
             }
             rewindIn.isKicked -> {
                 pendingStopEvent?.cancel()
