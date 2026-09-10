@@ -10,6 +10,7 @@ import com.syntona.dataflow.registry.ModuleRegistry
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class SamplePlayerModuleTest {
@@ -58,6 +59,32 @@ class SamplePlayerModuleTest {
         module.onIn.receive(Message.FloatValue(now, 1.0))
         module.offIn.receive(Message.FloatValue(now, 0.0))
         module.stopIn.receive(Message.FloatValue(now, 0.0))
+
+        module.teardown()
+    }
+
+    @Test
+    fun testFileNameExtraction() {
+        val module = SamplePlayerModule()
+        assertNull(module.fileName)
+
+        module.filePath = ""
+        assertNull(module.fileName)
+
+        module.filePath = "   "
+        assertNull(module.fileName)
+
+        module.filePath = "/Users/phil/Music/snare.wav"
+        assertEquals("snare.wav", module.fileName)
+
+        module.filePath = "C:\\Sounds\\Samples\\kick.wav"
+        assertEquals("kick.wav", module.fileName)
+
+        module.filePath = "samples/cymbal.wav"
+        assertEquals("cymbal.wav", module.fileName)
+
+        module.filePath = "tom.wav"
+        assertEquals("tom.wav", module.fileName)
 
         module.teardown()
     }

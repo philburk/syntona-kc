@@ -54,6 +54,7 @@ class SampleAndRecorderWavTest {
         val success = module.loadWav(wavBytes, "test_sample.wav")
         assertTrue(success)
         assertEquals("test_sample.wav", module.filePath)
+        assertEquals("test_sample.wav", module.fileName)
         assertEquals(numFrames, module.sample.numFrames)
         assertEquals(44100.0, module.sample.frameRate)
         assertEquals(1, module.sample.channelsPerFrame)
@@ -82,6 +83,7 @@ class SampleAndRecorderWavTest {
         val success = module.loadWav(wavBytes, "test_player.wav")
         assertTrue(success)
         assertEquals("test_player.wav", module.filePath)
+        assertEquals("test_player.wav", module.fileName)
         assertEquals(numFrames, module.sample.numFrames)
         assertEquals(44100.0, module.sample.frameRate)
         assertEquals(1, module.sample.channelsPerFrame)
@@ -325,10 +327,12 @@ class SampleAndRecorderWavTest {
         val graph = GraphState()
         val sampleModule = FloatSampleModule()
         sampleModule.loadWavFile(wavFile.absolutePath)
+        assertEquals("snare.wav", sampleModule.fileName)
         graph.addModule(sampleModule, Offset.Zero)
 
         val playerModule = SamplePlayerModule()
         playerModule.loadWavFile(wavFile.absolutePath)
+        assertEquals("snare.wav", playerModule.fileName)
         graph.addModule(playerModule, Offset.Zero)
 
         // Serialize relative to sntnFile

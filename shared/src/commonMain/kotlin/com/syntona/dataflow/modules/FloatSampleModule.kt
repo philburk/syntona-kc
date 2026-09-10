@@ -24,6 +24,8 @@ import com.syntona.dataflow.model.OutputJack
 class FloatSampleModule : Module("sample") {
     var sample: FloatSample by mutableStateOf(createSample())
     var filePath: String? by mutableStateOf(null)
+    val fileName: String?
+        get() = filePath?.substringAfterLast('/')?.substringAfterLast('\\')?.takeIf { it.isNotBlank() }
 
     val sendIn: CommandJack = addCommandInput("send")
     val dataOutput: DataQueueOutputJack = addDataQueueOutput("data")

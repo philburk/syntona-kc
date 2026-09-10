@@ -29,6 +29,8 @@ class SamplePlayerModule : Module("samplePlayer") {
 
     var sample: FloatSample by mutableStateOf(createSample())
     var filePath: String? by mutableStateOf(null)
+    val fileName: String?
+        get() = filePath?.substringAfterLast('/')?.substringAfterLast('\\')?.takeIf { it.isNotBlank() }
 
     var isLooping: Boolean
         get() = loopInput.isChecked

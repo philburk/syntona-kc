@@ -1,6 +1,6 @@
 {
-  "version": "0.6.1 beta",
-  "versionCode": 393217,
+  "version": "0.7.5 beta",
+  "versionCode": 458757,
   "modules": [
     {
       "id": 0,
@@ -11,7 +11,7 @@
     },
     {
       "id": 1,
-      "type": "ksyn.data.recorder",
+      "type": "ksyn.sampling.recorder",
       "name": "recorder",
       "x": 164.9,
       "y": 198.1,
@@ -63,7 +63,7 @@
     },
     {
       "id": 3,
-      "type": "ksyn.data.sampleReader",
+      "type": "ksyn.sampling.sampleReader",
       "name": "sampleReader",
       "x": 660,
       "y": 316.1,
@@ -74,13 +74,19 @@
           "kickable": false
         },
         "offset": {
-          "v": 0.12651291489601135,
+          "v": 0.43113213777542114,
           "min": 0,
           "max": 1,
-          "kickable": false
+          "kickable": true
+        },
+        "offsetSec": {
+          "v": 0,
+          "min": 0,
+          "max": 600,
+          "kickable": true
         },
         "durationMs": {
-          "v": 1733.3621826171875,
+          "v": 1056.1466064453125,
           "min": 0,
           "max": 10000,
           "kickable": false
@@ -121,7 +127,7 @@
           "kickable": true
         },
         "in": {
-          "v": 0.12651291489601135,
+          "v": 0.43113213777542114,
           "min": 0,
           "max": 1,
           "kickable": false
@@ -132,8 +138,8 @@
       "id": 5,
       "type": "core.input.knob",
       "name": "knob",
-      "x": 511.9,
-      "y": 507,
+      "x": 521.9,
+      "y": 539,
       "jacks": {
         "kick": {
           "min": 0,
@@ -141,7 +147,7 @@
           "kickable": true
         },
         "in": {
-          "v": 1733.3621826171875,
+          "v": 1056.1466064453125,
           "min": 0,
           "max": 10000,
           "kickable": false

@@ -85,6 +85,7 @@ import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -465,6 +466,37 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color? = null, la
         Column(modifier = Modifier.fillMaxWidth()) {
             // Header
             ModuleHeader(module = module, state = state, headerColor = resolvedHeaderColor, label = label)
+
+            // Display loaded/saved WAV file name for sample and samplePlayer modules
+            val sampleFileName = when (module) {
+                is FloatSampleModule -> module.fileName
+                is SamplePlayerModule -> module.fileName
+                else -> null
+            }
+            if (sampleFileName != null) {
+                val fullPath = when (module) {
+                    is FloatSampleModule -> module.filePath ?: ""
+                    is SamplePlayerModule -> module.filePath ?: ""
+                    else -> ""
+                }
+                TooltipArea(text = fullPath) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .widthIn(max = 200.dp)
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = sampleFileName,
+                            color = if (colors.moduleBackground == Color.White) Color.DarkGray else Color.LightGray,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
 
             // Show custom content for ShowModule
             if (module is ShowModule) {
@@ -2677,7 +2709,12 @@ fun ModuleHeader(
                                 text = { Text("Save to WAV File...", fontSize = 12.sp) },
                                 onClick = {
                                     showMenu = false
-                                    chooseWavRecordFile(defaultName = "${module.name}.wav") { path ->
+                                    val defaultName = when (module) {
+                                        is FloatSampleModule -> module.fileName ?: "${module.name}.wav"
+                                        is SamplePlayerModule -> module.fileName ?: "${module.name}.wav"
+                                        else -> "${module.name}.wav"
+                                    }
+                                    chooseWavRecordFile(defaultName = defaultName) { path ->
                                         when (module) {
                                             is FloatSampleModule -> module.saveWavFile(path)
                                             is SamplePlayerModule -> module.saveWavFile(path)

@@ -11,6 +11,7 @@ import com.syntona.dataflow.registry.ModuleRegistry
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class FloatSampleModuleTest {
@@ -91,5 +92,29 @@ class FloatSampleModuleTest {
         val creator = ModuleRegistry.findCreator("sample")
         assertNotNull(creator, "sample should be registered")
         assertTrue(creator() is FloatSampleModule)
+    }
+
+    @Test
+    fun testFileNameExtraction() {
+        val module = FloatSampleModule()
+        assertNull(module.fileName)
+
+        module.filePath = ""
+        assertNull(module.fileName)
+
+        module.filePath = "   "
+        assertNull(module.fileName)
+
+        module.filePath = "/Users/phil/Music/snare.wav"
+        assertEquals("snare.wav", module.fileName)
+
+        module.filePath = "C:\\Sounds\\Samples\\kick.wav"
+        assertEquals("kick.wav", module.fileName)
+
+        module.filePath = "samples/cymbal.wav"
+        assertEquals("cymbal.wav", module.fileName)
+
+        module.filePath = "tom.wav"
+        assertEquals("tom.wav", module.fileName)
     }
 }
