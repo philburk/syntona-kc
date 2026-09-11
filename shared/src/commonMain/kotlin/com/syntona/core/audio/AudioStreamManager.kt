@@ -87,19 +87,29 @@ abstract class AudioStreamManager {
                 permState = AudioInputBridge.requestPermission(context)
             }
             if (permState == AudioPermissionState.GRANTED) {
-                val inputCandidate = AudioInputBridge.create {
+                var inputCandidate = AudioInputBridge.create {
                     sampleRate = optimalSampleRate
                     framesPerBuffer = bufferSizeFrames
-                    channels = 1
+                    channels = 2
                     deviceId = requestedInputDeviceId
                 }
-                val openRes = inputCandidate.open()
+                var openRes = inputCandidate.open()
+                if (openRes != AudioResult.OK) {
+                    println("AudioInputBridge stereo open failed: $openRes, falling back to mono.")
+                    inputCandidate = AudioInputBridge.create {
+                        sampleRate = optimalSampleRate
+                        framesPerBuffer = bufferSizeFrames
+                        channels = 1
+                        deviceId = requestedInputDeviceId
+                    }
+                    openRes = inputCandidate.open()
+                }
                 if (openRes == AudioResult.OK) {
                     val startRes = inputCandidate.start()
                     if (startRes == AudioResult.OK) {
                         activeInputBridge = inputCandidate
                         activeInputDeviceName = inputCandidate.getCurrentDeviceName()
-                        println("AudioInputBridge opened and started on '$activeInputDeviceName'.")
+                        println("AudioInputBridge opened and started on '$activeInputDeviceName' with ${inputCandidate.getChannelCount()} channel(s).")
                     } else {
                         inputCandidate.close()
                     }

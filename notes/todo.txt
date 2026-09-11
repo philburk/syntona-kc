@@ -54,6 +54,8 @@ Need repro steps.
 
 # ----------------------------------------------- MEDIUM PRIORITY
 
+Add matchControl8 for controllers that are sequential, matchControl4.
+
 Add XY display to scope for Lissajous curves
 
 Indicate whether an Audio port is in Add? mode.

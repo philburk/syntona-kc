@@ -61,13 +61,15 @@ class KSynAudioBridge(val synth: Synthesizer): AudioStreamManager() {
      */
     private fun applyLatencyAnalyzer(
         analyzer: com.syntona.util.LatencyAnalyzer,
-        monoInput: FloatArray,
-        stereoOutput: FloatArray
+        input: FloatArray,
+        stereoOutput: FloatArray,
+        inputChannels: Int
     ) {
         val outputFrames = stereoOutput.size / STEREO_CHANNELS
-        val frames = min(outputFrames, monoInput.size)
+        val inputFrames = input.size / inputChannels
+        val frames = min(outputFrames, inputFrames)
         for (i in 0 until frames) {
-            val sample = analyzer.processFrame(monoInput[i])
+            val sample = analyzer.processFrame(input[i * inputChannels])
             stereoOutput[i * STEREO_CHANNELS] = sample
             stereoOutput[i * STEREO_CHANNELS + 1] = sample
         }
@@ -86,15 +88,17 @@ class KSynAudioBridge(val synth: Synthesizer): AudioStreamManager() {
         val isInputActive = (activeInputBridge != null)
 
         duplexMode = if (isInputActive) DuplexMode.PREPARING else DuplexMode.IDLE
-        val numInputChannels = if (isInputActive) 1 else 0
+        val numInputChannels = if (isInputActive) activeInputBridge.getChannelCount() else 0
         synth.start(audioBridge.getSampleRate(), numInputChannels, STEREO_CHANNELS)
 
         // Use 64 frames per render iteration to match KSyn synth's fixed buffer size (FRAMES_PER_BUFFER = 64)
         // so that input audio samples are never truncated or dropped on platforms like WASM where audioBridge burst size is 128.
         val bufferSizeFrames = 64
-        val tempInputBuffer = FloatArray(bufferSizeFrames * 4)
-        val monoInputBuffer = FloatArray(bufferSizeFrames)
-        val silenceInputBuffer = FloatArray(bufferSizeFrames)
+        val inputChannels = if (numInputChannels > 0) numInputChannels else 1
+        val inputBufferSizeSamples = bufferSizeFrames * inputChannels
+        val tempInputBuffer = FloatArray(inputBufferSizeSamples * 4)
+        val inputAudioBuffer = FloatArray(inputBufferSizeSamples)
+        val silenceInputBuffer = FloatArray(inputBufferSizeSamples)
         val STABLE_LOOPS_REQUIRED = 8
         var stableLoopsConsecutive = 0
 
@@ -102,21 +106,22 @@ class KSynAudioBridge(val synth: Synthesizer): AudioStreamManager() {
             while (isActive()) { // Check isActive for cooperative cancellation
                 val stereoBuffer = if (isInputActive && activeInputBridge != null) {
                     if (duplexMode == DuplexMode.PREPARING) {
-                        var totalReadThisLoop = 0
+                        var totalReadFramesThisLoop = 0
+                        val maxTempFrames = tempInputBuffer.size / inputChannels
                         while (isActive()) {
-                            val remainingSpace = tempInputBuffer.size - totalReadThisLoop
-                            if (remainingSpace <= 0) break
+                            val remainingFrames = maxTempFrames - totalReadFramesThisLoop
+                            if (remainingFrames <= 0) break
                             val read = activeInputBridge.read(
                                 tempInputBuffer,
-                                totalReadThisLoop,
-                                min(bufferSizeFrames, remainingSpace)
+                                totalReadFramesThisLoop,
+                                min(bufferSizeFrames, remainingFrames)
                             )
                             if (read <= 0) break
-                            totalReadThisLoop += read
+                            totalReadFramesThisLoop += read
                         }
 
                         val limit = bufferSizeFrames * 5 / 4
-                        if (totalReadThisLoop <= limit) {
+                        if (totalReadFramesThisLoop <= limit) {
                             stableLoopsConsecutive++
                             if (stableLoopsConsecutive >= STABLE_LOOPS_REQUIRED) {
                                 duplexMode = DuplexMode.STABLE
@@ -127,11 +132,11 @@ class KSynAudioBridge(val synth: Synthesizer): AudioStreamManager() {
 
                         synth.renderBuffer(silenceInputBuffer)
                     } else {
-                        val readCount = activeInputBridge.read(monoInputBuffer, 0, bufferSizeFrames)
-                        if (readCount < bufferSizeFrames && readCount >= 0) {
-                            monoInputBuffer.fill(0.0f, readCount, bufferSizeFrames)
+                        val readFrames = activeInputBridge.read(inputAudioBuffer, 0, bufferSizeFrames)
+                        if (readFrames in 0 until bufferSizeFrames) {
+                            inputAudioBuffer.fill(0.0f, readFrames * inputChannels, inputBufferSizeSamples)
                         }
-                        synth.renderBuffer(monoInputBuffer)
+                        synth.renderBuffer(inputAudioBuffer)
                     }
                 } else {
                     synth.renderBuffer()
@@ -140,7 +145,7 @@ class KSynAudioBridge(val synth: Synthesizer): AudioStreamManager() {
                 // A latency measurement, if one is running, replaces the synth output entirely.
                 latencyAnalyzer?.let { analyzer ->
                     if (isInputActive && duplexMode == DuplexMode.STABLE) {
-                        applyLatencyAnalyzer(analyzer, monoInputBuffer, stereoBuffer)
+                        applyLatencyAnalyzer(analyzer, inputAudioBuffer, stereoBuffer, inputChannels)
                     }
                 }
 
