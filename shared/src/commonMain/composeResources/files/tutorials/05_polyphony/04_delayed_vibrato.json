@@ -1,4 +1,6 @@
 {
+  "version": "0.7.5 beta",
+  "versionCode": 458757,
   "modules": [
     {
       "id": 0,
@@ -24,10 +26,11 @@
           "kickable": false
         },
         "offset": {
-          "v": 48,
+          "v": 36,
           "min": 0,
           "max": 80,
-          "kickable": false
+          "kickable": false,
+          "integer": true
         }
       },
       "row1Keys": "12345678",
@@ -140,12 +143,12 @@
           },
           {
             "id": 5,
-            "type": "ksyn.aOutput",
+            "type": "ksyn.output~",
             "name": "output",
             "x": 665,
             "y": 289,
             "jacks": {
-              "input": {
+              "in": {
                 "v": 0,
                 "min": 0,
                 "max": 1,
@@ -179,12 +182,12 @@
           },
           {
             "id": 7,
-            "type": "ksyn.control.DAHDSR",
-            "name": "DAHDSR",
+            "type": "ksyn.control.envDAHDSR",
+            "name": "envDAHDSR",
             "x": 539.9,
             "y": 160,
             "jacks": {
-              "input": {
+              "in": {
                 "v": 0,
                 "min": 0,
                 "max": 1,
@@ -254,12 +257,12 @@
           },
           {
             "id": 9,
-            "type": "ksyn.math.ap2f",
-            "name": "ap2f",
+            "type": "ksyn.math.pitchToHz~",
+            "name": "pitchToHz~",
             "x": 335.9,
             "y": 268,
             "jacks": {
-              "input": {
+              "in": {
                 "v": 60,
                 "min": 0,
                 "max": 127,
@@ -270,7 +273,7 @@
           },
           {
             "id": 10,
-            "type": "ksyn.aInput",
+            "type": "ksyn.input~",
             "name": "vibrato",
             "x": 53.9,
             "y": 487,
@@ -286,12 +289,12 @@
           },
           {
             "id": 11,
-            "type": "ksyn.control.DAHDSR",
-            "name": "DAHDSR",
+            "type": "ksyn.control.envDAHDSR",
+            "name": "envDAHDSR",
             "x": 198.9,
             "y": 224.9,
             "jacks": {
-              "input": {
+              "in": {
                 "v": 0,
                 "min": 0,
                 "max": 1,
@@ -353,67 +356,67 @@
         "connections": [
           {
             "from": 3,
-            "fromJack": "output",
+            "fromJack": "out",
             "to": 6,
             "toJack": "amplitude"
           },
           {
             "from": 0,
-            "fromJack": "output",
+            "fromJack": "out",
             "to": 7,
             "toJack": "on"
           },
           {
             "from": 1,
-            "fromJack": "output",
+            "fromJack": "out",
             "to": 7,
             "toJack": "off"
           },
           {
             "from": 7,
-            "fromJack": "output",
+            "fromJack": "out",
             "to": 5,
-            "toJack": "input"
+            "toJack": "in"
           },
           {
             "from": 6,
-            "fromJack": "output",
+            "fromJack": "out",
             "to": 7,
             "toJack": "amplitude"
           },
           {
             "from": 2,
-            "fromJack": "output",
+            "fromJack": "out",
             "to": 9,
-            "toJack": "input"
+            "toJack": "in"
           },
           {
             "from": 9,
-            "fromJack": "output",
+            "fromJack": "out",
             "to": 6,
             "toJack": "frequency"
           },
           {
             "from": 10,
-            "fromJack": "output",
+            "fromJack": "out",
             "to": 11,
             "toJack": "amplitude"
           },
           {
             "from": 11,
-            "fromJack": "output",
+            "fromJack": "out",
             "to": 9,
-            "toJack": "input"
+            "toJack": "in"
           },
           {
             "from": 0,
-            "fromJack": "output",
+            "fromJack": "out",
             "to": 11,
             "toJack": "on"
           },
           {
             "from": 1,
-            "fromJack": "output",
+            "fromJack": "out",
             "to": 11,
             "toJack": "off"
           }
@@ -427,14 +430,14 @@
       "x": 581.9,
       "y": 252,
       "jacks": {
-        "input0": {
+        "in0": {
           "v": 0,
           "min": 0,
           "max": 1,
           "kickable": false,
           "add": false
         },
-        "input1": {
+        "in1": {
           "v": 0,
           "min": 0,
           "max": 1,
@@ -480,7 +483,8 @@
           "v": -1,
           "min": -1,
           "max": 127,
-          "kickable": false
+          "kickable": false,
+          "integer": true
         }
       }
     },
@@ -542,13 +546,13 @@
       "from": 2,
       "fromJack": "output",
       "to": 3,
-      "toJack": "input0"
+      "toJack": "in0"
     },
     {
       "from": 2,
       "fromJack": "output",
       "to": 3,
-      "toJack": "input1"
+      "toJack": "in1"
     },
     {
       "from": 4,
@@ -576,7 +580,7 @@
     },
     {
       "from": 7,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 2,
       "toJack": "vibrato"
     }

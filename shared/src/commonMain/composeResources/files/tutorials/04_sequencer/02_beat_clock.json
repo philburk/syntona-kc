@@ -1,14 +1,16 @@
 {
+  "version": "0.7.5 beta",
+  "versionCode": 458757,
   "modules": [
     {
       "id": 0,
       "type": "ksyn.sources.sawOscDPW",
       "name": "sawOscDPW",
-      "x": 269,
-      "y": 400.1,
+      "x": 291,
+      "y": 407.1,
       "jacks": {
         "frequency": {
-          "v": 344.9938659667969,
+          "v": 249.6011962890625,
           "min": 40,
           "max": 8000,
           "kickable": false,
@@ -27,10 +29,10 @@
       "id": 1,
       "type": "ksyn.control.envAD",
       "name": "envAD",
-      "x": 392.9,
-      "y": 310,
+      "x": 411.9,
+      "y": 309,
       "jacks": {
-        "input": {
+        "in": {
           "v": 0,
           "min": 0,
           "max": 1,
@@ -67,14 +69,14 @@
       "x": 541.9,
       "y": 402,
       "jacks": {
-        "input0": {
+        "in0": {
           "v": 0,
           "min": 0,
           "max": 1,
           "kickable": false,
           "add": false
         },
-        "input1": {
+        "in1": {
           "v": 0,
           "min": 0,
           "max": 1,
@@ -91,14 +93,14 @@
       "y": 319,
       "jacks": {
         "kick": {
-          "v": 1511,
+          "v": 98,
           "min": 0,
           "max": 100,
           "kickable": true
         },
         "in": {
-          "v": 344.9938659667969,
-          "min": 0,
+          "v": 249.6011962890625,
+          "min": 40,
           "max": 8000,
           "kickable": false
         }
@@ -128,7 +130,7 @@
           "kickable": false
         }
       },
-      "division": "1/1"
+      "division": "1:1"
     },
     {
       "id": 6,
@@ -143,15 +145,15 @@
   "connections": [
     {
       "from": 0,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 1,
       "toJack": "amplitude"
     },
     {
       "from": 1,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 2,
-      "toJack": "input1"
+      "toJack": "in1"
     },
     {
       "from": 3,
@@ -161,18 +163,18 @@
     },
     {
       "from": 1,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 2,
-      "toJack": "input0"
+      "toJack": "in0"
     },
     {
       "from": 5,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 3,
       "toJack": "kick"
     },
     {
-      "from": 3,
+      "from": 5,
       "fromJack": "out",
       "to": 1,
       "toJack": "trigger"

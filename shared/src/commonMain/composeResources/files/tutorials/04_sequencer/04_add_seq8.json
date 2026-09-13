@@ -1,4 +1,6 @@
 {
+  "version": "0.7.5 beta",
+  "versionCode": 458757,
   "modules": [
     {
       "id": 0,
@@ -6,7 +8,7 @@
       "name": "comment",
       "x": 49.9,
       "y": 28,
-      "text": "Let's use a seq8 module to provide an 8 note sequence of values.\nWe are interpreting the values as pitches in semitones.\nWe use the \"all\" output jack to receive all the values.\n\nTo Do:\n* Click the \"start\" button to start the beatClock.\n* Change some of the pitch values in the seq8.\n* It turns red while you are editing. Don't forget to hit ENTER to save the edited value.\n\n",
+      "text": "Let's use a seq8 module to provide an 8 note sequence of values.\nWe are interpreting the values as pitches in semitones.\nWe use the \"all\" output jack to receive all the values.\n\nTo Do:\n* Note that we added an \"onLoad\" module. It kicks the Start button when the patch is loaded.\n* Change some of the pitch values in the seq8.\n* It turns red while you are editing. Don't forget to hit ENTER to save the edited value.\n\n",
       "w": 544.875,
       "h": 227
     },
@@ -14,11 +16,11 @@
       "id": 1,
       "type": "ksyn.sources.sawOscDPW",
       "name": "sawOscDPW",
-      "x": 373,
-      "y": 410.1,
+      "x": 457,
+      "y": 407.1,
       "jacks": {
         "frequency": {
-          "v": 130.8127899169922,
+          "v": 440,
           "min": 40,
           "max": 8000,
           "kickable": false,
@@ -37,10 +39,10 @@
       "id": 2,
       "type": "ksyn.control.envAD",
       "name": "envAD",
-      "x": 496.9,
-      "y": 320,
+      "x": 565.9,
+      "y": 338,
       "jacks": {
-        "input": {
+        "in": {
           "v": 0,
           "min": 0,
           "max": 1,
@@ -74,17 +76,17 @@
       "id": 3,
       "type": "ksyn.lineOut",
       "name": "lineOut",
-      "x": 623.9,
-      "y": 395,
+      "x": 692.9,
+      "y": 413,
       "jacks": {
-        "input0": {
+        "in0": {
           "v": 0,
           "min": 0,
           "max": 1,
           "kickable": false,
           "add": false
         },
-        "input1": {
+        "in1": {
           "v": 0,
           "min": 0,
           "max": 1,
@@ -97,8 +99,8 @@
       "id": 4,
       "type": "music.compose.beatClock",
       "name": "beatClock",
-      "x": 54.9,
-      "y": 319,
+      "x": 123.9,
+      "y": 337,
       "jacks": {
         "tempo": {
           "v": 120.57981144577352,
@@ -107,26 +109,15 @@
           "kickable": false
         }
       },
-      "division": "3/8"
+      "division": "8:3"
     },
     {
       "id": 5,
       "type": "core.basic.seq8",
       "name": "seq8",
-      "x": 162,
-      "y": 293.9,
+      "x": 231,
+      "y": 311.9,
       "jacks": {
-        "reset": {
-          "min": 0,
-          "max": 100,
-          "kickable": true
-        },
-        "in": {
-          "v": 20,
-          "min": 0,
-          "max": 100,
-          "kickable": true
-        },
         "in0": {
           "v": 0,
           "min": 0,
@@ -180,13 +171,13 @@
     },
     {
       "id": 6,
-      "type": "core.math.p2f",
-      "name": "p2f",
-      "x": 312,
-      "y": 330.9,
+      "type": "core.math.pitchToHz",
+      "name": "pitchToHz",
+      "x": 362,
+      "y": 403.9,
       "jacks": {
         "in": {
-          "v": 48,
+          "v": 69,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -197,40 +188,47 @@
       "id": 7,
       "type": "core.basic.link",
       "name": "link",
-      "x": 311.9,
-      "y": 533,
+      "x": 380.9,
+      "y": 551,
       "filePath": "tutorials/04_sequencer/05_make_patch.json",
       "buttonText": ">> Next, make a patch"
+    },
+    {
+      "id": 8,
+      "type": "core.input.onLoad",
+      "name": "onLoad",
+      "x": 26.9,
+      "y": 362.9
     }
   ],
   "connections": [
     {
       "from": 1,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 2,
       "toJack": "amplitude"
     },
     {
       "from": 2,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 3,
-      "toJack": "input1"
+      "toJack": "in1"
     },
     {
       "from": 2,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 3,
-      "toJack": "input0"
+      "toJack": "in0"
     },
     {
       "from": 4,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 5,
-      "toJack": "in"
+      "toJack": "kick"
     },
     {
       "from": 5,
-      "fromJack": "all",
+      "fromJack": "out",
       "to": 6,
       "toJack": "in"
     },
@@ -241,7 +239,13 @@
       "toJack": "frequency"
     },
     {
-      "from": 6,
+      "from": 8,
+      "fromJack": "kick",
+      "to": 4,
+      "toJack": "start"
+    },
+    {
+      "from": 5,
       "fromJack": "out",
       "to": 2,
       "toJack": "trigger"

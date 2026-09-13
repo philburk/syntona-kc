@@ -1,4 +1,6 @@
 {
+  "version": "0.7.5 beta",
+  "versionCode": 458757,
   "modules": [
     {
       "id": 0,
@@ -6,7 +8,7 @@
       "name": "comment",
       "x": 49.9,
       "y": 28,
-      "text": "Specifying frequencies is not very intuitive. So let's specify the pitch instead.\n\nPitch is a value in semitones where Middle C is 60 and Concert A is 69.\nWe added a p2f module between the knob and the oscillator that will convert pitches to frequency.\n\nTo Do:\n* Click the \"start\" button to start the beatClock.\n* Click on the knob and drag up and down to change the oscillator pitch.\n* Note that pitches may be fractions, so you can create microtonal music.\n\n",
+      "text": "Specifying frequencies is not very intuitive. So let's specify the pitch instead.\n\nPitch is a value in semitones where Middle C is 60 and Concert A is 69.\nWe added a pitchToHz module between the knob and the oscillator that will convert pitches to frequency.\n\nTo Do:\n* Click the \"start\" button to start the beatClock.\n* Click on the knob and drag up and down to change the oscillator pitch.\n* Note that pitches may be fractions, so you can create microtonal music.\n\n",
       "w": 544.875,
       "h": 227
     },
@@ -14,11 +16,11 @@
       "id": 1,
       "type": "ksyn.sources.sawOscDPW",
       "name": "sawOscDPW",
-      "x": 373,
-      "y": 410.1,
+      "x": 420,
+      "y": 408.1,
       "jacks": {
         "frequency": {
-          "v": 261.6255798339844,
+          "v": 184.99720764160156,
           "min": 40,
           "max": 8000,
           "kickable": false,
@@ -37,10 +39,10 @@
       "id": 2,
       "type": "ksyn.control.envAD",
       "name": "envAD",
-      "x": 496.9,
-      "y": 320,
+      "x": 543.9,
+      "y": 318,
       "jacks": {
-        "input": {
+        "in": {
           "v": 0,
           "min": 0,
           "max": 1,
@@ -74,17 +76,17 @@
       "id": 3,
       "type": "ksyn.lineOut",
       "name": "lineOut",
-      "x": 645.9,
-      "y": 412,
+      "x": 692.9,
+      "y": 410,
       "jacks": {
-        "input0": {
+        "in0": {
           "v": 0,
           "min": 0,
           "max": 1,
           "kickable": false,
           "add": false
         },
-        "input1": {
+        "in1": {
           "v": 0,
           "min": 0,
           "max": 1,
@@ -101,13 +103,13 @@
       "y": 384,
       "jacks": {
         "kick": {
-          "v": 442,
+          "v": 239,
           "min": 0,
           "max": 100,
           "kickable": true
         },
         "in": {
-          "v": 60,
+          "v": 54,
           "min": 0,
           "max": 100,
           "kickable": false
@@ -128,17 +130,17 @@
           "kickable": false
         }
       },
-      "division": "3/8"
+      "division": "8:3"
     },
     {
       "id": 6,
-      "type": "core.math.p2f",
-      "name": "p2f",
-      "x": 299.9,
-      "y": 386,
+      "type": "core.math.pitchToHz",
+      "name": "pitchToHz",
+      "x": 304.9,
+      "y": 381,
       "jacks": {
         "in": {
-          "v": 60,
+          "v": 54,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -149,8 +151,8 @@
       "id": 7,
       "type": "core.basic.link",
       "name": "link",
-      "x": 207.9,
-      "y": 530.1,
+      "x": 240.9,
+      "y": 531.1,
       "filePath": "tutorials/04_sequencer/04_add_seq8.json",
       "buttonText": ">> Next , add seq8"
     }
@@ -158,25 +160,25 @@
   "connections": [
     {
       "from": 1,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 2,
       "toJack": "amplitude"
     },
     {
       "from": 2,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 3,
-      "toJack": "input1"
+      "toJack": "in1"
     },
     {
       "from": 2,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 3,
-      "toJack": "input0"
+      "toJack": "in0"
     },
     {
       "from": 5,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 4,
       "toJack": "kick"
     },
@@ -194,7 +196,7 @@
     },
     {
       "from": 5,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 2,
       "toJack": "trigger"
     }

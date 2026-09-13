@@ -14,14 +14,9 @@ Change stepper "N" jack to "limit"?
 
 Try to save a native signed version.
 
+Add scrollbars if the modules do not fit in the patch window.
+
 A seq with numeric fields or knobs or horizontal faders that can be swept quickly to make a shape.
-
-
-
-
-
-Audio units need a way to call a lambda from the audio domain on a coroutine
-scope so that the lambda can send Syntona events. Use for edge detector with the guitar analyzer.
 
 Convert Syntona timestamps to KSyn timestamps and apply small "advance-time" for jitter reduction.
 

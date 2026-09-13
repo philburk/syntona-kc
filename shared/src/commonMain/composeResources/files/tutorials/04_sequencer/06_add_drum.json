@@ -1,6 +1,6 @@
 {
-  "version": "0.6.0 beta",
-  "versionCode": 393216,
+  "version": "0.7.5 beta",
+  "versionCode": 458757,
   "modules": [
     {
       "id": 0,
@@ -8,7 +8,7 @@
       "name": "comment",
       "x": 49.9,
       "y": 28,
-      "text": "Now let's add a drum to our sequence. We can trigger the drum on individual notes.\n\nTo Do:\n* Click the \"start\" button to start the beatClock.\n* In the Filter box, enter \"drum\" then drag a drumFM module into the patch.\n* Connect the drumFM \"aOut1\" jack to the lineOut.\n* Connect some of the individual jacks on the right hand side of the seq8 module to the drumFM \"trigger\" jack.\n* Drag on the drum's pitch jack to raise it to around 57.\n* Increase the \"mcRatio\" and \"depth\" jacks as well.\n",
+      "text": "Now let's add a drum to our sequence. We can trigger the drum on individual notes.\n\nTo Do:\n* In the Filter box, enter \"drum\" then drag a drumFM module into the patch.\n* Connect the drumFM \"aOut1\" jack to the lineOut.\n* Connect some of the individual jacks on the right hand side of the seq8 module to the drumFM \"trigger\" jack.\n* Drag on the drum's pitch jack to raise it to around 57.\n* Increase the \"mcRatio\" and \"depth\" jacks as well.\n",
       "w": 544.875,
       "h": 227
     },
@@ -16,17 +16,17 @@
       "id": 1,
       "type": "ksyn.lineOut",
       "name": "lineOut",
-      "x": 826.9,
-      "y": 382,
+      "x": 708.9,
+      "y": 366,
       "jacks": {
-        "input0": {
+        "in0": {
           "v": 0,
           "min": 0,
           "max": 1,
           "kickable": false,
           "add": false
         },
-        "input1": {
+        "in1": {
           "v": 0,
           "min": 0,
           "max": 1,
@@ -39,8 +39,8 @@
       "id": 2,
       "type": "music.compose.beatClock",
       "name": "beatClock",
-      "x": 54.9,
-      "y": 319,
+      "x": 110.9,
+      "y": 321,
       "jacks": {
         "tempo": {
           "v": 120.57981144577352,
@@ -49,26 +49,15 @@
           "kickable": false
         }
       },
-      "division": "3/8"
+      "division": "8:3"
     },
     {
       "id": 3,
       "type": "core.basic.seq8",
       "name": "seq8",
-      "x": 162,
-      "y": 293.9,
+      "x": 218,
+      "y": 295.9,
       "jacks": {
-        "reset": {
-          "min": 0,
-          "max": 100,
-          "kickable": true
-        },
-        "in": {
-          "v": 1362,
-          "min": 0,
-          "max": 100,
-          "kickable": true
-        },
         "in0": {
           "v": 0,
           "min": 0,
@@ -167,7 +156,7 @@
             "x": 432,
             "y": 80,
             "jacks": {
-              "input": {
+              "in": {
                 "v": 0,
                 "min": 0,
                 "max": 1,
@@ -199,8 +188,8 @@
           },
           {
             "id": 2,
-            "type": "core.math.p2f",
-            "name": "p2f",
+            "type": "core.math.pitchToHz",
+            "name": "pitchToHz",
             "x": 240,
             "y": 93,
             "jacks": {
@@ -229,12 +218,12 @@
           },
           {
             "id": 4,
-            "type": "ksyn.aOutput",
+            "type": "ksyn.output~",
             "name": "out",
             "x": 572,
             "y": 80,
             "jacks": {
-              "input": {
+              "in": {
                 "v": 0,
                 "min": 0,
                 "max": 1,
@@ -247,7 +236,7 @@
         "connections": [
           {
             "from": 0,
-            "fromJack": "output",
+            "fromJack": "out",
             "to": 1,
             "toJack": "amplitude"
           },
@@ -265,15 +254,15 @@
           },
           {
             "from": 3,
-            "fromJack": "output",
+            "fromJack": "out",
             "to": 2,
             "toJack": "in"
           },
           {
             "from": 1,
-            "fromJack": "output",
+            "fromJack": "out",
             "to": 4,
-            "toJack": "input"
+            "toJack": "in"
           }
         ]
       }
@@ -286,18 +275,25 @@
       "y": 559.9,
       "filePath": "tutorials/04_sequencer/07_add_mixer.json",
       "buttonText": ">> Next, add mixer4x2"
+    },
+    {
+      "id": 6,
+      "type": "core.input.onLoad",
+      "name": "onLoad",
+      "x": 17.9,
+      "y": 349
     }
   ],
   "connections": [
     {
       "from": 2,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 3,
-      "toJack": "in"
+      "toJack": "kick"
     },
     {
       "from": 3,
-      "fromJack": "all",
+      "fromJack": "out",
       "to": 4,
       "toJack": "in"
     },
@@ -305,13 +301,19 @@
       "from": 4,
       "fromJack": "out",
       "to": 1,
-      "toJack": "input1"
+      "toJack": "in1"
     },
     {
       "from": 4,
       "fromJack": "out",
       "to": 1,
-      "toJack": "input0"
+      "toJack": "in0"
+    },
+    {
+      "from": 6,
+      "fromJack": "kick",
+      "to": 2,
+      "toJack": "start"
     }
   ],
   "windowX": 10,

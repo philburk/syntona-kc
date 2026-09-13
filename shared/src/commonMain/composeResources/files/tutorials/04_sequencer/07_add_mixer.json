@@ -1,4 +1,6 @@
 {
+  "version": "0.7.5 beta",
+  "versionCode": 458757,
   "modules": [
     {
       "id": 0,
@@ -6,7 +8,7 @@
       "name": "comment",
       "x": 49.9,
       "y": 28,
-      "text": "The drum sounds are a little quiet. Let's use a mixer to adjust the relative volume of the sounds.\nYou can see that we have added a \"mixer4x2\" module. It has 4 inputs and 2 outputs.\n\nTo Do:\n* Click the \"start\" button to start the beatClock.\n* Increase the left #1 knob to increase the beep volume.\n* Increase the left #2 knob to increase the drum volume.\n* Change the right hand knobs to adjust the left/right panning.\n* Adjust knobs until you are happy with the mix.",
+      "text": "The drum sounds are a little quiet. Let's use a mixer to adjust the relative volume of the sounds.\nYou can see that we have added a \"mixer4x2\" module. It has 4 inputs and 2 outputs.\n\nTo Do:\n* Increase the left #1 knob to increase the beep volume.\n* Increase the left #2 knob to increase the drum volume.\n* Change the right hand knobs to adjust the left/right panning.\n* Adjust knobs until you are happy with the mix.",
       "w": 544.875,
       "h": 227
     },
@@ -17,14 +19,14 @@
       "x": 826.9,
       "y": 382,
       "jacks": {
-        "input0": {
+        "in0": {
           "v": 0,
           "min": 0,
           "max": 1,
           "kickable": false,
           "add": false
         },
-        "input1": {
+        "in1": {
           "v": 0,
           "min": 0,
           "max": 1,
@@ -37,8 +39,8 @@
       "id": 2,
       "type": "music.compose.beatClock",
       "name": "beatClock",
-      "x": 54.9,
-      "y": 319,
+      "x": 101.9,
+      "y": 314,
       "jacks": {
         "tempo": {
           "v": 120.57981144577352,
@@ -47,26 +49,15 @@
           "kickable": false
         }
       },
-      "division": "3/8"
+      "division": "8:3"
     },
     {
       "id": 3,
       "type": "core.basic.seq8",
       "name": "seq8",
-      "x": 162,
-      "y": 293.9,
+      "x": 209,
+      "y": 288.9,
       "jacks": {
-        "reset": {
-          "min": 0,
-          "max": 100,
-          "kickable": true
-        },
-        "in": {
-          "v": 253,
-          "min": 0,
-          "max": 100,
-          "kickable": true
-        },
         "in0": {
           "v": 0,
           "min": 0,
@@ -165,7 +156,7 @@
             "x": 432,
             "y": 80,
             "jacks": {
-              "input": {
+              "in": {
                 "v": 0,
                 "min": 0,
                 "max": 1,
@@ -197,8 +188,8 @@
           },
           {
             "id": 2,
-            "type": "core.math.p2f",
-            "name": "p2f",
+            "type": "core.math.pitchToHz",
+            "name": "pitchToHz",
             "x": 240,
             "y": 93,
             "jacks": {
@@ -227,12 +218,12 @@
           },
           {
             "id": 4,
-            "type": "ksyn.aOutput",
+            "type": "ksyn.output~",
             "name": "out",
             "x": 572,
             "y": 80,
             "jacks": {
-              "input": {
+              "in": {
                 "v": 0,
                 "min": 0,
                 "max": 1,
@@ -245,7 +236,7 @@
         "connections": [
           {
             "from": 0,
-            "fromJack": "output",
+            "fromJack": "out",
             "to": 1,
             "toJack": "amplitude"
           },
@@ -263,15 +254,15 @@
           },
           {
             "from": 3,
-            "fromJack": "output",
+            "fromJack": "out",
             "to": 2,
             "toJack": "in"
           },
           {
             "from": 1,
-            "fromJack": "output",
+            "fromJack": "out",
             "to": 4,
-            "toJack": "input"
+            "toJack": "in"
           }
         ]
       }
@@ -359,12 +350,12 @@
           },
           {
             "id": 3,
-            "type": "ksyn.aOutput",
+            "type": "ksyn.output~",
             "name": "aOut1",
             "x": 659.9,
             "y": 127,
             "jacks": {
-              "input": {
+              "in": {
                 "v": 0,
                 "min": 0,
                 "max": 1,
@@ -375,15 +366,23 @@
           },
           {
             "id": 4,
-            "type": "ksyn.data.monoRdr",
-            "name": "monoRdr",
-            "x": 256.9,
-            "y": 26,
+            "type": "ksyn.control.envSeg",
+            "name": "ampEnv",
+            "x": 137.9,
+            "y": 30,
             "jacks": {
-              "data": {
+              "looping": {
                 "min": 0,
-                "max": 100,
-                "kickable": false
+                "max": 1,
+                "kickable": false,
+                "integer": true
+              },
+              "speed": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
               },
               "amplitude": {
                 "v": 0.7251962423324585,
@@ -391,22 +390,8 @@
                 "max": 1,
                 "kickable": false,
                 "add": false
-              },
-              "rate": {
-                "v": 1,
-                "min": 0,
-                "max": 1,
-                "kickable": false,
-                "add": false
               }
-            }
-          },
-          {
-            "id": 5,
-            "type": "ksyn.data.segEnv",
-            "name": "ampEnv",
-            "x": 137.9,
-            "y": 30,
+            },
             "envData": [0.0069444444961845875, 0.9008403420448303, 0.0590277798473835, 0.4638655483722687, 0.0729166716337204, 0.2521008551120758, 0.107638880610466, 0.08403361588716507, 0.1493055522441864, 0],
             "sustainBegin": -1,
             "sustainEnd": -1,
@@ -414,7 +399,7 @@
             "releaseEnd": -1
           },
           {
-            "id": 6,
+            "id": 5,
             "type": "ksyn.sources.sineOsc",
             "name": "sineOsc",
             "x": 443.9,
@@ -437,7 +422,7 @@
             }
           },
           {
-            "id": 7,
+            "id": 6,
             "type": "ksyn.sources.sineOscPM",
             "name": "sineOscPM",
             "x": 542.9,
@@ -467,28 +452,24 @@
             }
           },
           {
-            "id": 8,
-            "type": "ksyn.data.segEnv",
+            "id": 7,
+            "type": "ksyn.control.envSeg",
             "name": "modEnv",
             "x": 420.9,
             "y": 235,
-            "envData": [0.0010000000474974513, 0.8974789977073669, 0.11011110991239548, 0.38255032896995544, 0.125, 0.12100840359926224, 0.1909722089767456, 0],
-            "sustainBegin": -1,
-            "sustainEnd": -1,
-            "releaseBegin": -1,
-            "releaseEnd": -1
-          },
-          {
-            "id": 9,
-            "type": "ksyn.data.monoRdr",
-            "name": "monoRdr",
-            "x": 514.9,
-            "y": 237,
             "jacks": {
-              "data": {
+              "looping": {
                 "min": 0,
-                "max": 100,
-                "kickable": false
+                "max": 1,
+                "kickable": false,
+                "integer": true
+              },
+              "speed": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
               },
               "amplitude": {
                 "v": 1.3267369270324707,
@@ -496,18 +477,16 @@
                 "max": 4,
                 "kickable": false,
                 "add": false
-              },
-              "rate": {
-                "v": 1,
-                "min": 0,
-                "max": 1,
-                "kickable": false,
-                "add": false
               }
-            }
+            },
+            "envData": [0.0010000000474974513, 0.8974789977073669, 0.11011110991239548, 0.38255032896995544, 0.125, 0.12100840359926224, 0.1909722089767456, 0],
+            "sustainBegin": -1,
+            "sustainEnd": -1,
+            "releaseBegin": -1,
+            "releaseEnd": -1
           },
           {
-            "id": 10,
+            "id": 8,
             "type": "core.input",
             "name": "depth",
             "x": 35.9,
@@ -522,9 +501,9 @@
             }
           },
           {
-            "id": 11,
-            "type": "core.math.p2f",
-            "name": "p2f",
+            "id": 9,
+            "type": "core.math.pitchToHz",
+            "name": "pitchToHz",
             "x": 194.9,
             "y": 180,
             "jacks": {
@@ -537,7 +516,7 @@
             }
           },
           {
-            "id": 12,
+            "id": 10,
             "type": "core.math.*",
             "name": "*",
             "x": 299,
@@ -561,86 +540,74 @@
         "connections": [
           {
             "from": 5,
-            "fromJack": "output",
-            "to": 4,
-            "toJack": "data"
-          },
-          {
-            "from": 6,
-            "fromJack": "output",
-            "to": 7,
+            "fromJack": "out",
+            "to": 6,
             "toJack": "modulation"
           },
           {
             "from": 4,
-            "fromJack": "output",
+            "fromJack": "out",
+            "to": 6,
+            "toJack": "amplitude"
+          },
+          {
+            "from": 0,
+            "fromJack": "out",
+            "to": 4,
+            "toJack": "on"
+          },
+          {
+            "from": 0,
+            "fromJack": "out",
             "to": 7,
+            "toJack": "on"
+          },
+          {
+            "from": 6,
+            "fromJack": "out",
+            "to": 3,
+            "toJack": "in"
+          },
+          {
+            "from": 7,
+            "fromJack": "out",
+            "to": 5,
             "toJack": "amplitude"
           },
           {
             "from": 8,
-            "fromJack": "output",
-            "to": 9,
-            "toJack": "data"
-          },
-          {
-            "from": 0,
-            "fromJack": "output",
-            "to": 5,
-            "toJack": "queueOn"
-          },
-          {
-            "from": 0,
-            "fromJack": "output",
-            "to": 8,
-            "toJack": "queueOn"
-          },
-          {
-            "from": 7,
-            "fromJack": "output",
-            "to": 3,
-            "toJack": "input"
-          },
-          {
-            "from": 9,
-            "fromJack": "output",
-            "to": 6,
-            "toJack": "amplitude"
-          },
-          {
-            "from": 10,
-            "fromJack": "output",
-            "to": 9,
+            "fromJack": "out",
+            "to": 7,
             "toJack": "amplitude"
           },
           {
             "from": 1,
-            "fromJack": "output",
-            "to": 11,
+            "fromJack": "out",
+            "to": 9,
             "toJack": "in"
           },
           {
-            "from": 11,
+            "from": 9,
             "fromJack": "out",
-            "to": 7,
+            "to": 6,
             "toJack": "frequency"
           },
           {
-            "from": 11,
+            "from": 9,
             "fromJack": "out",
-            "to": 12,
+            "to": 10,
             "toJack": "A"
           },
           {
             "from": 2,
-            "fromJack": "output",
-            "to": 12,
+            "fromJack": "out",
+            "to": 10,
             "toJack": "B"
           },
           {
-            "from": 12,
+            "from": 10,
             "fromJack": "out",
-            "to": 6,
+            "to": 5,
             "toJack": "frequency"
           }
         ]
@@ -653,28 +620,28 @@
       "x": 602,
       "y": 316.9,
       "jacks": {
-        "input0": {
+        "in0": {
           "v": 0,
           "min": 0,
           "max": 1,
           "kickable": false,
           "add": false
         },
-        "input1": {
+        "in1": {
           "v": 0,
           "min": 0,
           "max": 1,
           "kickable": false,
           "add": false
         },
-        "input2": {
+        "in2": {
           "v": 0,
           "min": 0,
           "max": 1,
           "kickable": false,
           "add": false
         },
-        "input3": {
+        "in3": {
           "v": 0,
           "min": 0,
           "max": 1,
@@ -754,18 +721,25 @@
       "y": 563,
       "filePath": "tutorials/04_sequencer/08_add_flash.json",
       "buttonText": ">> Next, add flash"
+    },
+    {
+      "id": 8,
+      "type": "core.input.onLoad",
+      "name": "onLoad",
+      "x": 14.9,
+      "y": 335
     }
   ],
   "connections": [
     {
       "from": 2,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 3,
-      "toJack": "in"
+      "toJack": "kick"
     },
     {
       "from": 3,
-      "fromJack": "all",
+      "fromJack": "out",
       "to": 4,
       "toJack": "in"
     },
@@ -791,25 +765,31 @@
       "from": 5,
       "fromJack": "aOut1",
       "to": 6,
-      "toJack": "input1"
+      "toJack": "in1"
     },
     {
       "from": 4,
       "fromJack": "out",
       "to": 6,
-      "toJack": "input0"
+      "toJack": "in0"
     },
     {
       "from": 6,
-      "fromJack": "output0",
+      "fromJack": "out0",
       "to": 1,
-      "toJack": "input0"
+      "toJack": "in0"
     },
     {
       "from": 6,
-      "fromJack": "output1",
+      "fromJack": "out1",
       "to": 1,
-      "toJack": "input1"
+      "toJack": "in1"
+    },
+    {
+      "from": 8,
+      "fromJack": "kick",
+      "to": 2,
+      "toJack": "start"
     }
   ],
   "windowX": 10,
