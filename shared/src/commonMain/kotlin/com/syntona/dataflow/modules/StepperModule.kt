@@ -19,11 +19,13 @@ class StepperModule : Module("stepper"), CommandJackBadge {
     val start = addCommandInput("start")
     val stop = addCommandInput("stop")
     val kick = addCommandInput("kick")
-    val limit = addIntegerInput("N").also {
+    val length = addIntegerInput("length").also {
         it.min = 1.0
         it.max = 128.0
         it.setValue(4.0)
     }
+    /** Alias for backward compatibility */
+    val limit: com.syntona.dataflow.model.IntegerInputJack get() = length
     val loop = addBooleanInput("looping").also {
         it.setValue(0.0)
     }
@@ -56,7 +58,7 @@ class StepperModule : Module("stepper"), CommandJackBadge {
     }
 
     override fun execute(triggerMessage: Message) {
-        val nVal = maxOf(1, limit.getClippedIntValue())
+        val lenVal = maxOf(1, length.getClippedIntValue())
 
         if (start.isKicked) {
             isRunning = true
@@ -85,11 +87,11 @@ class StepperModule : Module("stepper"), CommandJackBadge {
                 return
             }
 
-            if (currentIndex < nVal - 1) {
+            if (currentIndex < lenVal - 1) {
                 currentIndex++
                 indexOut.send(Message.FloatValue(triggerMessage.time, currentIndex.toDouble()))
             } else {
-                // Currently outputting N - 1; this kick completes the final step's rhythmic duration.
+                // Currently outputting length - 1; this kick completes the final step's rhythmic duration.
                 doneOut.send(Message.FloatValue(triggerMessage.time, 1.0))
                 if (isLooping) {
                     currentIndex = 0

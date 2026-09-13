@@ -7,7 +7,7 @@ The Stepper is a 0-based, bounded iterator designed for sequencing and logic rou
 
 * **Start:** Wakes the module. Sets the internal state to "Running", instantly sets the index to `0`, and immediately outputs `0` from the Index jack.
 * **Kick:** The main clock input. Advances the stepper. This input is entirely ignored if the module is in the "Dormant" state.
-* **N (Limit):** Determines the sequence length. The stepper counts from `0` up to `N-1`.
+* **Length:** Determines the sequence length (formerly "N"). The stepper counts from `0` up to `Length-1`.
 * **Loop (Optional UI Toggle or Jack):** A boolean state determining whether the Stepper repeats or stops upon completion.
 
 **Output Jacks**

@@ -48,11 +48,12 @@ class StepperModuleTest {
         assertFalse(stepper.kick.isInteger)
         assertFalse(stepper.kick.isModuleEditorVisible)
 
-        assertEquals("N", stepper.limit.name)
-        assertTrue(stepper.limit.isInteger)
-        assertEquals(1.0, stepper.limit.min)
-        assertEquals(128.0, stepper.limit.max)
-        assertEquals(4.0, stepper.limit.getValue())
+        assertEquals("length", stepper.length.name)
+        assertEquals("length", stepper.limit.name)
+        assertTrue(stepper.length.isInteger)
+        assertEquals(1.0, stepper.length.min)
+        assertEquals(128.0, stepper.length.max)
+        assertEquals(4.0, stepper.length.getValue())
 
         assertEquals("looping", stepper.loop.name)
         assertEquals("looping", stepper.looping.name)
@@ -295,7 +296,7 @@ class StepperModuleTest {
     fun testSerializationRoundTrip() {
         val state = GraphState()
         val stepper = StepperModule()
-        stepper.limit.setValue(16.0)
+        stepper.length.setValue(16.0)
         stepper.loop.setValue(1.0)
         state.addModule(stepper, Offset.Zero)
 
@@ -307,10 +308,10 @@ class StepperModuleTest {
 
         val restoredStepper = restoredState.modules.firstOrNull { it is StepperModule } as? StepperModule
         assertNotNull(restoredStepper)
-        assertEquals(16.0, restoredStepper.limit.getValue())
+        assertEquals(16.0, restoredStepper.length.getValue())
         assertEquals(1.0, restoredStepper.loop.getValue())
         assertTrue(restoredStepper.isLooping)
-        assertTrue(restoredStepper.limit.isInteger)
+        assertTrue(restoredStepper.length.isInteger)
         assertTrue(restoredStepper.loop.isInteger)
         assertTrue(restoredStepper.indexOut.isInteger)
 
@@ -412,5 +413,80 @@ class StepperModuleTest {
         assertEquals(1.0, stepper.loop.getValue())
         assertTrue(stepper.isLooping)
     }
+
+    @Test
+    fun testLegacyNJackDeserialization() {
+        val legacyJson = """
+            {
+              "modules": [
+                {
+                  "id": 0,
+                  "type": "stepper",
+                  "name": "stepper",
+                  "jacks": {
+                    "N": {
+                      "v": 8.0,
+                      "min": 1.0,
+                      "max": 128.0
+                    }
+                  }
+                },
+                {
+                  "id": 1,
+                  "type": "knob",
+                  "name": "knob"
+                }
+              ],
+              "connections": [
+                {
+                  "from": 1,
+                  "fromJack": "out",
+                  "to": 0,
+                  "toJack": "N"
+                }
+              ]
+            }
+        """.trimIndent()
+
+        val graphState = com.syntona.dataflow.editor.GraphState()
+        val deserialized = com.syntona.dataflow.editor.GraphSerializer.deserialize(graphState, legacyJson)
+        assertEquals(2, deserialized.size)
+        val stepper = deserialized[0] as StepperModule
+        assertEquals("length", stepper.length.name)
+        assertEquals(8.0, stepper.length.getValue())
+        assertEquals(1, graphState.connections.size)
+        assertEquals(stepper.length, graphState.connections[0].input)
+    }
+
+    @Test
+    fun testLegacyLimitJackDeserialization() {
+        val legacyJson = """
+            {
+              "modules": [
+                {
+                  "id": 0,
+                  "type": "stepper",
+                  "name": "stepper",
+                  "jacks": {
+                    "limit": {
+                      "v": 12.0,
+                      "min": 1.0,
+                      "max": 128.0
+                    }
+                  }
+                }
+              ],
+              "connections": []
+            }
+        """.trimIndent()
+
+        val graphState = com.syntona.dataflow.editor.GraphState()
+        val deserialized = com.syntona.dataflow.editor.GraphSerializer.deserialize(graphState, legacyJson)
+        assertEquals(1, deserialized.size)
+        val stepper = deserialized[0] as StepperModule
+        assertEquals("length", stepper.length.name)
+        assertEquals(12.0, stepper.length.getValue())
+    }
 }
+
 

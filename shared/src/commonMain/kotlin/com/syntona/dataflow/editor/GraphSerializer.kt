@@ -1328,6 +1328,7 @@ internal fun resolveLegacyInputJack(module: Module, serializedName: String): com
         serializedName == "loop" -> "looping"
         serializedName == "enable" -> "enabled"
         module is ClockDividerModule && serializedName.equals("N", ignoreCase = true) -> "divisor"
+        module is StepperModule && (serializedName.equals("N", ignoreCase = true) || serializedName.equals("limit", ignoreCase = true)) -> "length"
         serializedName.startsWith("input", ignoreCase = true) -> "in" + serializedName.substring(5)
         else -> null
     }
@@ -1354,8 +1355,13 @@ internal fun resolveLegacyInputJack(module: Module, serializedName: String): com
     if (module is ClockDividerModule && (serializedName.equals("N", ignoreCase = true) || serializedName.equals("divisor", ignoreCase = true))) {
         return module.divisor
     }
-    if (module is StepperModule && (serializedName.equals("loop", ignoreCase = true) || serializedName.equals("looping", ignoreCase = true))) {
-        return module.loop
+    if (module is StepperModule) {
+        if (serializedName.equals("loop", ignoreCase = true) || serializedName.equals("looping", ignoreCase = true)) {
+            return module.loop
+        }
+        if (serializedName.equals("N", ignoreCase = true) || serializedName.equals("limit", ignoreCase = true) || serializedName.equals("length", ignoreCase = true)) {
+            return module.length
+        }
     }
     if (module is PassModule && (serializedName.equals("enable", ignoreCase = true) || serializedName.equals("enabled", ignoreCase = true))) {
         return module.enabled
