@@ -4,17 +4,14 @@
 On FireFox plug in MIDI hardware before running Syntona.
 Install the MIDI Add-on.
 
-Timeline - show time as a popup when dragging.
+BUG: deleting modules using BACKSPACE or DELETE key sometimes does not work. Edit menu Cut always works.
+Need repro steps.
 
-A stepper that fires all values immediately when kicked.
-No "looping" start or stop jack.
-Just a trigger jack.
-
-Change stepper "N" jack to "limit"?
+Change stepper "N" jack to "limit"? Is there a better name?
 
 Try to save a native signed version.
 
-Add scrollbars if the modules do not fit in the patch window.
+# ----------------------------------------------- MEDIUM PRIORITY
 
 A seq with numeric fields or knobs or horizontal faders that can be swept quickly to make a shape.
 
@@ -22,17 +19,15 @@ Convert Syntona timestamps to KSyn timestamps and apply small "advance-time" for
 
 SPACE bar should play the pianoRoll (maybe)
 
-Add onLoad to sequencer tutorial.
-
-Use envelopes to gate off the pull to reduce CPU load for silent patches.
-Write tests in KSyn and Syntona.
-
 The orange MIDI jacks and the yellow SequentialData jacks look too similar.
 
-BUG: deleting modules using BACKSPACE or DELETE key sometimes does not work. Edit menu Cut always works.
-Need repro steps.
 
-# ----------------------------------------------- MEDIUM PRIORITY
+Timeline - show time as a popup when dragging.
+
+A stepper that fires all values immediately when kicked.
+No "looping" start or stop jack.
+Just a trigger jack.
+Call it a "blast" because it blasts out indexed kicks?
 
 Add matchControl8 for controllers that are sequential, matchControl4.
 

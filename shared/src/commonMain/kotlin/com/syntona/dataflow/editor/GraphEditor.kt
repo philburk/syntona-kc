@@ -20,6 +20,9 @@ import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -214,143 +217,255 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
             HorizontalDivider(color = colors.gridLines, thickness = 1.dp)
         }
 
-        Box(modifier = Modifier.weight(1f).fillMaxWidth().background(colors.background)
-            .focusRequester(focusRequester)
-            .focusable()
-            .onKeyEvent { keyEvent ->
-                if (state.editingModule != null) return@onKeyEvent false
-                var handled = state.onKeyEvent(keyEvent)
-                if (!handled) {
-                    if (keyEvent.type == KeyEventType.KeyDown &&
-                        (keyEvent.key == Key.Backspace || keyEvent.key == Key.Delete)) {
-                        state.deleteSelectedModules()
-                        handled = true
-                    } else if (keyEvent.type == KeyEventType.KeyDown &&
-                        keyEvent.key == Key.Z &&
-                        (keyEvent.isMetaPressed || keyEvent.isCtrlPressed)) {
-                        if (keyEvent.isShiftPressed) state.engine?.redo()
-                        else state.engine?.undo()
-                        handled = true
+        // Viewport dimensions
+        var viewportWidth by remember { mutableStateOf(0f) }
+        var viewportHeight by remember { mutableStateOf(0f) }
+
+        val localDensity = LocalDensity.current
+        val density = localDensity.density
+        val extent = state.computeContentExtent(density)
+        val totalContentWidth = maxOf(viewportWidth, extent.width)
+        val totalContentHeight = maxOf(viewportHeight, extent.height)
+
+        val maxScrollX = maxOf(0f, totalContentWidth - viewportWidth)
+        val maxScrollY = maxOf(0f, totalContentHeight - viewportHeight)
+
+        // Clamp scroll positions if viewport size changes or modules are moved
+        LaunchedEffect(maxScrollX) {
+            if (state.scrollX > maxScrollX) state.scrollX = maxScrollX
+        }
+        LaunchedEffect(maxScrollY) {
+            if (state.scrollY > maxScrollY) state.scrollY = maxScrollY
+        }
+
+        val contentWidthDp = with(localDensity) { totalContentWidth.toDp() }
+        val contentHeightDp = with(localDensity) { totalContentHeight.toDp() }
+
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .background(colors.background)
+                .clipToBounds()
+                .onSizeChanged { size ->
+                    viewportWidth = size.width.toFloat()
+                    viewportHeight = size.height.toFloat()
+                }
+                .pointerInput(maxScrollX, maxScrollY) {
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent(PointerEventPass.Main)
+                            if (event.type == PointerEventType.Scroll) {
+                                val delta = event.changes.firstOrNull()?.scrollDelta ?: Offset.Zero
+                                if (delta != Offset.Zero) {
+                                    val isShift = event.keyboardModifiers.isShiftPressed
+                                    val dx = if (isShift) delta.y else delta.x
+                                    val dy = if (isShift) 0f else delta.y
+
+                                    var scrolled = false
+                                    if (maxScrollX > 0f && dx != 0f) {
+                                        state.scrollX = (state.scrollX + dx * 24f).coerceIn(0f, maxScrollX)
+                                        scrolled = true
+                                    }
+                                    if (maxScrollY > 0f && dy != 0f) {
+                                        state.scrollY = (state.scrollY + dy * 24f).coerceIn(0f, maxScrollY)
+                                        scrolled = true
+                                    }
+                                    if (!scrolled && maxScrollX > 0f && maxScrollY <= 0f && delta.y != 0f) {
+                                        state.scrollX = (state.scrollX + delta.y * 24f).coerceIn(0f, maxScrollX)
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
-                handled
-            }
-            .onGloballyPositioned { state.updateRootOffset(it.positionInRoot()) }
-            .pointerInput(state) {
-                detectTapGestures {
-                    focusRequester.requestFocus()
-                    mdiState.activeGraphState = state
-                    // Tap on background clears selection
-                    state.clearSelection()
-                }
-            }
-            .pointerInput(state) {
-                awaitEachGesture {
-                    val down = awaitFirstDown()
-                    state.selectionRectStart = down.position
-                    state.selectionRectEnd = down.position
-                    drag(down.id) { change ->
-                        change.consume()
-                        state.selectionRectEnd = change.position
-                    }
-                    val rectStart = state.selectionRectStart
-                    val rectEnd = state.selectionRectEnd
-                    if (rectStart != null && rectEnd != null) {
-                        state.selectModulesInRect(rectStart, rectEnd, density)
-                    }
-                    state.selectionRectStart = null
-                    state.selectionRectEnd = null
-                }
-            }
         ) {
-            val isRootGraph = parentPatch == null || parentPatch.isRoot
-            if (isRootGraph && !FileState.isDirty && FileState.currentFilePath == null && state.modules.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier
-                            .background(Color(0x11FFFFFF), RoundedCornerShape(8.dp))
-                            .border(1.dp, Color(0x14FFFFFF), RoundedCornerShape(8.dp))
-                            .padding(horizontal = 24.dp, vertical = 12.dp)
+            // Scrollable canvas content Box
+            Box(
+                modifier = Modifier
+                    .wrapContentSize(Alignment.TopStart, unbounded = true)
+                    .requiredSize(contentWidthDp, contentHeightDp)
+                    .offset { IntOffset(-state.scrollX.roundToInt(), -state.scrollY.roundToInt()) }
+                    .focusRequester(focusRequester)
+                    .focusable()
+                    .onKeyEvent { keyEvent ->
+                        if (state.editingModule != null) return@onKeyEvent false
+                        var handled = state.onKeyEvent(keyEvent)
+                        if (!handled) {
+                            if (keyEvent.type == KeyEventType.KeyDown &&
+                                (keyEvent.key == Key.Backspace || keyEvent.key == Key.Delete)) {
+                                state.deleteSelectedModules()
+                                handled = true
+                            } else if (keyEvent.type == KeyEventType.KeyDown &&
+                                keyEvent.key == Key.Z &&
+                                (keyEvent.isMetaPressed || keyEvent.isCtrlPressed)) {
+                                if (keyEvent.isShiftPressed) state.engine?.redo()
+                                else state.engine?.undo()
+                                handled = true
+                            }
+                        }
+                        handled
+                    }
+                    .onGloballyPositioned { state.updateRootOffset(it.positionInRoot()) }
+                    .pointerInput(state) {
+                        detectTapGestures {
+                            focusRequester.requestFocus()
+                            mdiState.activeGraphState = state
+                            // Tap on background clears selection
+                            state.clearSelection()
+                        }
+                    }
+                    .pointerInput(state) {
+                        awaitEachGesture {
+                            val down = awaitFirstDown()
+                            state.selectionRectStart = down.position
+                            state.selectionRectEnd = down.position
+                            drag(down.id) { change ->
+                                change.consume()
+                                state.selectionRectEnd = change.position
+                            }
+                            val rectStart = state.selectionRectStart
+                            val rectEnd = state.selectionRectEnd
+                            if (rectStart != null && rectEnd != null) {
+                                state.selectModulesInRect(rectStart, rectEnd, density)
+                            }
+                            state.selectionRectStart = null
+                            state.selectionRectEnd = null
+                        }
+                    }
+            ) {
+                val isRootGraph = parentPatch == null || parentPatch.isRoot
+                if (isRootGraph && !FileState.isDirty && FileState.currentFilePath == null && state.modules.isEmpty()) {
+                    Box(
+                        modifier = Modifier.size(
+                            with(localDensity) { viewportWidth.toDp() },
+                            with(localDensity) { viewportHeight.toDp() }
+                        ),
+                        contentAlignment = Alignment.Center
                     ) {
-                        LightbulbIcon(color = Color(0xFFFFD54F), size = 18.dp)
-                        Text(
-                            text = "Look in the Help menu for Examples and Tutorials!",
-                            color = Color(0xAAFFFFFF),
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Medium
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier
+                                .background(Color(0x11FFFFFF), RoundedCornerShape(8.dp))
+                                .border(1.dp, Color(0x14FFFFFF), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 24.dp, vertical = 12.dp)
+                        ) {
+                            LightbulbIcon(color = Color(0xFFFFD54F), size = 18.dp)
+                            Text(
+                                text = "Look in the Help menu for Examples and Tutorials!",
+                                color = Color(0xAAFFFFFF),
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+
+                // Draw Wires behind modules
+                WireRenderer(state)
+
+                // Draw Modules — add cases here for modules with custom layouts
+                CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
+                    state.modules.forEach { module ->
+                        when (module) {
+                            is NumberModule -> NumberModuleNode(module, state)
+                            is EquationModule -> EquationModuleNode(module, state)
+                            is ScaleModule -> ScaleModuleNode(module, state)
+                            is FaderModule -> FaderModuleNode(module, state)
+                            is KnobModule -> KnobModuleNode(module, state)
+                            is PatchModule -> PatchModuleNode(module, state)
+                            is StepValueModule -> StepValueModuleNode(module, state)
+                            is MixerModule -> MixerModuleNode(module, state)
+                            is ModuloSelectModule -> ModuleNode(module, state, headerColor = colors.headerSequence)
+                            is StepperModule -> ModuleNode(module, state, headerColor = colors.headerSequence)
+                            is InputModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
+                            is CommandModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
+                            is OutputModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
+                            is AudioInputModule -> ModuleNode(module, state, headerColor = colors.headerAudio, label = module.name)
+                            is AudioOutputModule -> ModuleNode(module, state, headerColor = colors.headerAudio, label = module.name)
+                            is ScopeModule -> ScopeModuleNode(module, state)
+                            is VuMeterModule -> VuMeterModuleNode(module, state)
+                            is KeyboardModule -> KeyboardModuleNode(module, state)
+                            is CommentModule -> CommentModuleNode(module, state)
+                            is EnvSegModule -> EnvSegModuleNode(module, state)
+                            is PianoRollModule -> PianoRollModuleNode(module, state)
+                            is KeyMatchModule -> KeyMatchModuleNode(module, state)
+                            is MatchControlModule -> MatchControlModuleNode(module, state)
+                            is GlowModule -> GlowModuleNode(module, state)
+                            is FlashModule -> FlashModuleNode(module, state)
+                            is SendModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
+                            is ReceiveModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
+                            is TimelineModule -> TimelineModuleNode(module, state)
+                            is MidiInModule -> MidiInModuleNode(module, state)
+                            is MidiOutModule -> MidiOutModuleNode(module, state)
+                            else -> ModuleNode(module, state)
+                        }
+                    }
+                }
+
+                // Draw selection rectangle (in screen space, account for rootOffset)
+                val selRectStart = state.selectionRectStart
+                val selRectEnd = state.selectionRectEnd
+                if (selRectStart != null && selRectEnd != null) {
+                    Canvas(modifier = Modifier.fillMaxSize()) {
+                        val left = minOf(selRectStart.x, selRectEnd.x)
+                        val top = minOf(selRectStart.y, selRectEnd.y)
+                        val right = maxOf(selRectStart.x, selRectEnd.x)
+                        val bottom = maxOf(selRectStart.y, selRectEnd.y)
+                        drawRect(
+                            color = colors.selectionRect,
+                            topLeft = Offset(left, top),
+                            size = Size(right - left, bottom - top),
+                            style = Stroke(width = 1.dp.toPx())
+                        )
+                        drawRect(
+                            color = colors.selectionRect.copy(alpha = 0.1f),
+                            topLeft = Offset(left, top),
+                            size = Size(right - left, bottom - top)
                         )
                     }
                 }
             }
 
-            // Draw Wires behind modules
-            WireRenderer(state)
-
-            // Draw Modules — add cases here for modules with custom layouts
-            CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
-                state.modules.forEach { module ->
-                    when (module) {
-                        is NumberModule -> NumberModuleNode(module, state)
-                        is EquationModule -> EquationModuleNode(module, state)
-                        is ScaleModule -> ScaleModuleNode(module, state)
-                        is FaderModule -> FaderModuleNode(module, state)
-                        is KnobModule -> KnobModuleNode(module, state)
-                        is PatchModule -> PatchModuleNode(module, state)
-                        is StepValueModule -> StepValueModuleNode(module, state)
-                        is MixerModule -> MixerModuleNode(module, state)
-                        is ModuloSelectModule -> ModuleNode(module, state, headerColor = colors.headerSequence)
-                        is StepperModule -> ModuleNode(module, state, headerColor = colors.headerSequence)
-                        is InputModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
-                        is CommandModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
-                        is OutputModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
-                        is AudioInputModule -> ModuleNode(module, state, headerColor = colors.headerAudio, label = module.name)
-                        is AudioOutputModule -> ModuleNode(module, state, headerColor = colors.headerAudio, label = module.name)
-                        is ScopeModule -> ScopeModuleNode(module, state)
-                        is VuMeterModule -> VuMeterModuleNode(module, state)
-                        is KeyboardModule -> KeyboardModuleNode(module, state)
-                        is CommentModule -> CommentModuleNode(module, state)
-                        is EnvSegModule -> EnvSegModuleNode(module, state)
-                        is PianoRollModule -> PianoRollModuleNode(module, state)
-                        is KeyMatchModule -> KeyMatchModuleNode(module, state)
-                        is MatchControlModule -> MatchControlModuleNode(module, state)
-                        is GlowModule -> GlowModuleNode(module, state)
-                        is FlashModule -> FlashModuleNode(module, state)
-                        is SendModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
-                        is ReceiveModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
-                        is TimelineModule -> TimelineModuleNode(module, state)
-                        is MidiInModule -> MidiInModuleNode(module, state)
-                        is MidiOutModule -> MidiOutModuleNode(module, state)
-                        else -> ModuleNode(module, state)
-                    }
-                }
+            // Scrollbars (only appear when needed)
+            val scrollbarThickness = 15.dp
+            if (maxScrollY > 0f) {
+                GraphVerticalScrollbar(
+                    scrollOffset = state.scrollY,
+                    maxScroll = maxScrollY,
+                    viewportLength = viewportHeight,
+                    contentLength = totalContentHeight,
+                    onScrollChanged = { state.scrollY = it },
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .width(scrollbarThickness)
+                        .fillMaxHeight()
+                        .padding(
+                            top = 2.dp,
+                            end = 2.dp,
+                            bottom = if (maxScrollX > 0f) scrollbarThickness + 4.dp else 2.dp
+                        )
+                )
             }
 
-            // Draw selection rectangle (in screen space, account for rootOffset)
-            val selRectStart = state.selectionRectStart
-            val selRectEnd = state.selectionRectEnd
-            if (selRectStart != null && selRectEnd != null) {
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val left = minOf(selRectStart.x, selRectEnd.x)
-                    val top = minOf(selRectStart.y, selRectEnd.y)
-                    val right = maxOf(selRectStart.x, selRectEnd.x)
-                    val bottom = maxOf(selRectStart.y, selRectEnd.y)
-                    drawRect(
-                        color = colors.selectionRect,
-                        topLeft = Offset(left, top),
-                        size = Size(right - left, bottom - top),
-                        style = Stroke(width = 1.dp.toPx())
-                    )
-                    drawRect(
-                        color = colors.selectionRect.copy(alpha = 0.1f),
-                        topLeft = Offset(left, top),
-                        size = Size(right - left, bottom - top)
-                    )
-                }
+            if (maxScrollX > 0f) {
+                GraphHorizontalScrollbar(
+                    scrollOffset = state.scrollX,
+                    maxScroll = maxScrollX,
+                    viewportLength = viewportWidth,
+                    contentLength = totalContentWidth,
+                    onScrollChanged = { state.scrollX = it },
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .height(scrollbarThickness)
+                        .fillMaxWidth()
+                        .padding(
+                            start = 2.dp,
+                            bottom = 2.dp,
+                            end = if (maxScrollY > 0f) scrollbarThickness + 4.dp else 2.dp
+                        )
+                )
             }
 
             // Editor overlay — backdrop + panel
@@ -367,8 +482,235 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                     modifier = Modifier.align(Alignment.Center)
                 )
             }
-
         }
+    }
+}
+
+@Composable
+fun GraphVerticalScrollbar(
+    scrollOffset: Float,
+    maxScroll: Float,
+    viewportLength: Float,
+    contentLength: Float,
+    onScrollChanged: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+    thickness: Dp = 15.dp
+) {
+    if (maxScroll <= 0f || contentLength <= viewportLength) return
+
+    val density = LocalDensity.current
+    var isHovered by remember { mutableStateOf(false) }
+    var isDragging by remember { mutableStateOf(false) }
+
+    Canvas(
+        modifier = modifier
+            .pointerHoverIcon(PointerIcon.Default)
+            .pointerInput("hover") {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        when (event.type) {
+                            PointerEventType.Enter -> isHovered = true
+                            PointerEventType.Exit -> isHovered = false
+                        }
+                    }
+                }
+            }
+            .pointerInput(maxScroll, viewportLength, contentLength) {
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    val trackHeight = size.height.toFloat()
+                    if (trackHeight <= 0f) return@awaitEachGesture
+
+                    val visibleRatio = (viewportLength / contentLength).coerceIn(0f, 1f)
+                    val minThumbHeight = with(density) { 24.dp.toPx() }
+                    val thumbHeight = maxOf(minThumbHeight, trackHeight * visibleRatio).coerceAtMost(trackHeight)
+                    val scrollRange = trackHeight - thumbHeight
+                    if (scrollRange <= 0f) return@awaitEachGesture
+
+                    val currentRatio = (scrollOffset / maxScroll).coerceIn(0f, 1f)
+                    val thumbY = scrollRange * currentRatio
+
+                    val clickY = down.position.y
+                    val isInsideThumb = clickY >= thumbY && clickY <= (thumbY + thumbHeight)
+
+                    val startScroll = scrollOffset
+                    val startClickY = clickY
+
+                    fun update(currentY: Float) {
+                        if (isInsideThumb) {
+                            val dy = currentY - startClickY
+                            val dScroll = (dy / scrollRange) * maxScroll
+                            onScrollChanged((startScroll + dScroll).coerceIn(0f, maxScroll))
+                        } else {
+                            val targetThumbY = currentY - thumbHeight / 2f
+                            val targetScroll = (targetThumbY / scrollRange) * maxScroll
+                            onScrollChanged(targetScroll.coerceIn(0f, maxScroll))
+                        }
+                    }
+
+                    isDragging = true
+                    if (!isInsideThumb) {
+                        update(clickY)
+                    }
+                    down.consume()
+
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!change.pressed) break
+                        update(change.position.y)
+                        change.consume()
+                    }
+                    isDragging = false
+                }
+            }
+    ) {
+        val trackWidth = size.width
+        val trackHeight = size.height
+        if (trackHeight <= 0f) return@Canvas
+
+        val cornerRadius = CornerRadius(trackWidth / 2f, trackWidth / 2f)
+
+        // Draw track
+        drawRoundRect(
+            color = Color(0x22000000),
+            topLeft = Offset.Zero,
+            size = Size(trackWidth, trackHeight),
+            cornerRadius = cornerRadius
+        )
+
+        // Calculate thumb dimensions
+        val visibleRatio = (viewportLength / contentLength).coerceIn(0f, 1f)
+        val minThumbHeight = 24.dp.toPx()
+        val thumbHeight = maxOf(minThumbHeight, trackHeight * visibleRatio).coerceAtMost(trackHeight)
+        val scrollRange = trackHeight - thumbHeight
+        val scrollRatio = if (maxScroll > 0f) (scrollOffset / maxScroll).coerceIn(0f, 1f) else 0f
+        val thumbY = scrollRange * scrollRatio
+
+        val thumbColor = if (isDragging || isHovered) Color(0x99FFFFFF) else Color(0x55FFFFFF)
+        val inset = 1.dp.toPx()
+
+        drawRoundRect(
+            color = thumbColor,
+            topLeft = Offset(inset, thumbY),
+            size = Size(trackWidth - inset * 2f, thumbHeight),
+            cornerRadius = CornerRadius((trackWidth - inset * 2f) / 2f)
+        )
+    }
+}
+
+@Composable
+fun GraphHorizontalScrollbar(
+    scrollOffset: Float,
+    maxScroll: Float,
+    viewportLength: Float,
+    contentLength: Float,
+    onScrollChanged: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+    thickness: Dp = 15.dp
+) {
+    if (maxScroll <= 0f || contentLength <= viewportLength) return
+
+    val density = LocalDensity.current
+    var isHovered by remember { mutableStateOf(false) }
+    var isDragging by remember { mutableStateOf(false) }
+
+    Canvas(
+        modifier = modifier
+            .pointerHoverIcon(PointerIcon.Default)
+            .pointerInput("hover") {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        when (event.type) {
+                            PointerEventType.Enter -> isHovered = true
+                            PointerEventType.Exit -> isHovered = false
+                        }
+                    }
+                }
+            }
+            .pointerInput(maxScroll, viewportLength, contentLength) {
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    val trackWidth = size.width.toFloat()
+                    if (trackWidth <= 0f) return@awaitEachGesture
+
+                    val visibleRatio = (viewportLength / contentLength).coerceIn(0f, 1f)
+                    val minThumbWidth = with(density) { 24.dp.toPx() }
+                    val thumbWidth = maxOf(minThumbWidth, trackWidth * visibleRatio).coerceAtMost(trackWidth)
+                    val scrollRange = trackWidth - thumbWidth
+                    if (scrollRange <= 0f) return@awaitEachGesture
+
+                    val currentRatio = (scrollOffset / maxScroll).coerceIn(0f, 1f)
+                    val thumbX = scrollRange * currentRatio
+
+                    val clickX = down.position.x
+                    val isInsideThumb = clickX >= thumbX && clickX <= (thumbX + thumbWidth)
+
+                    val startScroll = scrollOffset
+                    val startClickX = clickX
+
+                    fun update(currentX: Float) {
+                        if (isInsideThumb) {
+                            val dx = currentX - startClickX
+                            val dScroll = (dx / scrollRange) * maxScroll
+                            onScrollChanged((startScroll + dScroll).coerceIn(0f, maxScroll))
+                        } else {
+                            val targetThumbX = currentX - thumbWidth / 2f
+                            val targetScroll = (targetThumbX / scrollRange) * maxScroll
+                            onScrollChanged(targetScroll.coerceIn(0f, maxScroll))
+                        }
+                    }
+
+                    isDragging = true
+                    if (!isInsideThumb) {
+                        update(clickX)
+                    }
+                    down.consume()
+
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!change.pressed) break
+                        update(change.position.x)
+                        change.consume()
+                    }
+                    isDragging = false
+                }
+            }
+    ) {
+        val trackWidth = size.width
+        val trackHeight = size.height
+        if (trackWidth <= 0f) return@Canvas
+
+        val cornerRadius = CornerRadius(trackHeight / 2f, trackHeight / 2f)
+
+        // Draw track
+        drawRoundRect(
+            color = Color(0x22000000),
+            topLeft = Offset.Zero,
+            size = Size(trackWidth, trackHeight),
+            cornerRadius = cornerRadius
+        )
+
+        // Calculate thumb dimensions
+        val visibleRatio = (viewportLength / contentLength).coerceIn(0f, 1f)
+        val minThumbWidth = 24.dp.toPx()
+        val thumbWidth = maxOf(minThumbWidth, trackWidth * visibleRatio).coerceAtMost(trackWidth)
+        val scrollRange = trackWidth - thumbWidth
+        val scrollRatio = if (maxScroll > 0f) (scrollOffset / maxScroll).coerceIn(0f, 1f) else 0f
+        val thumbX = scrollRange * scrollRatio
+
+        val thumbColor = if (isDragging || isHovered) Color(0x99FFFFFF) else Color(0x55FFFFFF)
+        val inset = 1.dp.toPx()
+
+        drawRoundRect(
+            color = thumbColor,
+            topLeft = Offset(thumbX, inset),
+            size = Size(thumbWidth, trackHeight - inset * 2f),
+            cornerRadius = CornerRadius((trackHeight - inset * 2f) / 2f)
+        )
     }
 }
 

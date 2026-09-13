@@ -47,6 +47,8 @@ import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isShiftPressed
 
+data class ContentExtent(val width: Float, val height: Float)
+
 /**
  * Manages the UI state of the graph editor, including module positions
  * and anchor points for wires.
@@ -103,6 +105,33 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
 
     fun updateRootOffset(offset: Offset) {
         rootOffset = offset
+    }
+
+    var scrollX by mutableStateOf(0f)
+    var scrollY by mutableStateOf(0f)
+
+    fun resetScroll() {
+        scrollX = 0f
+        scrollY = 0f
+    }
+
+    fun computeContentExtent(density: Float, padding: Float = 40f * density): ContentExtent {
+        var maxX = 0f
+        var maxY = 0f
+        for (module in modules) {
+            val pos = modulePositions[module] ?: Offset.Zero
+            val size = moduleSizes[module]
+            val modWidth = size?.x ?: (160f * density)
+            val modHeight = size?.y ?: (120f * density)
+            val right = pos.x * density + modWidth
+            val bottom = pos.y * density + modHeight
+            if (right > maxX) maxX = right
+            if (bottom > maxY) maxY = bottom
+        }
+        return ContentExtent(
+            width = if (modules.isEmpty()) 0f else maxX + padding,
+            height = if (modules.isEmpty()) 0f else maxY + padding
+        )
     }
 
     fun addModule(module: Module, position: Offset) {
@@ -277,6 +306,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
 
     fun clearAllModules() {
         removeModulesDirectly(modules.toList())
+        resetScroll()
     }
 
     fun replaceModule(oldModule: Module, newModule: Module) {
