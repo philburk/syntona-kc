@@ -39,6 +39,22 @@ Composing Tutorial
 * hierarchy editor ?
 * multiTrack ?
 
+### ---------------
+
+We need stereo output from the polyPatch.
+
+Add a new module called "output2~" that adds stereo output to a patch.
+
+When we create a polyPatch, there is a dialog that asks how many voices to allocate.
+Add a UI that allows the user to select "mono" or "stereo" output.
+If "mono" then implement normally.
+
+If "stereo" then allocate a single output module in the patch with input jacks, "in0" and "in1".
+On the outside of the polyPatch, show two output jacks "out0" and "out1".
+
+If you export a patch with a stereo module then use a TwoInDualOut unit generator.
+It takes two separate inputs from inside the circuit and presents them as a two part "output" port.
+
 # ----------------------------------------------- MEDIUM PRIORITY
 
 Add GitHub CI in YAML that runs a bunch of the JVM desktop tests every time I commit code or submit a pull request.

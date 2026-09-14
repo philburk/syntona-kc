@@ -41,32 +41,32 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
         graphState.onConnectionRemovedCallback = ::syncConnectionRemoved
 
         // 1. "on" (event kick for triggering envelopes, sample queues, sequencers)
-        val onIn = InputModule()
+        val onIn = InputModule().apply { isIntrinsic = true }
         onIn.name = "on"
         graphState.addModule(onIn, androidx.compose.ui.geometry.Offset(50f, 60f))
 
         // 2. "off" (event kick for releasing envelopes, sequencers)
-        val offIn = InputModule()
+        val offIn = InputModule().apply { isIntrinsic = true }
         offIn.name = "off"
         graphState.addModule(offIn, androidx.compose.ui.geometry.Offset(50f, 130f))
 
         // 3. "pitch" (event input)
-        val pitchIn = InputModule()
+        val pitchIn = InputModule().apply { isIntrinsic = true }
         pitchIn.name = "pitch"
         graphState.addModule(pitchIn, androidx.compose.ui.geometry.Offset(50f, 200f))
 
         // 4. "amplitude" (event input)
-        val ampIn = InputModule()
+        val ampIn = InputModule().apply { isIntrinsic = true }
         ampIn.name = "amplitude"
         graphState.addModule(ampIn, androidx.compose.ui.geometry.Offset(50f, 270f))
 
         // 5. "pressure" (event input)
-        val pressIn = InputModule()
+        val pressIn = InputModule().apply { isIntrinsic = true }
         pressIn.name = "pressure"
         graphState.addModule(pressIn, androidx.compose.ui.geometry.Offset(50f, 340f))
 
         // 6. "output" (audio output)
-        val defaultOutput = AudioOutputModule()
+        val defaultOutput = AudioOutputModule().apply { isIntrinsic = true }
         defaultOutput.name = "output"
         graphState.addModule(defaultOutput, androidx.compose.ui.geometry.Offset(450f, 200f))
     }
@@ -156,42 +156,84 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
     }
 
     fun ensureDefaultModulesExist() {
-        val hasOn = graphState.modules.any { it is InputModule && it.name == "on" }
-        if (!hasOn) {
-            val onIn = InputModule()
-            onIn.name = "on"
-            graphState.addModule(onIn, androidx.compose.ui.geometry.Offset(50f, 60f))
+        val onIn = graphState.modules.find { it is InputModule && it.name == "on" }
+        if (onIn == null) {
+            val newOn = InputModule().apply { isIntrinsic = true }
+            newOn.name = "on"
+            graphState.addModule(newOn, androidx.compose.ui.geometry.Offset(50f, 60f))
+        } else {
+            onIn.isIntrinsic = true
         }
-        val hasOff = graphState.modules.any { it is InputModule && it.name == "off" }
-        if (!hasOff) {
-            val offIn = InputModule()
-            offIn.name = "off"
-            graphState.addModule(offIn, androidx.compose.ui.geometry.Offset(50f, 130f))
+
+        val offIn = graphState.modules.find { it is InputModule && it.name == "off" }
+        if (offIn == null) {
+            val newOff = InputModule().apply { isIntrinsic = true }
+            newOff.name = "off"
+            graphState.addModule(newOff, androidx.compose.ui.geometry.Offset(50f, 130f))
+        } else {
+            offIn.isIntrinsic = true
         }
-        val hasPitch = graphState.modules.any { (it is InputModule || it is AudioInputModule) && it.name == "pitch" }
-        if (!hasPitch) {
-            val pitchIn = InputModule()
-            pitchIn.name = "pitch"
-            graphState.addModule(pitchIn, androidx.compose.ui.geometry.Offset(50f, 200f))
+
+        val pitchIn = graphState.modules.find { (it is InputModule || it is AudioInputModule) && it.name == "pitch" }
+        if (pitchIn == null) {
+            val newPitch = InputModule().apply { isIntrinsic = true }
+            newPitch.name = "pitch"
+            graphState.addModule(newPitch, androidx.compose.ui.geometry.Offset(50f, 200f))
+        } else {
+            pitchIn.isIntrinsic = true
         }
-        val hasAmp = graphState.modules.any { (it is InputModule || it is AudioInputModule) && it.name == "amplitude" }
-        if (!hasAmp) {
-            val ampIn = InputModule()
-            ampIn.name = "amplitude"
-            graphState.addModule(ampIn, androidx.compose.ui.geometry.Offset(50f, 270f))
+
+        val ampIn = graphState.modules.find { (it is InputModule || it is AudioInputModule) && it.name == "amplitude" }
+        if (ampIn == null) {
+            val newAmp = InputModule().apply { isIntrinsic = true }
+            newAmp.name = "amplitude"
+            graphState.addModule(newAmp, androidx.compose.ui.geometry.Offset(50f, 270f))
+        } else {
+            ampIn.isIntrinsic = true
         }
-        val hasPress = graphState.modules.any { (it is InputModule || it is AudioInputModule) && it.name == "pressure" }
-        if (!hasPress) {
-            val pressIn = InputModule()
-            pressIn.name = "pressure"
-            graphState.addModule(pressIn, androidx.compose.ui.geometry.Offset(50f, 340f))
+
+        val pressIn = graphState.modules.find { (it is InputModule || it is AudioInputModule) && it.name == "pressure" }
+        if (pressIn == null) {
+            val newPress = InputModule().apply { isIntrinsic = true }
+            newPress.name = "pressure"
+            graphState.addModule(newPress, androidx.compose.ui.geometry.Offset(50f, 340f))
+        } else {
+            pressIn.isIntrinsic = true
         }
-        val hasOutput = graphState.modules.any { it is AudioOutputModule && it.name == "output" }
-        if (!hasOutput) {
-            val defaultOutput = AudioOutputModule()
+
+        val output = graphState.modules.find { it is AudioOutputModule && it.name == "output" }
+        if (output == null) {
+            val defaultOutput = AudioOutputModule().apply { isIntrinsic = true }
             defaultOutput.name = "output"
             graphState.addModule(defaultOutput, androidx.compose.ui.geometry.Offset(450f, 200f))
+        } else {
+            output.isIntrinsic = true
         }
+    }
+
+    /**
+     * Checks if [module] is intrinsic (built-in) to this [PolyPatchModule].
+     */
+    fun isModuleIntrinsic(module: Module): Boolean {
+        if (module.isIntrinsic) return true
+        if (module is AudioOutputModule && module.name == "output") return true
+        if ((module is InputModule || module is AudioInputModule) &&
+            (module.name.equals("on", ignoreCase = true) ||
+             module.name.equals("off", ignoreCase = true) ||
+             module.name.equals("pitch", ignoreCase = true) ||
+             module.name.equals("amplitude", ignoreCase = true) ||
+             module.name.equals("pressure", ignoreCase = true) ||
+             module.name.equals("in", ignoreCase = true) ||
+             module.name.equals("input", ignoreCase = true))) {
+            return true
+        }
+        return false
+    }
+
+    override fun canDeleteChildModule(module: Module): Boolean {
+        if (!super.canDeleteChildModule(module)) return false
+        if (isModuleIntrinsic(module)) return false
+        return true
     }
 
     override fun onMessageReceived(jack: InputJack, msg: Message) {

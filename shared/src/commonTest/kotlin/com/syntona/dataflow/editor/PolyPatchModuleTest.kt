@@ -11,6 +11,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -119,6 +120,87 @@ class PolyPatchModuleTest {
         // Only the mixed output jack should exist on parent
         assertEquals(1, polyPatch.outputs.size)
         assertEquals("output", polyPatch.outputs[0].name)
+    }
+
+    @Test
+    fun testCannotDeleteBuiltInModules() {
+        val polyPatch = PolyPatchModule()
+        assertEquals(6, polyPatch.graphState.modules.size)
+
+        // All 6 built-in modules must be intrinsic and non-deletable
+        for (m in polyPatch.graphState.modules) {
+            assertTrue(m.isIntrinsic, "Module ${m.name} should be marked isIntrinsic")
+            assertFalse(polyPatch.canDeleteChildModule(m), "Module ${m.name} should not be deletable by parent")
+            assertFalse(polyPatch.graphState.canDeleteModule(m), "GraphState should report module ${m.name} not deletable")
+        }
+
+        // Test deleting single built-in module: "output"
+        val outputMod = polyPatch.graphState.modules.find { it.name == "output" }!!
+        polyPatch.graphState.selectModule(outputMod)
+        polyPatch.graphState.deleteSelectedModules()
+        assertTrue(polyPatch.graphState.modules.contains(outputMod), "Output module must not be deleted")
+        assertEquals(6, polyPatch.graphState.modules.size)
+
+        // Test deleting single built-in module: "on"
+        val onMod = polyPatch.graphState.modules.find { it.name == "on" }!!
+        polyPatch.graphState.clearSelection()
+        polyPatch.graphState.selectModule(onMod)
+        polyPatch.graphState.deleteSelectedModules()
+        assertTrue(polyPatch.graphState.modules.contains(onMod), "On module must not be deleted")
+        assertEquals(6, polyPatch.graphState.modules.size)
+
+        // Test selecting all built-in modules and trying to delete them
+        polyPatch.graphState.clearSelection()
+        for (m in polyPatch.graphState.modules) {
+            polyPatch.graphState.selectModule(m)
+        }
+        polyPatch.graphState.deleteSelectedModules()
+        assertEquals(6, polyPatch.graphState.modules.size, "No built-in modules should be deleted")
+    }
+
+    @Test
+    fun testDeleteUserAddedModuleInPolyPatch() {
+        val polyPatch = PolyPatchModule()
+        polyPatch.initializeVoices(2)
+
+        val sineOsc = UnitGeneratorModule("sineOsc", SineOscillator())
+        polyPatch.graphState.addModule(sineOsc, androidx.compose.ui.geometry.Offset.Zero)
+        assertEquals(7, polyPatch.graphState.modules.size)
+        assertTrue(polyPatch.canDeleteChildModule(sineOsc))
+        assertTrue(polyPatch.graphState.canDeleteModule(sineOsc))
+
+        polyPatch.graphState.selectModule(sineOsc)
+        polyPatch.graphState.deleteSelectedModules()
+        assertEquals(6, polyPatch.graphState.modules.size)
+        assertFalse(polyPatch.graphState.modules.contains(sineOsc))
+    }
+
+    @Test
+    fun testDeleteMixedSelectionInPolyPatch() {
+        val polyPatch = PolyPatchModule()
+        polyPatch.initializeVoices(2)
+
+        val sineOsc = UnitGeneratorModule("sineOsc", SineOscillator())
+        polyPatch.graphState.addModule(sineOsc, androidx.compose.ui.geometry.Offset.Zero)
+        val outputMod = polyPatch.graphState.modules.find { it.name == "output" }!!
+
+        // Connect oscillator to output
+        val oscOut = sineOsc.outputs.find { it.name == "out" }!!
+        val outIn = outputMod.inputs.find { it.name == "in" }!!
+        polyPatch.graphState.connect(oscOut, outIn)
+        assertEquals(1, polyPatch.graphState.connections.size)
+
+        // Select both sineOsc and outputMod
+        polyPatch.graphState.selectModule(sineOsc)
+        polyPatch.graphState.selectModule(outputMod)
+
+        polyPatch.graphState.deleteSelectedModules()
+
+        // Oscillator should be deleted and connection removed, but outputMod should remain
+        assertEquals(6, polyPatch.graphState.modules.size)
+        assertFalse(polyPatch.graphState.modules.contains(sineOsc))
+        assertTrue(polyPatch.graphState.modules.contains(outputMod))
+        assertEquals(0, polyPatch.graphState.connections.size)
     }
 
     @Test
@@ -427,6 +509,16 @@ class PolyPatchModuleTest {
         assertTrue(polyPatch.graphState.modules.any { it.name == "amplitude" })
         assertTrue(polyPatch.graphState.modules.any { it.name == "pressure" })
         assertTrue(polyPatch.graphState.modules.any { it.name == "output" })
+
+        // Check intrinsic flags and non-deletability
+        for (m in polyPatch.graphState.modules) {
+            assertTrue(m.isIntrinsic, "Deserialized module ${m.name} should be isIntrinsic")
+            assertFalse(polyPatch.graphState.canDeleteModule(m), "Deserialized module ${m.name} should not be deletable")
+        }
+        val outputMod = polyPatch.graphState.modules.find { it.name == "output" }!!
+        polyPatch.graphState.selectModule(outputMod)
+        polyPatch.graphState.deleteSelectedModules()
+        assertEquals(6, polyPatch.graphState.modules.size, "Deserialized output module must not be deleted")
     }
 
     @Test

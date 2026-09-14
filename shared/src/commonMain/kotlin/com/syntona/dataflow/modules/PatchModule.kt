@@ -126,6 +126,12 @@ open class PatchModule(name: String = "patch", type: String = "patch") : Module(
         graphState.engine = engine
     }
 
+    /**
+     * Returns true if [module] inside this patch may be deleted by the user.
+     * Subclasses can override to protect intrinsic / built-in modules.
+     */
+    open fun canDeleteChildModule(module: Module): Boolean = module.isDeletable
+
     protected open fun onChildModuleAdded(module: Module) {
         module.parentPatch = this
         when (module) {

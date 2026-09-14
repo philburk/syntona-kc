@@ -33,6 +33,17 @@ abstract class Module(val type: String) {
     open val isAllowedInPolyPatch: Boolean
         get() = true
 
+    /**
+     * Whether this module is intrinsic to its enclosing patch and cannot be deleted by the user.
+     */
+    var isIntrinsic: Boolean = false
+
+    /**
+     * Whether this module can be deleted by the user. Defaults to `!isIntrinsic`.
+     */
+    open val isDeletable: Boolean
+        get() = !isIntrinsic
+
     private val _inputs = mutableStateListOf<InputJack>()
     val inputs: List<InputJack> get() = _inputs
 

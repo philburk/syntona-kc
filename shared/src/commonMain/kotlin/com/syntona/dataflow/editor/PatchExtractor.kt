@@ -32,6 +32,7 @@ object PatchExtractor {
         density: Float = 1f
     ): PatchModule? {
         if (modulesToExtract.isEmpty()) return null
+        if (modulesToExtract.any { !graphState.canDeleteModule(it) }) return null
         val selectedSet = modulesToExtract.toSet()
 
         // 1. Compute bounding box in graph coordinates

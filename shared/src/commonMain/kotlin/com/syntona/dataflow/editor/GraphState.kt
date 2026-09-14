@@ -611,8 +611,15 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
         disconnect(connection.output, connection.input)
     }
 
+    fun canDeleteModule(module: Module): Boolean {
+        if (!module.isDeletable) return false
+        val parent = parentPatch
+        if (parent != null && !parent.canDeleteChildModule(module)) return false
+        return true
+    }
+
     fun deleteSelectedModules() {
-        val toDelete = selectedModules.toList()
+        val toDelete = selectedModules.filter { canDeleteModule(it) }
         if (toDelete.isEmpty()) return
         val e = engine
         if (e != null) {

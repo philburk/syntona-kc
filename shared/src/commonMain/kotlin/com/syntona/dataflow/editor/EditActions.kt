@@ -16,7 +16,8 @@ object EditActions {
 
     fun canCut(mdi: MdiState): Boolean {
         mdi.activeEditHandler?.let { return it.canCut() }
-        return mdi.activeGraphState?.selectedModules?.isNotEmpty() == true
+        val gs = mdi.activeGraphState ?: return false
+        return gs.selectedModules.any { gs.canDeleteModule(it) }
     }
 
     fun canCopy(mdi: MdiState): Boolean {
@@ -31,7 +32,9 @@ object EditActions {
 
     fun canMakePatch(mdi: MdiState): Boolean {
         if (mdi.activeEditHandler != null) return false
-        return mdi.activeGraphState?.selectedModules?.isNotEmpty() == true
+        val gs = mdi.activeGraphState ?: return false
+        if (gs.selectedModules.isEmpty()) return false
+        return gs.selectedModules.all { gs.canDeleteModule(it) }
     }
 
     fun cut(mdi: MdiState, density: Float = 1f) {

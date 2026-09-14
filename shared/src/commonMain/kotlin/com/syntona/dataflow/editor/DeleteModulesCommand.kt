@@ -13,7 +13,8 @@ class DeleteModulesCommand(
     override val isUndoable = true
 
     override fun execute() {
-        graphState.removeModulesDirectly(modules)
+        val toRemove = modules.filter { graphState.canDeleteModule(it) }
+        graphState.removeModulesDirectly(toRemove)
     }
 
     override fun undo() {
