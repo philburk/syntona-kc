@@ -273,18 +273,18 @@ class PatchFileReferenceTest {
     fun testTooltipTextGeneration() {
         val root = PatchModule("root")
         val text = getModuleTooltipText(root)
-        assertEquals("core.patch", text)
+        assertEquals("core.patch\ncontainer for a nested sub-patch", text)
 
         val poly = PolyPatchModule("poly")
         val polyText = getModuleTooltipText(poly)
-        assertEquals("core.polyPatch", polyText)
+        assertEquals("core.polyPatch\npolyphonic voice allocator and patch container", polyText)
 
         val clockEntry = ModuleRegistry.root.subBundles.find { it.name == "core" }
             ?.subBundles?.find { it.name == "basic" }
             ?.modules?.find { it.name == "clock" }
         assertNotNull(clockEntry)
         val entryText = getModuleEntryTooltipText(clockEntry!!)
-        assertEquals("core.basic.clock", entryText)
+        assertEquals("core.basic.clock\nperiodic incrementing clock at a rate in Hz", entryText)
     }
 
     @Test

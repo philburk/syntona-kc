@@ -14,11 +14,257 @@ object ModuleRegistry {
 
     data class ModuleEntry(
         val name: String,
+        var description: String? = null,
         var helpResourcePath: String? = null,
         val creator: () -> Module
     ) {
-        constructor(name: String, creator: () -> Module) : this(name, null, creator)
+        constructor(name: String, creator: () -> Module) : this(name, null, null, creator)
+        constructor(name: String, helpResourcePath: String?, creator: () -> Module) : this(name, null, helpResourcePath, creator)
     }
+
+    /**
+     * One-line help descriptions for each module explaining its purpose and behavior.
+     * Edit these entries directly if any descriptions need clarification.
+     */
+    val moduleDescriptions: MutableMap<String, String> = mutableMapOf(
+        // ==========================================
+        // Core
+        // ==========================================
+        "patch" to "container for a nested sub-patch",
+        "polyPatch" to "polyphonic voice allocator and patch container",
+        "input" to "add an input jack to a patch",
+        "command" to "add a command jack to a patch",
+        "output" to "add an output jack to a patch",
+
+        // ==========================================
+        // Core -> Basic
+        // ==========================================
+        "clock" to "periodic incrementing clock at a rate in Hz",
+        "clockDiv" to "divide clock frequency by an integer ratio",
+        "timeline" to "schedule events and automation triggers along a timeline",
+        "addTime" to "delay an event by adding time in milliseconds",
+        "grabTime" to "output the timestamp of an incoming message in seconds",
+        "timeNow" to "output the current time in seconds when kicked",
+        "valueList" to "store and manipulate a dynamic list of values",
+        "counter" to "increment count on each kick with reset",
+        "seq2" to "2-step event and value sequencer",
+        "seq8" to "8-step event and value sequencer",
+        "seq16" to "16-step event and value sequencer",
+        "mod2" to "route incoming values modulo 2 to alternating outputs",
+        "mod4" to "route incoming values modulo 4 to 4 outputs",
+        "mod8" to "route incoming values modulo 8 to 8 outputs",
+        "mod16" to "route incoming values modulo 16 to 16 outputs",
+        "link" to "open a linked patch file when triggered",
+        "oneShot" to "pass a single message when armed and triggered",
+        "send" to "send messages wirelessly to named receive modules",
+        "receive" to "receive messages wirelessly from matching send modules",
+
+        // ==========================================
+        // Core -> Math
+        // ==========================================
+        "+" to "add two numbers (A + B)",
+        "-" to "subtract two numbers (A - B)",
+        "*" to "multiply two numbers (A * B)",
+        "/" to "divide two numbers (A / B)",
+        "abs" to "calculate the absolute value of a number",
+        "compare" to "compare two numbers and output to less-than, equal, or greater-than jacks",
+        "cos" to "calculate cosine of an angle in radians",
+        "floor" to "round number down to the nearest integer",
+        "max" to "output the greater of two numbers",
+        "min" to "output the lesser of two numbers",
+        "mod" to "calculate remainder of division (A % B)",
+        "random" to "generate a pseudo-random number between 0.0 and 1.0 when kicked",
+        "round" to "round number to the nearest integer",
+        "sin" to "calculate sine of an angle in radians",
+        "f(x)" to "evaluate a math expression with variable x",
+        "f(x,y)" to "evaluate a math expression with variables x and y",
+        "f(x,y,z)" to "evaluate a math expression with variables x, y, and z",
+        "pitchToHz" to "convert MIDI pitch to frequency in Hertz",
+
+        // ==========================================
+        // Core -> Logic
+        // ==========================================
+        "and" to "logical AND: outputs 1 if both inputs are true (> 0), otherwise 0",
+        "or" to "logical OR: outputs 1 if either input is true (> 0), otherwise 0",
+        "xor" to "logical XOR: outputs 1 if exactly one input is true (> 0), otherwise 0",
+        "not" to "logical NOT: inverts boolean value of input",
+        "toggle" to "alternate trigger between two outputs on each kick",
+        "pass" to "pass or block messages based on an enable gate",
+        "branch4" to "route input message to 1 of 4 outputs selected by index",
+        "branch8" to "route input message to 1 of 8 outputs selected by index",
+        "branch16" to "route input message to 1 of 16 outputs selected by index",
+        "select4" to "select 1 of 4 inputs to pass to output by index",
+        "select8" to "select 1 of 8 inputs to pass to output by index",
+        "select16" to "select 1 of 16 inputs to pass to output by index",
+
+        // ==========================================
+        // Core -> Input
+        // ==========================================
+        "number" to "constant or editable numeric value",
+        "fader" to "interactive vertical slider control",
+        "knob" to "interactive rotary dial control",
+        "kick" to "interactive pushbutton to send a trigger message",
+        "onLoad" to "send a trigger message when patch is loaded",
+        "comment" to "text label or note on the patch canvas",
+        "key" to "capture computer keyboard keystrokes as messages",
+        "keyMatch" to "match specific computer keyboard keys to trigger an output",
+
+        // ==========================================
+        // Core -> View
+        // ==========================================
+        "show" to "display the most recent numeric value on the canvas",
+        "showMany" to "display multiple incoming values or voice states",
+        "print" to "log incoming values or messages to the console",
+        "glow" to "indicator light that varies brightness with input level",
+        "flash" to "indicator light that flashes briefly when triggered",
+
+        // ==========================================
+        // Music -> Input
+        // ==========================================
+        "keyboard13" to "13-key interactive musical keyboard (one octave)",
+        "keyboard25" to "25-key interactive musical keyboard (two octaves)",
+        "keyNotes" to "play musical notes using the computer keyboard",
+        "pianoRoll" to "graphical piano roll note sequencer and editor",
+
+        // ==========================================
+        // Music -> MIDI
+        // ==========================================
+        "packVoice" to "compose a voice message from opcode, tag, value, and extra",
+        "packBend" to "compose a pitch bend voice message",
+        "packControl" to "compose a MIDI control change voice message",
+        "packNote" to "compose a timed note-on and note-off voice message pair",
+        "packProgram" to "compose a MIDI program change voice message",
+        "unpackNoteOn" to "unpack pitch and velocity from note-on voice messages",
+        "unpackNoteOff" to "unpack pitch and release velocity from note-off voice messages",
+        "unpackControl" to "unpack controller value from control change messages",
+        "matchControl" to "match a specific MIDI controller number and output its value",
+        "matchNoteOn" to "match a specific MIDI note number and output its velocity",
+        "unpackBend" to "unpack pitch bend amount from voice messages",
+        "unpackProgram" to "unpack program change number from voice messages",
+        "midiIn" to "receive MIDI messages from an external hardware device",
+        "midiOut" to "send voice messages to an external MIDI hardware device",
+
+        // ==========================================
+        // Music -> Compose
+        // ==========================================
+        "beatClock" to "periodic incrementing clock at subdivisions of a beat",
+        "pentatonic" to "convert scale degrees into a major pentatonic scale",
+        "diatonic" to "convert scale degrees into a diatonic scale",
+        "scale" to "quantize pitch or scale degrees into a custom scale",
+        "recursiveSeq" to "generate algorithmic fractal sequences based on recursive math",
+        "stepper" to "bounded step counter and iterator with loop control",
+        "table4" to "use an index to look up a value in a table",
+        "table8" to "use an index to look up a value in an 8-element table",
+        "table16" to "use an index to look up a value in a 16-element table",
+
+        // ==========================================
+        // KSyn (Top-level)
+        // ==========================================
+        "lineIn" to "read audio input from sound card hardware",
+        "lineOut" to "write audio output to sound card hardware",
+        "input~" to "audio input jack for a patch or sub-patch",
+        "output~" to "audio output jack for a patch or sub-patch",
+
+        // ==========================================
+        // KSyn -> Sources
+        // ==========================================
+        "sineOsc" to "sine wave audio oscillator",
+        "sineOscPM" to "phase-modulated sine wave oscillator",
+        "sawOsc" to "sawtooth wave oscillator",
+        "sawOscBL" to "band-limited sawtooth wave oscillator",
+        "sawOscDPW" to "differentiated polynomial waveform (DPW) sawtooth oscillator",
+        "squareOsc" to "square wave oscillator",
+        "squareOscBL" to "band-limited square wave oscillator",
+        "triOsc" to "triangle wave oscillator",
+        "impulse" to "single-sample impulse click generator",
+        "impulseBL" to "band-limited impulse train generator",
+        "pulseOsc" to "variable pulse width oscillator",
+        "pulseOscBL" to "band-limited variable pulse width oscillator",
+        "whiteNoise" to "white noise random audio generator",
+        "redNoise" to "red / Brownian noise audio generator",
+        "pinkNoise" to "pink noise 1/f audio generator",
+
+        // ==========================================
+        // KSyn -> Analysis
+        // ==========================================
+        "edgeDetector" to "detect rising or falling transitions in an audio signal",
+        "peakFollower" to "track peak amplitude envelope of an audio signal",
+        "pitchDetector" to "detect fundamental pitch and period of an audio signal",
+        "schmittTrigger" to "convert signal to true/false with hysteresis",
+        "zeroCrossing" to "detect positive zero crossings of an audio signal",
+
+        // ==========================================
+        // KSyn -> Control
+        // ==========================================
+        "envDAHDSR" to "delay-attack-hold-decay-sustain-release envelope generator",
+        "envAD" to "attack-decay envelope generator",
+        "envSeg" to "multi-segment breakpoint envelope generator",
+        "latch" to "sample and hold audio input when triggered",
+        "latchZeroX" to "sample and hold audio input on zero crossings",
+        "rampLin" to "linear ramp generator towards target value",
+        "rampCon" to "continuous ramp generator with constant slope",
+        "rampAsym" to "asymptotic exponential smoothing ramp towards target",
+        "rampExp" to "exponential ramp generator towards target value",
+        "select~" to "switch or select between audio input signals",
+        "grabAudio" to "capture audio signal sample value as a control message when kicked",
+
+        // ==========================================
+        // KSyn -> Math
+        // ==========================================
+        "+~" to "add two audio signals",
+        "-~" to "subtract two audio signals",
+        "*~" to "multiply two audio signals",
+        "*+~" to "multiply two audio signals and add a third (A * B + C)",
+        "/~" to "divide audio signal A by signal B",
+        ">~" to "compare audio signals: 1.0 if A > B, else 0.0",
+        "pitchToHz~" to "convert pitch signal to frequency in Hertz at audio rate",
+        "power2~" to "calculate 2 raised to the power of the input signal",
+        "min~" to "output the minimum of two audio signals",
+        "max~" to "output the maximum of two audio signals",
+        "range~" to "rescale audio signal from input range to output range",
+        "mixer4x2" to "4-input stereo audio mixer with gain and pan controls",
+        "mixer8x2" to "8-input stereo audio mixer with gain and pan controls",
+
+        // ==========================================
+        // KSyn -> Filters
+        // ==========================================
+        "lowPass" to "second-order resonant low-pass filter",
+        "bandPass" to "second-order resonant band-pass filter",
+        "bandStop" to "second-order notch / band-stop filter",
+        "highPass" to "second-order resonant high-pass filter",
+        "allPass" to "all-pass filter for phase shifting and dispersion",
+        "lowShelf" to "low-shelf equalizer filter",
+        "highShelf" to "high-shelf equalizer filter",
+        "peakingEQ" to "parametric peaking equalizer filter",
+        "fourPole" to "four-pole 24dB/octave resonant low-pass filter",
+        "stateVar" to "state-variable filter with simultaneous low, high, and band outputs",
+        "waveFolder" to "wave folder for rich harmonic distortion and folding",
+
+        // ==========================================
+        // KSyn -> Effects
+        // ==========================================
+        "phaseShifter" to "multi-stage phase shifter / phaser effect",
+        "delay~" to "interpolating audio delay line",
+        "pan" to "stereo panning and balance control",
+        "plateReverb" to "plate reverberation effect",
+        "roomReverb" to "room reverberation effect",
+
+        // ==========================================
+        // KSyn -> View
+        // ==========================================
+        "scope" to "oscilloscope for visual waveform display",
+        "vu1" to "single-channel mono VU meter",
+        "vu2" to "two-channel stereo VU meter",
+
+        // ==========================================
+        // KSyn -> Sampling
+        // ==========================================
+        "samplePlayer" to "audio sample player with looping and rate control",
+        "sample" to "hold a loaded audio sample buffer in memory",
+        "sampleReader" to "play a slice or loop from a shared sample buffer",
+        "sampleWriter" to "write incoming audio into a shared sample buffer",
+        "recorder" to "record incoming audio to a buffer and play it back"
+    )
 
     data class Bundle(
         val name: String,
@@ -243,6 +489,16 @@ object ModuleRegistry {
         sampling.modules.add(ModuleEntry("sampleReader", "tutorials/07_audio_input/05_sampleReader.json") { SampleReaderModule() })
         sampling.modules.add(ModuleEntry("sampleWriter") { SampleWriterModule() })
         sampling.modules.add(ModuleEntry("recorder") { RecorderModule() })
+
+        fun applyDescriptions(bundle: Bundle) {
+            bundle.modules.forEach { mod ->
+                if (mod.description == null) {
+                    mod.description = moduleDescriptions[mod.name]
+                }
+            }
+            bundle.subBundles.forEach { applyDescriptions(it) }
+        }
+        applyDescriptions(root)
     }
 
     private data class Candidate(val path: String, val entry: ModuleEntry)
@@ -386,6 +642,18 @@ object ModuleRegistry {
 
     fun setHelpResourcePath(typeName: String, helpResourcePath: String) {
         findEntry(typeName)?.helpResourcePath = helpResourcePath
+    }
+
+    fun getDescription(typeName: String): String? {
+        val resolved = resolveLegacyModuleName(typeName.substringAfterLast('.'))
+        return findEntry(typeName)?.description
+            ?: moduleDescriptions[typeName]
+            ?: moduleDescriptions[resolved]
+    }
+
+    fun setDescription(typeName: String, description: String) {
+        findEntry(typeName)?.description = description
+        moduleDescriptions[typeName] = description
     }
 
     fun getBundlePath(typeName: String): String? {

@@ -106,26 +106,38 @@ fun getModuleTooltipText(module: Module): String {
         else -> module.type
     }
     val bundlePath = ModuleRegistry.getBundlePath(type) ?: type
-    val baseText = if (module is UnitGeneratorModule) {
+    val description = ModuleRegistry.getDescription(type)
+    val lines = mutableListOf<String>()
+    lines.add(bundlePath)
+    if (!description.isNullOrBlank()) {
+        lines.add(description)
+    }
+    if (module is UnitGeneratorModule) {
         val qName = module.unit::class.qualifiedName ?: module.unit::class.simpleName ?: ""
-        if (qName.isNotEmpty()) "$bundlePath\n$qName" else bundlePath
-    } else bundlePath
-
-    return if (com.syntona.dataflow.registry.HelpRegistry.hasHelpFile(type)) {
-        "$baseText\n(Help available)"
-    } else baseText
+        if (qName.isNotEmpty()) lines.add(qName)
+    }
+    if (com.syntona.dataflow.registry.HelpRegistry.hasHelpFile(type)) {
+        lines.add("(Help available)")
+    }
+    return lines.joinToString("\n")
 }
 
 fun getModuleEntryTooltipText(entry: ModuleRegistry.ModuleEntry): String {
     val bundlePath = ModuleRegistry.getBundlePath(entry.name) ?: entry.name
+    val description = entry.description ?: ModuleRegistry.getDescription(entry.name)
+    val lines = mutableListOf<String>()
+    lines.add(bundlePath)
+    if (!description.isNullOrBlank()) {
+        lines.add(description)
+    }
     val factory = ModuleRegistry.ksynFactories[entry.name]
-    val baseText = if (factory != null) {
+    if (factory != null) {
         val unit = try { factory() } catch (_: Exception) { null }
         val qName = unit?.let { it::class.qualifiedName ?: it::class.simpleName } ?: ""
-        if (qName.isNotEmpty()) "$bundlePath\n$qName" else bundlePath
-    } else bundlePath
-
-    return if (com.syntona.dataflow.registry.HelpRegistry.hasHelpFile(entry.name)) {
-        "$baseText\n(Help available)"
-    } else baseText
+        if (qName.isNotEmpty()) lines.add(qName)
+    }
+    if (com.syntona.dataflow.registry.HelpRegistry.hasHelpFile(entry.name)) {
+        lines.add("(Help available)")
+    }
+    return lines.joinToString("\n")
 }

@@ -7,9 +7,14 @@ Install the MIDI Add-on.
 BUG: deleting modules using BACKSPACE or DELETE key sometimes does not work. Edit menu Cut always works.
 Need repro steps.
 
-Change stepper "N" jack to "limit"? Is there a better name?
-
 Try to save a native signed version.
+
+More help. One liners. Gemini can generate and I can edit.
+
+Move polyPatch into ksyn.patches bundle.
+Add ksyn.patches.soundPatch module with "trigger" and audio "out".
+Uses a Circuit so that setupAutoDisable() can be used to reduce CPU load.
+Can be exported as a Circuit to JSyn or KSyn.
 
 # ----------------------------------------------- MEDIUM PRIORITY
 

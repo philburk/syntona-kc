@@ -128,5 +128,69 @@ class ModuleRegistryTest {
         assertNotNull(ModuleRegistry.findCreator("ksyn.data.segEnv"))
         assertNotNull(ModuleRegistry.findCreator("ksyn.data.samplePlayer"))
     }
+
+    @Test
+    fun testEveryModuleHasDescription() {
+        val missing = mutableListOf<String>()
+        fun checkBundle(bundle: ModuleRegistry.Bundle) {
+            for (mod in bundle.modules) {
+                val desc = mod.description
+                if (desc.isNullOrBlank()) {
+                    missing.add(mod.name)
+                }
+            }
+            bundle.subBundles.forEach { checkBundle(it) }
+        }
+        checkBundle(ModuleRegistry.root)
+        assertTrue(missing.isEmpty(), "The following modules are missing descriptions: $missing")
+    }
+
+    @Test
+    fun testUserSpecifiedModuleDescriptions() {
+        assertEquals(
+            "periodic incrementing clock at subdivisions of a beat",
+            ModuleRegistry.getDescription("beatClock")
+        )
+        assertEquals(
+            "convert scale degrees into a major pentatonic scale",
+            ModuleRegistry.getDescription("pentatonic")
+        )
+        assertEquals(
+            "add an input jack to a patch",
+            ModuleRegistry.getDescription("input")
+        )
+        assertEquals(
+            "use an index to look up a value in a table",
+            ModuleRegistry.getDescription("table4")
+        )
+        assertEquals(
+            "convert signal to true/false with hysteresis",
+            ModuleRegistry.getDescription("schmittTrigger")
+        )
+    }
+
+    @Test
+    fun testDescriptionResolutionAndEditing() {
+        val originalSine = ModuleRegistry.getDescription("sineOsc")
+        assertNotNull(originalSine)
+        assertEquals("sine wave audio oscillator", originalSine)
+
+        // Resolved by full bundle path
+        assertEquals(originalSine, ModuleRegistry.getDescription("ksyn.sources.sineOsc"))
+
+        // Resolved by legacy name
+        assertEquals(
+            "convert signal to true/false with hysteresis",
+            ModuleRegistry.getDescription("schmidtTrigger")
+        )
+
+        // Editing
+        try {
+            ModuleRegistry.setDescription("sineOsc", "custom edited sine description")
+            assertEquals("custom edited sine description", ModuleRegistry.getDescription("sineOsc"))
+        } finally {
+            ModuleRegistry.setDescription("sineOsc", originalSine)
+        }
+    }
 }
 
