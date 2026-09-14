@@ -2,6 +2,8 @@ package com.syntona.dataflow.registry
 
 import com.syntona.dataflow.modules.MidiInModule
 import com.syntona.dataflow.modules.MidiOutModule
+import com.syntona.dataflow.modules.MatchNoteOn4Module
+import com.syntona.dataflow.modules.MatchNoteOn8Module
 import com.syntona.dataflow.modules.PackBendModule
 import com.syntona.dataflow.modules.PackNoteModule
 import kotlin.test.Test
@@ -21,6 +23,8 @@ class ModuleRegistryTest {
         assertEquals("music.midi.matchControl4", ModuleRegistry.getBundlePath("matchControl4"))
         assertEquals("music.midi.matchControl8", ModuleRegistry.getBundlePath("matchControl8"))
         assertEquals("music.midi.matchNoteOn", ModuleRegistry.getBundlePath("matchNoteOn"))
+        assertEquals("music.midi.matchNoteOn4", ModuleRegistry.getBundlePath("matchNoteOn4"))
+        assertEquals("music.midi.matchNoteOn8", ModuleRegistry.getBundlePath("matchNoteOn8"))
     }
 
     @Test
@@ -32,6 +36,23 @@ class ModuleRegistryTest {
         val midiOutCreator = ModuleRegistry.findCreator("music.midi.midiOut")
         assertNotNull(midiOutCreator)
         assertTrue(midiOutCreator() is MidiOutModule)
+
+        val note4Creator = ModuleRegistry.findCreator("music.midi.matchNoteOn4")
+        assertNotNull(note4Creator)
+        assertTrue(note4Creator() is MatchNoteOn4Module)
+
+        val note8Creator = ModuleRegistry.findCreator("music.midi.matchNoteOn8")
+        assertNotNull(note8Creator)
+        assertTrue(note8Creator() is MatchNoteOn8Module)
+
+        // Legacy name resolution
+        val legacyNote4Creator = ModuleRegistry.findCreator("matchNote4")
+        assertNotNull(legacyNote4Creator)
+        assertTrue(legacyNote4Creator() is MatchNoteOn4Module)
+
+        val legacyNote8Creator = ModuleRegistry.findCreator("matchNote8")
+        assertNotNull(legacyNote8Creator)
+        assertTrue(legacyNote8Creator() is MatchNoteOn8Module)
     }
 
     @Test
@@ -168,6 +189,14 @@ class ModuleRegistryTest {
         assertEquals(
             "convert signal to true/false with hysteresis",
             ModuleRegistry.getDescription("schmittTrigger")
+        )
+        assertEquals(
+            "match 4 sequential MIDI notes and output their velocities",
+            ModuleRegistry.getDescription("matchNoteOn4")
+        )
+        assertEquals(
+            "match 8 sequential MIDI notes and output their velocities",
+            ModuleRegistry.getDescription("matchNoteOn8")
         )
     }
 

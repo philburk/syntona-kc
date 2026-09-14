@@ -141,6 +141,8 @@ object ModuleRegistry {
         "matchControl4" to "match 4 sequential MIDI controllers and output their values",
         "matchControl8" to "match 8 sequential MIDI controllers and output their values",
         "matchNoteOn" to "match a specific MIDI note number and output its velocity",
+        "matchNoteOn4" to "match 4 sequential MIDI notes and output their velocities",
+        "matchNoteOn8" to "match 8 sequential MIDI notes and output their velocities",
         "unpackBend" to "unpack pitch bend amount from voice messages",
         "unpackProgram" to "unpack program change number from voice messages",
         "midiIn" to "receive MIDI messages from an external hardware device",
@@ -364,7 +366,16 @@ object ModuleRegistry {
         musicInput.modules.add(ModuleEntry("keyboard25") { Keyboard25Module() })
         musicInput.modules.add(ModuleEntry("keyNotes") { KeyNotesModule() })
         musicInput.modules.add(ModuleEntry("pianoRoll", "examples/pianoRoll.json") { PianoRollModule() })
+
         val midi = getOrCreateBundle(music, "midi")
+        midi.modules.add(ModuleEntry("midiIn", "tutorials/06_midi/01_midi_input.json") { MidiInModule() })
+        midi.modules.add(ModuleEntry("midiOut", "tutorials/06_midi/04_midiOut.json") { MidiOutModule() })
+        midi.modules.add(ModuleEntry("matchControl", "examples/matchControl.json") { MatchControlModule() })
+        midi.modules.add(ModuleEntry("matchControl4") { MatchControl4Module() })
+        midi.modules.add(ModuleEntry("matchControl8") { MatchControl8Module() })
+        midi.modules.add(ModuleEntry("matchNoteOn") { MatchNoteOnModule() })
+        midi.modules.add(ModuleEntry("matchNoteOn4") { MatchNoteOn4Module() })
+        midi.modules.add(ModuleEntry("matchNoteOn8") { MatchNoteOn8Module() })
         midi.modules.add(ModuleEntry("packVoice") { PackVoiceModule() })
         midi.modules.add(ModuleEntry("packBend") { PackBendModule() })
         midi.modules.add(ModuleEntry("packControl") { PackControlModule() })
@@ -373,14 +384,8 @@ object ModuleRegistry {
         midi.modules.add(ModuleEntry("unpackNoteOn") { UnpackNoteOnModule() })
         midi.modules.add(ModuleEntry("unpackNoteOff") { UnpackNoteOffModule() })
         midi.modules.add(ModuleEntry("unpackControl") { UnpackControlModule() })
-        midi.modules.add(ModuleEntry("matchControl", "examples/matchControl.json") { MatchControlModule() })
-        midi.modules.add(ModuleEntry("matchControl4") { MatchControl4Module() })
-        midi.modules.add(ModuleEntry("matchControl8") { MatchControl8Module() })
-        midi.modules.add(ModuleEntry("matchNoteOn") { MatchNoteOnModule() })
         midi.modules.add(ModuleEntry("unpackBend") { UnpackBendModule() })
         midi.modules.add(ModuleEntry("unpackProgram") { UnpackProgramModule() })
-        midi.modules.add(ModuleEntry("midiIn", "tutorials/06_midi/01_midi_input.json") { MidiInModule() })
-        midi.modules.add(ModuleEntry("midiOut", "tutorials/06_midi/04_midiOut.json") { MidiOutModule() })
 
         val compose = getOrCreateBundle(music, "compose")
         compose.modules.add(ModuleEntry("beatClock") { BeatClockModule() })
@@ -595,6 +600,9 @@ object ModuleRegistry {
         "select" -> "select~"
         "segEnv" -> "envSeg"
         "monoRdr" -> "envSeg"
+        "matchNote" -> "matchNoteOn"
+        "matchNote4" -> "matchNoteOn4"
+        "matchNote8" -> "matchNoteOn8"
         else -> name
     }
 

@@ -603,6 +603,9 @@ class MatchNoteOnModule : MatchVoiceModule(
     payloadName = "amplitude",
     opcode = Message.VoiceOpcode.NOTE_ON
 ) {
+    var triggerCount by mutableStateOf(0)
+        private set
+
     override fun identifierOf(msg: Message.VoiceMessage): Double = msg.tag.toDouble()
 
     override fun payloadOf(msg: Message.VoiceMessage): Double = msg.extra
@@ -614,4 +617,144 @@ class MatchNoteOnModule : MatchVoiceModule(
         val incoming = round(identifierOf(msg)).toInt()
         return incoming == matchNumber
     }
+
+    override fun execute(triggerMessage: Message) {
+        val wasArmed = isArmed
+        super.execute(triggerMessage)
+        val msg = triggerMessage as? Message.VoiceMessage ?: return
+        if (msg.opcode == Message.VoiceOpcode.NOTE_ON) {
+            if (wasArmed || isTarget(msg)) {
+                triggerCount++
+            }
+        }
+    }
 }
+
+/**
+ * Follows sequential MIDI notes and emits their amplitude/velocity on separate output jacks.
+ *
+ * It starts armed (learn button highlighted, matchNumber = -1). When the first [Message.VoiceOpcode.NOTE_ON] arrives
+ * while armed, it assigns that note's tag to the first amplitude output jack, and assigns
+ * sequential note numbers to the remaining output jacks.
+ *
+ * Both [Message.VoiceOpcode.NOTE_ON] and [Message.VoiceOpcode.NOTE_OFF] for any matched notes are filtered from [unmatched], allowing
+ * remaining notes to pass through cleanly to downstream polyPatches or voices.
+ */
+abstract class MatchNoteOnSequentialModule(
+    typeName: String,
+    val numOutputs: Int
+) : Module(typeName), CommandJackBadge {
+    val input = addVoiceInput("in", isKickable = true)
+    val learn = addCommandInput("learn")
+    val matchIn = addIntegerInput("tag").also {
+        it.min = MATCH_ARMED
+        it.max = 127.0
+    }
+    val stepOutputs: List<OutputJack> = List(numOutputs) { index ->
+        addOutput("amplitude$index")
+    }
+    val unmatched = addVoiceOutput("unmatched")
+
+    val currentAmplitudes = mutableStateListOf<Double>().apply {
+        repeat(numOutputs) { add(0.0) }
+    }
+
+    val triggerCounts = mutableStateListOf<Int>().apply {
+        repeat(numOutputs) { add(0) }
+    }
+
+    /** Alias for [stepOutputs]. */
+    val amplitudeOutputs: List<OutputJack> get() = stepOutputs
+
+    fun getAmplitude(index: Int): Double = currentAmplitudes.getOrElse(index) { 0.0 }
+    fun getTriggerCount(index: Int): Int = triggerCounts.getOrElse(index) { 0 }
+    fun getAmplitudeJack(index: Int): OutputJack = stepOutputs[index]
+    fun getOutputJack(index: Int): OutputJack = stepOutputs[index]
+
+    // Convenience accessors
+    val amplitude0: OutputJack get() = stepOutputs[0]
+    val amplitude1: OutputJack? get() = stepOutputs.getOrNull(1)
+    val amplitude2: OutputJack? get() = stepOutputs.getOrNull(2)
+    val amplitude3: OutputJack? get() = stepOutputs.getOrNull(3)
+    val amplitude4: OutputJack? get() = stepOutputs.getOrNull(4)
+    val amplitude5: OutputJack? get() = stepOutputs.getOrNull(5)
+    val amplitude6: OutputJack? get() = stepOutputs.getOrNull(6)
+    val amplitude7: OutputJack? get() = stepOutputs.getOrNull(7)
+
+    var matchNumber: Int by mutableStateOf(MATCH_ARMED.toInt())
+        private set
+
+    init {
+        matchIn.setValue(MATCH_ARMED)
+        syncIndicators()
+    }
+
+    val isArmed: Boolean get() = matchNumber < 0
+
+    fun arm() {
+        matchIn.setValue(MATCH_ARMED)
+    }
+
+    fun indexFor(outputIndex: Int): Int =
+        if (isArmed || outputIndex !in 0 until numOutputs) -1 else matchNumber + outputIndex
+
+    override fun badgeFor(jack: CommandJack): String? =
+        if (jack !== learn) null else if (isArmed) "?" else matchNumber.toString()
+
+    override fun onMessageReceived(jack: InputJack, msg: Message) {
+        super.onMessageReceived(jack, msg)
+        if (jack === matchIn) syncIndicators()
+    }
+
+    private fun syncIndicators() {
+        matchNumber = round(matchIn.getDoubleValue()).toInt()
+        learn.isHighlighted = isArmed
+    }
+
+    override fun execute(triggerMessage: Message) {
+        if (learn.isKicked) {
+            arm()
+            return
+        }
+        val msg = triggerMessage as? Message.VoiceMessage ?: return
+
+        if (isArmed) {
+            if (msg.opcode == Message.VoiceOpcode.NOTE_ON) {
+                val incoming = msg.tag
+                matchIn.setValue(incoming.toDouble().coerceIn(0.0, matchIn.max))
+                stepOutputs[0].send(Message.FloatValue(msg.time, msg.extra))
+                currentAmplitudes[0] = msg.extra
+                triggerCounts[0]++
+                return
+            } else {
+                unmatched.send(msg)
+                return
+            }
+        }
+
+        val isNote = msg.opcode == Message.VoiceOpcode.NOTE_ON || msg.opcode == Message.VoiceOpcode.NOTE_OFF
+        val offset = msg.tag - matchNumber
+        val isMatched = isNote && (offset in 0 until numOutputs)
+
+        if (isMatched) {
+            if (msg.opcode == Message.VoiceOpcode.NOTE_ON) {
+                stepOutputs[offset].send(Message.FloatValue(msg.time, msg.extra))
+                currentAmplitudes[offset] = msg.extra
+                triggerCounts[offset]++
+            }
+        } else {
+            unmatched.send(msg)
+        }
+    }
+}
+
+/**
+ * Matches 4 sequential MIDI notes and emits their amplitude/velocity on separate output jacks.
+ */
+class MatchNoteOn4Module : MatchNoteOnSequentialModule("matchNoteOn4", 4)
+
+/**
+ * Matches 8 sequential MIDI notes and emits their amplitude/velocity on separate output jacks.
+ */
+class MatchNoteOn8Module : MatchNoteOnSequentialModule("matchNoteOn8", 8)
+

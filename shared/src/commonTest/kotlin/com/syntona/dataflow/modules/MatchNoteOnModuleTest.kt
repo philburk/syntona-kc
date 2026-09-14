@@ -241,4 +241,26 @@ class MatchNoteOnModuleTest {
         assertEquals(38, loaded.matchNumber)
         assertFalse(loaded.isArmed, "a saved patch should not re-learn on load")
     }
+
+    @Test
+    fun triggerCountIncrementsOnlyOnMatchedNoteOn() {
+        val module = MatchNoteOnModule()
+        assertEquals(0, module.triggerCount)
+
+        // Learn note 40 -> triggers count to 1
+        module.input.receive(noteOn(tag = 40, amplitude = 0.5))
+        assertEquals(1, module.triggerCount)
+
+        // Note off -> does not increment
+        module.input.receive(Message.VoiceMessage(testTime, Message.VoiceOpcode.NOTE_OFF, 40, 40.0, 0.0))
+        assertEquals(1, module.triggerCount)
+
+        // Subsequent matching note on -> increments
+        module.input.receive(noteOn(tag = 40, amplitude = 0.8))
+        assertEquals(2, module.triggerCount)
+
+        // Unmatched note on -> does not increment
+        module.input.receive(noteOn(tag = 41, amplitude = 0.9))
+        assertEquals(2, module.triggerCount)
+    }
 }
