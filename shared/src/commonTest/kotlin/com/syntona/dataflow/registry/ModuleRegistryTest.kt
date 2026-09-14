@@ -18,6 +18,8 @@ class ModuleRegistryTest {
         assertEquals("music.midi.packBend", ModuleRegistry.getBundlePath("packBend"))
         assertEquals("music.midi.packNote", ModuleRegistry.getBundlePath("packNote"))
         assertEquals("music.midi.matchControl", ModuleRegistry.getBundlePath("matchControl"))
+        assertEquals("music.midi.matchControl4", ModuleRegistry.getBundlePath("matchControl4"))
+        assertEquals("music.midi.matchControl8", ModuleRegistry.getBundlePath("matchControl8"))
         assertEquals("music.midi.matchNoteOn", ModuleRegistry.getBundlePath("matchNoteOn"))
     }
 

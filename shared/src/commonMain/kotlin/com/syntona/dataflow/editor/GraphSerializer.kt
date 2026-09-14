@@ -1385,6 +1385,8 @@ internal fun resolveLegacyOutputJack(module: Module, serializedName: String): co
     val coerced = when {
         serializedName == "value" -> "out"
         serializedName.startsWith("output", ignoreCase = true) -> "out" + serializedName.substring(6)
+        serializedName.startsWith("value", ignoreCase = true) -> "out" + serializedName.substring(5)
+        serializedName.startsWith("out", ignoreCase = true) -> "value" + serializedName.substring(3)
         else -> null
     }
     if (coerced != null) {

@@ -21,3 +21,8 @@ Bundles are defined in ModuleRegistry.kt, for example:
     val ksynView = getOrCreateBundle(ksyn, "view")
 
 The design for exporting JSyn or KSyn code from Syntona is in "notes/export_source.md".
+
+## Instructions
+
+When adding new modules, add a corresponding one-line help entry to the table in
+ModuleRegistry.moduleDescriptions.

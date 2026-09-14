@@ -135,6 +135,7 @@ import com.syntona.dataflow.modules.EnvSegModule
 import com.syntona.dataflow.modules.LinkModule
 import com.syntona.dataflow.modules.KeyMatchModule
 import com.syntona.dataflow.modules.MatchControlModule
+import com.syntona.dataflow.modules.MatchControlSequentialModule
 import com.syntona.dataflow.modules.BeatClockModule
 import com.syntona.dataflow.modules.TimelineModule
 import com.syntona.dataflow.modules.TimelineTrigger
@@ -392,6 +393,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                             is PianoRollModule -> PianoRollModuleNode(module, state)
                             is KeyMatchModule -> KeyMatchModuleNode(module, state)
                             is MatchControlModule -> MatchControlModuleNode(module, state)
+                            is MatchControlSequentialModule -> MatchControlSequentialModuleNode(module, state)
                             is GlowModule -> GlowModuleNode(module, state)
                             is FlashModule -> FlashModuleNode(module, state)
                             is SendModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
@@ -1244,6 +1246,62 @@ fun MatchControlModuleNode(module: MatchControlModule, state: GraphState) {
                 Box(modifier = Modifier.weight(1f)) {
                     JackView(module.output, state, isLeft = false)
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun MatchControlSequentialModuleNode(module: MatchControlSequentialModule, state: GraphState) {
+    val colors = LocalGraphColors.current
+    val position = state.modulePositions[module] ?: Offset.Zero
+    val isSelected = state.selectedModules.contains(module)
+    val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
+    val borderWidth = if (isSelected) 2.dp else 1.dp
+
+    Surface(
+        modifier = Modifier
+            .offset { IntOffset((position.x * density).roundToInt(), (position.y * density).roundToInt()) }
+            .width(IntrinsicSize.Max)
+            .border(borderWidth, borderColor, RoundedCornerShape(4.dp))
+            .onSizeChanged { size ->
+                state.updateModuleSize(module, size.width.toFloat(), size.height.toFloat())
+            },
+        shape = RoundedCornerShape(4.dp),
+        color = colors.moduleBackground
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            ModuleHeader(module = module, state = state, headerColor = colors.headerDefault)
+
+            // Inputs: "in", "learn", "index"
+            module.inputs.forEach { JackView(it, state, isLeft = true) }
+
+            HorizontalDivider(color = Color.Black, thickness = 1.dp)
+
+            // Output rows with graphic display to the left of each "value" output jack
+            module.stepOutputs.forEachIndexed { i, jack ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    HorizontalValueIndicator(
+                        value = module.currentValues[i].toFloat(),
+                        modifier = Modifier
+                            .padding(start = 6.dp, end = 2.dp)
+                            .width(40.dp)
+                            .height(16.dp)
+                    )
+
+                    Box(modifier = Modifier.weight(1f)) {
+                        JackView(jack, state, isLeft = false)
+                    }
+                }
+            }
+
+            // Other outputs (e.g. unmatched)
+            val otherOutputs = module.outputs.filter { it !in module.stepOutputs }
+            otherOutputs.forEach { jack ->
+                JackView(jack, state, isLeft = false)
             }
         }
     }

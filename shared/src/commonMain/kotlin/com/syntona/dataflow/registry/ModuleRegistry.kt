@@ -138,6 +138,8 @@ object ModuleRegistry {
         "unpackNoteOff" to "unpack pitch and release velocity from note-off voice messages",
         "unpackControl" to "unpack controller value from control change messages",
         "matchControl" to "match a specific MIDI controller number and output its value",
+        "matchControl4" to "match 4 sequential MIDI controllers and output their values",
+        "matchControl8" to "match 8 sequential MIDI controllers and output their values",
         "matchNoteOn" to "match a specific MIDI note number and output its velocity",
         "unpackBend" to "unpack pitch bend amount from voice messages",
         "unpackProgram" to "unpack program change number from voice messages",
@@ -370,6 +372,8 @@ object ModuleRegistry {
         midi.modules.add(ModuleEntry("unpackNoteOff") { UnpackNoteOffModule() })
         midi.modules.add(ModuleEntry("unpackControl") { UnpackControlModule() })
         midi.modules.add(ModuleEntry("matchControl", "examples/matchControl.json") { MatchControlModule() })
+        midi.modules.add(ModuleEntry("matchControl4") { MatchControl4Module() })
+        midi.modules.add(ModuleEntry("matchControl8") { MatchControl8Module() })
         midi.modules.add(ModuleEntry("matchNoteOn") { MatchNoteOnModule() })
         midi.modules.add(ModuleEntry("unpackBend") { UnpackBendModule() })
         midi.modules.add(ModuleEntry("unpackProgram") { UnpackProgramModule() })

@@ -12,6 +12,7 @@ import com.syntona.dataflow.model.CommandJackBadge
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
+import com.syntona.dataflow.model.OutputJack
 import kotlin.math.round
 
 /**
@@ -462,6 +463,130 @@ class MatchControlModule : MatchVoiceModule(
         }
     }
 }
+
+/**
+ * Follows sequential MIDI controllers and emits their values on separate output jacks.
+ *
+ * It starts armed (learn button highlighted, matchNumber = -1). When the first [CONTROL_CHANGE] arrives
+ * while armed, it assigns that controller's index to the first value output jack, and assigns
+ * sequential indices to the remaining output value jacks.
+ *
+ * Incoming control change values for each matched controller are emitted from the corresponding
+ * output jack, and unhandled voice messages pass out [unmatched].
+ */
+abstract class MatchControlSequentialModule(
+    typeName: String,
+    val numOutputs: Int
+) : Module(typeName), CommandJackBadge {
+    val input = addVoiceInput("in", isKickable = true)
+    val learn = addCommandInput("learn")
+    val matchIn = addIntegerInput("index").also {
+        it.min = MATCH_ARMED
+        it.max = 127.0
+    }
+    val stepOutputs: List<OutputJack> = List(numOutputs) { index ->
+        addOutput("value$index")
+    }
+    val unmatched = addVoiceOutput("unmatched")
+
+    val currentValues = mutableStateListOf<Double>().apply {
+        repeat(numOutputs) { add(0.0) }
+    }
+
+    /** Alias for [stepOutputs]. */
+    val valueOutputs: List<OutputJack> get() = stepOutputs
+
+    fun getValue(index: Int): Double = currentValues.getOrElse(index) { 0.0 }
+    fun getValueJack(index: Int): OutputJack = stepOutputs[index]
+    fun getOutputJack(index: Int): OutputJack = stepOutputs[index]
+
+    // Convenience accessors
+    val value0: OutputJack get() = stepOutputs[0]
+    val out0: OutputJack get() = stepOutputs[0]
+    val value1: OutputJack? get() = stepOutputs.getOrNull(1)
+    val out1: OutputJack? get() = stepOutputs.getOrNull(1)
+    val value2: OutputJack? get() = stepOutputs.getOrNull(2)
+    val out2: OutputJack? get() = stepOutputs.getOrNull(2)
+    val value3: OutputJack? get() = stepOutputs.getOrNull(3)
+    val out3: OutputJack? get() = stepOutputs.getOrNull(3)
+    val value4: OutputJack? get() = stepOutputs.getOrNull(4)
+    val out4: OutputJack? get() = stepOutputs.getOrNull(4)
+    val value5: OutputJack? get() = stepOutputs.getOrNull(5)
+    val out5: OutputJack? get() = stepOutputs.getOrNull(5)
+    val value6: OutputJack? get() = stepOutputs.getOrNull(6)
+    val out6: OutputJack? get() = stepOutputs.getOrNull(6)
+    val value7: OutputJack? get() = stepOutputs.getOrNull(7)
+    val out7: OutputJack? get() = stepOutputs.getOrNull(7)
+
+    var matchNumber: Int by mutableStateOf(MATCH_ARMED.toInt())
+        private set
+
+    init {
+        matchIn.setValue(MATCH_ARMED)
+        syncIndicators()
+    }
+
+    val isArmed: Boolean get() = matchNumber < 0
+
+    fun arm() {
+        matchIn.setValue(MATCH_ARMED)
+    }
+
+    fun indexFor(outputIndex: Int): Int =
+        if (isArmed || outputIndex !in 0 until numOutputs) -1 else matchNumber + outputIndex
+
+    override fun badgeFor(jack: CommandJack): String? =
+        if (jack !== learn) null else if (isArmed) "?" else matchNumber.toString()
+
+    override fun onMessageReceived(jack: InputJack, msg: Message) {
+        super.onMessageReceived(jack, msg)
+        if (jack === matchIn) syncIndicators()
+    }
+
+    private fun syncIndicators() {
+        matchNumber = round(matchIn.getDoubleValue()).toInt()
+        learn.isHighlighted = isArmed
+    }
+
+    override fun execute(triggerMessage: Message) {
+        if (learn.isKicked) {
+            arm()
+            return
+        }
+        val msg = triggerMessage as? Message.VoiceMessage ?: return
+        if (msg.opcode != Message.VoiceOpcode.CONTROL_CHANGE) {
+            unmatched.send(msg)
+            return
+        }
+
+        val incoming = round(msg.extra).toInt()
+
+        if (isArmed) {
+            matchIn.setValue(incoming.toDouble().coerceIn(0.0, matchIn.max))
+            stepOutputs[0].send(Message.FloatValue(msg.time, msg.value))
+            currentValues[0] = msg.value
+            return
+        }
+
+        val offset = incoming - matchNumber
+        if (offset in 0 until numOutputs) {
+            stepOutputs[offset].send(Message.FloatValue(msg.time, msg.value))
+            currentValues[offset] = msg.value
+        } else {
+            unmatched.send(msg)
+        }
+    }
+}
+
+/**
+ * Matches 4 sequential MIDI controllers and emits their values on separate output jacks.
+ */
+class MatchControl4Module : MatchControlSequentialModule("matchControl4", 4)
+
+/**
+ * Matches 8 sequential MIDI controllers and emits their values on separate output jacks.
+ */
+class MatchControl8Module : MatchControlSequentialModule("matchControl8", 8)
 
 /**
  * Follows one note and emits its amplitude on every strike, ignoring every other note.

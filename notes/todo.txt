@@ -9,57 +9,23 @@ Need repro steps.
 
 Try to save a native signed version.
 
-More help. One liners. Gemini can generate and I can edit.
-
 Move polyPatch into ksyn.patches bundle.
 Add ksyn.patches.soundPatch module with "trigger" and audio "out".
 Uses a Circuit so that setupAutoDisable() can be used to reduce CPU load.
 Can be exported as a Circuit to JSyn or KSyn.
 
-# ----------------------------------------------- MEDIUM PRIORITY
+Add new modules for MIDI controllers that have sequential indices.
+Call them "matchControl4" and "matchControl8".
+The module has one "learn" button. When it sees a ControlChange it assigns that index to the first value
+and then assigns indices to the remaining output value jacks sequentially.
 
-A seq with numeric fields or knobs or horizontal faders that can be swept quickly to make a shape.
-
-Convert Syntona timestamps to KSyn timestamps and apply small "advance-time" for jitter reduction.
-
-SPACE bar should play the pianoRoll (maybe)
-
-The orange MIDI jacks and the yellow SequentialData jacks look too similar.
-
-
-Timeline - show time as a popup when dragging.
-
-A stepper that fires all values immediately when kicked.
-No "looping" start or stop jack.
-Just a trigger jack.
-Call it a "blast" because it blasts out indexed kicks?
-
-Add matchControl8 for controllers that are sequential, matchControl4.
-
-Add XY display to scope for Lissajous curves
-
-Indicate whether an Audio port is in Add? mode.
+Also implement the same idea for matchNote4 and matchNote8. This will simplify the use of
+drum pad arrays.
 
 Add CrossFade KSyn module
 
-Getting Started video on YouTube
-
-Add CI to GitHub
-
-Add hierarchy editor
-
-Add one line help popup
-
-Add scripting: https://github.com/philburk/syntona/issues/53
-
-Nick: Suggest an Input Wizard for a patch.
-      Run the Wizard and it sees all unconnected inputs and presents a dialog showing all of them by unit name and port name.
-      For each, radio buttons let you select whether you want a scrollbar, knob, or a double input for it (or none)
-      Wizard then creates the inputs and connects them
-
-NoiseGate - implement using modules as a patch?
-
-Show units in one line help, eg. seconds
+Add MorphingOscillatorBL as "morphOscBL". It is an Oscillator that can change
+its shape from sine to sawtooth to pulse.
 
 Composing Tutorial
 * beatClock
@@ -72,6 +38,45 @@ Composing Tutorial
 * beatLine ?
 * hierarchy editor ?
 * multiTrack ?
+
+# ----------------------------------------------- MEDIUM PRIORITY
+
+Add GitHub CI in YAML that runs a bunch of the JVM desktop tests every time I commit code or submit a pull request.
+
+A seq with numeric fields or knobs or horizontal faders that can be swept quickly to make a shape.
+
+Convert Syntona timestamps to KSyn timestamps and apply small "advance-time" for jitter reduction.
+
+SPACE bar should play the pianoRoll (maybe)
+
+The orange MIDI jacks and the yellow SequentialData jacks look too similar.
+
+Timeline - show time as a popup when dragging.
+
+A stepper that fires all values immediately when kicked.
+No "looping" start or stop jack.
+Just a trigger jack.
+Call it a "blast" because it blasts out indexed kicks?
+
+Add XY display to scope for Lissajous curves
+
+Indicate whether an Audio port is in Add? mode.
+
+Getting Started video on YouTube
+
+Add hierarchy editor
+
+Add scripting: https://github.com/philburk/syntona/issues/53
+
+Nick: Suggest an Input Wizard for a patch.
+      Run the Wizard and it sees all unconnected inputs and presents a dialog showing all of them by unit name and port name.
+      For each, radio buttons let you select whether you want a scrollbar, knob, or a double input for it (or none)
+      Wizard then creates the inputs and connects them
+
+NoiseGate - implement using modules as a patch?
+
+Show units in one line help, eg. seconds
+
 
 DAHDSR decay needs higher range in KSyn.
 
