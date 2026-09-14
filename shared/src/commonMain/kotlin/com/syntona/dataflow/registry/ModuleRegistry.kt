@@ -180,6 +180,7 @@ object ModuleRegistry {
         "triOsc" to "triangle wave oscillator",
         "impulse" to "single-sample impulse click generator",
         "impulseBL" to "band-limited impulse train generator",
+        "morphOscBL" to "oscillator that changes from sine to sawtooth to pulse",
         "pulseOsc" to "variable pulse width oscillator",
         "pulseOscBL" to "band-limited variable pulse width oscillator",
         "whiteNoise" to "white noise random audio generator",
@@ -193,11 +194,12 @@ object ModuleRegistry {
         "peakFollower" to "track peak amplitude envelope of an audio signal",
         "pitchDetector" to "detect fundamental pitch and period of an audio signal",
         "schmittTrigger" to "convert signal to true/false with hysteresis",
-        "zeroCrossing" to "detect positive zero crossings of an audio signal",
+        "zeroCrossing" to "send message on positive zero crossings of an audio signal",
 
         // ==========================================
         // KSyn -> Control
         // ==========================================
+        "crossFade" to "crossfade between two audio signals",
         "envDAHDSR" to "delay-attack-hold-decay-sustain-release envelope generator",
         "envAD" to "attack-decay envelope generator",
         "envSeg" to "multi-segment breakpoint envelope generator",
@@ -414,6 +416,7 @@ object ModuleRegistry {
         addKSynModule(sources, "triOsc", ::TriangleOscillator)
         addKSynModule(sources, "impulse", ::ImpulseOscillator)
         addKSynModule(sources, "impulseBL", ::ImpulseOscillatorBL)
+        addKSynModule(sources, "morphOscBL", ::MorphingOscillatorBL)
         addKSynModule(sources, "pulseOsc", ::PulseOscillator)
         addKSynModule(sources, "pulseOscBL", ::PulseOscillatorBL)
         addKSynModule(sources, "whiteNoise", ::WhiteNoise)
@@ -428,6 +431,7 @@ object ModuleRegistry {
         analysis.modules.add(ModuleEntry("zeroCrossing") { ZeroCrossingModule() })
 
         val control = getOrCreateBundle(ksyn, "control")
+        addKSynModule(control, "crossFade", ::CrossFade)
         addKSynModule(control, "envDAHDSR", ::EnvelopeDAHDSR)
         addKSynModule(control, "envAD", ::EnvelopeAttackDecay)
         control.modules.add(ModuleEntry("envSeg") { EnvSegModule() })

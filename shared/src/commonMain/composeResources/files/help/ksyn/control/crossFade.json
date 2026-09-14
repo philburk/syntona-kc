@@ -1,0 +1,235 @@
+{
+  "version": "0.7.5 beta",
+  "versionCode": 458757,
+  "modules": [
+    {
+      "id": 0,
+      "type": "ksyn.control.crossFade",
+      "name": "crossFade",
+      "x": 415.9,
+      "y": 225.1,
+      "jacks": {
+        "in0": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "in1": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "fade": {
+          "v": -0.6585328578948975,
+          "min": -1,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 1,
+      "type": "ksyn.sources.morphOscBL",
+      "name": "morphOscBL",
+      "x": 180,
+      "y": 194.1,
+      "jacks": {
+        "frequency": {
+          "v": 222.0244903564453,
+          "min": 40,
+          "max": 8000,
+          "kickable": false,
+          "add": false
+        },
+        "amplitude": {
+          "v": 1,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "width": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "shape": {
+          "v": 0.30840805172920227,
+          "min": -1,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "ksyn.sources.whiteNoise",
+      "name": "whiteNoise",
+      "x": 184.9,
+      "y": 376.1,
+      "jacks": {
+        "amplitude": {
+          "v": 1,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "ksyn.lineOut",
+      "name": "lineOut",
+      "x": 577.9,
+      "y": 179,
+      "jacks": {
+        "in0": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "in1": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "core.input.knob",
+      "name": "fade",
+      "x": 315.9,
+      "y": 389,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": -0.6585328578948975,
+          "min": -1,
+          "max": 1,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "core.input.knob",
+      "name": "morph",
+      "x": 34.9,
+      "y": 203,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 0.30840805172920227,
+          "min": -1,
+          "max": 1,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "ksyn.view.scope",
+      "name": "scope",
+      "x": 555.9,
+      "y": 317.1,
+      "jacks": {
+        "in0": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "in1": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      },
+      "w": 300,
+      "h": 200
+    },
+    {
+      "id": 7,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 74,
+      "y": 15.1,
+      "text": "The crossFade module will do a linear fade between two inputs.\n\nWhen fade is -1, output is all in0.\nWhen fade is 0, output is half in0 and half in1.\nWhen fade is +1, output is all in1.",
+      "w": 438.875,
+      "h": 137
+    }
+  ],
+  "connections": [
+    {
+      "from": 2,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "in1"
+    },
+    {
+      "from": 1,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "in0"
+    },
+    {
+      "from": 0,
+      "fromJack": "out",
+      "to": 3,
+      "toJack": "in1"
+    },
+    {
+      "from": 0,
+      "fromJack": "out",
+      "to": 3,
+      "toJack": "in0"
+    },
+    {
+      "from": 4,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "fade"
+    },
+    {
+      "from": 5,
+      "fromJack": "out",
+      "to": 1,
+      "toJack": "shape"
+    },
+    {
+      "from": 0,
+      "fromJack": "out",
+      "to": 6,
+      "toJack": "in0"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 989.875,
+  "windowHeight": 616
+}
