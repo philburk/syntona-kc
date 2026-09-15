@@ -140,6 +140,9 @@ object GraphSerializer {
         merged["type"] = JsonValue.Str(resolvedType)
         if (patch is PolyPatchModule) {
             merged["maxVoices"] = JsonValue.Num(patch.maxVoices.toDouble())
+            if (patch.isStereo) {
+                merged["isStereo"] = JsonValue.Bool(true)
+            }
         }
         patch.windowX?.let { merged["windowX"] = JsonValue.Num(it.toDouble()) }
         patch.windowY?.let { merged["windowY"] = JsonValue.Num(it.toDouble()) }
@@ -332,6 +335,9 @@ object GraphSerializer {
             }
             if (module is PolyPatchModule) {
                 append(",\"maxVoices\":${module.maxVoices}")
+                if (module.isStereo) {
+                    append(",\"isStereo\":true")
+                }
             }
             if (module is StepValueModule) {
                 append(",\"stepValues\":[")
@@ -657,8 +663,9 @@ object GraphSerializer {
 
             if (module is PolyPatchModule) {
                 val maxV = (obj?.map?.get("maxVoices") as? JsonValue.Num)?.value?.toInt()
+                val isStereo = (obj?.map?.get("isStereo") as? JsonValue.Bool)?.value ?: false
                 if (maxV != null) {
-                    module.initializeVoices(maxV)
+                    module.initializeVoices(maxV, isStereo = isStereo)
                 }
             }
 

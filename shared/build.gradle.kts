@@ -56,8 +56,8 @@ kotlin {
 
             implementation("com.softsynth:audio-bridge:0.4.1")
             implementation("com.softsynth:midi-bridge:0.1.0")
-            implementation("com.softsynth.ksyn:ksyn:1.3.1")
-            implementation("com.softsynth.ksyn.compose:ksyn-compose:1.3.1")
+            implementation("com.softsynth.ksyn:ksyn:1.3.2")
+            implementation("com.softsynth.ksyn.compose:ksyn-compose:1.3.2")
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
 
         }

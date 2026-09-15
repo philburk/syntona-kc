@@ -7,6 +7,7 @@ import com.syntona.dataflow.editor.GraphState
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.modules.AudioInputModule
 import com.syntona.dataflow.modules.AudioOutputModule
+import com.syntona.dataflow.modules.AudioOutput2Module
 import com.syntona.dataflow.modules.FaderModule
 import com.syntona.dataflow.modules.InputModule
 import com.syntona.dataflow.modules.KnobModule
@@ -110,7 +111,15 @@ class SourceExporterTest {
         assertTrue(code.contains("envDAHDSR.setupAutoDisable(this)"))
         assertTrue(code.contains("This code was exported from Syntona."))
         assertTrue(code.contains("val presetNames = arrayOf(\"Default\")"))
-        assertTrue(code.contains("VoiceDescription(\"MinimalSawVoice\", presetNames)"))
+        assertTrue(code.contains("fun getVoiceDescription(): VoiceDescription"))
+        assertTrue(code.contains("return MyVoiceDescription"))
+        assertTrue(code.contains("private object MyVoiceDescription : VoiceDescription(\"MinimalSawVoice\", presetNames)"))
+        assertTrue(code.contains("get() = \"com.softsynth.ksyn.instruments.MinimalSawVoice\""))
+        assertTrue(code.contains("override fun createPitchedVoice(): PitchedVoice"))
+        assertTrue(code.contains("return MinimalSawVoice()"))
+        assertTrue(code.contains("override fun getTags(presetIndex: Int): Array<String>"))
+        assertFalse(code.contains("override fun getDescription()"))
+        assertFalse(code.contains("override fun getPresetNames()"))
     }
 
     @Test
@@ -742,5 +751,63 @@ class SourceExporterTest {
         val jsynCode = JSynSourceExporter.export(polyPatch, "UnconnectedVoice")
         assertTrue(jsynCode.contains("public UnitInputPort extraIn;"), "JSyn must declare extraIn port:\n$jsynCode")
         assertTrue(jsynCode.contains("addPort(extraIn = new UnitInputPort(\"extraIn\"), \"extraIn\");"), "JSyn must add new UnitInputPort:\n$jsynCode")
+    }
+
+    @Test
+    fun testExportStereoPolyPatch() {
+        val polyPatch = PolyPatchModule("stereoVoice")
+        polyPatch.initializeVoices(2, isStereo = true)
+
+        val osc1 = UnitGeneratorModule("osc1", SawtoothOscillatorBL())
+        val osc2 = UnitGeneratorModule("osc2", SawtoothOscillatorBL())
+        polyPatch.graphState.addModule(osc1, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(osc2, androidx.compose.ui.geometry.Offset.Zero)
+
+        val stereoOut = polyPatch.graphState.modules.filterIsInstance<AudioOutput2Module>().first()
+        val in0 = stereoOut.inputs.first { it.name == "in0" }
+        val in1 = stereoOut.inputs.first { it.name == "in1" }
+
+        polyPatch.graphState.connect(osc1.outputs.first { it.name == "out" }, in0)
+        polyPatch.graphState.connect(osc2.outputs.first { it.name == "out" }, in1)
+
+        val ksynCode = KSynSourceExporter.export(polyPatch, "StereoVoice")
+        assertTrue(ksynCode.contains("private val twoInDualOut = TwoInDualOut()"), "KSyn must declare TwoInDualOut:\n$ksynCode")
+        assertTrue(ksynCode.contains("add(twoInDualOut)"), "KSyn must add TwoInDualOut:\n$ksynCode")
+        assertTrue(ksynCode.contains("osc1.output.connect(twoInDualOut.inputA)"), "KSyn must connect in0 to inputA:\n$ksynCode")
+        assertTrue(ksynCode.contains("osc2.output.connect(twoInDualOut.inputB)"), "KSyn must connect in1 to inputB:\n$ksynCode")
+        assertTrue(ksynCode.contains("override fun getOutputPort(): UnitOutputPort {\n        return twoInDualOut.output\n    }"), "KSyn getOutputPort must return twoInDualOut.output:\n$ksynCode")
+        assertTrue(ksynCode.contains("fun getVoiceDescription(): VoiceDescription"))
+        assertTrue(ksynCode.contains("private object MyVoiceDescription : VoiceDescription(\"StereoVoice\", presetNames)"))
+
+        val jsynCode = JSynSourceExporter.export(polyPatch, "StereoVoice")
+        assertTrue(jsynCode.contains("private TwoInDualOut twoInDualOut;"), "JSyn must declare TwoInDualOut:\n$jsynCode")
+        assertTrue(jsynCode.contains("add(twoInDualOut = new TwoInDualOut());"), "JSyn must add TwoInDualOut:\n$jsynCode")
+        assertTrue(jsynCode.contains("osc1.output.connect(twoInDualOut.inputA);"), "JSyn must connect in0 to inputA:\n$jsynCode")
+        assertTrue(jsynCode.contains("osc2.output.connect(twoInDualOut.inputB);"), "JSyn must connect in1 to inputB:\n$jsynCode")
+        assertTrue(jsynCode.contains("public UnitOutputPort getOutput() {\n        return twoInDualOut.output;\n    }"), "JSyn getOutput must return twoInDualOut.output:\n$jsynCode")
+    }
+
+    @Test
+    fun testExportStereoNonPolyPatch() {
+        val patch = PatchModule("stereoPatch")
+        val stereoOut = AudioOutput2Module().apply { name = "stereoOut" }
+        val osc1 = UnitGeneratorModule("osc1", SawtoothOscillatorBL())
+        val osc2 = UnitGeneratorModule("osc2", SawtoothOscillatorBL())
+        patch.graphState.addModule(stereoOut, androidx.compose.ui.geometry.Offset.Zero)
+        patch.graphState.addModule(osc1, androidx.compose.ui.geometry.Offset.Zero)
+        patch.graphState.addModule(osc2, androidx.compose.ui.geometry.Offset.Zero)
+
+        patch.graphState.connect(osc1.outputs.first { it.name == "out" }, stereoOut.inputs.first { it.name == "in0" })
+        patch.graphState.connect(osc2.outputs.first { it.name == "out" }, stereoOut.inputs.first { it.name == "in1" })
+
+        val ksynCode = KSynSourceExporter.export(patch, "StereoPatch")
+        assertTrue(ksynCode.contains("val output: UnitOutputPort"), "KSyn must declare output port:\n$ksynCode")
+        assertTrue(ksynCode.contains("output = twoInDualOut.output"), "KSyn must assign output port:\n$ksynCode")
+        assertTrue(ksynCode.contains("addPort(output, \"output\")"), "KSyn must add output port:\n$ksynCode")
+
+        val jsynCode = JSynSourceExporter.export(patch, "StereoPatch")
+        assertTrue(jsynCode.contains("public UnitOutputPort output;"), "JSyn must declare output port:\n$jsynCode")
+        assertTrue(jsynCode.contains("output = twoInDualOut.output;"), "JSyn must assign output port:\n$jsynCode")
+        assertTrue(jsynCode.contains("addPort(output, \"output\");"), "JSyn must add output port:\n$jsynCode")
     }
 }

@@ -9,6 +9,7 @@ import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.model.OutputJack
 import com.syntona.dataflow.modules.AudioInputModule
 import com.syntona.dataflow.modules.AudioOutputModule
+import com.syntona.dataflow.modules.AudioOutput2Module
 import com.syntona.dataflow.modules.EnvSegModule
 import com.syntona.dataflow.modules.FaderModule
 import com.syntona.dataflow.modules.InputModule
@@ -250,7 +251,7 @@ object SourceExporter {
                 is KnobModule, is FaderModule -> {
                     ignored.add(module)
                 }
-                is UnitGeneratorModule, is AudioInputModule, is AudioOutputModule, is PitchToFrequencyModule, is EnvSegModule -> {
+                is UnitGeneratorModule, is AudioInputModule, is AudioOutputModule, is AudioOutput2Module, is PitchToFrequencyModule, is EnvSegModule -> {
                     audio.add(module)
                 }
                 is InputModule -> {
@@ -415,7 +416,7 @@ object SourceExporter {
 
         if (envelopeEntries.isEmpty()) return null
 
-        val audioOutputs = patch.graphState.modules.filterIsInstance<AudioOutputModule>()
+        val audioOutputs = patch.graphState.modules.filter { it is AudioOutputModule || it is AudioOutput2Module }
         val envelopeDistances = mutableMapOf<Module, Int>()
         val connectsToAmpPort = mutableSetOf<Module>()
 
@@ -443,7 +444,7 @@ object SourceExporter {
                     // If upstream is an envelope, check if it connects to an amplitude-related port, multiplier, or output
                     if (upstreamMod in envelopeEntries) {
                         val inputPortName = conn.input.name.lowercase()
-                        if (conn.input.module is AudioOutputModule ||
+                        if (conn.input.module is AudioOutputModule || conn.input.module is AudioOutput2Module ||
                             inputPortName.contains("amp") ||
                             inputPortName == "ina" || inputPortName == "inb" ||
                             inputPortName == "inputa" || inputPortName == "inputb"

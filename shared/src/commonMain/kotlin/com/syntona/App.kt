@@ -7,12 +7,14 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.clickable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -723,7 +725,8 @@ fun App(
                                                                     val newPatch = if (isPoly) {
                                                                         val poly = PolyPatchModule(fileName)
                                                                         val maxV = (parsed.map["maxVoices"] as? JsonValue.Num)?.value?.toInt() ?: 4
-                                                                        poly.initializeVoices(maxV)
+                                                                        val isStereo = (parsed.map["isStereo"] as? JsonValue.Bool)?.value ?: false
+                                                                        poly.initializeVoices(maxV, isStereo = isStereo)
                                                                         poly
                                                                     } else {
                                                                         PatchModule(fileName)
@@ -1635,6 +1638,7 @@ fun App(
                     }
                     com.syntona.dataflow.modules.PolyPatchPrompter.activePromptModule?.let { module ->
                         var voiceCountText by remember { mutableStateOf("8") }
+                        var isStereo by remember { mutableStateOf(false) }
                         AlertDialog(
                             onDismissRequest = {
                                 val graph = com.syntona.dataflow.modules.PolyPatchPrompter.activePromptGraphState
@@ -1647,7 +1651,7 @@ fun App(
                             },
                             title = { Text("Polyphonic Patch Voices") },
                             text = {
-                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                     Text("Enter the maximum number of polyphonic voices:")
                                     androidx.compose.foundation.text.BasicTextField(
                                         value = voiceCountText,
@@ -1660,12 +1664,40 @@ fun App(
                                             .onKeyEvent { true },
                                         textStyle = androidx.compose.ui.text.TextStyle(color = Color.Black)
                                     )
+                                    Text("Output:")
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.clickable { isStereo = false }
+                                        ) {
+                                            RadioButton(
+                                                selected = !isStereo,
+                                                onClick = { isStereo = false }
+                                            )
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("Mono")
+                                        }
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.clickable { isStereo = true }
+                                        ) {
+                                            RadioButton(
+                                                selected = isStereo,
+                                                onClick = { isStereo = true }
+                                            )
+                                            Spacer(Modifier.width(4.dp))
+                                            Text("Stereo")
+                                        }
+                                    }
                                 }
                             },
                             confirmButton = {
                                 Button(onClick = {
                                     val count = voiceCountText.toIntOrNull() ?: 8
-                                    module.initializeVoices(count.coerceIn(1, 32))
+                                    module.initializeVoices(count.coerceIn(1, 32), isStereo = isStereo)
                                     com.syntona.dataflow.modules.PolyPatchPrompter.activePromptModule = null
                                     com.syntona.dataflow.modules.PolyPatchPrompter.activePromptGraphState = null
                                 }) { Text("OK") }

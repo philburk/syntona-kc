@@ -13,6 +13,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class PolyPatchModuleTest {
@@ -1202,6 +1203,187 @@ class PolyPatchModuleTest {
 
         // Voice circuit should now be disabled after release completes!
         assertEquals(false, activeVoice.voiceCircuit.isEnabled, "Active voice circuit should be disabled after envelope release completes")
+    }
+
+    @Test
+    fun testPolyPatchStereoInitializationAndIntrinsicModules() {
+        val polyPatch = PolyPatchModule()
+        polyPatch.initializeVoices(4, isStereo = true)
+        assertEquals(4, polyPatch.maxVoices)
+        assertTrue(polyPatch.isStereo)
+        assertNotNull(polyPatch.polyphonicInstrument)
+
+        // Outer outputs: should have "out0" and "out1", NOT "output"
+        assertNotNull(polyPatch.outputs.find { it.name == "out0" }, "Should have out0 jack")
+        assertNotNull(polyPatch.outputs.find { it.name == "out1" }, "Should have out1 jack")
+        assertTrue(polyPatch.outputs.none { it.name == "output" }, "Should not have mono output jack")
+
+        // Inside modules: should have intrinsic AudioOutput2Module named "output"
+        val stereoOut = polyPatch.graphState.modules.filterIsInstance<AudioOutput2Module>().firstOrNull()
+        assertNotNull(stereoOut, "Should have AudioOutput2Module inside")
+        assertEquals("output", stereoOut.name)
+        assertNotNull(stereoOut.inputs.find { it.name == "in0" })
+        assertNotNull(stereoOut.inputs.find { it.name == "in1" })
+        assertTrue(polyPatch.graphState.modules.none { it is AudioOutputModule }, "Should not have AudioOutputModule")
+
+        // Cannot delete intrinsic stereo output
+        assertTrue(stereoOut.isIntrinsic)
+        assertTrue(polyPatch.isModuleIntrinsic(stereoOut))
+        assertFalse(polyPatch.canDeleteChildModule(stereoOut))
+        assertFalse(polyPatch.graphState.canDeleteModule(stereoOut))
+        polyPatch.graphState.selectModule(stereoOut)
+        polyPatch.graphState.deleteSelectedModules()
+        assertTrue(polyPatch.graphState.modules.contains(stereoOut), "Intrinsic AudioOutput2Module cannot be deleted")
+    }
+
+    @Test
+    fun testPolyPatchStereoVoiceRouting() {
+        val polyPatch = PolyPatchModule()
+        polyPatch.initializeVoices(2, isStereo = true)
+
+        val osc0 = UnitGeneratorModule("sineOsc0", SineOscillator())
+        val osc1 = UnitGeneratorModule("sineOsc1", SineOscillator())
+        polyPatch.graphState.addModule(osc0, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(osc1, androidx.compose.ui.geometry.Offset.Zero)
+
+        val stereoOut = polyPatch.graphState.modules.filterIsInstance<AudioOutput2Module>().first()
+        val in0 = stereoOut.inputs.first { it.name == "in0" }
+        val in1 = stereoOut.inputs.first { it.name == "in1" }
+
+        polyPatch.graphState.connect(osc0.outputs.first { it.name == "out" }, in0)
+        polyPatch.graphState.connect(osc1.outputs.first { it.name == "out" }, in1)
+
+        assertEquals(2, polyPatch.voices.size)
+        // Check that voice twoInDualOut exists
+        for (voice in polyPatch.voices) {
+            val voiceStereoOut = voice.templateToVoiceMap[stereoOut] as? AudioOutput2Module
+            assertNotNull(voiceStereoOut)
+            assertNotNull(voiceStereoOut.twoInDualOut)
+        }
+
+        // Verify removing module doesn't crash
+        polyPatch.graphState.removeModulesDirectly(listOf(osc0))
+    }
+
+    @Test
+    fun testPolyPatchStereoSerialization() {
+        val rootGraph = GraphState()
+        val polyPatch = PolyPatchModule()
+        rootGraph.addModule(polyPatch, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.initializeVoices(3, isStereo = true)
+
+        val json = GraphSerializer.serialize(rootGraph, rootGraph.modules)
+        assertTrue(json.contains("\"isStereo\": true"))
+
+        val newRootGraph = GraphState()
+        val deserialized = GraphSerializer.deserialize(newRootGraph, json)
+        assertEquals(1, deserialized.size)
+
+        val newPolyPatch = deserialized[0] as PolyPatchModule
+        assertEquals(3, newPolyPatch.maxVoices)
+        assertTrue(newPolyPatch.isInitialized)
+        assertTrue(newPolyPatch.isStereo)
+        assertNotNull(newPolyPatch.outputs.find { it.name == "out0" })
+        assertNotNull(newPolyPatch.outputs.find { it.name == "out1" })
+        assertTrue(newPolyPatch.outputs.none { it.name == "output" })
+
+        val stereoOut = newPolyPatch.graphState.modules.filterIsInstance<AudioOutput2Module>().firstOrNull()
+        assertNotNull(stereoOut)
+        assertEquals("output", stereoOut.name)
+    }
+
+    @Test
+    fun testLoadStereoPatchExample() = kotlinx.coroutines.runBlocking {
+        val rootGraph = GraphState()
+        val resourceFile = listOf(
+            java.io.File("src/commonMain/composeResources/files/examples/stereoPatch.json"),
+            java.io.File("shared/src/commonMain/composeResources/files/examples/stereoPatch.json"),
+            java.io.File("../shared/src/commonMain/composeResources/files/examples/stereoPatch.json")
+        ).firstOrNull { it.exists() }
+        assertNotNull(resourceFile, "Resource file stereoPatch.json should exist")
+        val json = resourceFile.readText()
+        val deserialized = GraphSerializer.deserialize(rootGraph, json)
+        val polyPatch = deserialized.filterIsInstance<PolyPatchModule>().first()
+        assertTrue(polyPatch.isStereo)
+        assertTrue(polyPatch.isInitialized)
+
+        val out0 = polyPatch.outputs.find { it.name == "out0" } as? AudioOutputJack
+        val out1 = polyPatch.outputs.find { it.name == "out1" } as? AudioOutputJack
+        assertNotNull(out0)
+        assertNotNull(out1)
+
+        val currentMixer0 = polyPatch.auxMixers["out0"]
+        val currentMixer1 = polyPatch.auxMixers["out1"]
+        println("currentMixer0 output: ${currentMixer0?.output}, out0 unitOutputPort: ${out0.unitOutputPort}")
+        println("Do they match? ${currentMixer0?.output === out0.unitOutputPort}")
+
+        val lineOut = deserialized.find { it.name == "lineOut" }
+        assertNotNull(lineOut)
+
+        // Check if polyPatch out0 and out1 are connected to lineOut
+        val rootConns = rootGraph.connections.filter { it.output.module === polyPatch }
+        println("Root conns from polyPatch: ${rootConns.map { "${it.output.name} -> ${it.input.module.name}.${it.input.name}" }}")
+
+        // Check inside polyPatch
+        val stereoOut = polyPatch.graphState.modules.filterIsInstance<AudioOutput2Module>().firstOrNull()
+        assertNotNull(stereoOut)
+        val innerConns = polyPatch.graphState.connections.filter { it.input.module === stereoOut }
+        println("Inner conns to stereoOut: ${innerConns.map { "${it.output.module.name}.${it.output.name} -> ${it.input.name}" }}")
+
+        // Check voice routing
+        for ((idx, voice) in polyPatch.voices.withIndex()) {
+            val voiceStereoOut = voice.templateToVoiceMap[stereoOut] as? AudioOutput2Module
+            println("Voice $idx stereoOut: $voiceStereoOut, twoInDualOut: ${voiceStereoOut?.twoInDualOut}")
+            val voiceConns = voice.graphState.connections.filter { it.input.module === voiceStereoOut }
+            println("Voice $idx conns to stereoOut: ${voiceConns.size}")
+        }
+
+        // Test audio synthesis
+        val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
+        // Trigger a note
+        polyPatch.voiceInputJack.receive(
+            Message.VoiceMessage(
+                com.syntona.core.model.ScoreTime.Zero,
+                Message.VoiceOpcode.NOTE_ON,
+                tag = 10,
+                value = 60.0,
+                extra = 1.0
+            )
+        )
+        val voice0 = polyPatch.voices[0]
+        println("Voice 0 circuit units: ${voice0.voiceCircuit.getUnits().map { it::class.simpleName }}")
+        println("Voice 0 circuit isEnabled: ${voice0.voiceCircuit.isEnabled}")
+        println("Voice 0 conns: ${voice0.graphState.connections.map { "${it.output.module.name}.${it.output.name} -> ${it.input.module.name}.${it.input.name}" }}")
+
+        val vStereoOut = voice0.templateToVoiceMap[stereoOut] as AudioOutput2Module
+        val conn0 = voice0.graphState.connections.find { it.input.name == "in0" }
+        println("conn0 input module: ${conn0?.input?.module}")
+        println("vStereoOut: $vStereoOut")
+        println("Are they same instance? ${conn0?.input?.module === vStereoOut}")
+        println("conn0 input jack: ${conn0?.input}, vStereoOut.in0: ${vStereoOut.in0}, same jack? ${conn0?.input === vStereoOut.in0}")
+        for (i in 0 until 10) {
+            engine.generateNextBuffer()
+        }
+
+        val activeVoice = polyPatch.voices.find { it.voiceCircuit.isEnabled } ?: voice0
+        val vActiveStereoOut = activeVoice.templateToVoiceMap[stereoOut] as AudioOutput2Module
+        val voiceOut0 = vActiveStereoOut.twoInDualOut.output.getValues(0)
+        val voiceOut1 = vActiveStereoOut.twoInDualOut.output.getValues(1)
+        assertTrue(voiceOut0.any { it != 0f }, "Active voice output 0 should generate signal")
+        assertTrue(voiceOut1.any { it != 0f }, "Active voice output 1 should generate signal")
+
+        assertSame(currentMixer0?.output, out0.unitOutputPort, "out0 port should point to active mixer0")
+        assertSame(currentMixer1?.output, out1.unitOutputPort, "out1 port should point to active mixer1")
+
+        val buffer0 = out0.unitOutputPort.getValues(out0.partIndex)
+        val maxVal0 = buffer0.maxOrNull() ?: 0f
+        val minVal0 = buffer0.minOrNull() ?: 0f
+        assertTrue(maxVal0 != 0f || minVal0 != 0f, "out0 should produce audio signal")
+
+        val buffer1 = out1.unitOutputPort.getValues(out1.partIndex)
+        val maxVal1 = buffer1.maxOrNull() ?: 0f
+        val minVal1 = buffer1.minOrNull() ?: 0f
+        assertTrue(maxVal1 != 0f || minVal1 != 0f, "out1 should produce audio signal")
     }
 }
 

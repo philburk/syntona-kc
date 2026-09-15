@@ -105,6 +105,7 @@ import com.syntona.dataflow.modules.FaderModule
 import com.syntona.dataflow.modules.MixerModule
 import com.syntona.dataflow.modules.AudioInputModule
 import com.syntona.dataflow.modules.AudioOutputModule
+import com.syntona.dataflow.modules.AudioOutput2Module
 import com.syntona.dataflow.modules.CommandModule
 import com.syntona.dataflow.modules.FloatSampleModule
 import com.syntona.dataflow.modules.SamplePlayerModule
@@ -387,6 +388,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                             is OutputModule -> ModuleNode(module, state, headerColor = colors.headerInputOutput, label = module.name)
                             is AudioInputModule -> ModuleNode(module, state, headerColor = colors.headerAudio, label = module.name)
                             is AudioOutputModule -> ModuleNode(module, state, headerColor = colors.headerAudio, label = module.name)
+                            is AudioOutput2Module -> ModuleNode(module, state, headerColor = colors.headerAudio, label = module.name)
                             is ScopeModule -> ScopeModuleNode(module, state)
                             is VuMeterModule -> VuMeterModuleNode(module, state)
                             is KeyboardModule -> KeyboardModuleNode(module, state)

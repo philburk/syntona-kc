@@ -86,7 +86,8 @@ object InstrumentRegistry {
         val newPatch = if (isPoly) {
             val poly = PolyPatchModule(name)
             val maxV = (parsed?.map?.get("maxVoices") as? JsonValue.Num)?.value?.toInt() ?: 4
-            poly.initializeVoices(maxV)
+            val isStereo = (parsed?.map?.get("isStereo") as? JsonValue.Bool)?.value ?: false
+            poly.initializeVoices(maxV, isStereo = isStereo)
             poly
         } else {
             PatchModule(name)

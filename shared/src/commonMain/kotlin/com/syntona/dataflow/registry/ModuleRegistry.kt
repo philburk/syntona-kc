@@ -168,6 +168,7 @@ object ModuleRegistry {
         "lineOut" to "write audio output to sound card hardware",
         "input~" to "audio input jack for a patch or sub-patch",
         "output~" to "audio output jack for a patch or sub-patch",
+        "output2~" to "stereo audio output jacks for a patch or sub-patch",
 
         // ==========================================
         // KSyn -> Sources
@@ -409,6 +410,7 @@ object ModuleRegistry {
         addKSynModule(ksyn, "lineOut", ::LineOut)
         ksyn.modules.add(ModuleEntry("input~") { AudioInputModule() })
         ksyn.modules.add(ModuleEntry("output~") { AudioOutputModule() })
+        ksyn.modules.add(ModuleEntry("output2~") { AudioOutput2Module() })
 
         val sources = getOrCreateBundle(ksyn, "sources")
         addKSynModule(sources, "sineOsc", ::SineOscillator)

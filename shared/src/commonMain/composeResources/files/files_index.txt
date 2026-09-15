@@ -26,6 +26,7 @@ examples/sampleReader.json
 examples/sampleWriter.json
 examples/saw_noise.json
 examples/stepper.json
+examples/stereoPatch.json
 examples/timeline.json
 examples/valueList.json
 examples/vibrato.json

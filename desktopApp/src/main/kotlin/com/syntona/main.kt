@@ -172,7 +172,8 @@ fun main() {
                                     val newPatch = if (isPoly) {
                                         val poly = PolyPatchModule(fileName)
                                         val maxV = (parsed.map["maxVoices"] as? JsonValue.Num)?.value?.toInt() ?: 4
-                                        poly.initializeVoices(maxV)
+                                        val isStereo = (parsed.map["isStereo"] as? JsonValue.Bool)?.value ?: false
+                                        poly.initializeVoices(maxV, isStereo = isStereo)
                                         poly
                                     } else {
                                         PatchModule(fileName)

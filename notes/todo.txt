@@ -14,18 +14,12 @@ Add ksyn.patches.soundPatch module with "trigger" and audio "out".
 Uses a Circuit so that setupAutoDisable() can be used to reduce CPU load.
 Can be exported as a Circuit to JSyn or KSyn.
 
-Add new modules for MIDI controllers that have sequential indices.
-Call them "matchControl4" and "matchControl8".
-The module has one "learn" button. When it sees a ControlChange it assigns that index to the first value
-and then assigns indices to the remaining output value jacks sequentially.
+BUG: load help patch for crossFade, close window, still playing!
 
-Also implement the same idea for matchNote4 and matchNote8. This will simplify the use of
-drum pad arrays.
+Need order4 ?
 
-Add CrossFade KSyn module
+BUG: delay not working in polyPatch
 
-Add MorphingOscillatorBL as "morphOscBL". It is an Oscillator that can change
-its shape from sine to sawtooth to pulse.
 
 Composing Tutorial
 * beatClock
@@ -139,8 +133,6 @@ Need more ways to indicate Done. monoRdr could have an "empty" output jack.
 Ties in with the hierarchy editor.
 
 Add theremin (XY) input module.
-
-Need order4 ?
 
 Pack SysEx for controlling LEDs on KeyLab drum pads.
 F0 00 20 6B  7F 42 02 00  16 <Pad_ID> <R> <G>  <B> F7

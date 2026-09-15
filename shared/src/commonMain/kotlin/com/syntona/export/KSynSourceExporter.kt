@@ -13,6 +13,7 @@ import com.syntona.dataflow.model.OutputJack
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.modules.AudioInputModule
 import com.syntona.dataflow.modules.AudioOutputModule
+import com.syntona.dataflow.modules.AudioOutput2Module
 import com.syntona.dataflow.modules.EnvSegModule
 import com.syntona.dataflow.modules.FaderModule
 import com.syntona.dataflow.modules.InputModule
@@ -98,6 +99,8 @@ object KSynSourceExporter {
 
         // Audio outputs & custom inputs
         val audioOutputs = patch.graphState.modules.filterIsInstance<AudioOutputModule>()
+        val audioOutputs2 = patch.graphState.modules.filterIsInstance<AudioOutput2Module>()
+        val isStereoPatch = audioOutputs2.isNotEmpty()
 
         val customInputs = SourceExporter.resolveCustomAudioInputs(
             patch = patch,
@@ -151,6 +154,9 @@ object KSynSourceExporter {
                 sb.appendLine("    private val ${info.passThroughVarName} = PassThrough()")
             }
         }
+        if (isStereoPatch) {
+            sb.appendLine("    private val twoInDualOut = TwoInDualOut()")
+        }
         sb.appendLine()
 
         // Ports
@@ -169,6 +175,9 @@ object KSynSourceExporter {
             for (outputMod in audioOutputs) {
                 val propName = SourceExporter.sanitizeIdentifier(outputMod.name)
                 sb.appendLine("    val $propName: UnitOutputPort")
+            }
+            if (isStereoPatch) {
+                sb.appendLine("    val output: UnitOutputPort")
             }
         }
         sb.appendLine()
@@ -190,6 +199,9 @@ object KSynSourceExporter {
             if (info.passThroughVarName != null) {
                 sb.appendLine("        add(${info.passThroughVarName})")
             }
+        }
+        if (isStereoPatch) {
+            sb.appendLine("        add(twoInDualOut)")
         }
         sb.appendLine()
 
@@ -229,6 +241,31 @@ object KSynSourceExporter {
                         sb.appendLine("        ${info.passThroughVarName}.output.connect(${target.varName}.${target.portName})")
                     } else {
                         sb.appendLine("        ${info.passThroughVarName}.output.connect(0, ${target.varName}.${target.portName}, ${target.partIndex})")
+                    }
+                }
+            }
+        }
+        if (isStereoPatch) {
+            val output2Mod = audioOutputs2.first()
+            val in0Conns = connections.filter { it.input.module === output2Mod && it.input.name == "in0" }
+            for (conn in in0Conns) {
+                val source = resolveOutputEndpoint(conn.output.module, conn.output, unitMap, p2fVarMap, envSegMap)
+                if (source != null) {
+                    if (source.partIndex == 0) {
+                        sb.appendLine("        ${source.varName}.${source.portName}.connect(twoInDualOut.inputA)")
+                    } else {
+                        sb.appendLine("        ${source.varName}.${source.portName}.connect(${source.partIndex}, twoInDualOut.inputA, 0)")
+                    }
+                }
+            }
+            val in1Conns = connections.filter { it.input.module === output2Mod && it.input.name == "in1" }
+            for (conn in in1Conns) {
+                val source = resolveOutputEndpoint(conn.output.module, conn.output, unitMap, p2fVarMap, envSegMap)
+                if (source != null) {
+                    if (source.partIndex == 0) {
+                        sb.appendLine("        ${source.varName}.${source.portName}.connect(twoInDualOut.inputB)")
+                    } else {
+                        sb.appendLine("        ${source.varName}.${source.portName}.connect(${source.partIndex}, twoInDualOut.inputB, 0)")
                     }
                 }
             }
@@ -316,6 +353,10 @@ object KSynSourceExporter {
                     sb.appendLine("        $propName = UnitOutputPort(\"${outputMod.name}\")")
                 }
                 sb.appendLine("        addPort($propName, \"${outputMod.name}\")")
+            }
+            if (isStereoPatch) {
+                sb.appendLine("        output = twoInDualOut.output")
+                sb.appendLine("        addPort(output, \"output\")")
             }
             sb.appendLine()
         }
@@ -508,25 +549,29 @@ object KSynSourceExporter {
 
             // getOutputPort()
             sb.appendLine("    override fun getOutputPort(): UnitOutputPort {")
-            val lastOutputMod = audioOutputs.firstOrNull()
-            val connToOutput = lastOutputMod?.let { outMod ->
-                connections.firstOrNull { it.input.module === outMod }
-            }
-            val outEndpoint = if (connToOutput != null) {
-                resolveOutputEndpoint(connToOutput.output.module, connToOutput.output, unitMap, p2fVarMap, envSegMap)
-            } else null
-
-            if (outEndpoint != null) {
-                val accessor = if (outEndpoint.partIndex == 0) "${outEndpoint.varName}.${outEndpoint.portName}" else "${outEndpoint.varName}.${outEndpoint.portName}[${outEndpoint.partIndex}]"
-                sb.appendLine("        return $accessor")
-            } else if (mainAmpEnv != null) {
-                sb.appendLine("        return ${mainAmpEnv.varName}.output")
+            if (isStereoPatch) {
+                sb.appendLine("        return twoInDualOut.output")
             } else {
-                val firstOsc = unitMap.values.firstOrNull { it.className.contains("Oscillator") }
-                if (firstOsc != null) {
-                    sb.appendLine("        return ${firstOsc.varName}.output")
+                val lastOutputMod = audioOutputs.firstOrNull()
+                val connToOutput = lastOutputMod?.let { outMod ->
+                    connections.firstOrNull { it.input.module === outMod }
+                }
+                val outEndpoint = if (connToOutput != null) {
+                    resolveOutputEndpoint(connToOutput.output.module, connToOutput.output, unitMap, p2fVarMap, envSegMap)
+                } else null
+
+                if (outEndpoint != null) {
+                    val accessor = if (outEndpoint.partIndex == 0) "${outEndpoint.varName}.${outEndpoint.portName}" else "${outEndpoint.varName}.${outEndpoint.portName}[${outEndpoint.partIndex}]"
+                    sb.appendLine("        return $accessor")
+                } else if (mainAmpEnv != null) {
+                    sb.appendLine("        return ${mainAmpEnv.varName}.output")
                 } else {
-                    sb.appendLine("        return UnitOutputPort(\"output\")")
+                    val firstOsc = unitMap.values.firstOrNull { it.className.contains("Oscillator") }
+                    if (firstOsc != null) {
+                        sb.appendLine("        return ${firstOsc.varName}.output")
+                    } else {
+                        sb.appendLine("        return UnitOutputPort(\"output\")")
+                    }
                 }
             }
             sb.appendLine("    }")
@@ -562,12 +607,25 @@ object KSynSourceExporter {
                 sb.appendLine()
             }
             sb.appendLine("        val presetNames = arrayOf(\"Default\")")
+            sb.appendLine()
+            sb.appendLine("        fun getVoiceDescription(): VoiceDescription {")
+            sb.appendLine("            return MyVoiceDescription")
+            sb.appendLine("        }")
             sb.appendLine("    }")
             sb.appendLine()
-            sb.appendLine("    override fun getPresetNames(): Array<String> = presetNames")
+            sb.appendLine("    private object MyVoiceDescription : VoiceDescription(\"$className\", presetNames) {")
+            sb.appendLine("        override val voiceClassName: String")
+            sb.appendLine("            get() = \"$packageName.$className\"")
             sb.appendLine()
-            sb.appendLine("    override fun getDescription(): VoiceDescription {")
-            sb.appendLine("        return VoiceDescription(\"$className\", presetNames)")
+            sb.appendLine("        private val tags = arrayOf(\"electronic\")")
+            sb.appendLine()
+            sb.appendLine("        override fun createPitchedVoice(): PitchedVoice {")
+            sb.appendLine("            return $className()")
+            sb.appendLine("        }")
+            sb.appendLine()
+            sb.appendLine("        override fun getTags(presetIndex: Int): Array<String> {")
+            sb.appendLine("            return tags")
+            sb.appendLine("        }")
             sb.appendLine("    }")
         } else {
             if (envSegMap.isNotEmpty()) {

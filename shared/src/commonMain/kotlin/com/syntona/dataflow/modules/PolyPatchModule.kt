@@ -20,6 +20,8 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
     var maxVoices: Int = 8
         private set
 
+    var isStereo: Boolean = false
+
     var polyphonicInstrument: PolyphonicInstrument? = null
         private set
 
@@ -31,7 +33,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
 
     val voiceInputJack = addVoiceInput("input", isKickable = true)
 
-    private val auxMixers = mutableMapOf<String, PassThrough>()
+    internal val auxMixers = mutableMapOf<String, PassThrough>()
 
     init {
         // Setup graphState lifecycle callbacks to sync edits to background voices
@@ -99,6 +101,15 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
             module.name = proposedName
             return
         }
+        if (module is AudioOutput2Module) {
+            module.patch = this
+            if (module.name == "output" || module.name == "output2~") {
+                return
+            }
+            val proposedName = "aOut${outputs.size}"
+            module.name = proposedName
+            return
+        }
         if (module is AudioInputModule) {
             module.patch = this
             if (isSpecialVoiceInput(module.name)) {
@@ -120,8 +131,9 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
         super.onChildModuleAdded(module)
     }
 
-    fun initializeVoices(maxVoices: Int) {
+    fun initializeVoices(maxVoices: Int, isStereo: Boolean = this.isStereo) {
         if (isInitialized) return
+        this.isStereo = isStereo
         this.maxVoices = maxVoices
         this.voices = Array(maxVoices) { i -> PolyPatchVoice(i, this) }
 
@@ -140,8 +152,38 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
             instrument.start()
         }
 
-        // Expose instrument output mixed port
-        addAudioOutput("output", instrument.getOutputPort(), 0)
+        if (isStereo) {
+            // Replace initial mono output module with stereo output module
+            val existingMonoOutput = graphState.modules.find { it is AudioOutputModule && it.name == "output" }
+            val existingStereoOutput = graphState.modules.find { it is AudioOutput2Module }
+            if (existingStereoOutput == null) {
+                val pos = existingMonoOutput?.let { graphState.modulePositions[it] }
+                    ?: androidx.compose.ui.geometry.Offset(450f, 200f)
+                if (existingMonoOutput != null) {
+                    graphState.removeModulesDirectly(listOf(existingMonoOutput))
+                }
+                val defaultOutput = AudioOutput2Module().apply { isIntrinsic = true }
+                defaultOutput.name = "output"
+                graphState.addModule(defaultOutput, pos)
+            } else {
+                existingStereoOutput.isIntrinsic = true
+            }
+
+            // Expose stereo output jacks "out0" and "out1" on the outside of the polyPatch
+            val mixer0 = getOrCreateAuxMixer("out0")
+            val mixer1 = getOrCreateAuxMixer("out1")
+            if (outputs.none { it.name == "out0" }) {
+                addAudioOutput("out0", mixer0.output, 0)
+            }
+            if (outputs.none { it.name == "out1" }) {
+                addAudioOutput("out1", mixer1.output, 0)
+            }
+        } else {
+            // Expose instrument output mixed port
+            if (outputs.none { it.name == "output" }) {
+                addAudioOutput("output", instrument.getOutputPort(), 0)
+            }
+        }
 
         isInitialized = true
 
@@ -201,13 +243,24 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
             pressIn.isIntrinsic = true
         }
 
-        val output = graphState.modules.find { it is AudioOutputModule && it.name == "output" }
-        if (output == null) {
-            val defaultOutput = AudioOutputModule().apply { isIntrinsic = true }
-            defaultOutput.name = "output"
-            graphState.addModule(defaultOutput, androidx.compose.ui.geometry.Offset(450f, 200f))
+        if (isStereo) {
+            val output2 = graphState.modules.find { it is AudioOutput2Module && (it.name == "output" || it.name == "output2~") }
+            if (output2 == null) {
+                val defaultOutput = AudioOutput2Module().apply { isIntrinsic = true }
+                defaultOutput.name = "output"
+                graphState.addModule(defaultOutput, androidx.compose.ui.geometry.Offset(450f, 200f))
+            } else {
+                output2.isIntrinsic = true
+            }
         } else {
-            output.isIntrinsic = true
+            val output = graphState.modules.find { it is AudioOutputModule && it.name == "output" }
+            if (output == null) {
+                val defaultOutput = AudioOutputModule().apply { isIntrinsic = true }
+                defaultOutput.name = "output"
+                graphState.addModule(defaultOutput, androidx.compose.ui.geometry.Offset(450f, 200f))
+            } else {
+                output.isIntrinsic = true
+            }
         }
     }
 
@@ -217,6 +270,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
     fun isModuleIntrinsic(module: Module): Boolean {
         if (module.isIntrinsic) return true
         if (module is AudioOutputModule && module.name == "output") return true
+        if (module is AudioOutput2Module && (module.name == "output" || module.name == "output2~")) return true
         if ((module is InputModule || module is AudioInputModule) &&
             (module.name.equals("on", ignoreCase = true) ||
              module.name.equals("off", ignoreCase = true) ||
@@ -319,6 +373,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                     is UnitGeneratorModule -> voice.removeVoiceUnit(m.unit)
                     is EnvSegModule -> voice.removeVoiceUnit(m.unit)
                     is AudioOutputModule -> voice.removeVoiceUnit(m.passThrough)
+                    is AudioOutput2Module -> voice.removeVoiceUnit(m.twoInDualOut)
                     is AudioInputModule -> voice.removeVoiceUnit(m.passThrough)
                     is GrabAudioModule -> voice.removeVoiceUnit(m.unit)
                 }
@@ -326,11 +381,14 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
             voice.graphState.removeModulesDirectly(voice.graphState.modules.toList())
             voice.graphState.connections.clear()
         }
-        for (mixer in auxMixers.values) {
+        val toRemove = auxMixers.filterKeys { it != "out0" && it != "out1" }
+        for ((name, mixer) in toRemove) {
             if (mixer.isStartRequired) mixer.stop()
             SynthKSyn.synth.remove(mixer)
+            auxMixers.remove(name)
         }
-        auxMixers.clear()
+        auxMixers["out0"]?.input?.disconnectAll()
+        auxMixers["out1"]?.input?.disconnectAll()
     }
 
     fun syncInputJackValue(jack: InputJack, value: Double) {
@@ -414,6 +472,21 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                 }
             }
 
+            if (module is AudioOutput2Module) {
+                val voiceOutMod = voiceModule as AudioOutput2Module
+                if (module.name == "output" || module.name == "output2~") {
+                    val mixer0 = getOrCreateAuxMixer("out0")
+                    val mixer1 = getOrCreateAuxMixer("out1")
+                    voiceOutMod.twoInDualOut.output.connect(0, mixer0.input, 0)
+                    voiceOutMod.twoInDualOut.output.connect(1, mixer1.input, 0)
+                } else {
+                    val mixer0 = getOrCreateAuxMixer("${module.name}0")
+                    val mixer1 = getOrCreateAuxMixer("${module.name}1")
+                    voiceOutMod.twoInDualOut.output.connect(0, mixer0.input, 0)
+                    voiceOutMod.twoInDualOut.output.connect(1, mixer1.input, 0)
+                }
+            }
+
             if (module is AudioInputModule) {
                 if (!isSpecialVoiceInput(module.name)) {
                     val voiceInMod = voiceModule as AudioInputModule
@@ -426,6 +499,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                 is UnitGeneratorModule -> voice.addVoiceUnit(voiceModule.unit)
                 is EnvSegModule -> voice.addVoiceUnit(voiceModule.unit)
                 is AudioOutputModule -> voice.addVoiceUnit(voiceModule.passThrough)
+                is AudioOutput2Module -> voice.addVoiceUnit(voiceModule.twoInDualOut)
                 is AudioInputModule -> voice.addVoiceUnit(voiceModule.passThrough)
                 is GrabAudioModule -> voice.addVoiceUnit(voiceModule.unit)
             }
@@ -433,6 +507,9 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
 
         if (module is AudioOutputModule && module.name != "output") {
             syncAuxOutputAdded(module)
+        }
+        if (module is AudioOutput2Module && module.name != "output" && module.name != "output2~") {
+            syncAuxOutput2Added(module)
         }
         updateAutoDisableBindings()
     }
@@ -482,11 +559,70 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
         }
     }
 
+    private fun syncAuxOutput2Added(module: AudioOutput2Module) {
+        val baseName = module.name
+        val name0 = "${baseName}0"
+        val name1 = "${baseName}1"
+        val mixer0 = getOrCreateAuxMixer(name0)
+        val mixer1 = getOrCreateAuxMixer(name1)
+
+        for (voice in voices) {
+            val voiceMod = voice.templateToVoiceMap[module] as? AudioOutput2Module ?: continue
+            voiceMod.twoInDualOut.output.connect(0, mixer0.input, 0)
+            voiceMod.twoInDualOut.output.connect(1, mixer1.input, 0)
+        }
+
+        if (outputs.none { it.name == name0 }) {
+            val jack0 = addAudioOutput(name0, mixer0.output, 0)
+            audioOutput2Links[jack0] = module
+            module.patchJack0 = jack0
+        }
+        if (outputs.none { it.name == name1 }) {
+            val jack1 = addAudioOutput(name1, mixer1.output, 0)
+            audioOutput2Links[jack1] = module
+            module.patchJack1 = jack1
+        }
+    }
+
+    private fun syncAuxOutput2Removed(module: AudioOutput2Module) {
+        val baseName = module.name
+        val name0 = "${baseName}0"
+        val name1 = "${baseName}1"
+        val mixer0 = auxMixers.remove(name0)
+        val mixer1 = auxMixers.remove(name1)
+
+        for (voice in voices) {
+            val voiceMod = voice.templateToVoiceMap[module] as? AudioOutput2Module ?: continue
+            if (mixer0 != null) voiceMod.twoInDualOut.output.disconnect(0, mixer0.input, 0)
+            if (mixer1 != null) voiceMod.twoInDualOut.output.disconnect(1, mixer1.input, 0)
+        }
+        mixer0?.let {
+            if (it.isStartRequired) it.stop()
+            SynthKSyn.synth.remove(it)
+        }
+        mixer1?.let {
+            if (it.isStartRequired) it.stop()
+            SynthKSyn.synth.remove(it)
+        }
+
+        (outputs.find { it.name == name0 } as? AudioOutputJack)?.let {
+            removeOutput(it)
+            audioOutput2Links.remove(it)
+        }
+        (outputs.find { it.name == name1 } as? AudioOutputJack)?.let {
+            removeOutput(it)
+            audioOutput2Links.remove(it)
+        }
+    }
+
     private fun syncModuleRemoved(module: Module) {
         super.onChildModuleRemoved(module)
         if (!isInitialized) return
         if (module is AudioOutputModule && module.name != "output") {
             syncAuxOutputRemoved(module)
+        }
+        if (module is AudioOutput2Module && module.name != "output" && module.name != "output2~") {
+            syncAuxOutput2Removed(module)
         }
 
         for (voice in voices) {
@@ -504,6 +640,25 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                 }
             }
 
+            if (module is AudioOutput2Module) {
+                val voiceOutMod = voiceModule as AudioOutput2Module
+                if (module.name == "output" || module.name == "output2~") {
+                    auxMixers["out0"]?.let { mixer0 ->
+                        voiceOutMod.twoInDualOut.output.disconnect(0, mixer0.input, 0)
+                    }
+                    auxMixers["out1"]?.let { mixer1 ->
+                        voiceOutMod.twoInDualOut.output.disconnect(1, mixer1.input, 0)
+                    }
+                } else {
+                    auxMixers["${module.name}0"]?.let { mixer0 ->
+                        voiceOutMod.twoInDualOut.output.disconnect(0, mixer0.input, 0)
+                    }
+                    auxMixers["${module.name}1"]?.let { mixer1 ->
+                        voiceOutMod.twoInDualOut.output.disconnect(1, mixer1.input, 0)
+                    }
+                }
+            }
+
             if (module is AudioInputModule) {
                 if (!isSpecialVoiceInput(module.name)) {
                     val voiceInMod = voiceModule as AudioInputModule
@@ -515,6 +670,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                 is UnitGeneratorModule -> voice.removeVoiceUnit(voiceModule.unit)
                 is EnvSegModule -> voice.removeVoiceUnit(voiceModule.unit)
                 is AudioOutputModule -> voice.removeVoiceUnit(voiceModule.passThrough)
+                is AudioOutput2Module -> voice.removeVoiceUnit(voiceModule.twoInDualOut)
                 is AudioInputModule -> voice.removeVoiceUnit(voiceModule.passThrough)
                 is GrabAudioModule -> voice.removeVoiceUnit(voiceModule.unit)
             }
@@ -617,6 +773,9 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
             }
             is AudioOutputModule -> {
                 AudioOutputModule().apply { name = templateModule.name }
+            }
+            is AudioOutput2Module -> {
+                AudioOutput2Module().apply { name = templateModule.name }
             }
             is OutputModule -> {
                 OutputModule().apply { name = templateModule.name }
@@ -752,6 +911,30 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
             voiceMod.name = newName
         }
         module.patchJack?.name = newName
+    }
+
+    fun onAudioOutput2NameChanged(module: AudioOutput2Module, newName: String) {
+        if (!isInitialized) return
+        val oldName = module.name
+        if (oldName == newName) return
+
+        val baseOld = if (oldName == "output2~" || oldName == "output") "out" else oldName
+        val baseNew = if (newName == "output2~" || newName == "output") "out" else newName
+
+        val mixer0 = auxMixers.remove("${baseOld}0")
+        if (mixer0 != null) {
+            auxMixers["${baseNew}0"] = mixer0
+        }
+        val mixer1 = auxMixers.remove("${baseOld}1")
+        if (mixer1 != null) {
+            auxMixers["${baseNew}1"] = mixer1
+        }
+        for (voice in voices) {
+            val voiceMod = voice.templateToVoiceMap[module] ?: continue
+            voiceMod.name = newName
+        }
+        module.patchJack0?.name = "${baseNew}0"
+        module.patchJack1?.name = "${baseNew}1"
     }
 
     fun syncAutoDisableVoice(templateModule: Module, mode: com.syntona.dataflow.model.AutoDisableVoiceMode) {
