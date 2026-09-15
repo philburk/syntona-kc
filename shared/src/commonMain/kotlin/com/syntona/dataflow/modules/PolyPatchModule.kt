@@ -990,7 +990,14 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                 if (voiceEnvModule is UnitGeneratorModule && voiceEnvModule.unit is UnitGate) {
                     voiceEnvModule.unit.setupAutoDisable(voice.voiceCircuit)
                 } else if (voiceEnvModule is EnvSegModule) {
-                    voiceEnvModule.setupAutoDisable(voice.voiceCircuit)
+                    val env = voiceEnvModule.envelope
+                    // Avoid bug caused by a sustain point leading to a gap in execution
+                    // Because the envelope queue runs dry.
+                    if ((env.sustainBegin == env.sustainEnd) && (env.sustainBegin >= 0)) {
+                        voice.voiceCircuit.isEnabled = true
+                    } else {
+                        voiceEnvModule.setupAutoDisable(voice.voiceCircuit)
+                    }
                 } else {
                     voice.voiceCircuit.isEnabled = true
                 }

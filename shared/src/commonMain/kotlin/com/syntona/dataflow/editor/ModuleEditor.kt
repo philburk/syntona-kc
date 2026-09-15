@@ -791,7 +791,7 @@ internal fun EnvelopeAutoDisableVoiceEditor(
     val currentMode = when (module) {
         is UnitGeneratorModule -> module.autoDisableVoice
         is EnvSegModule -> module.autoDisableVoice
-        else -> AutoDisableVoiceMode.AUTO
+        else -> AutoDisableVoiceMode.NO
     }
     var selectedMode by remember(module) { mutableStateOf(currentMode) }
 
@@ -806,8 +806,7 @@ internal fun EnvelopeAutoDisableVoiceEditor(
             color = textColor,
             fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
         )
-
-        AutoDisableVoiceMode.values().forEach { mode ->
+        listOf(AutoDisableVoiceMode.YES, AutoDisableVoiceMode.NO).forEach { mode ->
             val label = when (mode) {
                 AutoDisableVoiceMode.AUTO -> "Auto"
                 AutoDisableVoiceMode.YES -> "Yes"

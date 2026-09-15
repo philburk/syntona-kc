@@ -27,7 +27,7 @@ import com.syntona.dataflow.model.Module
 class EnvSegModule : Module("envSeg") {
     val unit = VariableRateMonoReader()
 
-    var autoDisableVoice: com.syntona.dataflow.model.AutoDisableVoiceMode = com.syntona.dataflow.model.AutoDisableVoiceMode.AUTO
+    var autoDisableVoice: com.syntona.dataflow.model.AutoDisableVoiceMode = com.syntona.dataflow.model.AutoDisableVoiceMode.NO
 
     fun setupAutoDisable(target: UnitGenerator) {
         unit.setupAutoDisable(target)

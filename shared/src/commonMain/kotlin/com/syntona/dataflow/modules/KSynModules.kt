@@ -1,5 +1,6 @@
 package com.syntona.dataflow.modules
 
+import com.syntona.dataflow.model.AutoDisableVoiceMode
 import com.softsynth.ksyn.ports.UnitInputPort
 import com.softsynth.ksyn.ports.UnitOutputPort
 import com.softsynth.ksyn.ports.UnitDataQueuePort
@@ -26,7 +27,8 @@ open class UnitGeneratorModule(name: String, val unit: UnitGenerator) : Module(n
     val isEnvelope: Boolean
         get() = unit is com.softsynth.ksyn.unitgen.UnitGate
 
-    var autoDisableVoice: com.syntona.dataflow.model.AutoDisableVoiceMode = com.syntona.dataflow.model.AutoDisableVoiceMode.AUTO
+    // This is set to Auto for non-envelopes so that no preference is saved in the JSON.
+    var autoDisableVoice: AutoDisableVoiceMode = if (isEnvelope) AutoDisableVoiceMode.NO else AutoDisableVoiceMode.AUTO
 
     val onJack: com.syntona.dataflow.model.CommandJack?
     val offJack: com.syntona.dataflow.model.CommandJack?
