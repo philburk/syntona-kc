@@ -20,6 +20,11 @@ Need order4 ?
 
 BUG: delay not working in polyPatch
 
+Add "amplitude" port to drumFM, use in example/matchNoteOn
+
+Add a "normalize sample" to the sample module menu.
+
+Add a monitor[X] on the recorder module so we can hear the incoming signal.
 
 Composing Tutorial
 * beatClock
