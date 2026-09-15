@@ -204,6 +204,59 @@ class MultiDocumentTest {
     }
 
     @Test
+    fun testClosingDocumentWindowStopsAndDisconnectsModules() {
+        val mdi = MdiState()
+        val first = newDocument("first")
+        val second = newDocument("second")
+
+        var secondModuleTornDown = false
+        val secondModule = object : com.syntona.dataflow.model.Module("testMod") {
+            val input = addInput("in")
+            val output = addOutput("out")
+            override fun execute(triggerMessage: com.syntona.dataflow.model.Message) {}
+            override fun teardown() {
+                secondModuleTornDown = true
+                super.teardown()
+            }
+        }
+        val secondShow = ShowModule()
+        second.rootPatch.graphState.addModule(secondModule, Offset.Zero)
+        second.rootPatch.graphState.addModule(secondShow, Offset.Zero)
+        second.rootPatch.graphState.connect(secondModule.output, secondShow.input)
+
+        val firstModule = ShowModule()
+        first.rootPatch.graphState.addModule(firstModule, Offset.Zero)
+
+        assertEquals(2, second.rootPatch.graphState.modules.size)
+        assertEquals(1, second.rootPatch.graphState.connections.size)
+        assertEquals(1, first.rootPatch.graphState.modules.size)
+
+        mdi.open(
+            MdiWindowInfo(
+                id = first.rootPatch, title = "first",
+                graphState = first.rootPatch.graphState, closable = false, content = {}
+            )
+        )
+        mdi.open(
+            MdiWindowInfo(
+                id = second.rootPatch, title = "second",
+                graphState = second.rootPatch.graphState, closable = true, content = {}
+            )
+        )
+
+        mdi.close(second.rootPatch)
+
+        assertTrue(secondModuleTornDown, "modules in the closed document should be torn down")
+        assertEquals(0, second.rootPatch.graphState.modules.size, "modules in closed document should be cleared")
+        assertEquals(0, second.rootPatch.graphState.connections.size, "connections in closed document should be cleared")
+        assertFalse(FileState.documents.any { it === second }, "the document should be removed from FileState")
+
+        // Primary document remains intact
+        assertEquals(1, first.rootPatch.graphState.modules.size, "other document modules remain intact")
+        assertSame(first, FileState.activeDocument)
+    }
+
+    @Test
     fun testTheFirstDocumentCannotBeClosed() {
         val mdi = MdiState()
         val first = newDocument("first")

@@ -1,6 +1,6 @@
 {
-  "version": "0.7.5 beta",
-  "versionCode": 458757,
+  "version": "0.7.6 beta",
+  "versionCode": 458758,
   "modules": [
     {
       "id": 0,
@@ -24,7 +24,7 @@
           "add": false
         },
         "fade": {
-          "v": -0.6585328578948975,
+          "v": -0.3720260560512543,
           "min": -1,
           "max": 1,
           "kickable": false,
@@ -47,7 +47,7 @@
           "add": false
         },
         "amplitude": {
-          "v": 1,
+          "v": 0.23293259739875793,
           "min": 0,
           "max": 1,
           "kickable": false,
@@ -61,7 +61,7 @@
           "add": false
         },
         "shape": {
-          "v": 0.30840805172920227,
+          "v": 0.15166181325912476,
           "min": -1,
           "max": 1,
           "kickable": false,
@@ -77,7 +77,7 @@
       "y": 376.1,
       "jacks": {
         "amplitude": {
-          "v": 1,
+          "v": 0.23293259739875793,
           "min": 0,
           "max": 1,
           "kickable": false,
@@ -121,7 +121,7 @@
           "kickable": true
         },
         "in": {
-          "v": -0.6585328578948975,
+          "v": -0.3720260560512543,
           "min": -1,
           "max": 1,
           "kickable": false
@@ -141,7 +141,7 @@
           "kickable": true
         },
         "in": {
-          "v": 0.30840805172920227,
+          "v": 0.15166181325912476,
           "min": -1,
           "max": 1,
           "kickable": false
@@ -182,6 +182,26 @@
       "text": "The crossFade module will do a linear fade between two inputs.\n\nWhen fade is -1, output is all in0.\nWhen fade is 0, output is half in0 and half in1.\nWhen fade is +1, output is all in1.",
       "w": 438.875,
       "h": 137
+    },
+    {
+      "id": 8,
+      "type": "core.input.knob",
+      "name": "amplitude",
+      "x": 32.9,
+      "y": 400,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 0.23293259739875793,
+          "min": 0,
+          "max": 1,
+          "kickable": false
+        }
+      }
     }
   ],
   "connections": [
@@ -226,10 +246,22 @@
       "fromJack": "out",
       "to": 6,
       "toJack": "in0"
+    },
+    {
+      "from": 8,
+      "fromJack": "out",
+      "to": 1,
+      "toJack": "amplitude"
+    },
+    {
+      "from": 8,
+      "fromJack": "out",
+      "to": 2,
+      "toJack": "amplitude"
     }
   ],
-  "windowX": 10,
-  "windowY": 10,
+  "windowX": 38,
+  "windowY": 38,
   "windowWidth": 989.875,
   "windowHeight": 616
 }

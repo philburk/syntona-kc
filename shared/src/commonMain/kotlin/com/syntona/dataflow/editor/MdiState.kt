@@ -240,13 +240,18 @@ class MdiState {
         windows.removeAll { it.id == id && it.closable }
 
         // Closing a document's top level window closes the document itself, along with any of its
-        // sub patch windows that are still open.
+        // sub patch windows that are still open, and tears down its root patch to stop and disconnect modules.
         val closedDocument = FileState.documents.firstOrNull { it.rootPatch === id }
         if (closedDocument != null && removed.isNotEmpty()) {
             val orphans = windows.filter { FileState.documentFor(it.graphState) === closedDocument }
-            orphans.forEach { (it.id as? com.syntona.dataflow.modules.PatchModule)?.isWindowOpen = false }
+            orphans.forEach {
+                (it.id as? com.syntona.dataflow.modules.PatchModule)?.isWindowOpen = false
+                if (it.graphState == activeGraphState) activeGraphState = null
+            }
             windows.removeAll { w -> orphans.any { it === w } }
             FileState.removeDocument(closedDocument)
+            closedDocument.rootPatch.graphState.onChange = null
+            closedDocument.rootPatch.teardown()
         }
         if (activeGraphState == null) {
             windows.lastOrNull { !it.minimized }?.graphState?.let { focusGraph(it) }
