@@ -22,7 +22,7 @@ class TimelineTrigger(
     var time by mutableStateOf(initialTime)
 }
 
-class TimelineModule : Module("timeline"), EngineAware {
+open class TimelineModule(name: String = "timeline") : Module(name), EngineAware {
     val start = addCommandInput("start")
     val stop = addCommandInput("stop")
     val rewind = addCommandInput("rewind")
@@ -43,6 +43,9 @@ class TimelineModule : Module("timeline"), EngineAware {
         private set
     var playbackStartTimeNs by mutableStateOf(0L)
         private set
+
+    open fun unitsToSeconds(units: Double): Double = units
+    open fun secondsToUnits(seconds: Double): Double = seconds
 
     private var engine: DataFlowEngine? = null
     private val scheduledEvents = mutableListOf<ScheduledEvent>()
@@ -92,19 +95,19 @@ class TimelineModule : Module("timeline"), EngineAware {
         }
     }
 
-    fun startPlayback(now: ScoreTime, startPosSeconds: Double) {
+    fun startPlayback(now: ScoreTime, startPosUnits: Double) {
         if (isPlaying) stopPlayback(now)
         val e = engine ?: return
 
-        val startPos = startPosSeconds.coerceIn(0.0, maxTime)
+        val startPos = startPosUnits.coerceIn(0.0, maxTime)
         val cycleEnd = if (loopMode) {
             if (startPos < loopEnd) loopEnd.coerceAtMost(maxTime) else maxTime
         } else {
             maxTime
         }
-        val cycleDuration = cycleEnd - startPos
+        val cycleDurationUnits = cycleEnd - startPos
 
-        if (cycleDuration <= 0.0) {
+        if (cycleDurationUnits <= 0.0) {
             isPlaying = false
             return
         }
@@ -116,7 +119,8 @@ class TimelineModule : Module("timeline"), EngineAware {
         // Schedule all triggers in the range [startPos, cycleEnd)
         triggers.forEach { trigger ->
             if (trigger.time >= startPos && trigger.time < cycleEnd) {
-                val delaySeconds = trigger.time - startPos
+                val delayUnits = trigger.time - startPos
+                val delaySeconds = unitsToSeconds(delayUnits)
                 val fireTime = now + ScoreTime((delaySeconds * 1_000_000_000.0).toLong())
                 val event = e.schedule(fireTime) {
                     trigger.outputJack.send(Message.FloatValue(fireTime, 0.0))
@@ -126,7 +130,8 @@ class TimelineModule : Module("timeline"), EngineAware {
         }
 
         // Schedule cycle end event
-        val cycleEndTime = now + ScoreTime((cycleDuration * 1_000_000_000.0).toLong())
+        val cycleDurationSeconds = unitsToSeconds(cycleDurationUnits)
+        val cycleEndTime = now + ScoreTime((cycleDurationSeconds * 1_000_000_000.0).toLong())
         val cycleEndEvent = e.schedule(cycleEndTime) {
             if (loopMode) {
                 startPlayback(cycleEndTime, loopStart)
@@ -140,8 +145,9 @@ class TimelineModule : Module("timeline"), EngineAware {
 
     fun stopPlayback(now: ScoreTime) {
         if (isPlaying) {
-            val elapsed = (now.nanoseconds - playbackStartTimeNs) / 1_000_000_000.0
-            seekTime = (playbackStartPos + elapsed).coerceIn(0.0, maxTime)
+            val elapsedSeconds = (now.nanoseconds - playbackStartTimeNs) / 1_000_000_000.0
+            val elapsedUnits = secondsToUnits(elapsedSeconds)
+            seekTime = (playbackStartPos + elapsedUnits).coerceIn(0.0, maxTime)
         }
         scheduledEvents.forEach { it.cancel() }
         scheduledEvents.clear()
@@ -200,3 +206,30 @@ class TimelineModule : Module("timeline"), EngineAware {
         nextTriggerId = 0
     }
 }
+
+/**
+ * A timeline sequencer operating in musical beats with tempo control.
+ */
+class BeatLineModule : TimelineModule("beatLine") {
+    val tempo = addInput("tempo").also {
+        it.min = 20.0
+        it.max = 300.0
+        it.setValue(120.0)
+    }
+
+    init {
+        maxTime = 16.0
+        loopEnd = 4.0
+    }
+
+    fun getTempoBpm(): Double = tempo.getDoubleValue(120.0).coerceAtLeast(1.0)
+
+    override fun unitsToSeconds(units: Double): Double {
+        return units * (60.0 / getTempoBpm())
+    }
+
+    override fun secondsToUnits(seconds: Double): Double {
+        return seconds * (getTempoBpm() / 60.0)
+    }
+}
+

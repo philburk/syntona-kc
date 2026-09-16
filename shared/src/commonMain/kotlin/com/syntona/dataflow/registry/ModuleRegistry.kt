@@ -152,6 +152,7 @@ object ModuleRegistry {
         // Music -> Compose
         // ==========================================
         "beatClock" to "periodic incrementing clock at subdivisions of a beat",
+        "beatLine" to "schedule events and automation triggers along a beat-based timeline with tempo control",
         "pentatonic" to "convert scale degrees into a major pentatonic scale",
         "diatonic" to "convert scale degrees into a diatonic scale",
         "scale" to "quantize pitch or scale degrees into a custom scale",
@@ -390,6 +391,7 @@ object ModuleRegistry {
 
         val compose = getOrCreateBundle(music, "compose")
         compose.modules.add(ModuleEntry("beatClock") { BeatClockModule() })
+        compose.modules.add(ModuleEntry("beatLine") { BeatLineModule() })
         compose.modules.add(ModuleEntry("pentatonic") {
             ScaleModule("pentatonic", isEditable = false, doubleArrayOf(0.0, 2.0, 4.0, 7.0, 9.0)) })
         compose.modules.add(ModuleEntry("diatonic") {

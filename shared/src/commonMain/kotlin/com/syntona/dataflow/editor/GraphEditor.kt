@@ -78,6 +78,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.isAltPressed
 import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -140,6 +141,8 @@ import com.syntona.dataflow.modules.MatchControlSequentialModule
 import com.syntona.dataflow.modules.MatchNoteOnModule
 import com.syntona.dataflow.modules.MatchNoteOnSequentialModule
 import com.syntona.dataflow.modules.BeatClockModule
+import com.syntona.dataflow.modules.BeatLineModule
+import com.syntona.dataflow.modules.TimelineBeatUtils
 import com.syntona.dataflow.modules.TimelineModule
 import com.syntona.dataflow.modules.TimelineTrigger
 import com.syntona.dataflow.modules.KeyNotesModule
@@ -157,6 +160,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.ui.text.style.TextAlign
 import kotlin.math.pow
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 
 @Composable
 fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
@@ -3922,6 +3926,7 @@ fun TimelineTriggerJackView(
 
 @Composable
 fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
+    val isBeats = module is BeatLineModule
     val colors = LocalGraphColors.current
     val position = state.modulePositions[module] ?: Offset.Zero
     val isSelected = state.selectedModules.contains(module)
@@ -3955,7 +3960,7 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                 module = module,
                 state = state,
                 headerColor = colors.headerDefault,
-                label = "Timeline",
+                label = if (isBeats) "BeatLine" else "Timeline",
                 height = 28.dp,
                 trailingContent = {
                     Row(
@@ -4111,7 +4116,7 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                         while (true) {
                                             val nowNs = ScoreClock.now().nanoseconds
                                             val elapsed = (nowNs - module.playbackStartTimeNs) / 1_000_000_000.0
-                                            currentPlayheadTime = module.playbackStartPos + elapsed
+                                            currentPlayheadTime = module.playbackStartPos + module.secondsToUnits(elapsed)
                                             kotlinx.coroutines.delay(16)
                                         }
                                     }
@@ -4170,7 +4175,14 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                                                 val currentX = change.position.x
                                                                 val pxPerSecondDrag = getPxPerSecond()
                                                                 val lastTriggerTime = module.triggers.map { it.time }.maxOrNull() ?: 0.0
-                                                                val draggedTime = (currentX / pxPerSecondDrag).toDouble()
+                                                                val rawDraggedTime = (currentX / pxPerSecondDrag).toDouble()
+                                                                val isOptionHeld = event.keyboardModifiers.isAltPressed
+                                                                val draggedTime = if (isBeats && !isOptionHeld) {
+                                                                    val smallestSub = TimelineBeatUtils.calculateSmallestVisibleSubdivision(pxPerSecondDrag.toDouble(), density.density)
+                                                                    TimelineBeatUtils.snapToSubdivision(rawDraggedTime, smallestSub)
+                                                                } else {
+                                                                    rawDraggedTime
+                                                                }
                                                                 module.maxTime = draggedTime.coerceAtLeast(lastTriggerTime).coerceAtLeast(1.0)
 
                                                                 // Scroll timeline when dragged past the end of the viewport
@@ -4201,8 +4213,15 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                                                 change.consume()
                                                                 val currentX = change.position.x
                                                                 val pxPerSecondDrag = getPxPerSecond()
-                                                                val timeAtX = (currentX / pxPerSecondDrag).toDouble()
-                                                                module.loopStart = timeAtX.coerceIn(0.0, module.loopEnd - 0.1)
+                                                                val rawTime = (currentX / pxPerSecondDrag).toDouble()
+                                                                val isOptionHeld = event.keyboardModifiers.isAltPressed
+                                                                val minGap = if (isBeats) TimelineBeatUtils.calculateSmallestVisibleSubdivision(pxPerSecondDrag.toDouble(), density.density) else 0.1
+                                                                val timeAtX = if (isBeats && !isOptionHeld) {
+                                                                    TimelineBeatUtils.snapToSubdivision(rawTime, minGap)
+                                                                } else {
+                                                                    rawTime
+                                                                }
+                                                                module.loopStart = timeAtX.coerceIn(0.0, (module.loopEnd - minGap).coerceAtLeast(0.0))
                                                                 FileState.markDirty()
                                                             }
                                                         } while (event.changes.any { it.pressed })
@@ -4215,19 +4234,33 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                                                 change.consume()
                                                                 val currentX = change.position.x
                                                                 val pxPerSecondDrag = getPxPerSecond()
-                                                                val timeAtX = (currentX / pxPerSecondDrag).toDouble()
-                                                                module.loopEnd = timeAtX.coerceIn(module.loopStart + 0.1, module.maxTime)
+                                                                val rawTime = (currentX / pxPerSecondDrag).toDouble()
+                                                                val isOptionHeld = event.keyboardModifiers.isAltPressed
+                                                                val minGap = if (isBeats) TimelineBeatUtils.calculateSmallestVisibleSubdivision(pxPerSecondDrag.toDouble(), density.density) else 0.1
+                                                                val timeAtX = if (isBeats && !isOptionHeld) {
+                                                                    TimelineBeatUtils.snapToSubdivision(rawTime, minGap)
+                                                                } else {
+                                                                    rawTime
+                                                                }
+                                                                module.loopEnd = timeAtX.coerceIn(module.loopStart + minGap, module.maxTime)
                                                                 FileState.markDirty()
                                                             }
                                                         } while (event.changes.any { it.pressed })
                                                     } else {
                                                         val pxPerSecondDrag = getPxPerSecond()
-                                                        var timeAtX = (clickX / pxPerSecondDrag).toDouble().coerceIn(0.0, module.maxTime)
+                                                        val isOptionHeldDown = currentEvent.keyboardModifiers.isAltPressed
+                                                        val rawClick = (clickX / pxPerSecondDrag).toDouble().coerceIn(0.0, module.maxTime)
+                                                        val minGap = if (isBeats) TimelineBeatUtils.calculateSmallestVisibleSubdivision(pxPerSecondDrag.toDouble(), density.density) else 0.1
+                                                        var timeAtX = if (isBeats && !isOptionHeldDown) {
+                                                            TimelineBeatUtils.snapToSubdivision(rawClick, minGap).coerceIn(0.0, module.maxTime)
+                                                        } else {
+                                                            rawClick
+                                                        }
                                                         val isDraggingStart = distStart < distEnd
                                                         if (isDraggingStart) {
-                                                            module.loopStart = timeAtX.coerceIn(0.0, module.loopEnd - 0.1)
+                                                            module.loopStart = timeAtX.coerceIn(0.0, (module.loopEnd - minGap).coerceAtLeast(0.0))
                                                         } else {
-                                                            module.loopEnd = timeAtX.coerceIn(module.loopStart + 0.1, module.maxTime)
+                                                            module.loopEnd = timeAtX.coerceIn(module.loopStart + minGap, module.maxTime)
                                                         }
                                                         FileState.markDirty()
 
@@ -4238,11 +4271,18 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                                                 change.consume()
                                                                 val currentX = change.position.x
                                                                 val pxPerSecondDragInner = getPxPerSecond()
-                                                                timeAtX = (currentX / pxPerSecondDragInner).toDouble().coerceIn(0.0, module.maxTime)
-                                                                if (isDraggingStart) {
-                                                                    module.loopStart = timeAtX.coerceIn(0.0, module.loopEnd - 0.1)
+                                                                val isOptionHeldDrag = event.keyboardModifiers.isAltPressed
+                                                                val rawDrag = (currentX / pxPerSecondDragInner).toDouble().coerceIn(0.0, module.maxTime)
+                                                                val minGapInner = if (isBeats) TimelineBeatUtils.calculateSmallestVisibleSubdivision(pxPerSecondDragInner.toDouble(), density.density) else 0.1
+                                                                timeAtX = if (isBeats && !isOptionHeldDrag) {
+                                                                    TimelineBeatUtils.snapToSubdivision(rawDrag, minGapInner).coerceIn(0.0, module.maxTime)
                                                                 } else {
-                                                                    module.loopEnd = timeAtX.coerceIn(module.loopStart + 0.1, module.maxTime)
+                                                                    rawDrag
+                                                                }
+                                                                if (isDraggingStart) {
+                                                                    module.loopStart = timeAtX.coerceIn(0.0, (module.loopEnd - minGapInner).coerceAtLeast(0.0))
+                                                                } else {
+                                                                    module.loopEnd = timeAtX.coerceIn(module.loopStart + minGapInner, module.maxTime)
                                                                 }
                                                                 FileState.markDirty()
                                                             }
@@ -4252,6 +4292,43 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                             }
                                         }
                                 ) {
+                                    if (isBeats) {
+                                        val pxPerUnit = density.density * 24f * coercedZoom
+                                        val smallestSub = TimelineBeatUtils.calculateSmallestVisibleSubdivision(pxPerUnit.toDouble(), density.density)
+                                        Canvas(modifier = Modifier.fillMaxSize()) {
+                                            val totalTime = module.maxTime + extraTime
+                                            val numSubTicks = (module.maxTime / smallestSub).roundToInt()
+                                            for (i in 0..numSubTicks) {
+                                                val beat = if (smallestSub < 1.0) {
+                                                    val d = (1.0 / smallestSub).roundToLong()
+                                                    i.toDouble() / d.toDouble()
+                                                } else {
+                                                    i.toDouble() * smallestSub
+                                                }
+                                                if (beat > module.maxTime + 0.0001) break
+
+                                                val pct = (beat / totalTime).toFloat()
+                                                val x = size.width * pct
+
+                                                val isWholeBeat = (beat % 1.0 < 0.0001 || (1.0 - (beat % 1.0)) < 0.0001)
+                                                val isHalfBeat = (beat % 0.5 < 0.0001 || (0.5 - (beat % 0.5)) < 0.0001)
+
+                                                val (gridColor, strokeW) = when {
+                                                    isWholeBeat -> Color(0x33000000) to 1f
+                                                    isHalfBeat -> Color(0x20000000) to 0.8f
+                                                    else -> Color(0x10000000) to 0.5f
+                                                }
+
+                                                drawLine(
+                                                    color = gridColor,
+                                                    start = Offset(x, 0f),
+                                                    end = Offset(x, size.height),
+                                                    strokeWidth = strokeW
+                                                )
+                                            }
+                                        }
+                                    }
+
                                     // Highlight loop range
                                     val startPct = (module.loopStart / (module.maxTime + extraTime)).toFloat()
                                     val endPct = (module.loopEnd / (module.maxTime + extraTime)).toFloat()
@@ -4313,7 +4390,14 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                                     val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
                                                     var currentX = down.position.x
                                                     val pxPerSecond = getPxPerSecond()
-                                                    val newSeek = (currentX / pxPerSecond).toDouble().coerceIn(0.0, module.maxTime)
+                                                    val rawSeek = (currentX / pxPerSecond).toDouble().coerceIn(0.0, module.maxTime)
+                                                    val isOptionHeldDown = currentEvent.keyboardModifiers.isAltPressed
+                                                    val newSeek = if (isBeats && !isOptionHeldDown) {
+                                                        val smallestSub = TimelineBeatUtils.calculateSmallestVisibleSubdivision(pxPerSecond.toDouble(), density.density)
+                                                        TimelineBeatUtils.snapToSubdivision(rawSeek, smallestSub).coerceIn(0.0, module.maxTime)
+                                                    } else {
+                                                        rawSeek
+                                                    }
                                                     module.seekTo(newSeek)
                                                     FileState.markDirty()
 
@@ -4324,7 +4408,14 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                                             change.consume()
                                                             currentX = change.position.x
                                                             val pxPerSecondDrag = getPxPerSecond()
-                                                            val dragSeek = (currentX / pxPerSecondDrag).toDouble().coerceIn(0.0, module.maxTime)
+                                                            val rawDragSeek = (currentX / pxPerSecondDrag).toDouble().coerceIn(0.0, module.maxTime)
+                                                            val isOptionHeldDrag = event.keyboardModifiers.isAltPressed
+                                                            val dragSeek = if (isBeats && !isOptionHeldDrag) {
+                                                                val smallestSub = TimelineBeatUtils.calculateSmallestVisibleSubdivision(pxPerSecondDrag.toDouble(), density.density)
+                                                                TimelineBeatUtils.snapToSubdivision(rawDragSeek, smallestSub).coerceIn(0.0, module.maxTime)
+                                                            } else {
+                                                                rawDragSeek
+                                                            }
                                                             module.seekTo(dragSeek)
                                                             FileState.markDirty()
                                                         }
@@ -4333,71 +4424,130 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                             }
                                         }
                                 ) {
-                                    // Dynamic Ruler Ticks depending on zoom and density
-                                    val possibleIntervals = listOf(0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 60.0)
-                                    val pxPerSecond = density.density * 24f * coercedZoom
-                                    val tickInterval = possibleIntervals.firstOrNull { interval ->
-                                        interval * pxPerSecond >= 40f
-                                    } ?: 60.0
-                                    val numTicks = (module.maxTime / tickInterval).toInt()
+                                    if (isBeats) {
+                                        val pxPerUnit = density.density * 24f * coercedZoom
+                                        val smallestSub = TimelineBeatUtils.calculateSmallestVisibleSubdivision(pxPerUnit.toDouble(), density.density)
+                                        val labelInterval = TimelineBeatUtils.calculateLabelInterval(pxPerUnit.toDouble(), density.density)
 
-                                    Canvas(modifier = Modifier.fillMaxSize()) {
-                                        val tickColor = Color(0xFF666666)
-                                        for (i in 0..numTicks) {
-                                            val timeSeconds = i * tickInterval
-                                            if (timeSeconds > module.maxTime) break
+                                        Canvas(modifier = Modifier.fillMaxSize()) {
+                                            val tickColor = Color(0xFF666666)
+                                            val numSubTicks = (module.maxTime / smallestSub).roundToInt()
+                                            for (i in 0..numSubTicks) {
+                                                val beat = if (smallestSub < 1.0) {
+                                                    val d = (1.0 / smallestSub).roundToLong()
+                                                    i.toDouble() / d.toDouble()
+                                                } else {
+                                                    i.toDouble() * smallestSub
+                                                }
+                                                if (beat > module.maxTime + 0.0001) break
 
-                                            val pct = (timeSeconds / (module.maxTime + extraTime)).toFloat()
-                                            val x = size.width * pct
+                                                val pct = (beat / (module.maxTime + extraTime)).toFloat()
+                                                val x = size.width * pct
 
-                                            // Draw main tick line
-                                            drawLine(
-                                                color = tickColor,
-                                                start = Offset(x, size.height - 6f),
-                                                end = Offset(x, size.height),
-                                                strokeWidth = 1f
+                                                val isWholeBeat = (beat % 1.0 < 0.0001 || (1.0 - (beat % 1.0)) < 0.0001)
+                                                val isHalfBeat = (beat % 0.5 < 0.0001 || (0.5 - (beat % 0.5)) < 0.0001)
+                                                val isQuarterBeat = (beat % 0.25 < 0.0001 || (0.25 - (beat % 0.25)) < 0.0001)
+
+                                                val (tickHeight, strokeW, alpha) = when {
+                                                    isWholeBeat -> Triple(7f, 1.2f, 1.0f)
+                                                    isHalfBeat -> Triple(5f, 1.0f, 0.7f)
+                                                    isQuarterBeat -> Triple(3.5f, 0.8f, 0.5f)
+                                                    else -> Triple(2.5f, 0.6f, 0.35f)
+                                                }
+
+                                                drawLine(
+                                                    color = tickColor.copy(alpha = alpha),
+                                                    start = Offset(x, size.height - tickHeight),
+                                                    end = Offset(x, size.height),
+                                                    strokeWidth = strokeW
+                                                )
+                                            }
+                                        }
+
+                                        // Draw text labels
+                                        val numLabels = (module.maxTime / labelInterval).toInt()
+                                        for (i in 0..numLabels) {
+                                            val beat = i * labelInterval
+                                            if (beat > module.maxTime) break
+                                            val pct = (beat / (module.maxTime + extraTime)).toFloat()
+
+                                            Text(
+                                                text = TimelineBeatUtils.formatBeatLabel(beat),
+                                                fontSize = 11.sp,
+                                                color = Color(0xFF444444),
+                                                modifier = Modifier
+                                                    .offset(x = timelineWidth * pct - 15.dp, y = (-2).dp)
+                                                    .width(30.dp),
+                                                textAlign = TextAlign.Center
                                             )
+                                        }
+                                    } else {
+                                        // Dynamic Ruler Ticks depending on zoom and density
+                                        val possibleIntervals = listOf(0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 60.0)
+                                        val pxPerSecond = density.density * 24f * coercedZoom
+                                        val tickInterval = possibleIntervals.firstOrNull { interval ->
+                                            interval * pxPerSecond >= 40f
+                                        } ?: 60.0
+                                        val numTicks = (module.maxTime / tickInterval).toInt()
 
-                                            // Draw minor ticks
-                                            if (i < numTicks) {
-                                                val nextTime = (i + 1) * tickInterval
-                                                val midTime = (timeSeconds + nextTime) / 2.0
-                                                if (midTime <= module.maxTime) {
-                                                    val midPct = (midTime / (module.maxTime + extraTime)).toFloat()
-                                                    val midX = size.width * midPct
-                                                    drawLine(
-                                                        color = tickColor.copy(alpha = 0.4f),
-                                                        start = Offset(midX, size.height - 3f),
-                                                        end = Offset(midX, size.height),
-                                                        strokeWidth = 0.8f
-                                                    )
+                                        Canvas(modifier = Modifier.fillMaxSize()) {
+                                            val tickColor = Color(0xFF666666)
+                                            for (i in 0..numTicks) {
+                                                val timeSeconds = i * tickInterval
+                                                if (timeSeconds > module.maxTime) break
+
+                                                val pct = (timeSeconds / (module.maxTime + extraTime)).toFloat()
+                                                val x = size.width * pct
+
+                                                // Draw main tick line
+                                                drawLine(
+                                                    color = tickColor,
+                                                    start = Offset(x, size.height - 6f),
+                                                    end = Offset(x, size.height),
+                                                    strokeWidth = 1f
+                                                )
+
+                                                // Draw minor ticks
+                                                if (i < numTicks) {
+                                                    val nextTime = (i + 1) * tickInterval
+                                                    val midTime = (timeSeconds + nextTime) / 2.0
+                                                    if (midTime <= module.maxTime) {
+                                                        val midPct = (midTime / (module.maxTime + extraTime)).toFloat()
+                                                        val midX = size.width * midPct
+                                                        drawLine(
+                                                            color = tickColor.copy(alpha = 0.4f),
+                                                            start = Offset(midX, size.height - 3f),
+                                                            end = Offset(midX, size.height),
+                                                            strokeWidth = 0.8f
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
-                                    }
 
-                                    // Draw text labels
-                                    for (i in 0..numTicks) {
-                                        val timeSeconds = i * tickInterval
-                                        if (timeSeconds > module.maxTime) break
-                                        val pct = (timeSeconds / (module.maxTime + extraTime)).toFloat()
+                                        // Draw text labels
+                                        for (i in 0..numTicks) {
+                                            val timeSeconds = i * tickInterval
+                                            if (timeSeconds > module.maxTime) break
+                                            val pct = (timeSeconds / (module.maxTime + extraTime)).toFloat()
 
-                                        val label = if (timeSeconds % 1.0 == 0.0) {
-                                            "${timeSeconds.toInt()}"
-                                        } else {
-                                            val rounded = (timeSeconds * 10.0).roundToInt() / 10.0
-                                            "${rounded}"
+                                            val label = if (timeSeconds % 1.0 == 0.0) {
+                                                "${timeSeconds.toInt()}"
+                                            } else {
+                                                val rounded = (timeSeconds * 10.0).roundToInt() / 10.0
+                                                "${rounded}"
+                                            }
+
+                                            Text(
+                                                text = label,
+                                                fontSize = 11.sp,
+                                                color = Color(0xFF444444),
+                                                modifier = Modifier
+                                                    .offset(x = timelineWidth * pct - 15.dp, y = (-2).dp)
+                                                    .width(30.dp),
+                                                textAlign = TextAlign.Center
+                                            )
                                         }
-
-                                        Text(
-                                            text = label,
-                                            fontSize = 11.sp,
-                                            color = Color(0xFF444444),
-                                            modifier = Modifier
-                                                .offset(x = timelineWidth * pct - 15.dp, y = (-2).dp)
-                                                .width(30.dp),
-                                            textAlign = TextAlign.Center
-                                        )
                                     }
 
                                     // Seek thumb
@@ -4467,7 +4617,15 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                                                     change.consume()
                                                                     val currentX = change.position.x
                                                                     val pxPerSecondDrag = getPxPerSecond()
-                                                                    activeTrigger.time = (currentX / pxPerSecondDrag).toDouble().coerceIn(0.0, module.maxTime)
+                                                                    val rawTime = (currentX / pxPerSecondDrag).toDouble().coerceIn(0.0, module.maxTime)
+                                                                    val isOptionHeld = dragEvent.keyboardModifiers.isAltPressed
+                                                                    val finalTime = if (isBeats && !isOptionHeld) {
+                                                                        val smallestSub = TimelineBeatUtils.calculateSmallestVisibleSubdivision(pxPerSecondDrag.toDouble(), density.density)
+                                                                        TimelineBeatUtils.snapToSubdivision(rawTime, smallestSub)
+                                                                    } else {
+                                                                        rawTime
+                                                                    }
+                                                                    activeTrigger.time = finalTime.coerceIn(0.0, module.maxTime)
                                                                     FileState.markDirty()
                                                                 }
                                                             } while (dragEvent.changes.any { it.pressed })
@@ -4477,6 +4635,45 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                             }
                                         }
                                 ) {
+                                    if (isBeats) {
+                                        val pxPerUnit = density.density * 24f * coercedZoom
+                                        val smallestSub = TimelineBeatUtils.calculateSmallestVisibleSubdivision(pxPerUnit.toDouble(), density.density)
+                                        Canvas(modifier = Modifier.fillMaxSize()) {
+                                            val totalTime = module.maxTime + extraTime
+                                            val numSubTicks = (module.maxTime / smallestSub).roundToInt()
+                                            for (i in 0..numSubTicks) {
+                                                val beat = if (smallestSub < 1.0) {
+                                                    val d = (1.0 / smallestSub).roundToLong()
+                                                    i.toDouble() / d.toDouble()
+                                                } else {
+                                                    i.toDouble() * smallestSub
+                                                }
+                                                if (beat > module.maxTime + 0.0001) break
+
+                                                val pct = (beat / totalTime).toFloat()
+                                                val x = size.width * pct
+
+                                                val isWholeBeat = (beat % 1.0 < 0.0001 || (1.0 - (beat % 1.0)) < 0.0001)
+                                                val isHalfBeat = (beat % 0.5 < 0.0001 || (0.5 - (beat % 0.5)) < 0.0001)
+                                                val isQuarterBeat = (beat % 0.25 < 0.0001 || (0.25 - (beat % 0.25)) < 0.0001)
+
+                                                val (gridColor, strokeW) = when {
+                                                    isWholeBeat -> Color(0x33000000) to 1f
+                                                    isHalfBeat -> Color(0x22000000) to 0.8f
+                                                    isQuarterBeat -> Color(0x15000000) to 0.6f
+                                                    else -> Color(0x0C000000) to 0.5f
+                                                }
+
+                                                drawLine(
+                                                    color = gridColor,
+                                                    start = Offset(x, 0f),
+                                                    end = Offset(x, size.height),
+                                                    strokeWidth = strokeW
+                                                )
+                                            }
+                                        }
+                                    }
+
                                     // Red cursor
                                     val cursorPct = (currentPlayheadTime / (module.maxTime + extraTime)).toFloat().coerceIn(0f, 1f)
                                     Box(

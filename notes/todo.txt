@@ -7,9 +7,18 @@ Install the MIDI Add-on.
 BUG: deleting modules using BACKSPACE or DELETE key sometimes does not work. Edit menu Cut always works.
 Need repro steps.
 
+Timeline needs tracks for modules with start/stop or on/off jacks.
+
+Add parCol or seqCol modules with start/stop/done jack.
+Hierarchy editor for parallel and sequential collections.
+Click on patch to open for editing. Each child patch needs a start/stop/done jack for scheduling.
+Each Collection has a (+) button to add a new patch, or a Sequential or Parallel collection.
+OR add a waitAll module that waits for all connected patches to finish.
+
 Try to save a native signed version.
 
 Move polyPatch into ksyn.patches bundle.
+
 Add ksyn.patches.soundPatch module with "trigger" and audio "out".
 Uses a Circuit so that setupAutoDisable() can be used to reduce CPU load.
 Can be exported as a Circuit to JSyn or KSyn.
@@ -18,11 +27,11 @@ BUG: load help patch for crossFade, close window, still playing!
 
 Need order4 ?
 
-BUG: delay not working in polyPatch
+BUG: delay not working in polyPatch! Why?
 
 Add "amplitude" port to drumFM, use in example/matchNoteOn
 
-Add a "normalize sample" to the sample module menu.
+Add a "normalize sample" to the sample and recorder module menu.
 
 Add a monitor[X] on the recorder module so we can hear the incoming signal.
 
@@ -38,23 +47,12 @@ Composing Tutorial
 * hierarchy editor ?
 * multiTrack ?
 
-### ---------------
-
-We need stereo output from the polyPatch.
-
-Add a new module called "output2~" that adds stereo output to a patch.
-
-When we create a polyPatch, there is a dialog that asks how many voices to allocate.
-Add a UI that allows the user to select "mono" or "stereo" output.
-If "mono" then implement normally.
-
-If "stereo" then allocate a single output module in the patch with input jacks, "in0" and "in1".
-On the outside of the polyPatch, show two output jacks "out0" and "out1".
-
-If you export a patch with a stereo module then use a TwoInDualOut unit generator.
-It takes two separate inputs from inside the circuit and presents them as a two part "output" port.
-
 # ----------------------------------------------- MEDIUM PRIORITY
+
+Add multiTrack module like a DAW, + button for MIDI or Audio or composable Patch tracks.
+Audio tracks have audio in/out, MIDI tracks have VoiceMessage in/out.
+Support quantization based on tempo, save original content for requantization.
+Save audio in adjacent /audio/ folder. What does Logic do?
 
 Add GitHub CI in YAML that runs a bunch of the JVM desktop tests every time I commit code or submit a pull request.
 
@@ -62,13 +60,11 @@ A seq with numeric fields or knobs or horizontal faders that can be swept quickl
 
 Convert Syntona timestamps to KSyn timestamps and apply small "advance-time" for jitter reduction.
 
-SPACE bar should play the pianoRoll (maybe)
-
 The orange MIDI jacks and the yellow SequentialData jacks look too similar.
 
 Timeline - show time as a popup when dragging.
 
-A stepper that fires all values immediately when kicked.
+A module similar to the stepper that fires all values immediately when kicked.
 No "looping" start or stop jack.
 Just a trigger jack.
 Call it a "blast" because it blasts out indexed kicks?
@@ -92,20 +88,12 @@ NoiseGate - implement using modules as a patch?
 
 Show units in one line help, eg. seconds
 
-
 DAHDSR decay needs higher range in KSyn.
 
 AudioJacks do not need to store the kickable value in the JSON because it is ignored.
 
-When selecting a new input output audio device pair, suggest measuring latency.
+When selecting a new input/output audio device pair, suggest measuring latency.
 
-BUG: Why does envAD not hold after the attack until off()?
-Maybe we do need an envAR that holds?
-
-Add multiTrack module like a DAW, + button for MIDI or Audio or composable Patch tracks.
-Audio tracks have audio in/out, MIDI tracks have VoiceMessage in/out.
-Support quantization based on tempo, save original content for requantization.
-Save audio in adjacent /audio/ folder. What does Logic do?
 
 add *= or a ranger module for easy scaling of knobs to frequency.
 
