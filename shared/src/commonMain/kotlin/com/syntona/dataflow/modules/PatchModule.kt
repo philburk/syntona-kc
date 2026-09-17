@@ -292,14 +292,14 @@ open class PatchModule(name: String = "patch", type: String = "patch") : Module(
     }
 
     // Called by OutputModule when it receives a message — routes to the patch's OutputJack
-    internal fun receiveFromOutputModule(outputModule: OutputModule, msg: Message) {
+    internal open fun receiveFromOutputModule(outputModule: OutputModule, msg: Message) {
         outputLinks.entries.find { it.value === outputModule }?.key?.send(msg)
     }
 
     override fun execute(triggerMessage: Message) {}
 
     override fun teardown() {
-        graphState.clearAllModules()
+        graphState.modules.forEach { it.teardown() }
         super.teardown()
     }
 }

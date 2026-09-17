@@ -39,6 +39,7 @@ class MdiWindowInfo(
     width: Dp = 600.dp,
     height: Dp = 450.dp,
     val graphState: GraphState? = null,
+    val onClose: (() -> Unit)? = null,
     val content: @Composable () -> Unit
 ) {
     private var _title by mutableStateOf(title)
@@ -233,7 +234,10 @@ class MdiState {
 
     fun close(id: Any) {
         val removed = windows.filter { it.id == id && it.closable }
-        removed.forEach { w -> if (w.graphState == activeGraphState) activeGraphState = null }
+        removed.forEach { w ->
+            if (w.graphState == activeGraphState) activeGraphState = null
+            w.onClose?.invoke()
+        }
         if (removed.isNotEmpty()) {
             (id as? com.syntona.dataflow.modules.PatchModule)?.isWindowOpen = false
         }

@@ -85,11 +85,11 @@ open class UnitGeneratorModule(name: String, val unit: UnitGenerator) : Module(n
     }
 
     override fun execute(triggerMessage: Message) {
-        if (onJack != null && onJack.isKicked) {
-            (unit as? com.softsynth.ksyn.unitgen.UnitGate)?.input?.on()
-        }
         if (offJack != null && offJack.isKicked) {
             (unit as? com.softsynth.ksyn.unitgen.UnitGate)?.input?.off()
+        }
+        if (onJack != null && onJack.isKicked) {
+            (unit as? com.softsynth.ksyn.unitgen.UnitGate)?.input?.on()
         }
         if (triggerJack != null && triggerJack.isKicked) {
             (unit as? com.softsynth.ksyn.unitgen.UnitGate)?.input?.trigger()

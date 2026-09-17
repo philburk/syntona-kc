@@ -165,4 +165,29 @@ class BeatLineModuleTest {
         val cycleEndEvent = sortedEvents.last()
         assertEquals(2_000_000_000L, cycleEndEvent.first.nanoseconds - startTime.nanoseconds)
     }
+
+    @Test
+    fun testAddTriggerReturnsTimelineTriggerWithQuantizedTime() {
+        val module = BeatLineModule()
+        val density = 1.0f
+        val pxPerUnit = 24.0 * 2.0 // zoom = 2.0 -> pxPerUnit = 48
+        val smallestSub = TimelineBeatUtils.calculateSmallestVisibleSubdivision(pxPerUnit, density)
+        assertEquals(0.25, smallestSub)
+
+        val rawClickBeat = 3.37
+        val snappedBeat = TimelineBeatUtils.snapToSubdivision(rawClickBeat, smallestSub)
+        assertEquals(3.25, snappedBeat)
+
+        val trigger = module.addTrigger(snappedBeat)
+        assertEquals(3.25, trigger.time)
+        assertEquals("t0", trigger.outputJack.name)
+        assertTrue(module.triggers.contains(trigger))
+
+        // Drag snapping
+        val rawDragBeat = 4.89
+        val snappedDrag = TimelineBeatUtils.snapToSubdivision(rawDragBeat, smallestSub)
+        assertEquals(5.0, snappedDrag)
+        trigger.time = snappedDrag
+        assertEquals(5.0, trigger.time)
+    }
 }

@@ -24,9 +24,17 @@ class ScheduledQueue<T> {
      */
     fun add(time: ScoreTime, obj: T) {
         val newEntry = Entry(time, obj)
-        // Insert while maintaining sort order
+        // Insert while maintaining sort order (stable FIFO for equal timestamps)
         val index = entries.binarySearch { it.time.compareTo(time) }
-        val insertionPoint = if (index < 0) -(index + 1) else index
+        val insertionPoint = if (index < 0) {
+            -(index + 1)
+        } else {
+            var p = index
+            while (p < entries.size && entries[p].time <= time) {
+                p++
+            }
+            p
+        }
         entries.add(insertionPoint, newEntry)
     }
 

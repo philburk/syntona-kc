@@ -7,7 +7,7 @@ import com.syntona.dataflow.model.CommandJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
 
-class CommandModule : Module("command") {
+open class CommandModule : Module("command") {
     val output = addOutput("out")
 
     private var _name by mutableStateOf("command")

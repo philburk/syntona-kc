@@ -3,6 +3,7 @@ package com.syntona.dataflow.modules
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.syntona.core.model.ScoreClock
 import com.syntona.core.model.ScoreTime
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
@@ -18,7 +19,7 @@ class FaderModule : Module("fader") {
 
     var value by mutableStateOf(0.0)
 
-    fun setValue(newValue: Double, time: ScoreTime = ScoreTime.Zero) {
+    fun setValue(newValue: Double, time: ScoreTime = ScoreClock.now()) {
         value = newValue.coerceIn(valueIn.min, valueIn.max)
         output.send(Message.FloatValue(time, value))
     }

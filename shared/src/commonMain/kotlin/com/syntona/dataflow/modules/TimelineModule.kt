@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.syntona.core.model.ScoreClock
 import com.syntona.core.model.ScoreTime
+import com.syntona.dataflow.editor.GraphState
 import com.syntona.dataflow.engine.DataFlowEngine
 import com.syntona.dataflow.engine.EngineAware
 import com.syntona.dataflow.engine.ScheduledEvent
@@ -122,13 +123,13 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
     }
 
     fun removeTrack(track: TimelineTrack) {
-        track.teardown()
+        track.dispose()
         tracks.remove(track)
         updateRecordJack()
     }
 
     fun clearTracks() {
-        tracks.toList().forEach { it.teardown() }
+        tracks.toList().forEach { it.dispose() }
         tracks.clear()
         nextTrackId = 1
         updateRecordJack()
@@ -139,13 +140,13 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
     internal fun createTrackVoiceInput(name: String): VoiceInputJack = addVoiceInput(name)
     internal fun createTrackVoiceOutput(name: String): VoiceOutputJack = addVoiceOutput(name)
     internal fun createTrackAudioInput(name: String, port: com.softsynth.ksyn.ports.UnitInputPort): AudioInputJack = addAudioInput(name, port)
-    internal fun createTrackAudioOutput(name: String, port: com.softsynth.ksyn.ports.UnitOutputPort): AudioOutputJack = addAudioOutput(name, port)
+    internal fun createTrackAudioOutput(name: String, port: com.softsynth.ksyn.ports.UnitOutputPort, partIndex: Int = 0): AudioOutputJack = addAudioOutput(name, port, partIndex)
 
     internal fun deleteTrackInput(jack: InputJack) {
         removeInput(jack)
         parentPatch?.graphState?.let { gs ->
-            val toDisconnect = gs.connections.filter { it.input == jack }
-            toDisconnect.forEach { gs.disconnect(it.output, it.input) }
+            val toDisconnect = gs.connections.filter { conn -> conn.input == jack }
+            toDisconnect.forEach { conn -> gs.disconnect(conn.output, conn.input) }
             gs.jackOffsets.remove(jack)
             gs.jackBounds.remove(jack)
         }
@@ -154,10 +155,33 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
     internal fun deleteTrackOutput(jack: OutputJack) {
         removeOutput(jack)
         parentPatch?.graphState?.let { gs ->
-            val toDisconnect = gs.connections.filter { it.output == jack }
-            toDisconnect.forEach { gs.disconnect(it.output, it.input) }
+            val toDisconnect = gs.connections.filter { conn -> conn.output == jack }
+            toDisconnect.forEach { conn -> gs.disconnect(conn.output, conn.input) }
             gs.jackOffsets.remove(jack)
             gs.jackBounds.remove(jack)
+        }
+    }
+
+    fun getCurrentTime(now: ScoreTime = ScoreClock.now()): Double {
+        if (!isPlaying) return seekTime
+        val nowNs = if (now.nanoseconds <= 0L && playbackStartTimeNs > 1_000_000_000L) {
+            ScoreClock.now().nanoseconds
+        } else {
+            now.nanoseconds
+        }
+        val elapsedNs = nowNs - playbackStartTimeNs
+        val elapsedSec = if (elapsedNs > 0) elapsedNs / 1_000_000_000.0 else 0.0
+        val elapsedUnits = secondsToUnits(elapsedSec)
+        val rawPos = playbackStartPos + elapsedUnits
+        return if (loopMode && loopEnd > loopStart) {
+            val loopLen = loopEnd - loopStart
+            if (rawPos >= loopStart) {
+                loopStart + ((rawPos - loopStart) % loopLen)
+            } else {
+                rawPos.coerceIn(0.0, maxTime)
+            }
+        } else {
+            rawPos.coerceIn(0.0, maxTime)
         }
     }
 
@@ -166,14 +190,27 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
             startPlayback(now, seekTime)
         }
         isRecording = true
-        tracks.filter { it.isRecordArmed }.forEach { it.onRecordStart(seekTime) }
+        recordJack?.isHighlighted = true
+        val pos = getCurrentTime(now)
+        tracks.filter { it.isRecordArmed }.forEach { it.onRecordStart(now, pos) }
     }
 
     fun stopRecording(now: ScoreTime) {
         if (isRecording) {
             isRecording = false
-            tracks.filter { it.isRecordArmed }.forEach { it.onRecordStop() }
+            recordJack?.isHighlighted = false
+            val pos = getCurrentTime(now)
+            tracks.filter { it.isRecordArmed }.forEach { it.onRecordStop(now, pos) }
         }
+    }
+
+    override fun onMessageReceived(jack: InputJack, msg: Message) {
+        tracks.forEach { track ->
+            if (track.inputJack === jack) {
+                track.onMessageReceived(jack, msg)
+            }
+        }
+        super.onMessageReceived(jack, msg)
     }
 
     override fun execute(triggerMessage: Message) {
@@ -262,6 +299,11 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
             }
         }
 
+        // Schedule track playback events
+        tracks.forEach { track ->
+            track.onPlaybackStart(now, startPos, cycleEnd, e)
+        }
+
         // Schedule cycle end event
         val cycleDurationSeconds = unitsToSeconds(cycleDurationUnits)
         val cycleEndTime = now + ScoreTime((cycleDurationSeconds * 1_000_000_000.0).toLong())
@@ -269,8 +311,7 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
             if (loopMode) {
                 startPlayback(cycleEndTime, loopStart)
             } else {
-                isPlaying = false
-                scheduledEvents.clear()
+                stopPlayback(cycleEndTime)
             }
         }
         scheduledEvents.add(cycleEndEvent)
@@ -281,9 +322,7 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
             stopRecording(now)
         }
         if (isPlaying) {
-            val elapsedSeconds = (now.nanoseconds - playbackStartTimeNs) / 1_000_000_000.0
-            val elapsedUnits = secondsToUnits(elapsedSeconds)
-            seekTime = (playbackStartPos + elapsedUnits).coerceIn(0.0, maxTime)
+            seekTime = getCurrentTime(now)
         }
         scheduledEvents.forEach { it.cancel() }
         scheduledEvents.clear()
@@ -312,19 +351,20 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
         })
     }
 
-    fun addTrigger(time: Double) {
+    fun addTrigger(time: Double): TimelineTrigger {
         val id = nextTriggerId++
         val jackName = "t$id"
-        addTriggerDirect(id, time, jackName)
+        return addTriggerDirect(id, time, jackName)
     }
 
-    fun addTriggerDirect(id: Int, time: Double, jackName: String) {
+    fun addTriggerDirect(id: Int, time: Double, jackName: String): TimelineTrigger {
         val jack = addCommandOutput(jackName)
         val trigger = TimelineTrigger(id, time, jack)
         triggers.add(trigger)
         if (id >= nextTriggerId) {
             nextTriggerId = id + 1
         }
+        return trigger
     }
 
     fun removeTrigger(trigger: TimelineTrigger) {

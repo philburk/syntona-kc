@@ -524,7 +524,7 @@ fun App(
                                         if (handler != null) {
                                             if (handler.canDelete()) handler.delete()
                                         } else {
-                                            mdiState.activeGraphState?.deleteSelectedModules()
+                                            mdiState.activeGraphState?.deleteSelected()
                                         }
                                         true
                                     }

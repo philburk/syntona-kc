@@ -44,6 +44,10 @@ import com.syntona.dataflow.modules.ScaleModule
 import com.syntona.dataflow.modules.BeatClockModule
 import com.syntona.dataflow.modules.TimelineModule
 import com.syntona.dataflow.modules.TrackType
+import com.syntona.dataflow.modules.PatchTrack
+import com.syntona.dataflow.modules.MessageTrack
+import com.syntona.dataflow.modules.MessageSectionData
+import com.syntona.dataflow.modules.TrackMessageEvent
 import com.syntona.core.audio.AudioSettings
 import com.syntona.dataflow.modules.FloatSampleModule
 import com.syntona.dataflow.modules.SamplePlayerModule
@@ -305,10 +309,25 @@ object GraphSerializer {
                     append(",\"armed\":${track.isRecordArmed},\"monitored\":${track.isInputMonitored}")
                     track.inputJack?.let { append(",\"inJack\":\"${it.name.jsonEscape}\"") }
                     track.outputJack?.let { append(",\"outJack\":\"${it.name.jsonEscape}\"") }
+                    if (track is PatchTrack) {
+                        val patchJson = serializePatch(track.patch, density, effectiveBasePath)
+                        append(",\"patch\":$patchJson")
+                    }
                     append(",\"sections\":[")
                     track.sections.forEachIndexed { si, sec ->
                         if (si > 0) append(",")
-                        append("{\"id\":${sec.id},\"start\":${sec.start},\"duration\":${sec.duration},\"repeats\":${sec.repeats},\"name\":\"${sec.name.jsonEscape}\"}")
+                        append("{\"id\":${sec.id},\"start\":${sec.start},\"duration\":${sec.duration},\"repeats\":${sec.repeats},\"name\":\"${sec.name.jsonEscape}\"")
+                        val msgData = sec.data as? MessageSectionData
+                        if (msgData != null) {
+                            append(",\"min\":${msgData.min},\"max\":${msgData.max}")
+                            append(",\"events\":[")
+                            msgData.events.forEachIndexed { ei, ev ->
+                                if (ei > 0) append(",")
+                                append("{\"time\":${ev.time},\"value\":${ev.value}}")
+                            }
+                            append("]")
+                        }
+                        append("}")
                     }
                     append("]}")
                 }
@@ -664,6 +683,21 @@ object GraphSerializer {
                     track.isRecordArmed = (trackObj.map["armed"] as? JsonValue.Bool)?.value ?: false
                     track.isInputMonitored = (trackObj.map["monitored"] as? JsonValue.Bool)?.value ?: false
 
+                    if (track is PatchTrack) {
+                        val patchObj = trackObj.map["patch"] as? JsonValue.Obj
+                        if (patchObj != null) {
+                            track.patch.graphState.isDeserializing = true
+                            try {
+                                track.patch.graphState.removeModulesDirectly(track.patch.graphState.modules.toList())
+                                val patchJson = patchObj.stringify(0)
+                                deserialize(track.patch.graphState, patchJson, density = density, basePath = basePath)
+                                track.ensureDefaultCommandModules()
+                            } finally {
+                                track.patch.graphState.isDeserializing = false
+                            }
+                        }
+                    }
+
                     (trackObj.map["sections"] as? JsonValue.Arr)?.items?.forEach { secVal ->
                         val secObj = secVal as? JsonValue.Obj ?: return@forEach
                         val sId = (secObj.map["id"] as? JsonValue.Num)?.value?.toInt() ?: return@forEach
@@ -671,7 +705,23 @@ object GraphSerializer {
                         val dur = (secObj.map["duration"] as? JsonValue.Num)?.value ?: 1.0
                         val reps = (secObj.map["repeats"] as? JsonValue.Num)?.value?.toInt() ?: 1
                         val sName = (secObj.map["name"] as? JsonValue.Str)?.value ?: ""
-                        track.addSectionDirect(sId, start, dur, reps, sName)
+                        val sec = track.addSectionDirect(sId, start, dur, reps, sName)
+
+                        val eventsArr = (secObj.map["events"] as? JsonValue.Arr)?.items?.mapNotNull { it as? JsonValue.Obj }
+                        if (eventsArr != null) {
+                            val minVal = (secObj.map["min"] as? JsonValue.Num)?.value ?: 0.0
+                            val maxVal = (secObj.map["max"] as? JsonValue.Num)?.value ?: 1.0
+                            val parsedEvents = eventsArr.mapNotNull { evObj ->
+                                val t = (evObj.map["time"] as? JsonValue.Num)?.value ?: return@mapNotNull null
+                                val v = (evObj.map["value"] as? JsonValue.Num)?.value ?: return@mapNotNull null
+                                TrackMessageEvent(t, v)
+                            }
+                            sec.data = MessageSectionData(
+                                initialEvents = parsedEvents,
+                                initialMin = minVal,
+                                initialMax = maxVal
+                            )
+                        }
                     }
                 }
             }

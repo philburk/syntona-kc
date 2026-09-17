@@ -37,6 +37,9 @@ import com.syntona.dataflow.modules.PatchModule
 import com.syntona.dataflow.modules.KeyModule
 import com.syntona.dataflow.modules.KeyMatchModule
 import com.syntona.dataflow.modules.KeyNotesModule
+import com.syntona.dataflow.modules.TimelineModule
+import com.syntona.dataflow.modules.TimelineTrack
+import com.syntona.dataflow.modules.TrackSection
 import com.syntona.getEventCharCode
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
@@ -256,10 +259,21 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
 
     // Selection state
     val selectedModules = mutableStateListOf<Module>()
+    var selectedSectionInfo by mutableStateOf<Triple<TimelineModule, TimelineTrack, TrackSection>?>(null)
     var selectionRectStart by mutableStateOf<Offset?>(null)
     var selectionRectEnd by mutableStateOf<Offset?>(null)
 
+    fun selectTrackSection(module: TimelineModule, track: TimelineTrack, section: TrackSection) {
+        selectedModules.clear()
+        selectedSectionInfo = Triple(module, track, section)
+    }
+
+    fun clearSectionSelection() {
+        selectedSectionInfo = null
+    }
+
     fun selectModule(module: Module) {
+        selectedSectionInfo = null
         if (!selectedModules.contains(module)) {
             selectedModules.add(module)
         }
@@ -271,9 +285,11 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
 
     fun clearSelection() {
         selectedModules.clear()
+        selectedSectionInfo = null
     }
 
     fun toggleModuleSelection(module: Module) {
+        selectedSectionInfo = null
         if (selectedModules.contains(module)) {
             deselectModule(module)
         } else {
@@ -616,6 +632,24 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
         val parent = parentPatch
         if (parent != null && !parent.canDeleteChildModule(module)) return false
         return true
+    }
+
+    fun deleteSelected() {
+        val secInfo = selectedSectionInfo
+        if (secInfo != null) {
+            val (_, track, section) = secInfo
+            val e = engine
+            if (e != null) {
+                e.post(DeleteSectionCommand(track, section))
+            } else {
+                track.removeSection(section)
+            }
+            selectedSectionInfo = null
+            notifyChanged()
+            FileState.markDirty()
+            return
+        }
+        deleteSelectedModules()
     }
 
     fun deleteSelectedModules() {
