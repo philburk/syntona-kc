@@ -49,6 +49,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
 import com.syntona.dataflow.modules.EquationModule
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
@@ -145,6 +146,10 @@ import com.syntona.dataflow.modules.BeatLineModule
 import com.syntona.dataflow.modules.TimelineBeatUtils
 import com.syntona.dataflow.modules.TimelineModule
 import com.syntona.dataflow.modules.TimelineTrigger
+import com.syntona.dataflow.modules.TimelineTrack
+import com.syntona.dataflow.modules.TrackType
+import com.syntona.dataflow.modules.TrackSection
+import com.softsynth.audiobridge.AudioInputBridge
 import com.syntona.dataflow.modules.KeyNotesModule
 import com.syntona.dataflow.modules.PianoRollModule
 import com.syntona.dataflow.modules.KickModule
@@ -3925,6 +3930,419 @@ fun TimelineTriggerJackView(
 }
 
 @Composable
+private fun TrackButton(
+    text: String,
+    isActive: Boolean,
+    activeColor: Color,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .size(16.dp)
+            .background(
+                color = if (isActive) activeColor else Color(0xFF333333),
+                shape = RoundedCornerShape(2.dp)
+            )
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = text,
+            color = if (isActive) Color.Black else Color.LightGray,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+fun TrackHeaderView(
+    track: TimelineTrack,
+    module: TimelineModule,
+    state: GraphState,
+    width: Dp,
+    height: Dp
+) {
+    Column(
+        modifier = Modifier
+            .width(width)
+            .height(height)
+            .background(Color(0xFF2B2D30), RoundedCornerShape(2.dp))
+            .padding(horizontal = 4.dp, vertical = 2.dp),
+        verticalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            BasicTextField(
+                value = track.name,
+                onValueChange = {
+                    track.name = it
+                    FileState.markDirty()
+                },
+                textStyle = TextStyle(
+                    color = Color.White,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium
+                ),
+                singleLine = true,
+                modifier = Modifier.weight(1f).padding(end = 2.dp)
+            )
+            Text(
+                text = "✕",
+                color = Color.Gray,
+                fontSize = 10.sp,
+                modifier = Modifier.clickable {
+                    module.removeTrack(track)
+                    FileState.markDirty()
+                }
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            TrackButton(
+                text = "M",
+                isActive = track.isMuted,
+                activeColor = Color(0xFFFFA000),
+                onClick = {
+                    track.isMuted = !track.isMuted
+                    FileState.markDirty()
+                }
+            )
+            TrackButton(
+                text = "S",
+                isActive = track.isSoloed,
+                activeColor = Color(0xFFFFD54F),
+                onClick = {
+                    track.isSoloed = !track.isSoloed
+                    FileState.markDirty()
+                }
+            )
+            TrackButton(
+                text = "R",
+                isActive = track.isRecordArmed,
+                activeColor = Color(0xFFE53935),
+                onClick = {
+                    track.isRecordArmed = !track.isRecordArmed
+                    FileState.markDirty()
+                }
+            )
+            TrackButton(
+                text = "I",
+                isActive = track.isInputMonitored,
+                activeColor = Color(0xFFFF7043),
+                onClick = {
+                    track.isInputMonitored = !track.isInputMonitored
+                    FileState.markDirty()
+                }
+            )
+            track.inputJack?.let { jack ->
+                JackView(jack, state, isLeft = true)
+            }
+        }
+    }
+}
+
+@Composable
+fun TrackSectionView(
+    section: TrackSection,
+    track: TimelineTrack,
+    module: TimelineModule,
+    isBeats: Boolean,
+    sectionColor: Color,
+    pxPerUnit: Float,
+    smallestSub: Double,
+    height: Dp,
+    density: Float
+) {
+    val secStartPx = (section.start * pxPerUnit).toFloat()
+    val secDurPx = (section.duration * pxPerUnit).toFloat()
+    val sectionH = height - 6.dp
+
+    if (section.repeats > 1) {
+        for (r in 1 until section.repeats) {
+            val copyX = secStartPx + secDurPx * r
+            Box(
+                modifier = Modifier
+                    .offset { IntOffset(copyX.roundToInt(), (3f * density).roundToInt()) }
+                    .width((secDurPx / density).dp)
+                    .height(sectionH)
+                    .background(sectionColor.copy(alpha = 0.35f), RoundedCornerShape(2.dp))
+                    .border(1.dp, sectionColor.copy(alpha = 0.6f), RoundedCornerShape(2.dp))
+            ) {
+                Text(
+                    text = "⟳ ${section.name.ifEmpty { "Sec ${section.id + 1}" }}",
+                    fontSize = 8.sp,
+                    color = Color.White.copy(alpha = 0.7f),
+                    modifier = Modifier.padding(start = 2.dp, top = 1.dp)
+                )
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .offset { IntOffset(secStartPx.roundToInt(), (3f * density).roundToInt()) }
+            .width((secDurPx / density).dp)
+            .height(sectionH)
+            .background(sectionColor.copy(alpha = 0.8f), RoundedCornerShape(2.dp))
+            .border(1.dp, sectionColor, RoundedCornerShape(2.dp))
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(13.dp)
+                    .background(sectionColor)
+                    .pointerInput(section, module) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val down = awaitFirstDown(requireUnconsumed = false)
+                                val initialStart = section.start
+                                val downX = down.position.x
+                                do {
+                                    val event = awaitPointerEvent()
+                                    val change = event.changes.firstOrNull()
+                                    if (change != null && change.pressed) {
+                                        change.consume()
+                                        val dx = change.position.x - downX
+                                        val dUnits = dx / pxPerUnit
+                                        val rawStart = (initialStart + dUnits).coerceAtLeast(0.0)
+                                        val isOptionHeld = event.keyboardModifiers.isAltPressed
+                                        val newStart = if (isBeats && !isOptionHeld) {
+                                            TimelineBeatUtils.snapToSubdivision(rawStart, smallestSub)
+                                        } else {
+                                            rawStart
+                                        }
+                                        section.start = newStart.coerceIn(0.0, module.maxTime)
+                                        FileState.markDirty()
+                                    }
+                                } while (event.changes.any { it.pressed })
+                            }
+                        }
+                    }
+                    .padding(horizontal = 2.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = section.name.ifEmpty { "Sec ${section.id + 1}" },
+                        fontSize = 8.sp,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "✕",
+                        fontSize = 8.sp,
+                        color = Color.White.copy(alpha = 0.7f),
+                        modifier = Modifier.clickable {
+                            track.removeSection(section)
+                            FileState.markDirty()
+                        }
+                    )
+                }
+            }
+
+            Box(modifier = Modifier.fillMaxWidth().weight(1f)) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(10.dp, 12.dp)
+                        .background(Color.White.copy(alpha = 0.3f), RoundedCornerShape(topEnd = 2.dp))
+                        .pointerInput(section) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val down = awaitFirstDown(requireUnconsumed = false)
+                                    val initialRepeats = section.repeats
+                                    val downX = down.position.x
+                                    do {
+                                        val event = awaitPointerEvent()
+                                        val change = event.changes.firstOrNull()
+                                        if (change != null && change.pressed) {
+                                            change.consume()
+                                            val dx = change.position.x - downX
+                                            val addedReps = (dx / (section.duration * pxPerUnit)).roundToInt()
+                                            section.repeats = (initialRepeats + addedReps).coerceAtLeast(1)
+                                            FileState.markDirty()
+                                        }
+                                    } while (event.changes.any { it.pressed })
+                                }
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("⟳", fontSize = 7.sp, color = Color.White)
+                }
+
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .size(10.dp, 12.dp)
+                        .background(Color.White.copy(alpha = 0.4f), RoundedCornerShape(bottomEnd = 2.dp))
+                        .pointerInput(section, module) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val down = awaitFirstDown(requireUnconsumed = false)
+                                    val initialDur = section.duration
+                                    val downX = down.position.x
+                                    do {
+                                        val event = awaitPointerEvent()
+                                        val change = event.changes.firstOrNull()
+                                        if (change != null && change.pressed) {
+                                            change.consume()
+                                            val dx = change.position.x - downX
+                                            val dUnits = dx / pxPerUnit
+                                            val rawDur = initialDur + dUnits
+                                            val minDur = if (isBeats) smallestSub else 0.1
+                                            val isOptionHeld = event.keyboardModifiers.isAltPressed
+                                            val newDur = if (isBeats && !isOptionHeld) {
+                                                TimelineBeatUtils.snapToSubdivision(rawDur, smallestSub)
+                                            } else {
+                                                rawDur
+                                            }
+                                            section.duration = newDur.coerceAtLeast(minDur)
+                                            FileState.markDirty()
+                                        }
+                                    } while (event.changes.any { it.pressed })
+                                }
+                            }
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("⇥", fontSize = 7.sp, color = Color.White)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TrackLaneView(
+    track: TimelineTrack,
+    module: TimelineModule,
+    isBeats: Boolean,
+    coercedZoom: Float,
+    timelineWidth: Dp,
+    height: Dp,
+    density: Float,
+    currentPlayheadTime: Double,
+    extraTime: Double
+) {
+    val pxPerUnit = density * 24f * coercedZoom
+    val smallestSub = if (isBeats) {
+        TimelineBeatUtils.calculateSmallestVisibleSubdivision(pxPerUnit.toDouble(), density)
+    } else 1.0
+
+    val sectionColor = when (track.type) {
+        TrackType.PATCH -> Color(0xFF1E88E5)
+        TrackType.MESSAGE -> Color(0xFF43A047)
+        TrackType.MIDI -> Color(0xFFFB8C00)
+        TrackType.AUDIO -> Color(0xFFE53935)
+    }
+
+    val maxTimeX = 24.dp * (module.maxTime.toFloat() * coercedZoom)
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(height)
+            .background(Color(0xFF1E1E1E), RoundedCornerShape(2.dp))
+            .border(0.5.dp, Color(0xFF333333), RoundedCornerShape(2.dp))
+            .pointerInput(module, track) {
+                detectTapGestures(
+                    onDoubleTap = { offset ->
+                        val clickUnits = (offset.x / pxPerUnit).toDouble()
+                        val start = if (isBeats) {
+                            TimelineBeatUtils.snapToSubdivision(clickUnits, smallestSub).coerceIn(0.0, module.maxTime)
+                        } else {
+                            clickUnits.coerceIn(0.0, module.maxTime)
+                        }
+                        val defaultDuration = if (isBeats) 4.0 else 2.0
+                        track.addSection(start, defaultDuration)
+                        FileState.markDirty()
+                    }
+                )
+            }
+    ) {
+        if (isBeats) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val totalTime = module.maxTime + extraTime
+                val numSubTicks = (module.maxTime / smallestSub).roundToInt()
+                for (i in 0..numSubTicks) {
+                    val beat = if (smallestSub < 1.0) {
+                        val d = (1.0 / smallestSub).roundToLong()
+                        i.toDouble() / d.toDouble()
+                    } else {
+                        i.toDouble() * smallestSub
+                    }
+                    if (beat > module.maxTime + 0.0001) break
+
+                    val pct = (beat / totalTime).toFloat()
+                    val x = size.width * pct
+
+                    val isWholeBeat = (beat % 1.0 < 0.0001 || (1.0 - (beat % 1.0)) < 0.0001)
+                    val isHalfBeat = (beat % 0.5 < 0.0001 || (0.5 - (beat % 0.5)) < 0.0001)
+
+                    val (gridColor, strokeW) = when {
+                        isWholeBeat -> Color(0x22FFFFFF) to 1f
+                        isHalfBeat -> Color(0x14FFFFFF) to 0.8f
+                        else -> Color(0x0AFFFFFF) to 0.5f
+                    }
+
+                    drawLine(
+                        color = gridColor,
+                        start = Offset(x, 0f),
+                        end = Offset(x, size.height),
+                        strokeWidth = strokeW
+                    )
+                }
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .width(timelineWidth - maxTimeX)
+                .offset(x = maxTimeX)
+                .background(Color(0x1F000000))
+        )
+
+        track.sections.forEach { section ->
+            TrackSectionView(
+                section = section,
+                track = track,
+                module = module,
+                isBeats = isBeats,
+                sectionColor = sectionColor,
+                pxPerUnit = pxPerUnit,
+                smallestSub = smallestSub,
+                height = height,
+                density = density
+            )
+        }
+
+        val cursorPct = (currentPlayheadTime / (module.maxTime + extraTime)).toFloat().coerceIn(0f, 1f)
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .width(1.5.dp)
+                .offset(x = timelineWidth * cursorPct)
+                .background(Color.Red)
+        )
+    }
+}
+
+@Composable
 fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
     val isBeats = module is BeatLineModule
     val colors = LocalGraphColors.current
@@ -3933,16 +4351,26 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
     val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
     val borderWidth = if (isSelected) 2.dp else 1.dp
     val density = LocalDensity.current
-    val inputsWidth = 70.dp
-    val spacing = 12.dp
-    val viewportWidth = (module.width.dp - inputsWidth - spacing).coerceAtLeast(100.dp)
+
+    val leftWidth = 110.dp
+    val hasOutputs = module.tracks.any { it.outputJack != null }
+    val rightWidth = if (hasOutputs) 40.dp else 0.dp
+    val spacing = 6.dp
+    val viewportWidth = (module.width.dp - leftWidth - rightWidth - spacing * 2).coerceAtLeast(100.dp)
 
     val minZoom = (viewportWidth.value / (24f * (module.maxTime.toFloat() + 5.0f))).coerceIn(0.01f, 1f)
     val maxZoom = (viewportWidth.value / (24f * 2.0f)).coerceIn(4f, 20f)
     val coercedZoom = module.zoom.coerceIn(minZoom, maxZoom)
 
-    val viewportLeftGraphX = position.x + with(density) { (inputsWidth + spacing).toPx() }
-    val viewportRightGraphX = position.x + with(density) { module.width.dp.toPx() }
+    val viewportLeftGraphX = position.x + with(density) { (leftWidth + spacing).toPx() }
+    val viewportRightGraphX = position.x + with(density) { (leftWidth + spacing + viewportWidth).toPx() }
+
+    val transportInputs = module.inputs.filter { jack -> module.tracks.none { it.inputJack === jack } }
+    val topSectionHeight = maxOf(64.dp, (transportInputs.size * 22).dp)
+    val trackHeight = 48.dp
+    val triggerHeight = 44.dp
+
+    var isTrackMenuOpen by remember { mutableStateOf(false) }
 
     Surface(
         modifier = Modifier
@@ -3968,11 +4396,60 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                         modifier = Modifier.padding(end = 4.dp)
                     ) {
+                        Box {
+                            Button(
+                                onClick = { isTrackMenuOpen = true },
+                                modifier = Modifier.height(18.dp),
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                            ) {
+                                Text("+Track", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                            androidx.compose.material3.DropdownMenu(
+                                expanded = isTrackMenuOpen,
+                                onDismissRequest = { isTrackMenuOpen = false }
+                            ) {
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { Text("Patch Track", fontSize = 12.sp) },
+                                    onClick = {
+                                        isTrackMenuOpen = false
+                                        module.addTrack(TrackType.PATCH)
+                                        FileState.markDirty()
+                                    }
+                                )
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { Text("Message Track", fontSize = 12.sp) },
+                                    onClick = {
+                                        isTrackMenuOpen = false
+                                        module.addTrack(TrackType.MESSAGE)
+                                        FileState.markDirty()
+                                    }
+                                )
+                                androidx.compose.material3.DropdownMenuItem(
+                                    text = { Text("MIDI Track", fontSize = 12.sp) },
+                                    onClick = {
+                                        isTrackMenuOpen = false
+                                        module.addTrack(TrackType.MIDI)
+                                        FileState.markDirty()
+                                    }
+                                )
+                                if (AudioInputBridge.isSupported()) {
+                                    androidx.compose.material3.DropdownMenuItem(
+                                        text = { Text("Audio Track", fontSize = 12.sp) },
+                                        onClick = {
+                                            isTrackMenuOpen = false
+                                            module.addTrack(TrackType.AUDIO)
+                                            FileState.markDirty()
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
                         Button(
                             onClick = {},
                             modifier = Modifier
                                 .height(18.dp)
-                                .width(28.dp)
+                                .width(24.dp)
                                 .pointerInput(module) {
                                     awaitEachGesture {
                                         awaitFirstDown(requireUnconsumed = false)
@@ -4008,41 +4485,67 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                 }
             )
 
-            // Body with 0 padding at bottom/right
             Box(
                 modifier = Modifier.fillMaxWidth().padding(start = 6.dp, top = 6.dp, end = 0.dp, bottom = 0.dp)
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max),
+                    modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
                     verticalAlignment = Alignment.Top
                 ) {
-                    // Inputs Column (start, stop) on the left (fixed width = 70.dp, padded bottom to keep clear of edge)
                     Column(
-                        modifier = Modifier.width(70.dp).padding(bottom = 6.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                        modifier = Modifier.width(leftWidth)
                     ) {
-                        module.inputs.forEach { JackView(it, state, isLeft = true) }
+                        Column(
+                            modifier = Modifier.fillMaxWidth().height(topSectionHeight).padding(bottom = 4.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            transportInputs.forEach { jack ->
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Start
+                                ) {
+                                    JackView(jack, state, isLeft = true)
+                                    if (jack.name == "tempo" && isBeats && (module as? BeatLineModule)?.isTempoLocked == true) {
+                                        Text(" 🔒", fontSize = 10.sp)
+                                    }
+                                }
+                            }
+                        }
+
+                        module.tracks.forEach { track ->
+                            TrackHeaderView(
+                                track = track,
+                                module = module,
+                                state = state,
+                                width = leftWidth,
+                                height = trackHeight
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .width(leftWidth)
+                                .height(triggerHeight)
+                                .padding(start = 4.dp, top = 6.dp),
+                            contentAlignment = Alignment.TopStart
+                        ) {
+                            Text("Triggers", fontSize = 10.sp, color = Color.Gray, fontWeight = FontWeight.Bold)
+                        }
                     }
 
-                    Spacer(modifier = Modifier.width(6.dp))
-
-                    // Scrollable timeline viewport area
-                    val inputsWidth = 70.dp
-                    val spacing = 12.dp // no right padding, only margin/borders
-                    val viewportWidth = (module.width.dp - inputsWidth - spacing).coerceAtLeast(100.dp)
+                    Spacer(modifier = Modifier.width(spacing))
 
                     val scrollState = rememberScrollState()
                     val extraTime = 5.0
                     val timelineWidth = 24.dp * ((module.maxTime + extraTime).toFloat() * coercedZoom)
                     val maxTimeX = 24.dp * (module.maxTime.toFloat() * coercedZoom)
 
-                    // Stationary container for the top Scrollbar and the scrollable viewport
                     Column(
-                        modifier = Modifier.width(viewportWidth).fillMaxHeight()
+                        modifier = Modifier.width(viewportWidth)
                     ) {
                         val coroutineScope = rememberCoroutineScope()
 
-                        // New Row 1 (Top): Horizontal Scrollbar (height = 12.dp)
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -4100,15 +4603,13 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
 
                         Spacer(modifier = Modifier.height(4.dp))
 
-                        // Scrollable viewport area (height weight 1f)
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .weight(1f)
                                 .horizontalScroll(scrollState)
                         ) {
                             Column(
-                                modifier = Modifier.width(timelineWidth).fillMaxHeight()
+                                modifier = Modifier.width(timelineWidth)
                             ) {
                                 var currentPlayheadTime by remember { mutableStateOf(0.0) }
                                 if (module.isPlaying) {
@@ -4124,455 +4625,401 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                     currentPlayheadTime = module.seekTime
                                 }
 
-                                // Row 2: Loop position indicator & maxTime marker (height = 16.dp)
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(16.dp)
-                                        .background(Color(0xFFE0E0E0), RoundedCornerShape(2.dp))
-                                        .pointerInput(module) {
-                                            val getPxPerSecond = {
-                                                val d = density.density
-                                                val inputsWidthPx = 70f * d
-                                                val spacingPx = 12f * d
-                                                val viewportWidthPx = (module.width.toFloat() * d - inputsWidthPx - spacingPx).coerceAtLeast(100f * d)
-                                                val minZoomVal = (viewportWidthPx / (d * 24f * (module.maxTime.toFloat() + 5.0f))).coerceIn(0.01f, 1f)
-                                                val maxZoomVal = (viewportWidthPx / (d * 24f * 2.0f)).coerceIn(4f, 20f)
-                                                val currentZoom = module.zoom.coerceIn(minZoomVal, maxZoomVal)
-                                                d * 24f * currentZoom
+                                val centerTopRemaining = (topSectionHeight - 16.dp).coerceAtLeast(44.dp)
+                                Column(modifier = Modifier.fillMaxWidth().height(centerTopRemaining)) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(16.dp)
+                                            .background(Color(0xFFE0E0E0), RoundedCornerShape(2.dp))
+                                            .pointerInput(module) {
+                                                val getPxPerSecond = {
+                                                    val d = density.density
+                                                    val inputsWidthPx = leftWidth.value * d
+                                                    val spacingPx = spacing.value * d
+                                                    val viewportWidthPx = (module.width.toFloat() * d - inputsWidthPx - spacingPx).coerceAtLeast(100f * d)
+                                                    val minZoomVal = (viewportWidthPx / (d * 24f * (module.maxTime.toFloat() + 5.0f))).coerceIn(0.01f, 1f)
+                                                    val maxZoomVal = (viewportWidthPx / (d * 24f * 2.0f)).coerceIn(4f, 20f)
+                                                    val currentZoom = module.zoom.coerceIn(minZoomVal, maxZoomVal)
+                                                    d * 24f * currentZoom
+                                                }
+
+                                                awaitPointerEventScope {
+                                                    while (true) {
+                                                        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                                                        val pxPerSecond = getPxPerSecond()
+                                                        val clickX = down.position.x
+
+                                                        val startX = (module.loopStart * pxPerSecond).toFloat()
+                                                        val endX = (module.loopEnd * pxPerSecond).toFloat()
+                                                        val maxTimeXPx = (module.maxTime * pxPerSecond).toFloat()
+                                                        val tolerance = 10f * density.density
+
+                                                        val isDraggingStart = kotlin.math.abs(clickX - startX) <= tolerance
+                                                        val isDraggingEnd = kotlin.math.abs(clickX - endX) <= tolerance
+                                                        val isDraggingMaxTime = kotlin.math.abs(clickX - maxTimeXPx) <= tolerance
+
+                                                        if (isDraggingMaxTime) {
+                                                            down.consume()
+                                                            do {
+                                                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                                                val change = event.changes.firstOrNull()
+                                                                if (change != null && change.pressed) {
+                                                                    change.consume()
+                                                                    val currentX = change.position.x
+                                                                    val rawMax = (currentX / getPxPerSecond()).toDouble().coerceAtLeast(module.loopEnd)
+                                                                    val isOptionHeld = event.keyboardModifiers.isAltPressed
+                                                                    val newMax = if (isBeats && !isOptionHeld) {
+                                                                        val smallestSub = TimelineBeatUtils.calculateSmallestVisibleSubdivision(getPxPerSecond().toDouble(), density.density)
+                                                                        TimelineBeatUtils.snapToSubdivision(rawMax, smallestSub).coerceAtLeast(module.loopEnd)
+                                                                    } else {
+                                                                        rawMax
+                                                                    }
+                                                                    module.maxTime = newMax
+                                                                    FileState.markDirty()
+                                                                }
+                                                            } while (event.changes.any { it.pressed })
+                                                        } else if (isDraggingStart) {
+                                                            down.consume()
+                                                            do {
+                                                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                                                val change = event.changes.firstOrNull()
+                                                                if (change != null && change.pressed) {
+                                                                    change.consume()
+                                                                    val currentX = change.position.x
+                                                                    val smallestSub = if (isBeats) TimelineBeatUtils.calculateSmallestVisibleSubdivision(getPxPerSecond().toDouble(), density.density) else 0.1
+                                                                    val minGap = if (isBeats) smallestSub else 0.1
+                                                                    val rawStart = (currentX / getPxPerSecond()).toDouble().coerceIn(0.0, module.loopEnd - minGap)
+                                                                    val isOptionHeld = event.keyboardModifiers.isAltPressed
+                                                                    val newStart = if (isBeats && !isOptionHeld) {
+                                                                        TimelineBeatUtils.snapToSubdivision(rawStart, smallestSub).coerceIn(0.0, module.loopEnd - minGap)
+                                                                    } else {
+                                                                        rawStart
+                                                                    }
+                                                                    module.loopStart = newStart
+                                                                    FileState.markDirty()
+                                                                }
+                                                            } while (event.changes.any { it.pressed })
+                                                        } else if (isDraggingEnd) {
+                                                            down.consume()
+                                                            do {
+                                                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                                                val change = event.changes.firstOrNull()
+                                                                if (change != null && change.pressed) {
+                                                                    change.consume()
+                                                                    val currentX = change.position.x
+                                                                    val smallestSub = if (isBeats) TimelineBeatUtils.calculateSmallestVisibleSubdivision(getPxPerSecond().toDouble(), density.density) else 0.1
+                                                                    val minGap = if (isBeats) smallestSub else 0.1
+                                                                    val rawEnd = (currentX / getPxPerSecond()).toDouble().coerceIn(module.loopStart + minGap, module.maxTime)
+                                                                    val isOptionHeld = event.keyboardModifiers.isAltPressed
+                                                                    val newEnd = if (isBeats && !isOptionHeld) {
+                                                                        TimelineBeatUtils.snapToSubdivision(rawEnd, smallestSub).coerceIn(module.loopStart + minGap, module.maxTime)
+                                                                    } else {
+                                                                        rawEnd
+                                                                    }
+                                                                    module.loopEnd = newEnd
+                                                                    FileState.markDirty()
+                                                                }
+                                                            } while (event.changes.any { it.pressed })
+                                                        } else {
+                                                            val smallestSub = if (isBeats) TimelineBeatUtils.calculateSmallestVisibleSubdivision(getPxPerSecond().toDouble(), density.density) else 0.1
+                                                            val isOptionHeldDown = currentEvent.keyboardModifiers.isAltPressed
+                                                            val clickedTime = if (isBeats && !isOptionHeldDown) {
+                                                                val rawTime = (clickX / pxPerSecond).toDouble().coerceIn(0.0, module.maxTime)
+                                                                TimelineBeatUtils.snapToSubdivision(rawTime, smallestSub).coerceIn(0.0, module.maxTime)
+                                                            } else {
+                                                                (clickX / pxPerSecond).toDouble().coerceIn(0.0, module.maxTime)
+                                                            }
+                                                            val loopLen = module.loopEnd - module.loopStart
+                                                            val newStart = (clickedTime - loopLen / 2.0).coerceIn(0.0, module.maxTime - loopLen)
+                                                            val finalStart = if (isBeats && !isOptionHeldDown) {
+                                                                TimelineBeatUtils.snapToSubdivision(newStart, smallestSub).coerceIn(0.0, module.maxTime - loopLen)
+                                                            } else {
+                                                                newStart
+                                                            }
+                                                            module.loopStart = finalStart
+                                                            module.loopEnd = finalStart + loopLen
+                                                            FileState.markDirty()
+
+                                                            down.consume()
+                                                            do {
+                                                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                                                val change = event.changes.firstOrNull()
+                                                                if (change != null && change.pressed) {
+                                                                    change.consume()
+                                                                    val currentX = change.position.x
+                                                                    val isOptionHeldDrag = event.keyboardModifiers.isAltPressed
+                                                                    val dragTime = if (isBeats && !isOptionHeldDrag) {
+                                                                        val rawDrag = (currentX / getPxPerSecond()).toDouble().coerceIn(0.0, module.maxTime)
+                                                                        TimelineBeatUtils.snapToSubdivision(rawDrag, smallestSub).coerceIn(0.0, module.maxTime)
+                                                                    } else {
+                                                                        (currentX / getPxPerSecond()).toDouble().coerceIn(0.0, module.maxTime)
+                                                                    }
+                                                                    val dragStart = (dragTime - loopLen / 2.0).coerceIn(0.0, module.maxTime - loopLen)
+                                                                    val finalDragStart = if (isBeats && !isOptionHeldDrag) {
+                                                                        TimelineBeatUtils.snapToSubdivision(dragStart, smallestSub).coerceIn(0.0, module.maxTime - loopLen)
+                                                                    } else {
+                                                                        dragStart
+                                                                    }
+                                                                    module.loopStart = finalDragStart
+                                                                    module.loopEnd = finalDragStart + loopLen
+                                                                    FileState.markDirty()
+                                                                }
+                                                            } while (event.changes.any { it.pressed })
+                                                        }
+                                                    }
+                                                }
                                             }
-
-                                            awaitPointerEventScope {
-                                                while (true) {
-                                                    val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                                                    val pxPerSecond = getPxPerSecond()
-                                                    val clickX = down.position.x
-
-                                                    val maxTimeXPx = (module.maxTime * pxPerSecond.toDouble()).toFloat()
-                                                    val loopStartXPx = (module.loopStart * pxPerSecond.toDouble()).toFloat()
-                                                    val loopEndXPx = (module.loopEnd * pxPerSecond.toDouble()).toFloat()
-
-                                                    val tolerancePx = 12f * density.density
-
-                                                    val distMaxTime = kotlin.math.abs(clickX - maxTimeXPx)
-                                                    val distStart = kotlin.math.abs(clickX - loopStartXPx)
-                                                    val distEnd = kotlin.math.abs(clickX - loopEndXPx)
-
-                                                    val target = listOf(
-                                                        "maxTime" to distMaxTime,
-                                                        "loopStart" to distStart,
-                                                        "loopEnd" to distEnd
-                                                    ).filter { it.second <= tolerancePx }
-                                                     .minByOrNull { it.second }?.first
-
-                                                    if (target == "maxTime") {
-                                                        down.consume()
-                                                        do {
-                                                            val event = awaitPointerEvent(PointerEventPass.Initial)
-                                                            val change = event.changes.firstOrNull()
-                                                            if (change != null && change.pressed) {
-                                                                change.consume()
-                                                                val currentX = change.position.x
-                                                                val pxPerSecondDrag = getPxPerSecond()
-                                                                val lastTriggerTime = module.triggers.map { it.time }.maxOrNull() ?: 0.0
-                                                                val rawDraggedTime = (currentX / pxPerSecondDrag).toDouble()
-                                                                val isOptionHeld = event.keyboardModifiers.isAltPressed
-                                                                val draggedTime = if (isBeats && !isOptionHeld) {
-                                                                    val smallestSub = TimelineBeatUtils.calculateSmallestVisibleSubdivision(pxPerSecondDrag.toDouble(), density.density)
-                                                                    TimelineBeatUtils.snapToSubdivision(rawDraggedTime, smallestSub)
-                                                                } else {
-                                                                    rawDraggedTime
-                                                                }
-                                                                module.maxTime = draggedTime.coerceAtLeast(lastTriggerTime).coerceAtLeast(1.0)
-
-                                                                // Scroll timeline when dragged past the end of the viewport
-                                                                val d = density.density
-                                                                val inputsWidthPx = 70f * d
-                                                                val spacingPx = 12f * d
-                                                                val viewportWidthPx = (module.width.toFloat() * d - inputsWidthPx - spacingPx).coerceAtLeast(100f * d)
-                                                                if (currentX > scrollState.value + viewportWidthPx - 20f) {
-                                                                    val targetScroll = (currentX - viewportWidthPx + 20f).roundToInt()
-                                                                    coroutineScope.launch {
-                                                                        scrollState.scrollTo(targetScroll.coerceIn(0, scrollState.maxValue))
-                                                                    }
-                                                                } else if (currentX < scrollState.value + 20f) {
-                                                                    val targetScroll = (currentX - 20f).roundToInt()
-                                                                    coroutineScope.launch {
-                                                                        scrollState.scrollTo(targetScroll.coerceIn(0, scrollState.maxValue))
-                                                                    }
-                                                                }
-                                                                FileState.markDirty()
-                                                            }
-                                                        } while (event.changes.any { it.pressed })
-                                                    } else if (target == "loopStart") {
-                                                        down.consume()
-                                                        do {
-                                                            val event = awaitPointerEvent(PointerEventPass.Initial)
-                                                            val change = event.changes.firstOrNull()
-                                                            if (change != null && change.pressed) {
-                                                                change.consume()
-                                                                val currentX = change.position.x
-                                                                val pxPerSecondDrag = getPxPerSecond()
-                                                                val rawTime = (currentX / pxPerSecondDrag).toDouble()
-                                                                val isOptionHeld = event.keyboardModifiers.isAltPressed
-                                                                val minGap = if (isBeats) TimelineBeatUtils.calculateSmallestVisibleSubdivision(pxPerSecondDrag.toDouble(), density.density) else 0.1
-                                                                val timeAtX = if (isBeats && !isOptionHeld) {
-                                                                    TimelineBeatUtils.snapToSubdivision(rawTime, minGap)
-                                                                } else {
-                                                                    rawTime
-                                                                }
-                                                                module.loopStart = timeAtX.coerceIn(0.0, (module.loopEnd - minGap).coerceAtLeast(0.0))
-                                                                FileState.markDirty()
-                                                            }
-                                                        } while (event.changes.any { it.pressed })
-                                                    } else if (target == "loopEnd") {
-                                                        down.consume()
-                                                        do {
-                                                            val event = awaitPointerEvent(PointerEventPass.Initial)
-                                                            val change = event.changes.firstOrNull()
-                                                            if (change != null && change.pressed) {
-                                                                change.consume()
-                                                                val currentX = change.position.x
-                                                                val pxPerSecondDrag = getPxPerSecond()
-                                                                val rawTime = (currentX / pxPerSecondDrag).toDouble()
-                                                                val isOptionHeld = event.keyboardModifiers.isAltPressed
-                                                                val minGap = if (isBeats) TimelineBeatUtils.calculateSmallestVisibleSubdivision(pxPerSecondDrag.toDouble(), density.density) else 0.1
-                                                                val timeAtX = if (isBeats && !isOptionHeld) {
-                                                                    TimelineBeatUtils.snapToSubdivision(rawTime, minGap)
-                                                                } else {
-                                                                    rawTime
-                                                                }
-                                                                module.loopEnd = timeAtX.coerceIn(module.loopStart + minGap, module.maxTime)
-                                                                FileState.markDirty()
-                                                            }
-                                                        } while (event.changes.any { it.pressed })
+                                    ) {
+                                        if (isBeats) {
+                                            val pxPerUnit = density.density * 24f * coercedZoom
+                                            val smallestSub = TimelineBeatUtils.calculateSmallestVisibleSubdivision(pxPerUnit.toDouble(), density.density)
+                                            Canvas(modifier = Modifier.fillMaxSize()) {
+                                                val totalTime = module.maxTime + extraTime
+                                                val numSubTicks = (module.maxTime / smallestSub).roundToInt()
+                                                for (i in 0..numSubTicks) {
+                                                    val beat = if (smallestSub < 1.0) {
+                                                        val d = (1.0 / smallestSub).roundToLong()
+                                                        i.toDouble() / d.toDouble()
                                                     } else {
-                                                        val pxPerSecondDrag = getPxPerSecond()
+                                                        i.toDouble() * smallestSub
+                                                    }
+                                                    if (beat > module.maxTime + 0.0001) break
+
+                                                    val pct = (beat / totalTime).toFloat()
+                                                    val x = size.width * pct
+
+                                                    val isWholeBeat = (beat % 1.0 < 0.0001 || (1.0 - (beat % 1.0)) < 0.0001)
+                                                    val isHalfBeat = (beat % 0.5 < 0.0001 || (0.5 - (beat % 0.5)) < 0.0001)
+
+                                                    val (gridColor, strokeW) = when {
+                                                        isWholeBeat -> Color(0x33000000) to 1f
+                                                        isHalfBeat -> Color(0x20000000) to 0.8f
+                                                        else -> Color(0x10000000) to 0.5f
+                                                    }
+
+                                                    drawLine(
+                                                        color = gridColor,
+                                                        start = Offset(x, 0f),
+                                                        end = Offset(x, size.height),
+                                                        strokeWidth = strokeW
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        val startPct = (module.loopStart / (module.maxTime + extraTime)).toFloat()
+                                        val endPct = (module.loopEnd / (module.maxTime + extraTime)).toFloat()
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxHeight()
+                                                .fillMaxWidth(endPct - startPct)
+                                                .offset(x = timelineWidth * startPct)
+                                                .background(Color(0xFF90CAF9).copy(alpha = 0.6f))
+                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .size(6.dp, 16.dp)
+                                                .offset(x = timelineWidth * startPct)
+                                                .background(Color.Blue)
+                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .size(6.dp, 16.dp)
+                                                .offset(x = timelineWidth * endPct - 6.dp)
+                                                .background(Color.Blue)
+                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .size(14.dp, 16.dp)
+                                                .offset(x = maxTimeX - 7.dp)
+                                                .background(Color(0xFFD32F2F), RoundedCornerShape(2.dp)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text("⇥", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(4.dp))
+
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(20.dp)
+                                            .background(Color(0xFFCCCCCC), RoundedCornerShape(2.dp))
+                                            .pointerInput(module) {
+                                                val getPxPerSecond = {
+                                                    val d = density.density
+                                                    val inputsWidthPx = leftWidth.value * d
+                                                    val spacingPx = spacing.value * d
+                                                    val viewportWidthPx = (module.width.toFloat() * d - inputsWidthPx - spacingPx).coerceAtLeast(100f * d)
+                                                    val minZoomVal = (viewportWidthPx / (d * 24f * (module.maxTime.toFloat() + 5.0f))).coerceIn(0.01f, 1f)
+                                                    val maxZoomVal = (viewportWidthPx / (d * 24f * 2.0f)).coerceIn(4f, 20f)
+                                                    val currentZoom = module.zoom.coerceIn(minZoomVal, maxZoomVal)
+                                                    d * 24f * currentZoom
+                                                }
+
+                                                awaitPointerEventScope {
+                                                    while (true) {
+                                                        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                                                        var currentX = down.position.x
+                                                        val pxPerSecond = getPxPerSecond()
+                                                        val rawSeek = (currentX / pxPerSecond).toDouble().coerceIn(0.0, module.maxTime)
                                                         val isOptionHeldDown = currentEvent.keyboardModifiers.isAltPressed
-                                                        val rawClick = (clickX / pxPerSecondDrag).toDouble().coerceIn(0.0, module.maxTime)
-                                                        val minGap = if (isBeats) TimelineBeatUtils.calculateSmallestVisibleSubdivision(pxPerSecondDrag.toDouble(), density.density) else 0.1
-                                                        var timeAtX = if (isBeats && !isOptionHeldDown) {
-                                                            TimelineBeatUtils.snapToSubdivision(rawClick, minGap).coerceIn(0.0, module.maxTime)
+                                                        val newSeek = if (isBeats && !isOptionHeldDown) {
+                                                            val smallestSub = TimelineBeatUtils.calculateSmallestVisibleSubdivision(pxPerSecond.toDouble(), density.density)
+                                                            TimelineBeatUtils.snapToSubdivision(rawSeek, smallestSub).coerceIn(0.0, module.maxTime)
                                                         } else {
-                                                            rawClick
+                                                            rawSeek
                                                         }
-                                                        val isDraggingStart = distStart < distEnd
-                                                        if (isDraggingStart) {
-                                                            module.loopStart = timeAtX.coerceIn(0.0, (module.loopEnd - minGap).coerceAtLeast(0.0))
-                                                        } else {
-                                                            module.loopEnd = timeAtX.coerceIn(module.loopStart + minGap, module.maxTime)
-                                                        }
+                                                        module.seekTo(newSeek)
                                                         FileState.markDirty()
 
+                                                        down.consume()
                                                         do {
-                                                            val event = awaitPointerEvent()
+                                                            val event = awaitPointerEvent(PointerEventPass.Initial)
                                                             val change = event.changes.firstOrNull()
                                                             if (change != null && change.pressed) {
                                                                 change.consume()
-                                                                val currentX = change.position.x
-                                                                val pxPerSecondDragInner = getPxPerSecond()
+                                                                currentX = change.position.x
                                                                 val isOptionHeldDrag = event.keyboardModifiers.isAltPressed
-                                                                val rawDrag = (currentX / pxPerSecondDragInner).toDouble().coerceIn(0.0, module.maxTime)
-                                                                val minGapInner = if (isBeats) TimelineBeatUtils.calculateSmallestVisibleSubdivision(pxPerSecondDragInner.toDouble(), density.density) else 0.1
-                                                                timeAtX = if (isBeats && !isOptionHeldDrag) {
-                                                                    TimelineBeatUtils.snapToSubdivision(rawDrag, minGapInner).coerceIn(0.0, module.maxTime)
+                                                                val dragRawSeek = (currentX / getPxPerSecond()).toDouble().coerceIn(0.0, module.maxTime)
+                                                                val dragSeek = if (isBeats && !isOptionHeldDrag) {
+                                                                    val smallestSub = TimelineBeatUtils.calculateSmallestVisibleSubdivision(pxPerSecond.toDouble(), density.density)
+                                                                    TimelineBeatUtils.snapToSubdivision(dragRawSeek, smallestSub).coerceIn(0.0, module.maxTime)
                                                                 } else {
-                                                                    rawDrag
+                                                                    dragRawSeek
                                                                 }
-                                                                if (isDraggingStart) {
-                                                                    module.loopStart = timeAtX.coerceIn(0.0, (module.loopEnd - minGapInner).coerceAtLeast(0.0))
-                                                                } else {
-                                                                    module.loopEnd = timeAtX.coerceIn(module.loopStart + minGapInner, module.maxTime)
-                                                                }
+                                                                module.seekTo(dragSeek)
                                                                 FileState.markDirty()
                                                             }
                                                         } while (event.changes.any { it.pressed })
                                                     }
                                                 }
                                             }
-                                        }
-                                ) {
-                                    if (isBeats) {
-                                        val pxPerUnit = density.density * 24f * coercedZoom
-                                        val smallestSub = TimelineBeatUtils.calculateSmallestVisibleSubdivision(pxPerUnit.toDouble(), density.density)
-                                        Canvas(modifier = Modifier.fillMaxSize()) {
-                                            val totalTime = module.maxTime + extraTime
-                                            val numSubTicks = (module.maxTime / smallestSub).roundToInt()
-                                            for (i in 0..numSubTicks) {
-                                                val beat = if (smallestSub < 1.0) {
-                                                    val d = (1.0 / smallestSub).roundToLong()
-                                                    i.toDouble() / d.toDouble()
-                                                } else {
-                                                    i.toDouble() * smallestSub
-                                                }
-                                                if (beat > module.maxTime + 0.0001) break
-
-                                                val pct = (beat / totalTime).toFloat()
-                                                val x = size.width * pct
-
-                                                val isWholeBeat = (beat % 1.0 < 0.0001 || (1.0 - (beat % 1.0)) < 0.0001)
-                                                val isHalfBeat = (beat % 0.5 < 0.0001 || (0.5 - (beat % 0.5)) < 0.0001)
-
-                                                val (gridColor, strokeW) = when {
-                                                    isWholeBeat -> Color(0x33000000) to 1f
-                                                    isHalfBeat -> Color(0x20000000) to 0.8f
-                                                    else -> Color(0x10000000) to 0.5f
-                                                }
-
-                                                drawLine(
-                                                    color = gridColor,
-                                                    start = Offset(x, 0f),
-                                                    end = Offset(x, size.height),
-                                                    strokeWidth = strokeW
-                                                )
-                                            }
-                                        }
-                                    }
-
-                                    // Highlight loop range
-                                    val startPct = (module.loopStart / (module.maxTime + extraTime)).toFloat()
-                                    val endPct = (module.loopEnd / (module.maxTime + extraTime)).toFloat()
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxHeight()
-                                            .fillMaxWidth(endPct - startPct)
-                                            .offset(x = timelineWidth * startPct)
-                                            .background(Color(0xFF90CAF9).copy(alpha = 0.6f))
-                                    )
-                                    // Loop Start handle
-                                    Box(
-                                        modifier = Modifier
-                                            .size(6.dp, 16.dp)
-                                            .offset(x = timelineWidth * startPct)
-                                            .background(Color.Blue)
-                                    )
-                                    // Loop End handle
-                                    Box(
-                                        modifier = Modifier
-                                            .size(6.dp, 16.dp)
-                                            .offset(x = timelineWidth * endPct - 6.dp)
-                                            .background(Color.Blue)
-                                    )
-                                    // Special maxTime marker handle (Red Flag ⇥) - in Row 2!
-                                    Box(
-                                        modifier = Modifier
-                                            .size(14.dp, 16.dp)
-                                            .offset(x = maxTimeX - 7.dp)
-                                            .background(Color(0xFFD32F2F), RoundedCornerShape(2.dp)),
-                                        contentAlignment = Alignment.Center
                                     ) {
-                                        Text("⇥", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                }
+                                        val totalTime = module.maxTime + extraTime
+                                        if (isBeats) {
+                                            val pxPerUnit = density.density * 24f * coercedZoom
+                                            val smallestSub = TimelineBeatUtils.calculateSmallestVisibleSubdivision(pxPerUnit.toDouble(), density.density)
+                                            val labelInterval = TimelineBeatUtils.calculateLabelInterval(pxPerUnit.toDouble(), density.density)
+                                            val textMeasurer = androidx.compose.ui.text.rememberTextMeasurer()
 
-                                Spacer(modifier = Modifier.height(4.dp))
-
-                                // Row 3: Horizontal time position indicator (ruler / slider with thumb) - Height 20.dp
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(20.dp)
-                                        .background(Color(0xFFCCCCCC), RoundedCornerShape(2.dp))
-                                        .pointerInput(module) {
-                                            val getPxPerSecond = {
-                                                val d = density.density
-                                                val inputsWidthPx = 70f * d
-                                                val spacingPx = 12f * d
-                                                val viewportWidthPx = (module.width.toFloat() * d - inputsWidthPx - spacingPx).coerceAtLeast(100f * d)
-                                                val minZoomVal = (viewportWidthPx / (d * 24f * (module.maxTime.toFloat() + 5.0f))).coerceIn(0.01f, 1f)
-                                                val maxZoomVal = (viewportWidthPx / (d * 24f * 2.0f)).coerceIn(4f, 20f)
-                                                val currentZoom = module.zoom.coerceIn(minZoomVal, maxZoomVal)
-                                                d * 24f * currentZoom
-                                            }
-
-                                            awaitPointerEventScope {
-                                                while (true) {
-                                                    val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                                                    var currentX = down.position.x
-                                                    val pxPerSecond = getPxPerSecond()
-                                                    val rawSeek = (currentX / pxPerSecond).toDouble().coerceIn(0.0, module.maxTime)
-                                                    val isOptionHeldDown = currentEvent.keyboardModifiers.isAltPressed
-                                                    val newSeek = if (isBeats && !isOptionHeldDown) {
-                                                        val smallestSub = TimelineBeatUtils.calculateSmallestVisibleSubdivision(pxPerSecond.toDouble(), density.density)
-                                                        TimelineBeatUtils.snapToSubdivision(rawSeek, smallestSub).coerceIn(0.0, module.maxTime)
+                                            Canvas(modifier = Modifier.fillMaxSize()) {
+                                                val numSubTicks = (module.maxTime / smallestSub).roundToInt()
+                                                for (i in 0..numSubTicks) {
+                                                    val beat = if (smallestSub < 1.0) {
+                                                        val d = (1.0 / smallestSub).roundToLong()
+                                                        i.toDouble() / d.toDouble()
                                                     } else {
-                                                        rawSeek
+                                                        i.toDouble() * smallestSub
                                                     }
-                                                    module.seekTo(newSeek)
-                                                    FileState.markDirty()
+                                                    if (beat > module.maxTime + 0.0001) break
 
-                                                    do {
-                                                        val event = awaitPointerEvent()
-                                                        val change = event.changes.firstOrNull()
-                                                        if (change != null && change.pressed) {
-                                                            change.consume()
-                                                            currentX = change.position.x
-                                                            val pxPerSecondDrag = getPxPerSecond()
-                                                            val rawDragSeek = (currentX / pxPerSecondDrag).toDouble().coerceIn(0.0, module.maxTime)
-                                                            val isOptionHeldDrag = event.keyboardModifiers.isAltPressed
-                                                            val dragSeek = if (isBeats && !isOptionHeldDrag) {
-                                                                val smallestSub = TimelineBeatUtils.calculateSmallestVisibleSubdivision(pxPerSecondDrag.toDouble(), density.density)
-                                                                TimelineBeatUtils.snapToSubdivision(rawDragSeek, smallestSub).coerceIn(0.0, module.maxTime)
-                                                            } else {
-                                                                rawDragSeek
-                                                            }
-                                                            module.seekTo(dragSeek)
-                                                            FileState.markDirty()
+                                                    val pct = (beat / totalTime).toFloat()
+                                                    val x = size.width * pct
+
+                                                    val isWholeBeat = (beat % 1.0 < 0.0001 || (1.0 - (beat % 1.0)) < 0.0001)
+                                                    val isHalfBeat = (beat % 0.5 < 0.0001 || (0.5 - (beat % 0.5)) < 0.0001)
+                                                    val isQuarterBeat = (beat % 0.25 < 0.0001 || (0.25 - (beat % 0.25)) < 0.0001)
+
+                                                    val (tickHeight, tickColor, strokeW) = when {
+                                                        isWholeBeat -> Triple(size.height * 0.7f, Color(0xFF333333), 1.2f)
+                                                        isHalfBeat -> Triple(size.height * 0.5f, Color(0xFF555555), 1.0f)
+                                                        isQuarterBeat -> Triple(size.height * 0.35f, Color(0xFF777777), 0.8f)
+                                                        else -> Triple(size.height * 0.25f, Color(0xFF999999), 0.6f)
+                                                    }
+
+                                                    drawLine(
+                                                        color = tickColor,
+                                                        start = Offset(x, size.height - tickHeight),
+                                                        end = Offset(x, size.height),
+                                                        strokeWidth = strokeW
+                                                    )
+
+                                                    if (isWholeBeat) {
+                                                        val wholeBeat = (beat + 0.5).toInt()
+                                                        if (wholeBeat % labelInterval.toInt() == 0) {
+                                                            val labelText = wholeBeat.toString()
+                                                            val measured = textMeasurer.measure(
+                                                                text = labelText,
+                                                                style = TextStyle(color = Color(0xFF333333), fontSize = 9.sp)
+                                                            )
+                                                            drawText(
+                                                                textMeasurer = textMeasurer,
+                                                                text = labelText,
+                                                                topLeft = Offset(x + 2f, 1f),
+                                                                style = TextStyle(color = Color(0xFF333333), fontSize = 9.sp)
+                                                            )
                                                         }
-                                                    } while (event.changes.any { it.pressed })
-                                                }
-                                            }
-                                        }
-                                ) {
-                                    if (isBeats) {
-                                        val pxPerUnit = density.density * 24f * coercedZoom
-                                        val smallestSub = TimelineBeatUtils.calculateSmallestVisibleSubdivision(pxPerUnit.toDouble(), density.density)
-                                        val labelInterval = TimelineBeatUtils.calculateLabelInterval(pxPerUnit.toDouble(), density.density)
-
-                                        Canvas(modifier = Modifier.fillMaxSize()) {
-                                            val tickColor = Color(0xFF666666)
-                                            val numSubTicks = (module.maxTime / smallestSub).roundToInt()
-                                            for (i in 0..numSubTicks) {
-                                                val beat = if (smallestSub < 1.0) {
-                                                    val d = (1.0 / smallestSub).roundToLong()
-                                                    i.toDouble() / d.toDouble()
-                                                } else {
-                                                    i.toDouble() * smallestSub
-                                                }
-                                                if (beat > module.maxTime + 0.0001) break
-
-                                                val pct = (beat / (module.maxTime + extraTime)).toFloat()
-                                                val x = size.width * pct
-
-                                                val isWholeBeat = (beat % 1.0 < 0.0001 || (1.0 - (beat % 1.0)) < 0.0001)
-                                                val isHalfBeat = (beat % 0.5 < 0.0001 || (0.5 - (beat % 0.5)) < 0.0001)
-                                                val isQuarterBeat = (beat % 0.25 < 0.0001 || (0.25 - (beat % 0.25)) < 0.0001)
-
-                                                val (tickHeight, strokeW, alpha) = when {
-                                                    isWholeBeat -> Triple(7f, 1.2f, 1.0f)
-                                                    isHalfBeat -> Triple(5f, 1.0f, 0.7f)
-                                                    isQuarterBeat -> Triple(3.5f, 0.8f, 0.5f)
-                                                    else -> Triple(2.5f, 0.6f, 0.35f)
-                                                }
-
-                                                drawLine(
-                                                    color = tickColor.copy(alpha = alpha),
-                                                    start = Offset(x, size.height - tickHeight),
-                                                    end = Offset(x, size.height),
-                                                    strokeWidth = strokeW
-                                                )
-                                            }
-                                        }
-
-                                        // Draw text labels
-                                        val numLabels = (module.maxTime / labelInterval).toInt()
-                                        for (i in 0..numLabels) {
-                                            val beat = i * labelInterval
-                                            if (beat > module.maxTime) break
-                                            val pct = (beat / (module.maxTime + extraTime)).toFloat()
-
-                                            Text(
-                                                text = TimelineBeatUtils.formatBeatLabel(beat),
-                                                fontSize = 11.sp,
-                                                color = Color(0xFF444444),
-                                                modifier = Modifier
-                                                    .offset(x = timelineWidth * pct - 15.dp, y = (-2).dp)
-                                                    .width(30.dp),
-                                                textAlign = TextAlign.Center
-                                            )
-                                        }
-                                    } else {
-                                        // Dynamic Ruler Ticks depending on zoom and density
-                                        val possibleIntervals = listOf(0.1, 0.2, 0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 30.0, 60.0)
-                                        val pxPerSecond = density.density * 24f * coercedZoom
-                                        val tickInterval = possibleIntervals.firstOrNull { interval ->
-                                            interval * pxPerSecond >= 40f
-                                        } ?: 60.0
-                                        val numTicks = (module.maxTime / tickInterval).toInt()
-
-                                        Canvas(modifier = Modifier.fillMaxSize()) {
-                                            val tickColor = Color(0xFF666666)
-                                            for (i in 0..numTicks) {
-                                                val timeSeconds = i * tickInterval
-                                                if (timeSeconds > module.maxTime) break
-
-                                                val pct = (timeSeconds / (module.maxTime + extraTime)).toFloat()
-                                                val x = size.width * pct
-
-                                                // Draw main tick line
-                                                drawLine(
-                                                    color = tickColor,
-                                                    start = Offset(x, size.height - 6f),
-                                                    end = Offset(x, size.height),
-                                                    strokeWidth = 1f
-                                                )
-
-                                                // Draw minor ticks
-                                                if (i < numTicks) {
-                                                    val nextTime = (i + 1) * tickInterval
-                                                    val midTime = (timeSeconds + nextTime) / 2.0
-                                                    if (midTime <= module.maxTime) {
-                                                        val midPct = (midTime / (module.maxTime + extraTime)).toFloat()
-                                                        val midX = size.width * midPct
-                                                        drawLine(
-                                                            color = tickColor.copy(alpha = 0.4f),
-                                                            start = Offset(midX, size.height - 3f),
-                                                            end = Offset(midX, size.height),
-                                                            strokeWidth = 0.8f
-                                                        )
                                                     }
                                                 }
                                             }
-                                        }
-
-                                        // Draw text labels
-                                        for (i in 0..numTicks) {
-                                            val timeSeconds = i * tickInterval
-                                            if (timeSeconds > module.maxTime) break
-                                            val pct = (timeSeconds / (module.maxTime + extraTime)).toFloat()
-
-                                            val label = if (timeSeconds % 1.0 == 0.0) {
-                                                "${timeSeconds.toInt()}"
-                                            } else {
-                                                val rounded = (timeSeconds * 10.0).roundToInt() / 10.0
-                                                "${rounded}"
+                                        } else {
+                                            Canvas(modifier = Modifier.fillMaxSize()) {
+                                                val step = when {
+                                                    coercedZoom >= 5f -> 0.2
+                                                    coercedZoom >= 2f -> 0.5
+                                                    coercedZoom >= 1f -> 1.0
+                                                    coercedZoom >= 0.5f -> 2.0
+                                                    coercedZoom >= 0.2f -> 5.0
+                                                    else -> 10.0
+                                                }
+                                                val count = (totalTime / step).toInt()
+                                                for (i in 0..count) {
+                                                    val t = i * step
+                                                    if (t > totalTime) break
+                                                    val pct = (t / totalTime).toFloat()
+                                                    val x = size.width * pct
+                                                    val isMajor = (t % (step * 5).coerceAtLeast(1.0) == 0.0)
+                                                    val tickH = if (isMajor) size.height * 0.6f else size.height * 0.3f
+                                                    drawLine(
+                                                        color = if (isMajor) Color.DarkGray else Color.Gray,
+                                                        start = Offset(x, size.height - tickH),
+                                                        end = Offset(x, size.height),
+                                                        strokeWidth = if (isMajor) 1.5f else 1f
+                                                    )
+                                                }
                                             }
-
-                                            Text(
-                                                text = label,
-                                                fontSize = 11.sp,
-                                                color = Color(0xFF444444),
-                                                modifier = Modifier
-                                                    .offset(x = timelineWidth * pct - 15.dp, y = (-2).dp)
-                                                    .width(30.dp),
-                                                textAlign = TextAlign.Center
-                                            )
                                         }
-                                    }
 
-                                    // Seek thumb
-                                    val thumbPct = (module.seekTime / (module.maxTime + extraTime)).toFloat()
-                                    Box(
-                                        modifier = Modifier
-                                            .size(8.dp, 20.dp)
-                                            .offset(x = timelineWidth * thumbPct - 4.dp)
-                                            .background(Color.DarkGray.copy(alpha = 0.7f), RoundedCornerShape(1.dp))
-                                    )
+                                        val thumbPct = (module.seekTime / (module.maxTime + extraTime)).toFloat()
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp, 20.dp)
+                                                .offset(x = timelineWidth * thumbPct - 4.dp)
+                                                .background(Color.DarkGray.copy(alpha = 0.7f), RoundedCornerShape(1.dp))
+                                        )
+                                    }
                                 }
 
                                 Spacer(modifier = Modifier.height(4.dp))
 
-                                // Row 4: cursor, triggers (diamond + jack) - stretches to the bottom of the module
+                                module.tracks.forEach { track ->
+                                    TrackLaneView(
+                                        track = track,
+                                        module = module,
+                                        isBeats = isBeats,
+                                        coercedZoom = coercedZoom,
+                                        timelineWidth = timelineWidth,
+                                        height = trackHeight,
+                                        density = density.density,
+                                        currentPlayheadTime = currentPlayheadTime,
+                                        extraTime = extraTime
+                                    )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                }
+
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .weight(1f)
+                                        .height(triggerHeight)
                                         .background(Color(0xFFE5E7EB), RoundedCornerShape(bottomStart = 2.dp, bottomEnd = 2.dp))
                                         .pointerInput(module) {
                                             val getPxPerSecond = {
                                                 val d = density.density
-                                                val inputsWidthPx = 70f * d
-                                                val spacingPx = 12f * d
+                                                val inputsWidthPx = leftWidth.value * d
+                                                val spacingPx = spacing.value * d
                                                 val viewportWidthPx = (module.width.toFloat() * d - inputsWidthPx - spacingPx).coerceAtLeast(100f * d)
                                                 val minZoomVal = (viewportWidthPx / (d * 24f * (module.maxTime.toFloat() + 5.0f))).coerceIn(0.01f, 1f)
                                                 val maxZoomVal = (viewportWidthPx / (d * 24f * 2.0f)).coerceIn(4f, 20f)
@@ -4674,7 +5121,6 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                         }
                                     }
 
-                                    // Red cursor
                                     val cursorPct = (currentPlayheadTime / (module.maxTime + extraTime)).toFloat().coerceIn(0f, 1f)
                                     Box(
                                         modifier = Modifier
@@ -4684,7 +5130,6 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                             .background(Color.Red)
                                     )
 
-                                    // Shaded unusable area past maxTime
                                     Box(
                                         modifier = Modifier
                                             .fillMaxHeight()
@@ -4693,7 +5138,6 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                             .background(Color(0x1F000000))
                                     )
 
-                                    // Vertical marker boundary line extending down through Row 4
                                     Box(
                                         modifier = Modifier
                                             .fillMaxHeight()
@@ -4702,7 +5146,6 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                             .background(Color(0xFFD32F2F).copy(alpha = 0.5f))
                                     )
 
-                                    // Draw triggers
                                     for (trigger in module.triggers) {
                                         val trigPct = (trigger.time / (module.maxTime + extraTime)).toFloat()
                                         val triggerX = timelineWidth * trigPct
@@ -4718,21 +5161,18 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                                 horizontalAlignment = Alignment.CenterHorizontally,
                                                 modifier = Modifier.fillMaxHeight().padding(top = 2.dp, bottom = 0.dp)
                                             ) {
-                                                // Diamond at top (8.dp)
                                                 Box(
                                                     modifier = Modifier
                                                         .size(8.dp)
                                                         .graphicsLayer(rotationZ = 45f)
                                                         .background(Color.Yellow)
                                                 )
-                                                // Vertical line (dark stem)
                                                 Box(
                                                     modifier = Modifier
                                                         .width(1.dp)
                                                         .weight(1f)
                                                         .background(Color(0xFF4B5563))
                                                 )
-                                                // Jack at bottom (8.dp)
                                                 TimelineTriggerJackView(trigger.outputJack, state, viewportLeftGraphX, viewportRightGraphX)
                                             }
                                         }
@@ -4741,9 +5181,27 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                             }
                         }
                     }
+
+                    if (hasOutputs) {
+                        Spacer(modifier = Modifier.width(spacing))
+                        Column(
+                            modifier = Modifier.width(rightWidth)
+                        ) {
+                            Spacer(modifier = Modifier.height(topSectionHeight + 4.dp))
+                            module.tracks.forEach { track ->
+                                Box(
+                                    modifier = Modifier.width(rightWidth).height(trackHeight),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    track.outputJack?.let { JackView(it, state, isLeft = false) }
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
+                            }
+                            Spacer(modifier = Modifier.height(triggerHeight))
+                        }
+                    }
                 }
 
-                // Horizontal Resize grip on the bottom-right corner
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
@@ -4754,7 +5212,7 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                             ) { change, dragAmount ->
                                 change.consume()
                                 val dw = dragAmount.x / density.density
-                                module.width = (module.width + dw).coerceAtLeast(200.0)
+                                module.width = (module.width + dw).coerceAtLeast(300.0)
                             }
                         }
                 ) {

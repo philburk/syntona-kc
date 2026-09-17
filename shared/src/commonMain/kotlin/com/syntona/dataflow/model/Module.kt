@@ -76,6 +76,11 @@ abstract class Module(val type: String) {
         return jack
     }
 
+    protected fun <T : InputJack> addCustomInput(jack: T): T {
+        _inputs.add(jack)
+        return jack
+    }
+
     protected fun addOutput(name: String, isInteger: Boolean = false): OutputJack {
         val jack = OutputJack(name, this, isInteger)
         _outputs.add(jack)

@@ -43,6 +43,7 @@ import com.syntona.dataflow.modules.EquationModule
 import com.syntona.dataflow.modules.ScaleModule
 import com.syntona.dataflow.modules.BeatClockModule
 import com.syntona.dataflow.modules.TimelineModule
+import com.syntona.dataflow.modules.TrackType
 import com.syntona.core.audio.AudioSettings
 import com.syntona.dataflow.modules.FloatSampleModule
 import com.syntona.dataflow.modules.SamplePlayerModule
@@ -294,6 +295,22 @@ object GraphSerializer {
                 module.triggers.forEachIndexed { i, trig ->
                     if (i > 0) append(",")
                     append("{\"id\":${trig.id},\"time\":${trig.time},\"jack\":\"${trig.outputJack.name.jsonEscape}\"}")
+                }
+                append("]")
+                append(",\"tracks\":[")
+                module.tracks.forEachIndexed { ti, track ->
+                    if (ti > 0) append(",")
+                    append("{\"id\":${track.id},\"type\":\"${track.type.name}\",\"name\":\"${track.name.jsonEscape}\"")
+                    append(",\"muted\":${track.isMuted},\"soloed\":${track.isSoloed}")
+                    append(",\"armed\":${track.isRecordArmed},\"monitored\":${track.isInputMonitored}")
+                    track.inputJack?.let { append(",\"inJack\":\"${it.name.jsonEscape}\"") }
+                    track.outputJack?.let { append(",\"outJack\":\"${it.name.jsonEscape}\"") }
+                    append(",\"sections\":[")
+                    track.sections.forEachIndexed { si, sec ->
+                        if (si > 0) append(",")
+                        append("{\"id\":${sec.id},\"start\":${sec.start},\"duration\":${sec.duration},\"repeats\":${sec.repeats},\"name\":\"${sec.name.jsonEscape}\"}")
+                    }
+                    append("]}")
                 }
                 append("]")
             }
@@ -629,6 +646,33 @@ object GraphSerializer {
                     val time = (trigObj.map["time"] as? JsonValue.Num)?.value ?: return@forEach
                     val jackName = (trigObj.map["jack"] as? JsonValue.Str)?.value ?: return@forEach
                     module.addTriggerDirect(id, time, jackName)
+                }
+
+                module.clearTracks()
+                (obj?.map?.get("tracks") as? JsonValue.Arr)?.items?.forEach { trackVal ->
+                    val trackObj = trackVal as? JsonValue.Obj ?: return@forEach
+                    val id = (trackObj.map["id"] as? JsonValue.Num)?.value?.toInt() ?: return@forEach
+                    val typeStr = (trackObj.map["type"] as? JsonValue.Str)?.value ?: return@forEach
+                    val type = try { TrackType.valueOf(typeStr) } catch (e: Exception) { TrackType.MESSAGE }
+                    val name = (trackObj.map["name"] as? JsonValue.Str)?.value ?: type.displayName
+                    val inJackName = (trackObj.map["inJack"] as? JsonValue.Str)?.value
+                    val outJackName = (trackObj.map["outJack"] as? JsonValue.Str)?.value
+
+                    val track = module.addTrackDirect(id, type, name, inJackName, outJackName)
+                    track.isMuted = (trackObj.map["muted"] as? JsonValue.Bool)?.value ?: false
+                    track.isSoloed = (trackObj.map["soloed"] as? JsonValue.Bool)?.value ?: false
+                    track.isRecordArmed = (trackObj.map["armed"] as? JsonValue.Bool)?.value ?: false
+                    track.isInputMonitored = (trackObj.map["monitored"] as? JsonValue.Bool)?.value ?: false
+
+                    (trackObj.map["sections"] as? JsonValue.Arr)?.items?.forEach { secVal ->
+                        val secObj = secVal as? JsonValue.Obj ?: return@forEach
+                        val sId = (secObj.map["id"] as? JsonValue.Num)?.value?.toInt() ?: return@forEach
+                        val start = (secObj.map["start"] as? JsonValue.Num)?.value ?: 0.0
+                        val dur = (secObj.map["duration"] as? JsonValue.Num)?.value ?: 1.0
+                        val reps = (secObj.map["repeats"] as? JsonValue.Num)?.value?.toInt() ?: 1
+                        val sName = (secObj.map["name"] as? JsonValue.Str)?.value ?: ""
+                        track.addSectionDirect(sId, start, dur, reps, sName)
+                    }
                 }
             }
             if (module is KeyNotesModule) {

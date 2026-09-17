@@ -12,6 +12,9 @@ We can add several track types to the timeLine module.
 A "+Track" button will appear in the toolbar of the timeline.
 When I click it I will get a popup Menu that allows me to add one of the track types below.
 
+New tracks are added above the existing Trigger Track, which must be pinned at the bottom of
+the timeLine because the connections are made at the bottom of that module.
+
 ## Common Track Features
 
 Several of the tracks will have "in" and "out" jacks of different types.
@@ -22,7 +25,7 @@ Above the MSRI buttons will be a text field for the track name.
 Each track can have recorded sections that look like the sections on a DAW.
 I can drag each section by its header.
 I can also drag the right edge. At the top of the right edge I can add copies of the original section.
-At the bottom of the left edge I can change the duration of the section.
+At the bottom of the right edge I can change the duration of the section.
 
 When working in the beatLine the dragging operations of the regions
 and the region durations should snap to the smallest visible beat subdivisions.
@@ -64,4 +67,5 @@ We will worry about the editing later.
 When we save a patch containing a timeLine with audio tracks, the audio will be saved in a WAV file
 so that the JSON file will not be huge. The audio will be saved in a folder called "audio"
 next to the .sntn file being saved.
+Latency compensation should be applied like in the recorder module.
 For now, audio tracks will only be available on the desktop version of Syntona.

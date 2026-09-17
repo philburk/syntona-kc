@@ -10,9 +10,16 @@ import com.syntona.dataflow.engine.DataFlowEngine
 import com.syntona.dataflow.engine.EngineAware
 import com.syntona.dataflow.engine.ScheduledEvent
 import com.syntona.dataflow.engine.SyntonaCommand
+import com.syntona.dataflow.model.AudioInputJack
+import com.syntona.dataflow.model.AudioOutputJack
+import com.syntona.dataflow.model.CommandJack
 import com.syntona.dataflow.model.CommandOutputJack
+import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
+import com.syntona.dataflow.model.OutputJack
+import com.syntona.dataflow.model.VoiceInputJack
+import com.syntona.dataflow.model.VoiceOutputJack
 
 class TimelineTrigger(
     val id: Int,
@@ -28,6 +35,7 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
     val rewind = addCommandInput("rewind")
 
     val triggers = mutableStateListOf<TimelineTrigger>()
+    val tracks = mutableStateListOf<TimelineTrack>()
 
     var width by mutableStateOf(320.0)
     var maxTime by mutableStateOf(60.0)
@@ -44,24 +52,146 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
     var playbackStartTimeNs by mutableStateOf(0L)
         private set
 
+    var isRecording by mutableStateOf(false)
+        private set
+    var recordJack: CommandJack? by mutableStateOf(null)
+        private set
+
     open fun unitsToSeconds(units: Double): Double = units
     open fun secondsToUnits(seconds: Double): Double = seconds
 
     private var engine: DataFlowEngine? = null
     private val scheduledEvents = mutableListOf<ScheduledEvent>()
     private var nextTriggerId = 0
+    private var nextTrackId = 1
 
     override fun setEngine(engine: DataFlowEngine) {
         this.engine = engine
     }
 
     override fun teardown() {
+        stopRecording(ScoreClock.now())
         stopPlayback(ScoreClock.now())
+        tracks.toList().forEach { it.teardown() }
         super.teardown()
+    }
+
+    fun updateRecordJack() {
+        val hasRecordable = tracks.any { it.type.isRecordable }
+        if (hasRecordable && recordJack == null) {
+            recordJack = addCommandInput("record")
+        } else if (!hasRecordable && recordJack != null) {
+            recordJack?.let { deleteTrackInput(it) }
+            recordJack = null
+        }
+    }
+
+    fun addTrack(type: TrackType, customName: String? = null): TimelineTrack {
+        val id = nextTrackId++
+        val trackName = customName?.takeIf { it.isNotBlank() } ?: "${type.displayName} $id"
+        val track = when (type) {
+            TrackType.PATCH -> PatchTrack(id, trackName, this)
+            TrackType.MESSAGE -> MessageTrack(id, trackName, this)
+            TrackType.MIDI -> MidiTrack(id, trackName, this)
+            TrackType.AUDIO -> AudioTrack(id, trackName, this)
+        }
+        tracks.add(track)
+        updateRecordJack()
+        return track
+    }
+
+    fun addTrackDirect(
+        id: Int,
+        type: TrackType,
+        name: String,
+        inJackName: String? = null,
+        outJackName: String? = null
+    ): TimelineTrack {
+        val track = when (type) {
+            TrackType.PATCH -> PatchTrack(id, name, this)
+            TrackType.MESSAGE -> MessageTrack(id, name, this, inJackName, outJackName)
+            TrackType.MIDI -> MidiTrack(id, name, this, inJackName, outJackName)
+            TrackType.AUDIO -> AudioTrack(id, name, this, inJackName, outJackName)
+        }
+        tracks.add(track)
+        if (id >= nextTrackId) {
+            nextTrackId = id + 1
+        }
+        updateRecordJack()
+        return track
+    }
+
+    fun removeTrack(track: TimelineTrack) {
+        track.teardown()
+        tracks.remove(track)
+        updateRecordJack()
+    }
+
+    fun clearTracks() {
+        tracks.toList().forEach { it.teardown() }
+        tracks.clear()
+        nextTrackId = 1
+        updateRecordJack()
+    }
+
+    internal fun createTrackInput(name: String): InputJack = addInput(name)
+    internal fun createTrackOutput(name: String): OutputJack = addOutput(name)
+    internal fun createTrackVoiceInput(name: String): VoiceInputJack = addVoiceInput(name)
+    internal fun createTrackVoiceOutput(name: String): VoiceOutputJack = addVoiceOutput(name)
+    internal fun createTrackAudioInput(name: String, port: com.softsynth.ksyn.ports.UnitInputPort): AudioInputJack = addAudioInput(name, port)
+    internal fun createTrackAudioOutput(name: String, port: com.softsynth.ksyn.ports.UnitOutputPort): AudioOutputJack = addAudioOutput(name, port)
+
+    internal fun deleteTrackInput(jack: InputJack) {
+        removeInput(jack)
+        parentPatch?.graphState?.let { gs ->
+            val toDisconnect = gs.connections.filter { it.input == jack }
+            toDisconnect.forEach { gs.disconnect(it.output, it.input) }
+            gs.jackOffsets.remove(jack)
+            gs.jackBounds.remove(jack)
+        }
+    }
+
+    internal fun deleteTrackOutput(jack: OutputJack) {
+        removeOutput(jack)
+        parentPatch?.graphState?.let { gs ->
+            val toDisconnect = gs.connections.filter { it.output == jack }
+            toDisconnect.forEach { gs.disconnect(it.output, it.input) }
+            gs.jackOffsets.remove(jack)
+            gs.jackBounds.remove(jack)
+        }
+    }
+
+    fun startRecording(now: ScoreTime) {
+        if (!isPlaying) {
+            startPlayback(now, seekTime)
+        }
+        isRecording = true
+        tracks.filter { it.isRecordArmed }.forEach { it.onRecordStart(seekTime) }
+    }
+
+    fun stopRecording(now: ScoreTime) {
+        if (isRecording) {
+            isRecording = false
+            tracks.filter { it.isRecordArmed }.forEach { it.onRecordStop() }
+        }
     }
 
     override fun execute(triggerMessage: Message) {
         when {
+            recordJack?.isKicked == true -> {
+                val e = engine ?: return
+                e.post(object : SyntonaCommand {
+                    override val isUndoable = false
+                    override fun execute() {
+                        if (isRecording) {
+                            stopRecording(triggerMessage.time)
+                        } else {
+                            startRecording(triggerMessage.time)
+                        }
+                    }
+                    override fun undo() {}
+                })
+            }
             start.isKicked -> {
                 val e = engine ?: return
                 e.post(object : SyntonaCommand {
@@ -77,6 +207,9 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
                 e.post(object : SyntonaCommand {
                     override val isUndoable = false
                     override fun execute() {
+                        if (isRecording) {
+                            stopRecording(triggerMessage.time)
+                        }
                         stopPlayback(triggerMessage.time)
                     }
                     override fun undo() {}
@@ -144,6 +277,9 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
     }
 
     fun stopPlayback(now: ScoreTime) {
+        if (isRecording) {
+            stopRecording(now)
+        }
         if (isPlaying) {
             val elapsedSeconds = (now.nanoseconds - playbackStartTimeNs) / 1_000_000_000.0
             val elapsedUnits = secondsToUnits(elapsedSeconds)
@@ -152,6 +288,7 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
         scheduledEvents.forEach { it.cancel() }
         scheduledEvents.clear()
         isPlaying = false
+        tracks.forEach { it.onPlaybackStop() }
     }
 
     fun requestPlayToggle() {
@@ -211,18 +348,44 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
  * A timeline sequencer operating in musical beats with tempo control.
  */
 class BeatLineModule : TimelineModule("beatLine") {
-    val tempo = addInput("tempo").also {
+    val tempo: InputJack = addCustomInput(object : InputJack("tempo", this) {
+        override fun receive(msg: Message) {
+            if (isTempoLocked) {
+                return
+            }
+            super.receive(msg)
+        }
+    }).also {
         it.min = 20.0
         it.max = 300.0
         it.setValue(120.0)
     }
+
+    val isTempoLocked: Boolean
+        get() = tracks.any { it is AudioTrack && it.sections.isNotEmpty() }
+
+    var lockedTempoBpm: Double? = null
+        get() {
+            if (isTempoLocked) {
+                if (field == null) {
+                    field = tempo.getDoubleValue(120.0).coerceAtLeast(1.0)
+                }
+                return field
+            } else {
+                field = null
+                return null
+            }
+        }
+        private set
 
     init {
         maxTime = 16.0
         loopEnd = 4.0
     }
 
-    fun getTempoBpm(): Double = tempo.getDoubleValue(120.0).coerceAtLeast(1.0)
+    fun getTempoBpm(): Double {
+        return lockedTempoBpm ?: tempo.getDoubleValue(120.0).coerceAtLeast(1.0)
+    }
 
     override fun unitsToSeconds(units: Double): Double {
         return units * (60.0 / getTempoBpm())
