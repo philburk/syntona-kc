@@ -22,6 +22,8 @@ import com.syntona.dataflow.model.OutputJack
 import com.syntona.dataflow.model.VoiceInputJack
 import com.syntona.dataflow.model.VoiceOutputJack
 
+import kotlin.math.roundToInt
+
 class TimelineTrigger(
     val id: Int,
     initialTime: Double,
@@ -60,14 +62,36 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
 
     open fun unitsToSeconds(units: Double): Double = units
     open fun secondsToUnits(seconds: Double): Double = seconds
+    open fun getTempoBpm(): Double = 120.0
+
+    fun unitsToTicks(units: Double): Int {
+        val ticksPerUnit = if (this is BeatLineModule) {
+            PianoRollTiming.TPB.toDouble()
+        } else {
+            (getTempoBpm() / 60.0) * PianoRollTiming.TPB
+        }
+        return (units * ticksPerUnit).roundToInt()
+    }
+
+    fun ticksToUnits(ticks: Int): Double {
+        val ticksPerUnit = if (this is BeatLineModule) {
+            PianoRollTiming.TPB.toDouble()
+        } else {
+            (getTempoBpm() / 60.0) * PianoRollTiming.TPB
+        }
+        return ticks.toDouble() / ticksPerUnit
+    }
 
     private var engine: DataFlowEngine? = null
+    fun getEngine(): DataFlowEngine? = engine
+
     private val scheduledEvents = mutableListOf<ScheduledEvent>()
     private var nextTriggerId = 0
     private var nextTrackId = 1
 
     override fun setEngine(engine: DataFlowEngine) {
         this.engine = engine
+        tracks.forEach { it.setEngine(engine) }
     }
 
     override fun teardown() {
@@ -96,6 +120,7 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
             TrackType.MIDI -> MidiTrack(id, trackName, this)
             TrackType.AUDIO -> AudioTrack(id, trackName, this)
         }
+        engine?.let { track.setEngine(it) }
         tracks.add(track)
         updateRecordJack()
         return track
@@ -114,6 +139,7 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
             TrackType.MIDI -> MidiTrack(id, name, this, inJackName, outJackName)
             TrackType.AUDIO -> AudioTrack(id, name, this, inJackName, outJackName)
         }
+        engine?.let { track.setEngine(it) }
         tracks.add(track)
         if (id >= nextTrackId) {
             nextTrackId = id + 1
@@ -423,7 +449,7 @@ class BeatLineModule : TimelineModule("beatLine") {
         loopEnd = 4.0
     }
 
-    fun getTempoBpm(): Double {
+    override fun getTempoBpm(): Double {
         return lockedTempoBpm ?: tempo.getDoubleValue(120.0).coerceAtLeast(1.0)
     }
 

@@ -48,6 +48,8 @@ import com.syntona.dataflow.modules.PatchTrack
 import com.syntona.dataflow.modules.MessageTrack
 import com.syntona.dataflow.modules.MessageSectionData
 import com.syntona.dataflow.modules.TrackMessageEvent
+import com.syntona.dataflow.modules.MidiTrack
+import com.syntona.dataflow.modules.MidiSectionData
 import com.syntona.core.audio.AudioSettings
 import com.syntona.dataflow.modules.FloatSampleModule
 import com.syntona.dataflow.modules.SamplePlayerModule
@@ -326,6 +328,23 @@ object GraphSerializer {
                                 append("{\"time\":${ev.time},\"value\":${ev.value}}")
                             }
                             append("]")
+                        }
+                        val midiData = sec.data as? MidiSectionData
+                        if (midiData != null) {
+                            append(",\"notes\":[")
+                            midiData.pianoRoll.notes.forEachIndexed { ni, n ->
+                                if (ni > 0) append(",")
+                                append("[${n.id},${n.startTicks},${n.durationTicks},${n.parentId},${n.ratio.n},${n.ratio.d},${n.rootPitch}]")
+                            }
+                            append("]")
+                            if (midiData.voiceEvents.isNotEmpty()) {
+                                append(",\"voiceEvents\":[")
+                                midiData.voiceEvents.forEachIndexed { vi, ve ->
+                                    if (vi > 0) append(",")
+                                    append("[${ve.time},\"${ve.opcode.name}\",${ve.tag},${ve.value},${ve.extra}]")
+                                }
+                                append("]")
+                            }
                         }
                         append("}")
                     }
@@ -721,6 +740,49 @@ object GraphSerializer {
                                 initialMin = minVal,
                                 initialMax = maxVal
                             )
+                        }
+
+                        val notesArr = (secObj.map["notes"] as? JsonValue.Arr)?.items?.mapNotNull { it as? JsonValue.Arr }
+                        val voiceEventsArr = (secObj.map["voiceEvents"] as? JsonValue.Arr)?.items?.mapNotNull { it as? JsonValue.Arr }
+                        if (notesArr != null || voiceEventsArr != null || track is MidiTrack) {
+                            val midiData = MidiSectionData()
+                            notesArr?.forEach { noteRow ->
+                                val items = noteRow.items
+                                if (items.size >= 7) {
+                                    val nid = (items[0] as? JsonValue.Num)?.value?.toInt() ?: return@forEach
+                                    val st = (items[1] as? JsonValue.Num)?.value?.toInt() ?: 0
+                                    val dur = (items[2] as? JsonValue.Num)?.value?.toInt() ?: 240
+                                    val pid = (items[3] as? JsonValue.Num)?.value?.toInt() ?: -1
+                                    val rn = (items[4] as? JsonValue.Num)?.value?.toInt() ?: 1
+                                    val rd = (items[5] as? JsonValue.Num)?.value?.toInt() ?: 1
+                                    val rp = (items[6] as? JsonValue.Num)?.value ?: 60.0
+                                    midiData.pianoRoll.notes.add(
+                                        PianoRollNote(
+                                            id = nid,
+                                            startTicks = st,
+                                            durationTicks = dur,
+                                            parentId = pid,
+                                            ratio = Ratio(rn, rd),
+                                            rootPitch = rp
+                                        )
+                                    )
+                                }
+                            }
+                            midiData.pianoRoll.resetNextNoteId()
+                            voiceEventsArr?.forEach { row ->
+                                val items = row.items
+                                if (items.size >= 5) {
+                                    val t = (items[0] as? JsonValue.Num)?.value ?: 0.0
+                                    val opStr = (items[1] as? JsonValue.Str)?.value ?: ""
+                                    val opcode = runCatching { Message.VoiceOpcode.valueOf(opStr) }.getOrNull() ?: return@forEach
+                                    val tag = (items[2] as? JsonValue.Num)?.value?.toInt() ?: -1
+                                    val value = (items[3] as? JsonValue.Num)?.value ?: 0.0
+                                    val extra = (items[4] as? JsonValue.Num)?.value ?: 0.0
+                                    midiData.addVoiceEvent(t, opcode, tag, value, extra)
+                                }
+                            }
+                            sec.data = midiData
+                            (track as? MidiTrack)?.bindSectionData(midiData)
                         }
                     }
                 }

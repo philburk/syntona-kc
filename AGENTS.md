@@ -5,6 +5,9 @@
 - The user edits this file manually while tasks are running; do not modify,
 - delete, or overwrite it under any circumstances.
 
+Do not base any permanent tests on files outside of the syntona-kc repository. They may go away.
+Only use files outside of the repo if the users ask you to debug a problem using a specific file.
+
 ## Codebase Conventions
 
 If the user references a module by its short name, for example "envSeg module",

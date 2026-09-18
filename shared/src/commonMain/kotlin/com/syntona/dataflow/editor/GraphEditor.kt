@@ -8,6 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.Key
@@ -154,6 +155,8 @@ import com.syntona.dataflow.modules.MessageTrack
 import com.syntona.dataflow.modules.MidiTrack
 import com.syntona.dataflow.modules.AudioTrack
 import com.syntona.dataflow.modules.MessageSectionData
+import com.syntona.dataflow.modules.MidiSectionData
+import com.syntona.dataflow.modules.PianoRollTiming
 import com.softsynth.audiobridge.AudioInputBridge
 import com.syntona.dataflow.modules.KeyNotesModule
 import com.syntona.dataflow.modules.PianoRollModule
@@ -4109,6 +4112,34 @@ fun TrackSectionView(
                     modifier = Modifier.padding(start = 2.dp, top = 1.dp)
                 )
 
+                val ghostMidiData = section.data as? MidiSectionData
+                if (ghostMidiData != null) {
+                    Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 2.dp, vertical = 2.dp)) {
+                        val w = size.width
+                        val h = size.height
+                        val notes = ghostMidiData.pianoRoll.notes
+                        if (notes.isNotEmpty()) {
+                            val totalTicks = module.unitsToTicks(section.duration).coerceAtLeast(PianoRollTiming.GRID_TICKS)
+                            val pitches = notes.map { ghostMidiData.pianoRoll.pitchOf(it) }
+                            val minPitch = (pitches.minOrNull() ?: 60.0) - 2.0
+                            val maxPitch = (pitches.maxOrNull() ?: 72.0) + 2.0
+                            val pitchRange = (maxPitch - minPitch).coerceAtLeast(12.0)
+
+                            for (note in notes) {
+                                val p = ghostMidiData.pianoRoll.pitchOf(note)
+                                val nx = ((note.startTicks.toFloat() / totalTicks) * w).coerceIn(0f, w)
+                                val nw = ((note.durationTicks.toFloat() / totalTicks) * w).coerceAtLeast(2f)
+                                val ny = ((1f - ((p - minPitch) / pitchRange).toFloat()) * (h - 4f)).coerceIn(0f, h - 3f)
+                                drawRect(
+                                    color = Color.White.copy(alpha = 0.4f),
+                                    topLeft = Offset(nx, ny),
+                                    size = Size(minOf(nw, w - nx), 2.5f.dp.toPx())
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // Repeat drag handle on the last repeated ghost box
                 if (isLastRepeat) {
                     Box(
@@ -4213,6 +4244,34 @@ fun TrackSectionView(
                     }
                 }
 
+                val midiData = section.data as? MidiSectionData
+                if (midiData != null) {
+                    Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 2.dp, vertical = 2.dp)) {
+                        val w = size.width
+                        val h = size.height
+                        val notes = midiData.pianoRoll.notes
+                        if (notes.isNotEmpty()) {
+                            val totalTicks = module.unitsToTicks(section.duration).coerceAtLeast(PianoRollTiming.GRID_TICKS)
+                            val pitches = notes.map { midiData.pianoRoll.pitchOf(it) }
+                            val minPitch = (pitches.minOrNull() ?: 60.0) - 2.0
+                            val maxPitch = (pitches.maxOrNull() ?: 72.0) + 2.0
+                            val pitchRange = (maxPitch - minPitch).coerceAtLeast(12.0)
+
+                            for (note in notes) {
+                                val p = midiData.pianoRoll.pitchOf(note)
+                                val nx = ((note.startTicks.toFloat() / totalTicks) * w).coerceIn(0f, w)
+                                val nw = ((note.durationTicks.toFloat() / totalTicks) * w).coerceAtLeast(2f)
+                                val ny = ((1f - ((p - minPitch) / pitchRange).toFloat()) * (h - 4f)).coerceIn(0f, h - 3f)
+                                drawRect(
+                                    color = Color.White.copy(alpha = 0.8f),
+                                    topLeft = Offset(nx, ny),
+                                    size = Size(minOf(nw, w - nx), 2.5f.dp.toPx())
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // Repeat Handle (Top-Right)
                 Box(
                     modifier = Modifier
@@ -4294,10 +4353,10 @@ fun TrackLaneView(
     } else 1.0
 
     val sectionColor = when (track.type) {
-        TrackType.PATCH -> Color(0xFF1E88E5)
-        TrackType.MESSAGE -> Color(0xFF43A047)
+        TrackType.PATCH -> MaterialTheme.colorScheme.primary
+        TrackType.MESSAGE -> Color(0xFF1E88E5)
         TrackType.MIDI -> Color(0xFFFB8C00)
-        TrackType.AUDIO -> Color(0xFFE53935)
+        TrackType.AUDIO -> Color(0xFF43A047)
     }
 
     val maxTimeX = 24.dp * (module.maxTime.toFloat() * coercedZoom)
@@ -4673,6 +4732,39 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
             onClose = { state.clearSelection() },
             content = { MessageColumnEditor(section = sec, track = track) }
         )
+        mdiState.open(window)
+    }
+
+    val openMidiTrackEditor = { track: MidiTrack, sec: TrackSection ->
+        state.clearSelection()
+        val midiData = sec.data as? MidiSectionData ?: MidiSectionData().also {
+            track.bindSectionData(it)
+            sec.data = it
+        }
+        val prModule = midiData.pianoRoll
+        prModule.name = "${track.name} : ${sec.name.ifEmpty { "Sec ${sec.id + 1}" }}"
+        (state.engine ?: module.getEngine())?.let { prModule.setEngine(it) }
+        prModule.tempo.setValue(module.getTempoBpm())
+
+        val window = MdiWindowInfo(
+            id = sec,
+            title = prModule.name,
+            position = Offset(
+                ((state.modulePositions[module]?.x ?: 100f) + 30f) * density.density,
+                ((state.modulePositions[module]?.y ?: 100f) + 40f) * density.density
+            ),
+            width = prModule.windowWidth?.dp ?: 800.dp,
+            height = prModule.windowHeight?.dp ?: 500.dp,
+            graphState = state,
+            onClose = { state.clearSelection() },
+            content = { PianoRollEditor(prModule, state) }
+        )
+        window.onGeometryChanged = {
+            prModule.windowX = window.position.x / density.density
+            prModule.windowY = window.position.y / density.density
+            prModule.windowWidth = window.width.value
+            prModule.windowHeight = window.height.value
+        }
         mdiState.open(window)
     }
 
@@ -5356,6 +5448,7 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                             when (track) {
                                                 is PatchTrack -> openPatchTrackEditor(track)
                                                 is MessageTrack -> openMessageTrackEditor(track, sec)
+                                                is MidiTrack -> openMidiTrackEditor(track, sec)
                                                 else -> {}
                                             }
                                         }

@@ -64,6 +64,7 @@ class TrackSection(
         val sec = TrackSection(newId, newStart, duration, repeats, name)
         sec.data = when (val d = data) {
             is MessageSectionData -> d.copy()
+            is MidiSectionData -> d.copy()
             else -> d
         }
         return sec
@@ -162,6 +163,7 @@ abstract class TimelineTrack(
         val newSec = addSectionDirect(sId, newStart, section.duration, section.repeats, section.name)
         newSec.data = when (val d = section.data) {
             is MessageSectionData -> d.copy()
+            is MidiSectionData -> d.copy()
             else -> d
         }
         return newSec
@@ -175,6 +177,8 @@ abstract class TimelineTrack(
         sections.clear()
         nextSectionId = 0
     }
+
+    open fun setEngine(engine: DataFlowEngine) {}
 
     open fun teardown() {
         onPlaybackStop()
@@ -594,6 +598,426 @@ class MidiTrack(
     override val inputJack: VoiceInputJack = timeline.createTrackVoiceInput(inJackName ?: "in$id")
     override val outputJack: VoiceOutputJack = timeline.createTrackVoiceOutput(outJackName ?: "out$id")
     override val outputJacks: List<OutputJack> get() = listOf(outputJack)
+
+    private var engine: DataFlowEngine? = null
+    private val scheduledEvents = mutableListOf<ScheduledEvent>()
+    private val activeSoundingNotes = mutableMapOf<Int, Double>() // tag -> pitch
+    private var activeRecordingSection: TrackSection? = null
+
+    private data class OpenRecordingNote(
+        val tag: Int,
+        val pitch: Double,
+        val velocity: Double,
+        val startUnits: Double,
+        val section: TrackSection
+    )
+    private val openNotes = mutableMapOf<Int, OpenRecordingNote>()
+
+    override fun setEngine(engine: DataFlowEngine) {
+        this.engine = engine
+        sections.forEach { sec ->
+            (sec.data as? MidiSectionData)?.pianoRoll?.setEngine(engine)
+        }
+    }
+
+    override var isMuted: Boolean
+        get() = super.isMuted
+        set(value) {
+            val changed = super.isMuted != value
+            super.isMuted = value
+            if (changed && !isAudible) {
+                silenceSoundingNotes()
+            }
+        }
+
+    override var isSoloed: Boolean
+        get() = super.isSoloed
+        set(value) {
+            val changed = super.isSoloed != value
+            super.isSoloed = value
+            if (changed) {
+                timeline.tracks.filterIsInstance<MidiTrack>().forEach {
+                    if (!it.isAudible) it.silenceSoundingNotes()
+                }
+            }
+        }
+
+    var lastSentPitchBend: Double? = null
+
+    fun silenceSoundingNotes(timestamp: ScoreTime = ScoreClock.now()) {
+        if (activeSoundingNotes.isNotEmpty()) {
+            for ((tag, pitch) in activeSoundingNotes) {
+                outputJack.send(
+                    Message.VoiceMessage(
+                        timestamp,
+                        Message.VoiceOpcode.NOTE_OFF,
+                        tag = tag,
+                        value = pitch,
+                        extra = PianoRollModule.NOTE_AMPLITUDE
+                    )
+                )
+            }
+            activeSoundingNotes.clear()
+        }
+        if (lastSentPitchBend != null && lastSentPitchBend != 0.0) {
+            outputJack.send(
+                Message.VoiceMessage(
+                    timestamp,
+                    Message.VoiceOpcode.PITCH_BEND,
+                    tag = -1,
+                    value = 0.0,
+                    extra = 0.0
+                )
+            )
+            lastSentPitchBend = 0.0
+        }
+    }
+
+    override fun addSectionDirect(id: Int, start: Double, duration: Double, repeats: Int, name: String): TrackSection {
+        val section = super.addSectionDirect(id, start, duration, repeats, name)
+        if (section.data == null) {
+            val data = MidiSectionData()
+            bindSectionData(data)
+            section.data = data
+        } else if (section.data is MidiSectionData) {
+            bindSectionData(section.data as MidiSectionData)
+        }
+        return section
+    }
+
+    fun bindSectionData(data: MidiSectionData) {
+        val pr = data.pianoRoll
+        engine?.let { pr.setEngine(it) }
+        pr.tempo.setValue(timeline.getTempoBpm())
+        if (data.bridgeJack == null) {
+            val bridge = object : InputJack("bridge_${id}_${pr.name}", timeline) {
+                override fun receive(msg: Message) {
+                    if (isAudible) {
+                        outputJack.send(msg)
+                    }
+                }
+            }
+            data.bridgeJack = bridge
+            pr.output.connect(bridge)
+        }
+    }
+
+    override fun onRecordStart(now: ScoreTime, startUnits: Double) {
+        openNotes.clear()
+        val existing = sections.find { startUnits >= it.start && startUnits < it.end }
+        if (existing != null) {
+            activeRecordingSection = existing
+            if (existing.data !is MidiSectionData) {
+                val data = MidiSectionData()
+                bindSectionData(data)
+                existing.data = data
+            }
+        } else if (canAddSectionAt(startUnits)) {
+            val defaultDur = if (timeline is BeatLineModule) 4.0 else 2.0
+            val avail = getAvailableDurationAt(startUnits, defaultDur)
+            if (avail >= 0.05) {
+                activeRecordingSection = addSection(startUnits, avail)
+            } else {
+                activeRecordingSection = null
+            }
+        } else {
+            activeRecordingSection = null
+        }
+    }
+
+    override fun onRecordStop(now: ScoreTime, stopUnits: Double) {
+        if (openNotes.isNotEmpty()) {
+            openNotes.values.toList().forEach { openNote ->
+                closeRecordingNote(openNote, stopUnits)
+            }
+            openNotes.clear()
+        }
+
+        activeRecordingSection?.let { sec ->
+            if (stopUnits > sec.start && sec.repeats == 1) {
+                val maxDur = getMaxDuration(sec, timeline.maxTime)
+                val newDur = (stopUnits - sec.start).coerceIn(0.5, maxDur)
+                if (newDur > sec.duration) {
+                    sec.duration = newDur
+                }
+            }
+        }
+        activeRecordingSection = null
+    }
+
+    override fun onMessageReceived(jack: InputJack, msg: Message) {
+        if (jack === inputJack && msg is Message.VoiceMessage) {
+            if (isInputMonitored && isAudible) {
+                if (msg.opcode == Message.VoiceOpcode.PITCH_BEND) {
+                    lastSentPitchBend = msg.value
+                }
+                outputJack.send(msg)
+            }
+            if (isRecordArmed && timeline.isRecording) {
+                recordVoiceMessage(msg)
+            }
+        }
+    }
+
+    private fun getOrCreateRecordingSection(pos: Double): TrackSection? {
+        var sec = activeRecordingSection ?: sections.find { pos >= it.start && pos < it.end }
+        if (sec == null && canAddSectionAt(pos)) {
+            val defaultDur = if (timeline is BeatLineModule) 4.0 else 2.0
+            val avail = getAvailableDurationAt(pos, defaultDur)
+            if (avail >= 0.05) {
+                sec = addSection(pos, avail)
+                activeRecordingSection = sec
+            }
+        }
+        return sec
+    }
+
+    private fun recordVoiceMessage(msg: Message.VoiceMessage) {
+        val isNoteOff = msg.opcode == Message.VoiceOpcode.NOTE_OFF ||
+                (msg.opcode == Message.VoiceOpcode.NOTE_ON && msg.extra <= 0.0)
+
+        if (isNoteOff) {
+            val openNote = openNotes.remove(msg.tag)
+                ?: openNotes.entries.firstOrNull { it.value.pitch == msg.value }?.let { openNotes.remove(it.key) }
+            if (openNote != null) {
+                val endUnits = timeline.getCurrentTime(msg.time)
+                closeRecordingNote(openNote, endUnits)
+            }
+        } else if (msg.opcode == Message.VoiceOpcode.NOTE_ON) {
+            val pos = timeline.getCurrentTime(msg.time)
+            val sec = getOrCreateRecordingSection(pos) ?: return
+
+            // If note with this tag was already open, close it first
+            openNotes.remove(msg.tag)?.let { closeRecordingNote(it, pos) }
+
+            openNotes[msg.tag] = OpenRecordingNote(
+                tag = msg.tag,
+                pitch = msg.value,
+                velocity = msg.extra,
+                startUnits = pos,
+                section = sec
+            )
+        } else {
+            // Non-note VoiceMessage (PITCH_BEND, CONTROL_CHANGE, PRESSURE, PROGRAM_CHANGE, etc.)
+            val pos = timeline.getCurrentTime(msg.time)
+            val sec = getOrCreateRecordingSection(pos) ?: return
+
+            if (pos > sec.end && sec.repeats == 1) {
+                val maxDur = getMaxDuration(sec, timeline.maxTime)
+                val neededDur = (pos - sec.start + 0.25).coerceAtMost(maxDur)
+                if (neededDur > sec.duration) {
+                    sec.duration = neededDur
+                }
+            }
+
+            val data = sec.data as? MidiSectionData ?: MidiSectionData().also {
+                bindSectionData(it)
+                sec.data = it
+            }
+
+            val relStartUnits = if (sec.repeats > 1) {
+                (pos - sec.start) % sec.duration
+            } else {
+                pos - sec.start
+            }.coerceAtLeast(0.0)
+
+            data.addVoiceEvent(relStartUnits, msg.opcode, msg.tag, msg.value, msg.extra)
+        }
+    }
+
+    private fun closeRecordingNote(openNote: OpenRecordingNote, endUnits: Double) {
+        val sec = openNote.section
+        val startUnits = openNote.startUnits
+        val safeEndUnits = maxOf(endUnits, startUnits + 0.01)
+
+        if (safeEndUnits > sec.end && sec.repeats == 1) {
+            val maxDur = getMaxDuration(sec, timeline.maxTime)
+            val neededDur = (safeEndUnits - sec.start + 0.25).coerceAtMost(maxDur)
+            if (neededDur > sec.duration) {
+                sec.duration = neededDur
+            }
+        }
+
+        val data = sec.data as? MidiSectionData ?: MidiSectionData().also {
+            bindSectionData(it)
+            sec.data = it
+        }
+
+        val relStartUnits = if (sec.repeats > 1) {
+            (startUnits - sec.start) % sec.duration
+        } else {
+            startUnits - sec.start
+        }.coerceAtLeast(0.0)
+
+        val durUnits = (safeEndUnits - startUnits).coerceAtLeast(0.01)
+
+        val startTicks = timeline.unitsToTicks(relStartUnits)
+        val durTicks = timeline.unitsToTicks(durUnits).coerceAtLeast(PianoRollTiming.GRID_TICKS / 4)
+
+        data.addNote(startTicks, durTicks, openNote.pitch)
+    }
+
+    override fun onPlaybackStart(now: ScoreTime, startPosUnits: Double, cycleEndUnits: Double, engine: DataFlowEngine) {
+        scheduledEvents.forEach { it.cancel() }
+        scheduledEvents.clear()
+        silenceSoundingNotes(now)
+
+        sections.forEach { section ->
+            val data = section.data as? MidiSectionData ?: return@forEach
+            val pianoRoll = data.pianoRoll
+            val notes = pianoRoll.notes
+
+            for (r in 0 until section.repeats) {
+                val repStart = section.start + r * section.duration
+                val repEnd = repStart + section.duration
+                if (repEnd <= startPosUnits || repStart >= cycleEndUnits) continue
+
+                for (note in notes) {
+                    val pitch = pianoRoll.pitchOf(note)
+                    val noteStartUnits = timeline.ticksToUnits(note.startTicks)
+                    val noteDurUnits = timeline.ticksToUnits(note.durationTicks)
+                    val onTimelineUnits = repStart + noteStartUnits
+                    val offTimelineUnits = onTimelineUnits + noteDurUnits
+                    val effectiveOffUnits = minOf(offTimelineUnits, repEnd)
+
+                    if (effectiveOffUnits <= startPosUnits || onTimelineUnits >= cycleEndUnits) continue
+
+                    val tag = (section.id * 100_000) + note.id
+
+                    // NOTE_ON
+                    if (onTimelineUnits >= startPosUnits && onTimelineUnits < cycleEndUnits) {
+                        val delayUnits = onTimelineUnits - startPosUnits
+                        val delaySec = timeline.unitsToSeconds(delayUnits)
+                        val fireOnTime = now + ScoreTime((delaySec * 1_000_000_000.0).toLong())
+                        val sched = engine.schedule(fireOnTime) {
+                            if (isAudible) {
+                                outputJack.send(
+                                    Message.VoiceMessage(
+                                        fireOnTime,
+                                        Message.VoiceOpcode.NOTE_ON,
+                                        tag = tag,
+                                        value = pitch,
+                                        extra = PianoRollModule.NOTE_AMPLITUDE
+                                    )
+                                )
+                                activeSoundingNotes[tag] = pitch
+                            }
+                        }
+                        scheduledEvents.add(sched)
+                    } else if (startPosUnits >= onTimelineUnits && startPosUnits < effectiveOffUnits) {
+                        // Chase note
+                        if (isAudible) {
+                            outputJack.send(
+                                Message.VoiceMessage(
+                                    now,
+                                    Message.VoiceOpcode.NOTE_ON,
+                                    tag = tag,
+                                    value = pitch,
+                                    extra = PianoRollModule.NOTE_AMPLITUDE
+                                )
+                            )
+                            activeSoundingNotes[tag] = pitch
+                        }
+                    }
+
+                    // NOTE_OFF
+                    if (effectiveOffUnits > startPosUnits && effectiveOffUnits <= cycleEndUnits) {
+                        val delayUnits = effectiveOffUnits - startPosUnits
+                        val delaySec = timeline.unitsToSeconds(delayUnits)
+                        val fireOffTime = now + ScoreTime((delaySec * 1_000_000_000.0).toLong())
+                        val sched = engine.schedule(fireOffTime) {
+                            outputJack.send(
+                                Message.VoiceMessage(
+                                    fireOffTime,
+                                    Message.VoiceOpcode.NOTE_OFF,
+                                    tag = tag,
+                                    value = pitch,
+                                    extra = PianoRollModule.NOTE_AMPLITUDE
+                                )
+                            )
+                            activeSoundingNotes.remove(tag)
+                        }
+                        scheduledEvents.add(sched)
+                    }
+                }
+
+                // Schedule non-note voice events (PITCH_BEND, CONTROL_CHANGE, PRESSURE, etc.)
+                for (event in data.voiceEvents) {
+                    if (event.time >= section.duration) continue
+                    val eventTimelineUnits = repStart + event.time
+                    if (eventTimelineUnits >= startPosUnits && eventTimelineUnits < minOf(cycleEndUnits, repEnd)) {
+                        val delayUnits = eventTimelineUnits - startPosUnits
+                        val delaySec = timeline.unitsToSeconds(delayUnits)
+                        val fireTime = now + ScoreTime((delaySec * 1_000_000_000.0).toLong())
+                        val sched = engine.schedule(fireTime) {
+                            if (isAudible) {
+                                if (event.opcode == Message.VoiceOpcode.PITCH_BEND) {
+                                    lastSentPitchBend = event.value
+                                }
+                                outputJack.send(
+                                    Message.VoiceMessage(
+                                        fireTime,
+                                        event.opcode,
+                                        tag = event.tag,
+                                        value = event.value,
+                                        extra = event.extra
+                                    )
+                                )
+                            }
+                        }
+                        scheduledEvents.add(sched)
+                    }
+                }
+
+                // Chase controllers/pitch bend if playback starts mid-repeat
+                if (startPosUnits > repStart && startPosUnits < repEnd && isAudible) {
+                    val pastEvents = data.voiceEvents.filter { (repStart + it.time) <= startPosUnits && it.time < section.duration }
+                    // Chase latest pitch bend if any
+                    pastEvents.lastOrNull { it.opcode == Message.VoiceOpcode.PITCH_BEND }?.let { bendEvent ->
+                        lastSentPitchBend = bendEvent.value
+                        outputJack.send(
+                            Message.VoiceMessage(
+                                now,
+                                Message.VoiceOpcode.PITCH_BEND,
+                                tag = bendEvent.tag,
+                                value = bendEvent.value,
+                                extra = bendEvent.extra
+                            )
+                        )
+                    }
+                    // Chase latest of each CC
+                    val pastCCs = pastEvents.filter { it.opcode == Message.VoiceOpcode.CONTROL_CHANGE }
+                    val ccsSeen = mutableSetOf<Int>()
+                    for (i in pastCCs.indices.reversed()) {
+                        val ccEvent = pastCCs[i]
+                        val ccNum = ccEvent.extra.toInt()
+                        if (ccsSeen.add(ccNum)) {
+                            outputJack.send(
+                                Message.VoiceMessage(
+                                    now,
+                                    Message.VoiceOpcode.CONTROL_CHANGE,
+                                    tag = ccEvent.tag,
+                                    value = ccEvent.value,
+                                    extra = ccEvent.extra
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    override fun onPlaybackStop() {
+        scheduledEvents.forEach { it.cancel() }
+        scheduledEvents.clear()
+        silenceSoundingNotes()
+    }
+
+    override fun teardown() {
+        silenceSoundingNotes()
+        super.teardown()
+    }
 }
 
 class AudioTrack(

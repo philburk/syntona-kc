@@ -4,7 +4,6 @@ import androidx.compose.ui.geometry.Offset
 import com.syntona.dataflow.editor.DeleteModulesCommand
 import com.syntona.dataflow.editor.GraphSerializer
 import com.syntona.dataflow.editor.GraphState
-import com.syntona.dataflow.editor.readFileDirect
 import com.syntona.dataflow.registry.ModuleRegistry
 import com.syntona.core.model.ScoreTime
 import com.syntona.dataflow.model.AudioInputJack
@@ -795,81 +794,7 @@ class TimelineTrackTest {
         assertFalse(newPatchTrack.isPatchRunning, "Patch should be stopped after stop event fires")
     }
 
-    @Test
-    fun testMultitrackTestFileDeserializationAndPlayback() {
-        val json = readFileDirect("/Users/phil/Documents/Syntona/multitrack_test.sntn")
-        if (json == null) {
-            println("multitrack_test.sntn not found on disk, skipping file test")
-            return
-        }
 
-        val graph = GraphState()
-        GraphSerializer.deserialize(graph, json)
-
-        val beatLine = graph.modules.filterIsInstance<TimelineModule>().firstOrNull()
-        assertNotNull(beatLine, "beatLine module should be present")
-
-        val patchTrack = beatLine.tracks.filterIsInstance<PatchTrack>().firstOrNull()
-        assertNotNull(patchTrack, "PatchTrack should be present")
-        assertEquals("Patch 2", patchTrack.name)
-
-        // Modules in Track 2 inner patch: start, stop, sineOsc, envDAHDSR, aOut1 = 5 modules
-        val innerModules = patchTrack.patch.graphState.modules
-        assertEquals(5, innerModules.size, "Should have exactly 5 modules inside Track 2 patch (no duplicates)")
-
-        val startMod = patchTrack.startCommandModule
-        val stopMod = patchTrack.stopCommandModule
-        assertEquals("start", startMod.name)
-        assertEquals("stop", stopMod.name)
-
-        val envMod = innerModules.find { it.name == "envDAHDSR" }
-        assertNotNull(envMod, "envDAHDSR module must exist")
-        val onJack = envMod.inputs.find { it.name == "on" }!!
-        val offJack = envMod.inputs.find { it.name == "off" }!!
-
-        assertTrue(patchTrack.patch.graphState.connections.any { it.output === startMod.output && it.input === onJack }, "startCommandModule must be connected to envDAHDSR on")
-        assertTrue(patchTrack.patch.graphState.connections.any { it.output === stopMod.output && it.input === offJack }, "stopCommandModule must be connected to envDAHDSR off")
-
-        assertTrue(patchTrack.sections.isNotEmpty(), "Sections should be present in multitrack_test.sntn")
-
-        // Test playback dispatch
-        val engine = TestEngine()
-        beatLine.setEngine(engine)
-        val baseNow = ScoreTime(1_000_000_000L)
-        beatLine.startPlayback(baseNow, 0.0)
-
-        assertFalse(patchTrack.isPatchRunning)
-
-        val s0 = patchTrack.sections[0]
-        val s0Start = beatLine.unitsToSeconds(s0.start)
-        val s0Stop = beatLine.unitsToSeconds(s0.start + s0.totalDuration)
-        val sCycleEnd = beatLine.unitsToSeconds(if (beatLine.loopMode) beatLine.loopEnd else beatLine.maxTime)
-
-        val start0 = engine.scheduled.find {
-            val s = (it.first.nanoseconds - baseNow.nanoseconds) / 1_000_000_000.0
-            kotlin.math.abs(s - s0Start) < 0.001
-        }
-        assertNotNull(start0, "Should schedule section 0 start at $s0Start seconds")
-        start0.second()
-        assertTrue(patchTrack.isPatchRunning)
-
-        val stop0 = engine.scheduled.find {
-            val s = (it.first.nanoseconds - baseNow.nanoseconds) / 1_000_000_000.0
-            kotlin.math.abs(s - s0Stop) < 0.001
-        }
-        assertNotNull(stop0, "Should schedule section 0 stop at $s0Stop seconds")
-        stop0.second()
-        assertFalse(patchTrack.isPatchRunning)
-
-        // At cycle end: stopPlayback called
-        val cycleEnd = engine.scheduled.find {
-            val s = (it.first.nanoseconds - baseNow.nanoseconds) / 1_000_000_000.0
-            kotlin.math.abs(s - sCycleEnd) < 0.001
-        }
-        assertNotNull(cycleEnd, "Should schedule cycle end at $sCycleEnd seconds")
-        cycleEnd.second()
-        assertFalse(beatLine.isPlaying)
-    }
 
     @Test
     fun testTrackMessageEventAndSectionDataEditing() {
@@ -989,6 +914,460 @@ class TimelineTrackTest {
         assertEquals("Second", queue.removeNext(time))
         assertEquals("Third", queue.removeNext(time))
         assertNull(queue.removeNext(time))
+    }
+
+    @Test
+    fun testMidiSectionDataAndNotes() {
+        val secData = MidiSectionData()
+        assertEquals(0, secData.pianoRoll.notes.size)
+
+        val n1 = secData.addNote(startTicks = 0, durationTicks = 240, pitch = 60.0)
+        assertEquals(0, n1.startTicks)
+        assertEquals(240, n1.durationTicks)
+        assertEquals(60.0, n1.rootPitch)
+        assertEquals(60.0, secData.pianoRoll.pitchOf(n1))
+
+        // Add dependent note with ratio 3/2 (perfect fifth up: ~7.02 semitones)
+        val nid = secData.pianoRoll.allocateNoteId()
+        val n2 = PianoRollNote(
+            id = nid,
+            startTicks = 240,
+            durationTicks = 240,
+            parentId = n1.id,
+            ratio = Ratio(3, 2),
+            rootPitch = 60.0
+        )
+        secData.pianoRoll.notes.add(n2)
+        assertEquals(2, secData.pianoRoll.notes.size)
+        val p2 = secData.pianoRoll.pitchOf(n2)
+        assertTrue(p2 > 67.0 && p2 < 67.03, "Note 2 should be at ~67.02 semitones, was $p2")
+
+        // Deep copy
+        val copied = secData.copy()
+        assertEquals(2, copied.pianoRoll.notes.size)
+        assertEquals(secData.pianoRoll.notes[0].startTicks, copied.pianoRoll.notes[0].startTicks)
+        assertEquals(secData.pianoRoll.notes[1].ratio, copied.pianoRoll.notes[1].ratio)
+    }
+
+    @Test
+    fun testMidiTrackRecordingNotePairing() {
+        val beatLine = BeatLineModule()
+        val midiTrack = beatLine.addTrack(TrackType.MIDI) as MidiTrack
+        midiTrack.isRecordArmed = true
+
+        val engine = TestEngine()
+        beatLine.setEngine(engine)
+
+        val startNow = ScoreTime(1_000_000_000L)
+        beatLine.startRecording(startNow)
+        assertTrue(beatLine.isRecording)
+
+        // Note On at 1.0 beat (ScoreTime + 0.5s at 120bpm)
+        val onTime = startNow + ScoreTime(500_000_000L)
+        val noteOnMsg = Message.VoiceMessage(
+            onTime,
+            Message.VoiceOpcode.NOTE_ON,
+            tag = 60,
+            value = 60.0,
+            extra = 0.8
+        )
+        midiTrack.onMessageReceived(midiTrack.inputJack, noteOnMsg)
+
+        // Note Off at 2.0 beats (ScoreTime + 1.0s)
+        val offTime = startNow + ScoreTime(1_000_000_000L)
+        val noteOffMsg = Message.VoiceMessage(
+            offTime,
+            Message.VoiceOpcode.NOTE_OFF,
+            tag = 60,
+            value = 60.0,
+            extra = 0.0
+        )
+        midiTrack.onMessageReceived(midiTrack.inputJack, noteOffMsg)
+
+        beatLine.stopRecording(startNow + ScoreTime(1_500_000_000L))
+        assertFalse(beatLine.isRecording)
+
+        // Verify section created and recorded note
+        assertTrue(midiTrack.sections.isNotEmpty(), "Section should be created on recording")
+        val sec = midiTrack.sections.first()
+        val secData = sec.data as? MidiSectionData
+        assertNotNull(secData, "Section should have MidiSectionData")
+        assertEquals(1, secData.pianoRoll.notes.size)
+
+        val recordedNote = secData.pianoRoll.notes.first()
+        assertEquals(60.0, recordedNote.rootPitch)
+        // 1 beat duration = 240 ticks
+        assertEquals(240, recordedNote.durationTicks)
+    }
+
+    @Test
+    fun testMidiTrackDynamicSectionExpansion() {
+        val beatLine = BeatLineModule()
+        val midiTrack = beatLine.addTrack(TrackType.MIDI) as MidiTrack
+        val sec = midiTrack.addSection(start = 0.0, duration = 2.0)
+        assertNotNull(sec)
+        assertEquals(2.0, sec.duration)
+
+        midiTrack.isRecordArmed = true
+        val engine = TestEngine()
+        beatLine.setEngine(engine)
+
+        val startNow = ScoreTime(1_000_000_000L)
+        beatLine.startRecording(startNow)
+
+        // Note On at 0.5 beats
+        val onTime = startNow + ScoreTime(250_000_000L)
+        midiTrack.onMessageReceived(
+            midiTrack.inputJack,
+            Message.VoiceMessage(onTime, Message.VoiceOpcode.NOTE_ON, tag = 64, value = 64.0, extra = 0.7)
+        )
+
+        // Note Off at 3.5 beats (exceeding initial 2.0 duration)
+        val offTime = startNow + ScoreTime(1_750_000_000L)
+        midiTrack.onMessageReceived(
+            midiTrack.inputJack,
+            Message.VoiceMessage(offTime, Message.VoiceOpcode.NOTE_OFF, tag = 64, value = 64.0, extra = 0.0)
+        )
+
+        beatLine.stopRecording(offTime)
+
+        // Duration should have expanded to hold the note
+        assertTrue(sec.duration >= 3.5, "Section duration should expand, was ${sec.duration}")
+    }
+
+    @Test
+    fun testMidiTrackPlaybackSchedulingAndChase() {
+        val beatLine = BeatLineModule()
+        beatLine.loopMode = false
+        beatLine.maxTime = 16.0
+        val midiTrack = beatLine.addTrack(TrackType.MIDI) as MidiTrack
+        val sec = midiTrack.addSection(start = 1.0, duration = 4.0)!!
+        val secData = sec.data as MidiSectionData
+        secData.addNote(startTicks = 0, durationTicks = 240, pitch = 60.0) // 1.0 to 2.0 beats
+        secData.addNote(startTicks = 480, durationTicks = 240, pitch = 64.0) // 3.0 to 4.0 beats
+
+        val engine = TestEngine()
+        beatLine.setEngine(engine)
+
+        val sentMessages = mutableListOf<Message.VoiceMessage>()
+        val spyJack = object : InputJack("spy", beatLine) {
+            override fun receive(msg: Message) {
+                if (msg is Message.VoiceMessage) sentMessages.add(msg)
+            }
+        }
+        midiTrack.outputJack.connect(spyJack)
+
+        val baseNow = ScoreTime(1_000_000_000L)
+        beatLine.startPlayback(baseNow, 0.0)
+
+        // Verify scheduled events
+        assertTrue(engine.scheduled.isNotEmpty(), "Events should be scheduled for playback")
+
+        // 1. Note 1 ON at 1.0 beat (0.5s at 120bpm)
+        val on1 = engine.scheduled.find {
+            val s = (it.first.nanoseconds - baseNow.nanoseconds) / 1_000_000_000.0
+            kotlin.math.abs(s - 0.5) < 0.001
+        }
+        assertNotNull(on1, "Should schedule Note 1 ON at 0.5s")
+        on1.second()
+
+        assertEquals(1, sentMessages.size)
+        assertEquals(Message.VoiceOpcode.NOTE_ON, sentMessages[0].opcode)
+        assertEquals(60.0, sentMessages[0].value)
+
+        // 2. Note 1 OFF at 2.0 beats (1.0s at 120bpm)
+        val off1 = engine.scheduled.find {
+            val s = (it.first.nanoseconds - baseNow.nanoseconds) / 1_000_000_000.0
+            kotlin.math.abs(s - 1.0) < 0.001
+        }
+        assertNotNull(off1, "Should schedule Note 1 OFF at 1.0s")
+        off1.second()
+
+        assertEquals(2, sentMessages.size)
+        assertEquals(Message.VoiceOpcode.NOTE_OFF, sentMessages[1].opcode)
+        assertEquals(sentMessages[0].tag, sentMessages[1].tag, "NOTE_ON and NOTE_OFF should have matching voice tags")
+
+        // Test Chase Notes: start playback in the middle of Note 1 (at 1.5 beats)
+        sentMessages.clear()
+        engine.scheduled.clear()
+        beatLine.startPlayback(baseNow, 1.5)
+
+        // Note 1 should have fired NOTE_ON immediately at baseNow
+        assertEquals(1, sentMessages.size, "Chase note should fire NOTE_ON immediately")
+        assertEquals(Message.VoiceOpcode.NOTE_ON, sentMessages[0].opcode)
+        assertEquals(60.0, sentMessages[0].value)
+    }
+
+    @Test
+    fun testMidiTrackMuteSilencesSoundingNotes() {
+        val beatLine = BeatLineModule()
+        val midiTrack = beatLine.addTrack(TrackType.MIDI) as MidiTrack
+        val sec = midiTrack.addSection(start = 0.0, duration = 4.0)!!
+        val secData = sec.data as MidiSectionData
+        secData.addNote(startTicks = 0, durationTicks = 480, pitch = 62.0)
+
+        val engine = TestEngine()
+        beatLine.setEngine(engine)
+
+        val sentMessages = mutableListOf<Message.VoiceMessage>()
+        val spyJack = object : InputJack("spy", beatLine) {
+            override fun receive(msg: Message) {
+                if (msg is Message.VoiceMessage) sentMessages.add(msg)
+            }
+        }
+        midiTrack.outputJack.connect(spyJack)
+
+        val baseNow = ScoreTime(1_000_000_000L)
+        beatLine.startPlayback(baseNow, 0.0)
+
+        // Fire the scheduled NOTE_ON at 0.0s
+        val on1 = engine.scheduled.find {
+            val s = (it.first.nanoseconds - baseNow.nanoseconds) / 1_000_000_000.0
+            kotlin.math.abs(s - 0.0) < 0.001
+        }
+        assertNotNull(on1, "Should schedule NOTE_ON at 0.0s")
+        on1.second()
+
+        // Note started and sounding
+        assertEquals(1, sentMessages.size)
+        assertEquals(Message.VoiceOpcode.NOTE_ON, sentMessages[0].opcode)
+
+        // Mute the track
+        midiTrack.isMuted = true
+
+        // Should immediately send NOTE_OFF
+        assertEquals(2, sentMessages.size, "Muting should immediately send NOTE_OFF")
+        assertEquals(Message.VoiceOpcode.NOTE_OFF, sentMessages[1].opcode)
+        assertEquals(sentMessages[0].tag, sentMessages[1].tag)
+    }
+
+    @Test
+    fun testMidiTrackSerializationRoundTrip() {
+        val rootGraph = GraphState()
+        val beatLine = BeatLineModule()
+        rootGraph.addModule(beatLine, Offset.Zero)
+
+        val midiTrack = beatLine.addTrack(TrackType.MIDI, "Bass") as MidiTrack
+        val sec = midiTrack.addSection(start = 1.0, duration = 4.0, repeats = 2, name = "Verse")!!
+        val secData = sec.data as MidiSectionData
+        val n1 = secData.addNote(startTicks = 0, durationTicks = 240, pitch = 48.0)
+        val nid = secData.pianoRoll.allocateNoteId()
+        secData.pianoRoll.notes.add(
+            PianoRollNote(
+                id = nid,
+                startTicks = 240,
+                durationTicks = 240,
+                parentId = n1.id,
+                ratio = Ratio(5, 4),
+                rootPitch = 48.0
+            )
+        )
+
+        val json = GraphSerializer.serialize(rootGraph, rootGraph.modules)
+        assertTrue(json.contains("\"Bass\""))
+        assertTrue(json.contains("\"notes\""))
+        assertTrue(json.contains("48"))
+
+        // Deserialize
+        val newGraph = GraphState()
+        GraphSerializer.deserialize(newGraph, json)
+
+        val loadedBeatLine = newGraph.modules.filterIsInstance<BeatLineModule>().firstOrNull()
+        assertNotNull(loadedBeatLine)
+        assertEquals(1, loadedBeatLine.tracks.size)
+
+        val loadedTrack = loadedBeatLine.tracks.first() as? MidiTrack
+        assertNotNull(loadedTrack)
+        assertEquals("Bass", loadedTrack.name)
+        assertEquals(1, loadedTrack.sections.size)
+
+        val loadedSec = loadedTrack.sections.first()
+        assertEquals(1.0, loadedSec.start)
+        assertEquals(4.0, loadedSec.duration)
+        assertEquals(2, loadedSec.repeats)
+        assertEquals("Verse", loadedSec.name)
+
+        val loadedData = loadedSec.data as? MidiSectionData
+        assertNotNull(loadedData)
+        assertEquals(2, loadedData.pianoRoll.notes.size)
+
+        val loadedN1 = loadedData.pianoRoll.notes[0]
+        assertEquals(0, loadedN1.startTicks)
+        assertEquals(240, loadedN1.durationTicks)
+        assertEquals(48.0, loadedN1.rootPitch)
+
+        val loadedN2 = loadedData.pianoRoll.notes[1]
+        assertEquals(240, loadedN2.startTicks)
+        assertEquals(Ratio(5, 4), loadedN2.ratio)
+    }
+
+    @Test
+    fun testMidiTrackPitchBendAndCCRecording() {
+        val beatLine = BeatLineModule()
+        val midiTrack = beatLine.addTrack(TrackType.MIDI) as MidiTrack
+        val sec = midiTrack.addSection(start = 0.0, duration = 4.0)!!
+        midiTrack.isRecordArmed = true
+        val engine = TestEngine()
+        beatLine.setEngine(engine)
+
+        val startNow = ScoreTime(1_000_000_000L)
+        beatLine.startRecording(startNow)
+
+        // Note ON at 0.5s (1.0 beat at 120 bpm)
+        val tNoteOn = startNow + ScoreTime(500_000_000L)
+        midiTrack.onMessageReceived(
+            midiTrack.inputJack,
+            Message.VoiceMessage(tNoteOn, Message.VoiceOpcode.NOTE_ON, tag = 60, value = 60.0, extra = 0.8)
+        )
+
+        // Pitch Bend +1.0 semitones at 0.75s (1.5 beats)
+        val tBend1 = startNow + ScoreTime(750_000_000L)
+        midiTrack.onMessageReceived(
+            midiTrack.inputJack,
+            Message.VoiceMessage(tBend1, Message.VoiceOpcode.PITCH_BEND, tag = -1, value = 1.0, extra = 0.0)
+        )
+
+        // CC 1 (mod wheel) = 0.7 at 1.0s (2.0 beats)
+        val tCC = startNow + ScoreTime(1_000_000_000L)
+        midiTrack.onMessageReceived(
+            midiTrack.inputJack,
+            Message.VoiceMessage(tCC, Message.VoiceOpcode.CONTROL_CHANGE, tag = -1, value = 0.7, extra = 1.0)
+        )
+
+        // Pitch Bend back to 0.0 at 1.25s (2.5 beats)
+        val tBend2 = startNow + ScoreTime(1_250_000_000L)
+        midiTrack.onMessageReceived(
+            midiTrack.inputJack,
+            Message.VoiceMessage(tBend2, Message.VoiceOpcode.PITCH_BEND, tag = -1, value = 0.0, extra = 0.0)
+        )
+
+        // Note OFF at 1.5s (3.0 beats)
+        val tNoteOff = startNow + ScoreTime(1_500_000_000L)
+        midiTrack.onMessageReceived(
+            midiTrack.inputJack,
+            Message.VoiceMessage(tNoteOff, Message.VoiceOpcode.NOTE_OFF, tag = 60, value = 60.0, extra = 0.0)
+        )
+
+        beatLine.stopRecording(tNoteOff)
+
+        val secData = sec.data as MidiSectionData
+        // Check that note was recorded in pianoRoll
+        assertEquals(1, secData.pianoRoll.notes.size)
+
+        // Check that voice events were recorded in voiceEvents
+        assertEquals(3, secData.voiceEvents.size)
+
+        val e0 = secData.voiceEvents[0]
+        assertEquals(Message.VoiceOpcode.PITCH_BEND, e0.opcode)
+        assertEquals(1.0, e0.value)
+        assertEquals(1.5, e0.time, 0.01)
+
+        val e1 = secData.voiceEvents[1]
+        assertEquals(Message.VoiceOpcode.CONTROL_CHANGE, e1.opcode)
+        assertEquals(0.7, e1.value)
+        assertEquals(1.0, e1.extra)
+        assertEquals(2.0, e1.time, 0.01)
+
+        val e2 = secData.voiceEvents[2]
+        assertEquals(Message.VoiceOpcode.PITCH_BEND, e2.opcode)
+        assertEquals(0.0, e2.value)
+        assertEquals(2.5, e2.time, 0.01)
+    }
+
+    @Test
+    fun testMidiTrackPitchBendPlayback() {
+        val beatLine = BeatLineModule()
+        val midiTrack = beatLine.addTrack(TrackType.MIDI) as MidiTrack
+        val sec = midiTrack.addSection(start = 0.0, duration = 4.0)!!
+        val secData = sec.data as MidiSectionData
+        secData.addVoiceEvent(time = 1.0, opcode = Message.VoiceOpcode.PITCH_BEND, tag = -1, value = 1.5, extra = 0.0)
+        secData.addVoiceEvent(time = 2.0, opcode = Message.VoiceOpcode.PITCH_BEND, tag = -1, value = 0.0, extra = 0.0)
+
+        val sentMessages = mutableListOf<Message.VoiceMessage>()
+        val sink = object : InputJack("sink", beatLine) {
+            override fun receive(msg: Message) {
+                if (msg is Message.VoiceMessage) sentMessages.add(msg)
+            }
+        }
+        midiTrack.outputJack.connect(sink)
+
+        val engine = TestEngine()
+        beatLine.setEngine(engine)
+        val baseNow = ScoreTime(1_000_000_000L)
+        beatLine.startPlayback(baseNow, 0.0)
+
+        // 1.0 beat at 120 bpm = 0.5s delay
+        val bend1Event = engine.scheduled.find { (time, _) ->
+            val delaySec = (time.nanoseconds - baseNow.nanoseconds) / 1_000_000_000.0
+            kotlin.math.abs(delaySec - 0.5) < 0.001
+        }
+        assertNotNull(bend1Event, "Should schedule pitch bend event at 0.5s")
+        bend1Event.second()
+
+        val bendMsg = sentMessages.find { it.opcode == Message.VoiceOpcode.PITCH_BEND && it.value == 1.5 }
+        assertNotNull(bendMsg, "Should send pitch bend message with value 1.5")
+    }
+
+    @Test
+    fun testMidiTrackPitchBendResetOnStopAndMute() {
+        val beatLine = BeatLineModule()
+        val midiTrack = beatLine.addTrack(TrackType.MIDI) as MidiTrack
+        val sentMessages = mutableListOf<Message.VoiceMessage>()
+        val sink = object : InputJack("sink", beatLine) {
+            override fun receive(msg: Message) {
+                if (msg is Message.VoiceMessage) sentMessages.add(msg)
+            }
+        }
+        midiTrack.outputJack.connect(sink)
+
+        midiTrack.lastSentPitchBend = 1.5
+        sentMessages.clear()
+        midiTrack.onPlaybackStop()
+
+        val resetMsg = sentMessages.find { it.opcode == Message.VoiceOpcode.PITCH_BEND && it.value == 0.0 }
+        assertNotNull(resetMsg, "onPlaybackStop should send neutral pitch bend (value = 0.0)")
+
+        midiTrack.lastSentPitchBend = 1.5
+        sentMessages.clear()
+        midiTrack.isMuted = true
+        val muteResetMsg = sentMessages.find { it.opcode == Message.VoiceOpcode.PITCH_BEND && it.value == 0.0 }
+        assertNotNull(muteResetMsg, "Muting track should send neutral pitch bend (value = 0.0)")
+    }
+
+    @Test
+    fun testMidiTrackVoiceEventsSerialization() {
+        val rootGraph = GraphState()
+        val beatLine = BeatLineModule()
+        rootGraph.addModule(beatLine, Offset.Zero)
+
+        val midiTrack = beatLine.addTrack(TrackType.MIDI, "SynthLead") as MidiTrack
+        val sec = midiTrack.addSection(start = 0.0, duration = 4.0, repeats = 1)!!
+        val secData = sec.data as MidiSectionData
+        secData.addVoiceEvent(time = 1.0, opcode = Message.VoiceOpcode.PITCH_BEND, tag = -1, value = 2.0, extra = 0.0)
+        secData.addVoiceEvent(time = 2.0, opcode = Message.VoiceOpcode.CONTROL_CHANGE, tag = -1, value = 0.8, extra = 74.0)
+
+        val json = GraphSerializer.serialize(rootGraph, rootGraph.modules)
+        assertTrue(json.contains("\"voiceEvents\""))
+        assertTrue(json.contains("\"PITCH_BEND\""))
+        assertTrue(json.contains("\"CONTROL_CHANGE\""))
+
+        val newGraph = GraphState()
+        GraphSerializer.deserialize(newGraph, json)
+
+        val loadedBeatLine = newGraph.modules.filterIsInstance<BeatLineModule>().first()
+        val loadedTrack = loadedBeatLine.tracks.first() as MidiTrack
+        val loadedSec = loadedTrack.sections.first()
+        val loadedData = loadedSec.data as MidiSectionData
+
+        assertEquals(2, loadedData.voiceEvents.size)
+        assertEquals(Message.VoiceOpcode.PITCH_BEND, loadedData.voiceEvents[0].opcode)
+        assertEquals(2.0, loadedData.voiceEvents[0].value)
+        assertEquals(1.0, loadedData.voiceEvents[0].time, 0.001)
+
+        assertEquals(Message.VoiceOpcode.CONTROL_CHANGE, loadedData.voiceEvents[1].opcode)
+        assertEquals(0.8, loadedData.voiceEvents[1].value)
+        assertEquals(74.0, loadedData.voiceEvents[1].extra)
+        assertEquals(2.0, loadedData.voiceEvents[1].time, 0.001)
     }
 }
 
