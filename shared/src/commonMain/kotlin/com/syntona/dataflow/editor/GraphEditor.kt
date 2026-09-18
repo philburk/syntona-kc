@@ -156,7 +156,9 @@ import com.syntona.dataflow.modules.MidiTrack
 import com.syntona.dataflow.modules.AudioTrack
 import com.syntona.dataflow.modules.MessageSectionData
 import com.syntona.dataflow.modules.MidiSectionData
+import com.syntona.dataflow.modules.AudioSectionData
 import com.syntona.dataflow.modules.PianoRollTiming
+import com.syntona.core.audio.SynthKSyn
 import com.softsynth.audiobridge.AudioInputBridge
 import com.syntona.dataflow.modules.KeyNotesModule
 import com.syntona.dataflow.modules.PianoRollModule
@@ -4140,6 +4142,44 @@ fun TrackSectionView(
                     }
                 }
 
+                val ghostAudioData = section.data as? AudioSectionData
+                if (ghostAudioData != null) {
+                    val thumb = ghostAudioData.thumbnail
+                    val count = thumb.blockCount
+                    if (count > 0) {
+                        Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 2.dp, vertical = 2.dp)) {
+                            val w = size.width
+                            val h = size.height
+                            val midY = h / 2f
+                            drawLine(
+                                color = Color.White.copy(alpha = 0.15f),
+                                start = Offset(0f, midY),
+                                end = Offset(w, midY),
+                                strokeWidth = 1f
+                            )
+                            val sRate = ghostAudioData.recording?.frameRate?.takeIf { it > 0.0 } ?: SynthKSyn.synth.frameRate.toDouble()
+                            val secDurSec = module.unitsToSeconds(section.duration).coerceAtLeast(0.001)
+                            val blockWidthPx = ((thumb.blockSize.toDouble() / (sRate * secDurSec)) * w).toFloat()
+                            val strokeW = maxOf(1f, blockWidthPx + 0.5f)
+                            for (b in 0 until count) {
+                                val blockSec = (b * thumb.blockSize).toDouble() / sRate
+                                val bx = ((blockSec / secDurSec) * w).toFloat()
+                                if (bx > w) break
+                                val minV = thumb.minValues[b]
+                                val maxV = thumb.maxValues[b]
+                                val topY = (midY - maxV * (midY - 2f)).coerceIn(1f, h - 1f)
+                                val bottomY = (midY - minV * (midY - 2f)).coerceIn(1f, h - 1f)
+                                drawLine(
+                                    color = Color.White.copy(alpha = 0.45f),
+                                    start = Offset(bx, minOf(topY, bottomY)),
+                                    end = Offset(bx, maxOf(topY, bottomY).coerceAtLeast(minOf(topY, bottomY) + 1f)),
+                                    strokeWidth = strokeW
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // Repeat drag handle on the last repeated ghost box
                 if (isLastRepeat) {
                     Box(
@@ -4266,6 +4306,44 @@ fun TrackSectionView(
                                     color = Color.White.copy(alpha = 0.8f),
                                     topLeft = Offset(nx, ny),
                                     size = Size(minOf(nw, w - nx), 2.5f.dp.toPx())
+                                )
+                            }
+                        }
+                    }
+                }
+
+                val audioData = section.data as? AudioSectionData
+                if (audioData != null) {
+                    val thumb = audioData.thumbnail
+                    val count = thumb.blockCount
+                    if (count > 0) {
+                        Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 2.dp, vertical = 2.dp)) {
+                            val w = size.width
+                            val h = size.height
+                            val midY = h / 2f
+                            drawLine(
+                                color = Color.White.copy(alpha = 0.25f),
+                                start = Offset(0f, midY),
+                                end = Offset(w, midY),
+                                strokeWidth = 1f
+                            )
+                            val sRate = audioData.recording?.frameRate?.takeIf { it > 0.0 } ?: SynthKSyn.synth.frameRate.toDouble()
+                            val secDurSec = module.unitsToSeconds(section.duration).coerceAtLeast(0.001)
+                            val blockWidthPx = ((thumb.blockSize.toDouble() / (sRate * secDurSec)) * w).toFloat()
+                            val strokeW = maxOf(1f, blockWidthPx + 0.5f)
+                            for (b in 0 until count) {
+                                val blockSec = (b * thumb.blockSize).toDouble() / sRate
+                                val bx = ((blockSec / secDurSec) * w).toFloat()
+                                if (bx > w) break
+                                val minV = thumb.minValues[b]
+                                val maxV = thumb.maxValues[b]
+                                val topY = (midY - maxV * (midY - 2f)).coerceIn(1f, h - 1f)
+                                val bottomY = (midY - minV * (midY - 2f)).coerceIn(1f, h - 1f)
+                                drawLine(
+                                    color = Color.White.copy(alpha = 0.85f),
+                                    start = Offset(bx, minOf(topY, bottomY)),
+                                    end = Offset(bx, maxOf(topY, bottomY).coerceAtLeast(minOf(topY, bottomY) + 1f)),
+                                    strokeWidth = strokeW
                                 )
                             }
                         }

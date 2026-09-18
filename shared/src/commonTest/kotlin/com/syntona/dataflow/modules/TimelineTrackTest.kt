@@ -18,6 +18,8 @@ import com.syntona.dataflow.engine.ScheduledEvent
 import com.syntona.dataflow.model.Module
 import kotlinx.coroutines.CoroutineScope
 import kotlin.coroutines.EmptyCoroutineContext
+import com.syntona.util.SegmentedFloatArray
+import com.softsynth.ksyn.Synthesizer
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -87,6 +89,7 @@ class TimelineTrackTest {
         assertEquals(3, timeline.tracks.size)
         assertFalse(timeline.inputs.contains(msgTrack.inputJack))
         assertFalse(timeline.outputs.contains(msgTrack.outputJack))
+        timeline.teardown()
     }
 
     @Test
@@ -177,6 +180,7 @@ class TimelineTrackTest {
         // Once unlocked, tempo can be changed
         beatLine.tempo.setValue(140.0)
         assertEquals(140.0, beatLine.tempo.getValue())
+        beatLine.teardown()
     }
 
     @Test
@@ -187,6 +191,7 @@ class TimelineTrackTest {
 
         val patchTrack = timeline.addTrack(TrackType.PATCH, "MyPatchTrack")
         patchTrack.isMuted = true
+        patchTrack.isSoloed = false
 
         val audioTrack = timeline.addTrack(TrackType.AUDIO, "VocalTrack") as AudioTrack
         audioTrack.isSoloed = true
@@ -196,12 +201,10 @@ class TimelineTrackTest {
 
         val json = GraphSerializer.serialize(graphState, graphState.modules)
 
-        // Deserialize
-        val reloadedState = GraphState()
-        GraphSerializer.deserialize(reloadedState, json)
-        val loadedTimeline = reloadedState.modules.filterIsInstance<TimelineModule>().firstOrNull()
-        assertNotNull(loadedTimeline)
+        val loadedState = GraphState()
+        GraphSerializer.deserialize(loadedState, json)
 
+        val loadedTimeline = loadedState.modules.filterIsInstance<TimelineModule>().first()
         assertEquals(2, loadedTimeline.tracks.size)
 
         val loadedPatch = loadedTimeline.tracks[0]
@@ -228,6 +231,9 @@ class TimelineTrackTest {
         assertEquals(3.0, sec.duration)
         assertEquals(2, sec.repeats)
         assertEquals("Take 1", sec.name)
+
+        timeline.teardown()
+        loadedTimeline.teardown()
     }
 
     @Test
@@ -1368,6 +1374,303 @@ class TimelineTrackTest {
         assertEquals(0.8, loadedData.voiceEvents[1].value)
         assertEquals(74.0, loadedData.voiceEvents[1].extra)
         assertEquals(2.0, loadedData.voiceEvents[1].time, 0.001)
+    }
+
+    @Test
+    fun testAudioTrackCreationAndMonitoring() {
+        val timeline = TimelineModule()
+        val audioTrack = timeline.addTrack(TrackType.AUDIO, "Audio1") as AudioTrack
+        assertEquals("Audio1", audioTrack.name)
+        assertTrue(audioTrack.inputJack is AudioInputJack)
+        assertTrue(audioTrack.outputJack is AudioOutputJack)
+        assertFalse(audioTrack.isMuted)
+        assertFalse(audioTrack.isRecordArmed)
+        assertFalse(audioTrack.isInputMonitored)
+        assertTrue(audioTrack.unit.isAudible)
+        assertFalse(audioTrack.unit.isInputMonitored)
+
+        // Muting updates unit
+        audioTrack.isMuted = true
+        assertFalse(audioTrack.unit.isAudible)
+        audioTrack.isMuted = false
+        assertTrue(audioTrack.unit.isAudible)
+
+        // Monitoring
+        audioTrack.isInputMonitored = true
+        assertTrue(audioTrack.unit.isInputMonitored)
+
+        // In generate(), monitored input passes to output
+        val inputs = audioTrack.unit.input.getValues()
+        for (i in 0 until Synthesizer.FRAMES_PER_BLOCK) {
+            inputs[i] = (i + 1) * 0.1f
+        }
+        audioTrack.unit.generate()
+        val outputs = audioTrack.unit.output.getValues()
+        for (i in 0 until Synthesizer.FRAMES_PER_BLOCK) {
+            assertEquals((i + 1) * 0.1f, outputs[i], 1e-5f)
+        }
+
+        audioTrack.teardown()
+    }
+
+    @Test
+    fun testAudioTrackRecordingAndThumbnail() {
+        val timeline = TimelineModule()
+        val audioTrack = timeline.addTrack(TrackType.AUDIO, "Vocals") as AudioTrack
+        audioTrack.isRecordArmed = true
+
+        audioTrack.onRecordStart(ScoreTime.Zero, 0.0)
+        assertEquals(1, audioTrack.sections.size)
+        val sec = audioTrack.sections.first()
+        val audioData = sec.data as AudioSectionData
+        assertNotNull(audioData.recording)
+
+        // Write 64 frames (multiple synthesis blocks)
+        val numBlocks = 64 / Synthesizer.FRAMES_PER_BLOCK
+        val inputs = audioTrack.unit.input.getValues()
+        for (b in 0 until numBlocks) {
+            for (i in 0 until Synthesizer.FRAMES_PER_BLOCK) {
+                inputs[i] = if ((b * Synthesizer.FRAMES_PER_BLOCK + i) % 2 == 0) 0.5f else -0.3f
+            }
+            audioTrack.unit.generate()
+        }
+
+        assertEquals(64, audioTrack.unit.recordCursor)
+
+        audioTrack.finishRecording(sec, latencyFrames = 0, stopUnits = 1.0)
+        assertFalse(audioTrack.unit.isRecording)
+        assertEquals(64, audioData.recording!!.length)
+        assertEquals(0.5f, audioData.recording!![0], 1e-5f)
+        assertEquals(-0.3f, audioData.recording!![1], 1e-5f)
+
+        // Thumbnail
+        assertTrue(audioData.thumbnail.blockCount > 0)
+        assertEquals(-0.3f, audioData.thumbnail.minValues[0], 1e-5f)
+        assertEquals(0.5f, audioData.thumbnail.maxValues[0], 1e-5f)
+
+        audioTrack.teardown()
+    }
+
+    @Test
+    fun testAudioTrackLatencyCompensation() {
+        val timeline = TimelineModule()
+        val audioTrack = timeline.addTrack(TrackType.AUDIO, "Guitar") as AudioTrack
+        audioTrack.isRecordArmed = true
+        audioTrack.latencyFramesOverride = 16 // 16 frames latency
+
+        audioTrack.onRecordStart(ScoreTime.Zero, 0.0)
+        val sec = audioTrack.sections.first()
+
+        // Write 32 frames ramp
+        val inputs = audioTrack.unit.input.getValues()
+        val totalFrames = 32
+        val blocks = totalFrames / Synthesizer.FRAMES_PER_BLOCK
+        var frame = 0
+        for (b in 0 until blocks) {
+            for (i in 0 until Synthesizer.FRAMES_PER_BLOCK) {
+                inputs[i] = frame.toFloat() / totalFrames
+                frame++
+            }
+            audioTrack.unit.generate()
+        }
+
+        assertEquals(32, audioTrack.unit.recordCursor)
+
+        // Finish with 16 frames of latency compensation
+        audioTrack.finishRecording(sec, latencyFrames = 16, stopUnits = 1.0)
+
+        val audioData = sec.data as AudioSectionData
+        val trimmed = audioData.recording!!
+        // Trimmed length should be 32 - 16 = 16
+        assertEquals(16, trimmed.length)
+        // Frame 0 of trimmed should be frame 16 of the original recording (16.0 / 32.0 = 0.5)
+        assertEquals(0.5f, trimmed[0], 1e-5f)
+        assertEquals(31f / 32f, trimmed[15], 1e-5f)
+
+        audioTrack.teardown()
+    }
+
+    @Test
+    fun testAudioTrackPlayback() {
+        val timeline = TimelineModule()
+        val engine = TestEngine()
+        timeline.setEngine(engine)
+
+        val audioTrack = timeline.addTrack(TrackType.AUDIO, "Lead") as AudioTrack
+        val sec = audioTrack.addSectionDirect(id = 1, start = 0.0, duration = 1.0, repeats = 2)
+        val audioData = sec.data as AudioSectionData
+
+        // Fill recording with 32 frames of test tone (0.75f)
+        val rec = SegmentedFloatArray(audioTrack.unit.segmentSize, audioTrack.unit.poolCapacity)
+        rec.extend(32)
+        for (i in 0 until 32) rec[i] = 0.75f
+        audioData.recording = rec
+        audioData.updateThumbnail()
+
+        // Start playback at 0.0
+        audioTrack.onPlaybackStart(ScoreTime.Zero, 0.0, 5.0, engine)
+
+        // Generate a block (8 frames)
+        audioTrack.unit.generate()
+        val outputs = audioTrack.unit.output.getValues()
+        for (i in 0 until Synthesizer.FRAMES_PER_BLOCK) {
+            assertEquals(0.75f, outputs[i], 1e-5f)
+        }
+
+        // Mute track: output becomes 0f
+        audioTrack.isMuted = true
+        audioTrack.unit.generate()
+        for (i in 0 until Synthesizer.FRAMES_PER_BLOCK) {
+            assertEquals(0f, outputs[i], 1e-5f)
+        }
+
+        audioTrack.teardown()
+    }
+
+    @Test
+    fun testAudioTrackWavSerializationRoundTrip() {
+        val rootGraph = GraphState()
+        val timeline = TimelineModule()
+        rootGraph.addModule(timeline, Offset.Zero)
+
+        val audioTrack = timeline.addTrack(TrackType.AUDIO, "VocalTake") as AudioTrack
+        val sec = audioTrack.addSectionDirect(id = 1, start = 1.0, duration = 2.0, repeats = 1)
+        val audioData = sec.data as AudioSectionData
+
+        val rec = SegmentedFloatArray(audioTrack.unit.segmentSize, audioTrack.unit.poolCapacity)
+        rec.extend(64)
+        for (i in 0 until 64) {
+            rec[i] = (i - 32) / 32f
+        }
+        audioData.recording = rec
+        audioData.updateThumbnail()
+
+        val fakeBasePath = "build/tmp_audio_test_patch.sntn"
+        val json = GraphSerializer.serialize(rootGraph, rootGraph.modules, basePath = fakeBasePath)
+        assertTrue(json.contains("\"wavFile\""), "Serialized JSON should contain wavFile attribute")
+        assertTrue(json.contains("audio/track_"), "Wav file path should point to audio/ folder")
+
+        // Deserialize
+        val loadedGraph = GraphState()
+        GraphSerializer.deserialize(loadedGraph, json, basePath = fakeBasePath)
+
+        val loadedTimeline = loadedGraph.modules.filterIsInstance<TimelineModule>().first()
+        val loadedTrack = loadedTimeline.tracks.first() as AudioTrack
+        assertEquals("VocalTake", loadedTrack.name)
+        assertEquals(1, loadedTrack.sections.size)
+
+        val loadedSec = loadedTrack.sections.first()
+        assertEquals(1.0, loadedSec.start, 0.001)
+        assertEquals(2.0, loadedSec.duration, 0.001)
+
+        val loadedAudioData = loadedSec.data as AudioSectionData
+        assertNotNull(loadedAudioData.recording, "Loaded audio recording should not be null")
+        assertEquals(64, loadedAudioData.recording!!.length)
+        assertEquals(-1.0f, loadedAudioData.recording!![0], 1e-2f)
+        assertTrue(loadedAudioData.thumbnail.blockCount > 0, "Loaded audio thumbnail should be generated")
+
+        audioTrack.teardown()
+        loadedTrack.teardown()
+    }
+
+    @Test
+    fun testAudioTrackRecordingSaveReloadThumbnail() {
+        val rootGraph = GraphState()
+        val beatLine = BeatLineModule()
+        rootGraph.addModule(beatLine, Offset.Zero)
+
+        val audioTrack = beatLine.addTrack(TrackType.AUDIO, "Audio 4") as AudioTrack
+        val sec = audioTrack.addSectionDirect(id = 2, start = 0.0, duration = 24.0, repeats = 1, name = "Sec 3")
+        val audioData = sec.data as AudioSectionData
+
+        val frameRate = 48000
+        val totalFrames = 24 * (60.0 / 120.0) * frameRate // 12 seconds = 576000 frames
+        val framesInt = totalFrames.toInt()
+
+        val rec = SegmentedFloatArray(audioTrack.unit.segmentSize, audioTrack.unit.poolCapacity).apply {
+            this.frameRate = frameRate.toDouble()
+        }
+        var rem = framesInt
+        while (rem > 0) {
+            val chunk = minOf(rem, rec.segmentSize)
+            rec.extend(chunk)
+            rem -= chunk
+        }
+        val samples = FloatArray(framesInt)
+        // Put a peak every 2 seconds
+        for (i in 0 until framesInt) {
+            val secTime = i.toDouble() / frameRate
+            if ((secTime % 2.0) < 0.1) {
+                samples[i] = 0.8f
+            }
+        }
+        rec.write(0, samples)
+        audioData.recording = rec
+        audioData.updateThumbnail()
+
+        val originalBlockCount = audioData.thumbnail.blockCount
+        val originalMaxAtMid = audioData.thumbnail.maxValues[originalBlockCount / 2]
+        val originalMaxAtEnd = audioData.thumbnail.maxValues[originalBlockCount - 10]
+
+        val fakeBasePath = "build/tmp_audio_test_patch_24beats.sntn"
+        val json = GraphSerializer.serialize(rootGraph, rootGraph.modules, basePath = fakeBasePath)
+
+        val loadedGraph = GraphState()
+        GraphSerializer.deserialize(loadedGraph, json, basePath = fakeBasePath)
+
+        val loadedBeatLine = loadedGraph.modules.filterIsInstance<BeatLineModule>().first()
+        val loadedTrack = loadedBeatLine.tracks.first() as AudioTrack
+        val loadedSec = loadedTrack.sections.first()
+        val loadedAudioData = loadedSec.data as AudioSectionData
+
+        assertEquals(framesInt, loadedAudioData.recording!!.length, "Recording length should match")
+        assertEquals(originalBlockCount, loadedAudioData.thumbnail.blockCount, "Block count should match")
+        // Check if second half of thumbnail has data
+        val loadedMaxAtMid = loadedAudioData.thumbnail.maxValues[loadedAudioData.thumbnail.blockCount / 2]
+        val loadedMaxAtEnd = loadedAudioData.thumbnail.maxValues[loadedAudioData.thumbnail.blockCount - 10]
+        println("Original blocks: $originalBlockCount, loaded blocks: ${loadedAudioData.thumbnail.blockCount}")
+        println("Original mid: $originalMaxAtMid, end: $originalMaxAtEnd")
+        println("Loaded mid: $loadedMaxAtMid, end: $loadedMaxAtEnd")
+
+        audioTrack.teardown()
+        loadedTrack.teardown()
+    }
+
+    @Test
+    fun testAudioTrackStopRecordingViaStopPlayback() {
+        val beatLine = BeatLineModule()
+        val engine = TestEngine()
+        beatLine.setEngine(engine)
+
+        val audioTrack = beatLine.addTrack(TrackType.AUDIO, "Audio 4") as AudioTrack
+        audioTrack.isRecordArmed = true
+        audioTrack.latencyFramesOverride = 1000
+        audioTrack.setEngine(engine)
+
+        // Start recording at 0.0
+        beatLine.startRecording(ScoreTime.Zero)
+        assertTrue(beatLine.isRecording)
+        assertTrue(audioTrack.unit.isRecording)
+
+        // Generate some frames
+        val inputs = audioTrack.unit.input.getValues()
+        for (i in 0 until 64) {
+            inputs[i % Synthesizer.FRAMES_PER_BLOCK] = 0.5f
+            if ((i + 1) % Synthesizer.FRAMES_PER_BLOCK == 0) {
+                audioTrack.unit.generate()
+            }
+        }
+
+        // Now stop playback (e.g. user clicked Stop button or transport hit cycleEnd)
+        beatLine.stopPlayback(ScoreTime(1_000_000_000L))
+
+        // Flush pending record stop
+        audioTrack.flushPendingRecordStop()
+
+        println("After flushPendingRecordStop: unit.isRecording = ${audioTrack.unit.isRecording}")
+        assertFalse(audioTrack.unit.isRecording, "unit.isRecording should be false after flushPendingRecordStop")
+
+        audioTrack.teardown()
     }
 }
 

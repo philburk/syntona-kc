@@ -50,7 +50,13 @@ import com.syntona.dataflow.modules.MessageSectionData
 import com.syntona.dataflow.modules.TrackMessageEvent
 import com.syntona.dataflow.modules.MidiTrack
 import com.syntona.dataflow.modules.MidiSectionData
+import com.syntona.dataflow.modules.AudioTrack
+import com.syntona.dataflow.modules.AudioSectionData
 import com.syntona.core.audio.AudioSettings
+import com.syntona.core.audio.SynthKSyn
+import com.syntona.core.audio.writeWavFile
+import com.softsynth.ksyn.util.SampleLoader
+import com.syntona.util.SegmentedFloatArray
 import com.syntona.dataflow.modules.FloatSampleModule
 import com.syntona.dataflow.modules.SamplePlayerModule
 import com.syntona.dataflow.modules.RecorderModule
@@ -304,6 +310,7 @@ object GraphSerializer {
                 }
                 append("]")
                 append(",\"tracks\":[")
+                module.tracks.filterIsInstance<AudioTrack>().forEach { it.flushPendingRecordStop() }
                 module.tracks.forEachIndexed { ti, track ->
                     if (ti > 0) append(",")
                     append("{\"id\":${track.id},\"type\":\"${track.type.name}\",\"name\":\"${track.name.jsonEscape}\"")
@@ -344,6 +351,27 @@ object GraphSerializer {
                                     append("[${ve.time},\"${ve.opcode.name}\",${ve.tag},${ve.value},${ve.extra}]")
                                 }
                                 append("]")
+                            }
+                        }
+                        val audioData = sec.data as? AudioSectionData
+                        if (audioData != null) {
+                            val rec = audioData.recording
+                            if (rec != null && rec.length > 0) {
+                                val wavRel = audioData.wavFileName ?: "audio/track_${track.id}_sec_${sec.id}.wav"
+                                audioData.wavFileName = wavRel
+                                val absWavPath = resolvePath(wavRel, effectiveBasePath)
+                                try {
+                                    val count = rec.length
+                                    val samples = FloatArray(count)
+                                    rec.read(0, samples, 0, count)
+                                    val sRate = if (rec.frameRate > 0.0) rec.frameRate.toInt() else SynthKSyn.synth.frameRate
+                                    writeWavFile(absWavPath, samples, sRate, 1)
+                                } catch (e: Exception) {
+                                    println("Failed to write audio track WAV to $absWavPath: ${e.message}")
+                                }
+                                append(",\"wavFile\":\"${wavRel.jsonEscape}\"")
+                            } else if (audioData.wavFileName != null) {
+                                append(",\"wavFile\":\"${audioData.wavFileName!!.jsonEscape}\"")
                             }
                         }
                         append("}")
@@ -783,6 +811,39 @@ object GraphSerializer {
                             }
                             sec.data = midiData
                             (track as? MidiTrack)?.bindSectionData(midiData)
+                        }
+
+                        val wavRel = (secObj.map["wavFile"] as? JsonValue.Str)?.value
+                        if (wavRel != null || track is AudioTrack) {
+                            val audioData = AudioSectionData(wavFileName = wavRel)
+                            if (wavRel != null) {
+                                val absWavPath = resolvePath(wavRel, effectiveBasePath)
+                                val bytes = readBinaryFileDirect(absWavPath)
+                                if (bytes != null) {
+                                    try {
+                                        val loaded = SampleLoader.loadFloatSample(bytes).toMono()
+                                        val frames = loaded.numFrames
+                                        val data = FloatArray(frames)
+                                        loaded.read(0, data, 0, frames)
+                                        val newRec = SegmentedFloatArray().apply {
+                                            frameRate = loaded.frameRate
+                                        }
+                                        var rem = frames
+                                        while (rem > 0) {
+                                            val chunk = minOf(rem, newRec.segmentSize)
+                                            newRec.extend(chunk)
+                                            rem -= chunk
+                                        }
+                                        newRec.write(0, data)
+                                        audioData.recording = newRec
+                                        audioData.isLoadedFromFile = true
+                                        audioData.updateThumbnail()
+                                    } catch (e: Exception) {
+                                        println("Failed to decode WAV from $absWavPath: ${e.message}")
+                                    }
+                                }
+                            }
+                            sec.data = audioData
                         }
                     }
                 }

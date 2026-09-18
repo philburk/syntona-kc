@@ -5,9 +5,16 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
+import com.softsynth.ksyn.Synthesizer
+import com.softsynth.ksyn.ports.UnitInputPort
 import com.softsynth.ksyn.unitgen.PassThrough
+import com.softsynth.ksyn.unitgen.UnitFilter
+import com.syntona.core.audio.AudioSettings
+import com.syntona.core.audio.SynthKSyn
 import com.syntona.core.model.ScoreClock
 import com.syntona.core.model.ScoreTime
+import com.syntona.util.SegmentedFloatArray
+import kotlin.concurrent.Volatile
 import com.syntona.dataflow.engine.DataFlowEngine
 import com.syntona.dataflow.engine.ScheduledEvent
 import com.syntona.dataflow.model.AudioInputJack
@@ -65,6 +72,7 @@ class TrackSection(
         sec.data = when (val d = data) {
             is MessageSectionData -> d.copy()
             is MidiSectionData -> d.copy()
+            is AudioSectionData -> d.copy()
             else -> d
         }
         return sec
@@ -1020,6 +1028,134 @@ class MidiTrack(
     }
 }
 
+class AudioTrackUnit(
+    val segmentSize: Int = SegmentedFloatArray.DEFAULT_SEGMENT_SIZE,
+    val poolCapacity: Int = SegmentedFloatArray.DEFAULT_POOL_CAPACITY
+) : UnitFilter() {
+
+    val amplitude = UnitInputPort(PORT_NAME_AMPLITUDE)
+
+    @Volatile
+    var isInputMonitored: Boolean = false
+
+    @Volatile
+    var isAudible: Boolean = true
+
+    @Volatile
+    var recordingArray: SegmentedFloatArray? = null
+
+    @Volatile
+    var isRecording: Boolean = false
+        private set
+
+    @Volatile
+    var recordCursor: Int = 0
+        private set
+
+    class PlaybackVoice(
+        val array: SegmentedFloatArray,
+        var cursor: Int,
+        val endFrame: Int
+    )
+
+    private val playbackVoices = mutableListOf<PlaybackVoice>()
+
+    init {
+        addPort(amplitude)
+        amplitude.setup(0.0, 1.0, 2.0)
+    }
+
+    override val isStartRequired: Boolean get() = true
+
+    fun startRecording(array: SegmentedFloatArray) {
+        applyToAudioThread {
+            recordingArray = array
+            recordCursor = 0
+            isRecording = true
+        }
+    }
+
+    fun stopRecording() {
+        applyToAudioThread {
+            isRecording = false
+            recordingArray = null
+        }
+    }
+
+    fun playAudio(array: SegmentedFloatArray, startFrame: Int, countFrames: Int) {
+        if (countFrames <= 0) return
+        val end = minOf(array.length, startFrame + countFrames)
+        if (startFrame >= end) return
+        applyToAudioThread {
+            playbackVoices.add(PlaybackVoice(array, startFrame, end))
+        }
+    }
+
+    fun stopAllPlayback() {
+        applyToAudioThread {
+            playbackVoices.clear()
+        }
+    }
+
+    private fun applyToAudioThread(action: () -> Unit) {
+        val engine = synthesisEngine
+        if (engine != null && engine.isRunning) engine.queueCommand(action) else action()
+    }
+
+    override fun generate() {
+        val outputs = output.getValues()
+        val inputs = input.getValues()
+        val blockSize = Synthesizer.FRAMES_PER_BLOCK
+
+        if (isRecording) {
+            val rec = recordingArray
+            if (rec != null) {
+                val shortfall = recordCursor + blockSize - rec.length
+                if (shortfall > 0) {
+                    rec.extend(shortfall)
+                }
+                var idx = recordCursor
+                for (i in 0 until blockSize) {
+                    rec[idx++] = inputs[i]
+                }
+                recordCursor = idx
+            }
+        }
+
+        if (isInputMonitored && isAudible) {
+            for (i in 0 until blockSize) {
+                outputs[i] = inputs[i]
+            }
+        } else {
+            outputs.fill(0f, 0, blockSize)
+        }
+
+        if (isAudible && playbackVoices.isNotEmpty()) {
+            val amps = amplitude.getValues()
+            val it = playbackVoices.iterator()
+            while (it.hasNext()) {
+                val voice = it.next()
+                val arr = voice.array
+                val end = voice.endFrame
+                var cur = voice.cursor
+                for (i in 0 until blockSize) {
+                    if (cur < end && cur < arr.length) {
+                        outputs[i] += arr[cur++] * amps[i]
+                    } else {
+                        break
+                    }
+                }
+                voice.cursor = cur
+                if (cur >= end || cur >= arr.length) {
+                    it.remove()
+                }
+            }
+        } else if (!isAudible) {
+            outputs.fill(0f, 0, blockSize)
+        }
+    }
+}
+
 class AudioTrack(
     id: Int,
     name: String,
@@ -1027,8 +1163,264 @@ class AudioTrack(
     inJackName: String? = null,
     outJackName: String? = null
 ) : TimelineTrack(id, TrackType.AUDIO, name, timeline) {
-    val passThrough = PassThrough()
-    override val inputJack: AudioInputJack = timeline.createTrackAudioInput(inJackName ?: "in$id", passThrough.input)
-    override val outputJack: AudioOutputJack = timeline.createTrackAudioOutput(outJackName ?: "out$id", passThrough.output)
+    val unit = AudioTrackUnit()
+    override val inputJack: AudioInputJack = timeline.createTrackAudioInput(inJackName ?: "in$id", unit.input)
+    override val outputJack: AudioOutputJack = timeline.createTrackAudioOutput(outJackName ?: "out$id", unit.output)
     override val outputJacks: List<OutputJack> get() = listOf(outputJack)
+
+    private var engine: DataFlowEngine? = null
+    private val scheduledEvents = mutableListOf<ScheduledEvent>()
+    private var replenishEvent: ScheduledEvent? = null
+    private var pendingStopEvent: ScheduledEvent? = null
+    private var pendingStopSection: TrackSection? = null
+    private var pendingStopUnits: Double = 0.0
+    private var activeRecordingSection: TrackSection? = null
+
+    fun flushPendingRecordStop() {
+        val sec = pendingStopSection ?: return
+        val stopUnits = pendingStopUnits
+        pendingStopEvent?.cancel()
+        pendingStopEvent = null
+        pendingStopSection = null
+        finishRecording(sec, effectiveLatencyFrames, stopUnits)
+    }
+
+    /** Latency override in frames. If null, queries [AudioSettings.measuredLatencyForActiveDevices]. */
+    var latencyFramesOverride: Int? = null
+
+    val effectiveLatencyFrames: Int
+        get() {
+            val override = latencyFramesOverride
+            if (override != null) return override.coerceAtLeast(0)
+            val measured = AudioSettings.measuredLatencyForActiveDevices()
+            return if (measured >= 0) measured else 0
+        }
+
+    override var isMuted: Boolean
+        get() = super.isMuted
+        set(value) {
+            super.isMuted = value
+            updateAudibleState()
+        }
+
+    override var isSoloed: Boolean
+        get() = super.isSoloed
+        set(value) {
+            super.isSoloed = value
+            timeline.tracks.filterIsInstance<AudioTrack>().forEach { it.updateAudibleState() }
+        }
+
+    override var isInputMonitored: Boolean
+        get() = super.isInputMonitored
+        set(value) {
+            super.isInputMonitored = value
+            unit.isInputMonitored = value
+        }
+
+    fun updateAudibleState() {
+        unit.isAudible = isAudible
+    }
+
+    init {
+        SynthKSyn.synth.add(unit)
+        if (unit.isStartRequired) {
+            unit.start()
+        }
+        updateAudibleState()
+        unit.isInputMonitored = isInputMonitored
+    }
+
+    override fun setEngine(engine: DataFlowEngine) {
+        this.engine = engine
+    }
+
+    override fun addSectionDirect(id: Int, start: Double, duration: Double, repeats: Int, name: String): TrackSection {
+        val section = super.addSectionDirect(id, start, duration, repeats, name)
+        if (section.data == null) {
+            section.data = AudioSectionData()
+        }
+        return section
+    }
+
+    override fun onRecordStart(now: ScoreTime, startUnits: Double) {
+        flushPendingRecordStop()
+
+        val existing = sections.find { startUnits >= it.start && startUnits < it.end }
+        val sec = if (existing != null) {
+            existing
+        } else if (canAddSectionAt(startUnits)) {
+            val avail = getAvailableDurationAt(startUnits, 4.0)
+            if (avail >= 0.05) {
+                addSection(startUnits, avail)
+            } else {
+                null
+            }
+        } else {
+            null
+        }
+
+        if (sec == null) {
+            activeRecordingSection = null
+            return
+        }
+
+        activeRecordingSection = sec
+        val audioData = sec.data as? AudioSectionData ?: AudioSectionData().also { sec.data = it }
+        val newRec = SegmentedFloatArray(unit.segmentSize, unit.poolCapacity).apply {
+            frameRate = if (unit.frameRate > 0.0) unit.frameRate else SynthKSyn.synth.frameRate.toDouble()
+        }
+        newRec.replenish()
+        audioData.recording = newRec
+        audioData.isLoadedFromFile = false
+        audioData.thumbnail.clear()
+
+        unit.startRecording(newRec)
+        startReplenishing()
+    }
+
+    private fun startReplenishing() {
+        if (replenishEvent != null) return
+        scheduleReplenish()
+    }
+
+    private fun scheduleReplenish() {
+        val e = engine ?: timeline.getEngine() ?: return
+        replenishEvent = e.schedule(ScoreClock.now() + ScoreTime(20_000_000L)) {
+            replenishEvent = null
+            if (unit.isRecording) {
+                unit.recordingArray?.replenish()
+                activeRecordingSection?.let { sec ->
+                    val data = sec.data as? AudioSectionData
+                    data?.updateThumbnail(unit.recordCursor)
+
+                    val pos = timeline.getCurrentTime()
+                    if (pos > sec.end && sec.repeats == 1) {
+                        val maxDur = getMaxDuration(sec, timeline.maxTime)
+                        val neededDur = (pos - sec.start + 0.5).coerceAtMost(maxDur)
+                        if (neededDur > sec.duration) {
+                            sec.duration = neededDur
+                        }
+                    }
+                }
+                scheduleReplenish()
+            }
+        }
+    }
+
+    override fun onRecordStop(now: ScoreTime, stopUnits: Double) {
+        val sec = activeRecordingSection ?: return
+        activeRecordingSection = null
+
+        val latencyFrames = effectiveLatencyFrames
+        val frameRate = if (unit.frameRate > 0.0) unit.frameRate else SynthKSyn.synth.frameRate.toDouble()
+        val latencyNs = if (frameRate > 0.0) ((latencyFrames / frameRate) * 1_000_000_000.0).toLong() else 0L
+        val e = engine ?: timeline.getEngine()
+
+        if (unit.isRecording && latencyNs > 0L && e != null) {
+            pendingStopSection = sec
+            pendingStopUnits = stopUnits
+            val fireTime = now + ScoreTime(latencyNs)
+            pendingStopEvent = e.schedule(fireTime) {
+                pendingStopEvent = null
+                pendingStopSection = null
+                finishRecording(sec, latencyFrames, stopUnits)
+            }
+        } else {
+            finishRecording(sec, latencyFrames, stopUnits)
+        }
+    }
+
+    fun finishRecording(sec: TrackSection, latencyFrames: Int, stopUnits: Double = timeline.getCurrentTime()) {
+        unit.stopRecording()
+        replenishEvent?.cancel()
+        replenishEvent = null
+
+        val data = sec.data as? AudioSectionData ?: return
+        val rawRec = data.recording ?: return
+        val totalRecorded = unit.recordCursor
+
+        val trimmed = SegmentedFloatArray(unit.segmentSize, unit.poolCapacity).apply {
+            frameRate = rawRec.frameRate
+        }
+        val usableFrames = (totalRecorded - latencyFrames).coerceAtLeast(0)
+        if (usableFrames > 0) {
+            var rem = usableFrames
+            while (rem > 0) {
+                val chunk = minOf(rem, trimmed.segmentSize)
+                trimmed.extend(chunk)
+                rem -= chunk
+            }
+            val buf = FloatArray(usableFrames)
+            rawRec.read(latencyFrames, buf, 0, usableFrames)
+            trimmed.write(0, buf)
+        }
+        data.recording = trimmed
+        data.thumbnail.clear()
+        data.thumbnail.updateFrom(trimmed)
+
+        val frameRate = if (trimmed.frameRate > 0.0) trimmed.frameRate else 44100.0
+        val actualDurationSec = usableFrames / frameRate
+        val actualDurationUnits = timeline.secondsToUnits(actualDurationSec)
+
+        if (sec.repeats == 1) {
+            val maxDur = getMaxDuration(sec, timeline.maxTime)
+            sec.duration = actualDurationUnits.coerceIn(0.1, maxDur)
+        }
+    }
+
+    override fun onPlaybackStart(now: ScoreTime, startPosUnits: Double, cycleEndUnits: Double, engine: DataFlowEngine) {
+        scheduledEvents.forEach { it.cancel() }
+        scheduledEvents.clear()
+        unit.stopAllPlayback()
+
+        updateAudibleState()
+        val frameRate = if (unit.frameRate > 0.0) unit.frameRate else SynthKSyn.synth.frameRate.toDouble()
+
+        sections.forEach { section ->
+            val audioData = section.data as? AudioSectionData ?: return@forEach
+            val rec = audioData.recording ?: return@forEach
+            if (rec.length == 0) return@forEach
+
+            for (r in 0 until section.repeats) {
+                val repStart = section.start + r * section.duration
+                val repEnd = repStart + section.duration
+                if (repEnd <= startPosUnits || repStart >= cycleEndUnits) continue
+
+                val playDurationUnits = minOf(repEnd, cycleEndUnits) - maxOf(repStart, startPosUnits)
+                val playDurationSec = timeline.unitsToSeconds(playDurationUnits)
+                val countFrames = (playDurationSec * frameRate).toInt()
+
+                if (startPosUnits >= repStart && startPosUnits < repEnd) {
+                    val offsetUnits = startPosUnits - repStart
+                    val offsetSec = timeline.unitsToSeconds(offsetUnits)
+                    val startFrame = (offsetSec * frameRate).toInt().coerceIn(0, rec.length)
+                    unit.playAudio(rec, startFrame, countFrames)
+                } else if (repStart > startPosUnits && repStart < cycleEndUnits) {
+                    val delayUnits = repStart - startPosUnits
+                    val delaySec = timeline.unitsToSeconds(delayUnits)
+                    val fireTime = now + ScoreTime((delaySec * 1_000_000_000.0).toLong())
+                    val sched = engine.schedule(fireTime) {
+                        unit.playAudio(rec, 0, countFrames)
+                    }
+                    scheduledEvents.add(sched)
+                }
+            }
+        }
+    }
+
+    override fun onPlaybackStop() {
+        scheduledEvents.forEach { it.cancel() }
+        scheduledEvents.clear()
+        unit.stopAllPlayback()
+    }
+
+    override fun teardown() {
+        onPlaybackStop()
+        flushPendingRecordStop()
+        unit.stopRecording()
+        replenishEvent?.cancel()
+        replenishEvent = null
+        SynthKSyn.synth.remove(unit)
+        super.teardown()
+    }
 }

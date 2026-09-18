@@ -69,3 +69,6 @@ so that the JSON file will not be huge. The audio will be saved in a folder call
 next to the .sntn file being saved.
 Latency compensation should be applied like in the recorder module.
 For now, audio tracks will only be available on the desktop version of Syntona.
+Show a thumbnail display of the recorded audio while recording and afterwards.
+Optimize the display by caching the maximum and minimum values for blocks of frames.
+Do not open an editor for audio regions. We will design that later.
