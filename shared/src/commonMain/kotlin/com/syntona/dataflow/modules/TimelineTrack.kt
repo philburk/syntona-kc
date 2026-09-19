@@ -572,6 +572,8 @@ class MessageTrack(
                 if (repEnd <= startPosUnits || repStart >= cycleEndUnits) continue
 
                 for (event in data.events) {
+                    // Events beyond the section duration are hidden, e.g. after the section was shortened.
+                    if (event.time >= section.duration) continue
                     val eventTime = repStart + event.time
                     if (eventTime >= startPosUnits && eventTime < cycleEndUnits) {
                         val delayUnits = eventTime - startPosUnits
@@ -885,6 +887,8 @@ class MidiTrack(
                     val noteStartUnits = timeline.ticksToUnits(note.startTicks)
                     val noteDurUnits = timeline.ticksToUnits(note.durationTicks)
                     val onTimelineUnits = repStart + noteStartUnits
+                    // Notes starting beyond the section duration are hidden, e.g. after the section was shortened.
+                    if (onTimelineUnits >= repEnd) continue
                     val offTimelineUnits = onTimelineUnits + noteDurUnits
                     val effectiveOffUnits = minOf(offTimelineUnits, repEnd)
 

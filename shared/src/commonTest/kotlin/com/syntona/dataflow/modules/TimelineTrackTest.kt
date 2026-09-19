@@ -1073,6 +1073,77 @@ class TimelineTrackTest {
     }
 
     @Test
+    fun testMidiTrackPlaybackIgnoresNotesBeyondShortenedSection() {
+        val beatLine = BeatLineModule()
+        beatLine.loopMode = false
+        beatLine.maxTime = 16.0
+        val midiTrack = beatLine.addTrack(TrackType.MIDI) as MidiTrack
+        val sec = midiTrack.addSection(start = 0.0, duration = 4.0)!!
+        val secData = sec.data as MidiSectionData
+        secData.addNote(startTicks = 0, durationTicks = 240, pitch = 60.0) // 0.0 to 1.0 beats
+        secData.addNote(startTicks = 720, durationTicks = 240, pitch = 64.0) // 3.0 to 4.0 beats
+        sec.duration = 2.0 // Second note now starts past the end of the section
+
+        val engine = TestEngine()
+        beatLine.setEngine(engine)
+
+        val sentMessages = mutableListOf<Message.VoiceMessage>()
+        val spyJack = object : InputJack("spy", beatLine) {
+            override fun receive(msg: Message) {
+                if (msg is Message.VoiceMessage) sentMessages.add(msg)
+            }
+        }
+        midiTrack.outputJack.connect(spyJack)
+
+        val baseNow = ScoreTime(1_000_000_000L)
+        beatLine.startPlayback(baseNow, 0.0)
+        engine.scheduled.sortedBy { it.first.nanoseconds }.forEach { it.second() }
+
+        val notes = sentMessages.filter {
+            it.opcode == Message.VoiceOpcode.NOTE_ON || it.opcode == Message.VoiceOpcode.NOTE_OFF
+        }
+        assertEquals(2, notes.size, "Only the note inside the section should play")
+        assertTrue(notes.all { it.value == 60.0 })
+        assertEquals(Message.VoiceOpcode.NOTE_ON, notes[0].opcode)
+        assertEquals(Message.VoiceOpcode.NOTE_OFF, notes[1].opcode)
+    }
+
+    @Test
+    fun testMessageTrackPlaybackIgnoresEventsBeyondShortenedSection() {
+        val testEngine = TestEngine()
+        val timeline = TimelineModule()
+        timeline.loopMode = false
+        timeline.maxTime = 16.0
+        timeline.setEngine(testEngine)
+        val track = timeline.addTrack(TrackType.MESSAGE) as MessageTrack
+        val sec = track.addSection(start = 0.0, duration = 4.0)!!
+        val data = sec.data as MessageSectionData
+        data.addEvent(1.0, 0.25)
+        data.addEvent(3.0, 0.75)
+        sec.duration = 2.0 // Second event now lies past the end of each repeat
+        sec.repeats = 2
+
+        val received = mutableListOf<Double>()
+        val spyJack = object : InputJack("spy", timeline) {
+            override fun receive(msg: Message) {
+                if (msg is Message.FloatValue) received.add(msg.value)
+            }
+        }
+        track.outputJack.connect(spyJack)
+
+        val baseNow = ScoreTime(0L)
+        timeline.startPlayback(baseNow, 0.0)
+        val trackEvents = testEngine.scheduled
+            .map { (it.first.nanoseconds - baseNow.nanoseconds) / 1_000_000_000.0 }
+            .filter { it < timeline.maxTime - 0.001 } // Exclude the cycle end event
+            .sorted()
+        assertEquals(listOf(1.0, 3.0), trackEvents, "Only the 1.0 event should play, once per repeat")
+
+        testEngine.scheduled.sortedBy { it.first.nanoseconds }.forEach { it.second() }
+        assertEquals(listOf(0.25, 0.25), received)
+    }
+
+    @Test
     fun testMidiTrackMuteSilencesSoundingNotes() {
         val beatLine = BeatLineModule()
         val midiTrack = beatLine.addTrack(TrackType.MIDI) as MidiTrack
