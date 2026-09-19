@@ -86,8 +86,27 @@ abstract class TimelineTrack(
     val timeline: TimelineModule
 ) {
     open var name by mutableStateOf(initialName)
-    open var isMuted by mutableStateOf(false)
-    open var isSoloed by mutableStateOf(false)
+
+    private var _isMuted by mutableStateOf(false)
+    var isMuted: Boolean
+        get() = _isMuted
+        set(value) {
+            if (_isMuted != value) {
+                _isMuted = value
+                timeline.onTrackAudibilityChanged()
+            }
+        }
+
+    private var _isSoloed by mutableStateOf(false)
+    var isSoloed: Boolean
+        get() = _isSoloed
+        set(value) {
+            if (_isSoloed != value) {
+                _isSoloed = value
+                timeline.onTrackAudibilityChanged()
+            }
+        }
+
     open var isRecordArmed by mutableStateOf(false)
     open var isInputMonitored by mutableStateOf(false)
 
@@ -187,6 +206,12 @@ abstract class TimelineTrack(
     }
 
     open fun setEngine(engine: DataFlowEngine) {}
+
+    /**
+     * Called on every track when any track's mute or solo changes, because soloing one track
+     * changes whether all the others are audible. Check [isAudible] for the new state.
+     */
+    open fun onAudibilityChanged() {}
 
     open fun teardown() {
         onPlaybackStop()
@@ -341,33 +366,13 @@ class PatchTrack(
         }
     }
 
-    override var isMuted: Boolean
-        get() = super.isMuted
-        set(value) {
-            val changed = super.isMuted != value
-            super.isMuted = value
-            if (changed) handleAudibleChanged()
+    override fun onAudibilityChanged() {
+        val shouldRun = isAudible && timeline.isPlaying && timeline.getCurrentTime().let { pos ->
+            sections.any { pos >= it.start && pos < it.end }
         }
-
-    override var isSoloed: Boolean
-        get() = super.isSoloed
-        set(value) {
-            val changed = super.isSoloed != value
-            super.isSoloed = value
-            if (changed) {
-                timeline.tracks.forEach { (it as? PatchTrack)?.handleAudibleChanged() }
-            }
-        }
-
-    fun handleAudibleChanged() {
-        if (timeline.isPlaying) {
-            val pos = timeline.getCurrentTime()
-            val inSection = sections.any { pos >= it.start && pos < it.end }
-            if (isAudible && inSection) {
-                startPatch()
-            } else {
-                stopPatch()
-            }
+        if (shouldRun) {
+            // Do not restart a patch that is already running, e.g. when another track is soloed.
+            if (!isPatchRunning) startPatch()
         } else {
             stopPatch()
         }
@@ -646,27 +651,9 @@ class MidiTrack(
         }
     }
 
-    override var isMuted: Boolean
-        get() = super.isMuted
-        set(value) {
-            val changed = super.isMuted != value
-            super.isMuted = value
-            if (changed && !isAudible) {
-                silenceSoundingNotes()
-            }
-        }
-
-    override var isSoloed: Boolean
-        get() = super.isSoloed
-        set(value) {
-            val changed = super.isSoloed != value
-            super.isSoloed = value
-            if (changed) {
-                timeline.tracks.filterIsInstance<MidiTrack>().forEach {
-                    if (!it.isAudible) it.silenceSoundingNotes()
-                }
-            }
-        }
+    override fun onAudibilityChanged() {
+        if (!isAudible) silenceSoundingNotes()
+    }
 
     var lastSentPitchBend: Double? = null
 
@@ -718,7 +705,7 @@ class MidiTrack(
         if (data.bridgeJack == null) {
             val bridge = object : InputJack("bridge_${id}_${pr.name}", timeline) {
                 override fun receive(msg: Message) {
-                    if (isAudible) {
+                    if (passesMute(msg)) {
                         outputJack.send(msg)
                     }
                 }
@@ -773,7 +760,7 @@ class MidiTrack(
 
     override fun onMessageReceived(jack: InputJack, msg: Message) {
         if (jack === inputJack && msg is Message.VoiceMessage) {
-            if (isInputMonitored && isAudible) {
+            if (isInputMonitored && passesMute(msg)) {
                 if (msg.opcode == Message.VoiceOpcode.PITCH_BEND) {
                     lastSentPitchBend = msg.value
                 }
@@ -798,11 +785,16 @@ class MidiTrack(
         return sec
     }
 
-    private fun recordVoiceMessage(msg: Message.VoiceMessage) {
-        val isNoteOff = msg.opcode == Message.VoiceOpcode.NOTE_OFF ||
-                (msg.opcode == Message.VoiceOpcode.NOTE_ON && msg.extra <= 0.0)
+    /** NOTE_OFF, or NOTE_ON with zero amplitude, which MIDI also uses to end a note. */
+    private fun isNoteOff(msg: Message): Boolean =
+        msg is Message.VoiceMessage && (msg.opcode == Message.VoiceOpcode.NOTE_OFF ||
+                (msg.opcode == Message.VoiceOpcode.NOTE_ON && msg.extra <= 0.0))
 
-        if (isNoteOff) {
+    /** Mute blocks outgoing messages except note-offs, so notes that are already sounding still end. */
+    private fun passesMute(msg: Message): Boolean = isAudible || isNoteOff(msg)
+
+    private fun recordVoiceMessage(msg: Message.VoiceMessage) {
+        if (isNoteOff(msg)) {
             val openNote = openNotes.remove(msg.tag)
                 ?: openNotes.entries.firstOrNull { it.value.pitch == msg.value }?.let { openNotes.remove(it.key) }
             if (openNote != null) {
@@ -1220,20 +1212,6 @@ class AudioTrack(
             return if (measured >= 0) measured else 0
         }
 
-    override var isMuted: Boolean
-        get() = super.isMuted
-        set(value) {
-            super.isMuted = value
-            updateAudibleState()
-        }
-
-    override var isSoloed: Boolean
-        get() = super.isSoloed
-        set(value) {
-            super.isSoloed = value
-            timeline.tracks.filterIsInstance<AudioTrack>().forEach { it.updateAudibleState() }
-        }
-
     override var isInputMonitored: Boolean
         get() = super.isInputMonitored
         set(value) {
@@ -1241,7 +1219,7 @@ class AudioTrack(
             unit.isInputMonitored = value
         }
 
-    fun updateAudibleState() {
+    override fun onAudibilityChanged() {
         unit.isAudible = isAudible
     }
 
@@ -1250,7 +1228,7 @@ class AudioTrack(
         if (unit.isStartRequired) {
             unit.start()
         }
-        updateAudibleState()
+        onAudibilityChanged()
         unit.isInputMonitored = isInputMonitored
     }
 
@@ -1397,7 +1375,7 @@ class AudioTrack(
         scheduledEvents.clear()
         unit.stopAllPlayback()
 
-        updateAudibleState()
+        onAudibilityChanged()
         val frameRate = if (unit.frameRate > 0.0) unit.frameRate else SynthKSyn.synth.frameRate.toDouble()
 
         sections.forEach { section ->

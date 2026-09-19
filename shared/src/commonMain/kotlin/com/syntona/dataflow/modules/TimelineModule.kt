@@ -162,6 +162,11 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
         }
     }
 
+    /** Solo on one track changes the audibility of every track, so notify them all. */
+    internal fun onTrackAudibilityChanged() {
+        tracks.toList().forEach { it.onAudibilityChanged() }
+    }
+
     internal fun deleteTrackOutput(jack: OutputJack) {
         removeOutput(jack)
         parentPatch?.graphState?.let { gs ->

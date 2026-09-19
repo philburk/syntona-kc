@@ -5,6 +5,7 @@ import com.syntona.dataflow.editor.DeleteModulesCommand
 import com.syntona.dataflow.editor.GraphSerializer
 import com.syntona.dataflow.editor.GraphState
 import com.syntona.dataflow.registry.ModuleRegistry
+import com.syntona.core.model.ScoreClock
 import com.syntona.core.model.ScoreTime
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.AudioOutputJack
@@ -263,8 +264,8 @@ class TimelineTrackTest {
         // Test audible changes during playback
         patchTrack.addSection(start = 0.0, duration = 4.0)
         timeline.seekTime = 2.0
-        // Playback not started yet -> handleAudibleChanged stops patch
-        patchTrack.handleAudibleChanged()
+        // Playback not started yet -> onAudibilityChanged stops patch
+        patchTrack.onAudibilityChanged()
         assertFalse(patchTrack.isPatchRunning)
     }
 
@@ -1178,6 +1179,117 @@ class TimelineTrackTest {
         }
         assertEquals(4, allOnTags.toSet().size, "Tags must differ across tracks and repeats")
         assertTrue(allOnTags.all { it > 127 }, "Tags must not collide with MIDI note numbers")
+    }
+
+    @Test
+    fun testSoloAppliesAcrossTrackTypes() {
+        val beatLine = BeatLineModule()
+        beatLine.loopMode = false
+        val engine = TestEngine()
+        beatLine.setEngine(engine)
+
+        val midiTrack = beatLine.addTrack(TrackType.MIDI) as MidiTrack
+        val sec = midiTrack.addSection(start = 0.0, duration = 4.0)!!
+        (sec.data as MidiSectionData).addNote(startTicks = 0, durationTicks = 960, pitch = 60.0)
+        val audioTrack = beatLine.addTrack(TrackType.AUDIO) as AudioTrack
+
+        val sent = mutableListOf<Message.VoiceMessage>()
+        midiTrack.outputJack.connect(object : InputJack("spy", beatLine) {
+            override fun receive(msg: Message) {
+                if (msg is Message.VoiceMessage) sent.add(msg)
+            }
+        })
+
+        // Soloing the MIDI track silences the audio track
+        assertTrue(audioTrack.unit.isAudible)
+        midiTrack.isSoloed = true
+        assertFalse(audioTrack.unit.isAudible, "Audio track should be silenced when a MIDI track is soloed")
+        midiTrack.isSoloed = false
+        assertTrue(audioTrack.unit.isAudible)
+
+        // Soloing the audio track ends the MIDI note that is sounding
+        beatLine.startPlayback(ScoreTime.Zero, 1.0) // Chases the note
+        assertEquals(Message.VoiceOpcode.NOTE_ON, sent.last().opcode)
+        audioTrack.isSoloed = true
+        assertEquals(Message.VoiceOpcode.NOTE_OFF, sent.last().opcode, "MIDI note should end when an audio track is soloed")
+
+        beatLine.stopPlayback(ScoreTime.Zero)
+        audioTrack.teardown()
+    }
+
+    @Test
+    fun testPatchTrackNotRestartedWhenAnotherTrackIsSoloed() {
+        val timeline = TimelineModule()
+        timeline.loopMode = false
+        val engine = TestEngine()
+        timeline.setEngine(engine)
+
+        val patchTrack = timeline.addTrack(TrackType.PATCH) as PatchTrack
+        patchTrack.addSection(start = 0.0, duration = 4.0)
+        val otherTrack = timeline.addTrack(TrackType.PATCH) as PatchTrack
+
+        var startCount = 0
+        patchTrack.startCommandModule.output.connect(object : InputJack("spy", timeline) {
+            override fun receive(msg: Message) {
+                startCount++
+            }
+        })
+
+        timeline.startPlayback(ScoreClock.now(), 1.0)
+        assertTrue(patchTrack.isPatchRunning)
+        assertEquals(1, startCount)
+
+        // Toggling solo on another track leaves this patch audible, so it must not restart
+        patchTrack.isSoloed = true
+        otherTrack.isSoloed = true
+        otherTrack.isSoloed = false
+        assertTrue(patchTrack.isPatchRunning)
+        assertEquals(1, startCount, "A running patch should not receive another start")
+
+        // Soloing only the other track stops this patch; unsoloing starts it again
+        patchTrack.isSoloed = false
+        otherTrack.isSoloed = true
+        assertFalse(patchTrack.isPatchRunning)
+        otherTrack.isSoloed = false
+        assertTrue(patchTrack.isPatchRunning)
+        assertEquals(2, startCount)
+
+        timeline.stopPlayback(ScoreClock.now())
+    }
+
+    @Test
+    fun testMidiTrackMutePassesNoteOffs() {
+        val beatLine = BeatLineModule()
+        val midiTrack = beatLine.addTrack(TrackType.MIDI) as MidiTrack
+        midiTrack.isInputMonitored = true
+        val sec = midiTrack.addSection(start = 0.0, duration = 4.0)!!
+        val bridge = assertNotNull((sec.data as MidiSectionData).bridgeJack)
+
+        val sent = mutableListOf<Message.VoiceMessage>()
+        midiTrack.outputJack.connect(object : InputJack("spy", beatLine) {
+            override fun receive(msg: Message) {
+                if (msg is Message.VoiceMessage) sent.add(msg)
+            }
+        })
+        fun voice(opcode: Message.VoiceOpcode, amplitude: Double = 0.5) =
+            Message.VoiceMessage(ScoreTime.Zero, opcode, tag = 60, value = 60.0, extra = amplitude)
+
+        // A monitored key is held down, then the track is muted before release
+        midiTrack.inputJack.receive(voice(Message.VoiceOpcode.NOTE_ON))
+        midiTrack.isMuted = true
+        sent.clear()
+
+        midiTrack.inputJack.receive(voice(Message.VoiceOpcode.NOTE_ON))
+        assertTrue(sent.isEmpty(), "Muted track should block NOTE_ON")
+        midiTrack.inputJack.receive(voice(Message.VoiceOpcode.NOTE_OFF))
+        midiTrack.inputJack.receive(voice(Message.VoiceOpcode.NOTE_ON, amplitude = 0.0))
+        assertEquals(2, sent.size, "Muted track should pass monitored note-offs")
+
+        // Same rule for notes played from the piano roll editor
+        sent.clear()
+        bridge.receive(voice(Message.VoiceOpcode.NOTE_ON))
+        bridge.receive(voice(Message.VoiceOpcode.NOTE_OFF))
+        assertEquals(listOf(Message.VoiceOpcode.NOTE_OFF), sent.map { it.opcode })
     }
 
     @Test
