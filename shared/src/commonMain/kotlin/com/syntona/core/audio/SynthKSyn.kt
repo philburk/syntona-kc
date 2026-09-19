@@ -27,6 +27,7 @@ import com.softsynth.ksyn.unitgen.UnitVoice
 import com.softsynth.ksyn.util.VoiceAllocator
 import com.softsynth.ksyn.shared.time.TimeStamp
 import com.softsynth.ksyn.unitgen.WhiteNoise
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.yield
 
@@ -41,9 +42,11 @@ object SynthKSyn {
      * for any device that is no longer present.
      */
     suspend fun start(context: Any? = null) {
-        AudioSettings.load()
-        applyPreferredDevices()
-        ksynAudioBridge.start(context)
+        runAudioSetup("start") {
+            AudioSettings.load()
+            applyPreferredDevices()
+            ksynAudioBridge.start(context)
+        }
         publishActiveDevices()
     }
 
@@ -52,10 +55,32 @@ object SynthKSyn {
      * Used when the user picks a different device in Audio Settings.
      */
     suspend fun restart(context: Any? = null) {
-        ksynAudioBridge.stop()
-        applyPreferredDevices()
-        ksynAudioBridge.start(context ?: ksynAudioBridge.context)
+        runAudioSetup("restart") {
+            ksynAudioBridge.stop()
+            applyPreferredDevices()
+            ksynAudioBridge.start(context ?: ksynAudioBridge.context)
+        }
         publishActiveDevices()
+    }
+
+    /**
+     * Runs audio device setup so that a failure leaves audio closed instead of throwing.
+     * Callers run in the UI, where an exception would freeze the app and, because the device
+     * choice is saved, would do so again on every launch. The user can then pick another device.
+     */
+    private suspend fun runAudioSetup(what: String, setup: suspend () -> Unit) {
+        try {
+            setup()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            println("Audio $what failed: $e")
+            try {
+                ksynAudioBridge.stop()
+            } catch (stopError: Exception) {
+                println("Audio stop after failed $what also failed: $stopError")
+            }
+        }
     }
 
     /**
@@ -91,6 +116,9 @@ object SynthKSyn {
     private fun publishActiveDevices() {
         AudioSettings.activeOutputName = ksynAudioBridge.activeOutputDeviceName
         AudioSettings.activeInputName = ksynAudioBridge.activeInputDeviceName
+        // Also true when the saved device exists but could not be opened, e.g. an unsupported format
+        if (ksynAudioBridge.outputFellBackToDefault) AudioSettings.outputFellBackToDefault = true
+        if (ksynAudioBridge.inputFellBackToDefault) AudioSettings.inputFellBackToDefault = true
     }
 
     /**

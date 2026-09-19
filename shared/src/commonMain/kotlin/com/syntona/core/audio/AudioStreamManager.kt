@@ -55,6 +55,12 @@ abstract class AudioStreamManager {
     var activeInputDeviceName: String = ""
         private set
 
+    /** True if the requested device could not be opened, so the default device was opened instead. */
+    var outputFellBackToDefault: Boolean = false
+        private set
+    var inputFellBackToDefault: Boolean = false
+        private set
+
     private fun startAudioStreamJob(): Job {
         audioStreamJob?.cancel()
 
@@ -76,6 +82,8 @@ abstract class AudioStreamManager {
         if (isBridgeOpen) {
             stop()
         }
+        inputFellBackToDefault = false
+        outputFellBackToDefault = false
 
         val optimalSampleRate = AudioDeviceManager.getOptimalSampleRate()
         val bufferSizeFrames = 64
@@ -87,34 +95,15 @@ abstract class AudioStreamManager {
                 permState = AudioInputBridge.requestPermission(context)
             }
             if (permState == AudioPermissionState.GRANTED) {
-                var inputCandidate = AudioInputBridge.create {
-                    sampleRate = optimalSampleRate
-                    framesPerBuffer = bufferSizeFrames
-                    channels = 2
-                    deviceId = requestedInputDeviceId
+                activeInputBridge = openInput(requestedInputDeviceId, optimalSampleRate, bufferSizeFrames)
+                if (activeInputBridge == null && requestedInputDeviceId != AudioSettings.DEFAULT_DEVICE_ID) {
+                    println("AudioInputBridge could not open the chosen device, trying the default.")
+                    activeInputBridge = openInput(AudioSettings.DEFAULT_DEVICE_ID, optimalSampleRate, bufferSizeFrames)
+                    inputFellBackToDefault = activeInputBridge != null
                 }
-                var openRes = inputCandidate.open()
-                if (openRes != AudioResult.OK) {
-                    println("AudioInputBridge stereo open failed: $openRes, falling back to mono.")
-                    inputCandidate = AudioInputBridge.create {
-                        sampleRate = optimalSampleRate
-                        framesPerBuffer = bufferSizeFrames
-                        channels = 1
-                        deviceId = requestedInputDeviceId
-                    }
-                    openRes = inputCandidate.open()
-                }
-                if (openRes == AudioResult.OK) {
-                    val startRes = inputCandidate.start()
-                    if (startRes == AudioResult.OK) {
-                        activeInputBridge = inputCandidate
-                        activeInputDeviceName = inputCandidate.getCurrentDeviceName()
-                        println("AudioInputBridge opened and started on '$activeInputDeviceName' with ${inputCandidate.getChannelCount()} channel(s).")
-                    } else {
-                        inputCandidate.close()
-                    }
-                } else {
-                    println("AudioInputBridge failed to open: $openRes")
+                if (activeInputBridge != null) {
+                    activeInputDeviceName = activeInputBridge.getCurrentDeviceName()
+                    println("AudioInputBridge opened and started on '$activeInputDeviceName' with ${activeInputBridge.getChannelCount()} channel(s).")
                 }
             } else {
                 println("Audio permission not granted: $permState")
@@ -122,28 +111,18 @@ abstract class AudioStreamManager {
         }
         this.inputBridge = activeInputBridge
 
-        val outputCandidate = AudioOutputBridge.create {
-            sampleRate = optimalSampleRate
-            framesPerBuffer = bufferSizeFrames
-            deviceId = requestedOutputDeviceId
+        var outputResult = AudioResult.OK
+        var outputCandidate = openOutput(requestedOutputDeviceId, optimalSampleRate, bufferSizeFrames) { outputResult = it }
+        if (outputCandidate == null && requestedOutputDeviceId != AudioSettings.DEFAULT_DEVICE_ID) {
+            println("AudioOutputBridge could not open the chosen device, trying the default.")
+            outputCandidate = openOutput(AudioSettings.DEFAULT_DEVICE_ID, optimalSampleRate, bufferSizeFrames) { outputResult = it }
+            outputFellBackToDefault = outputCandidate != null
         }
-        val openResult = outputCandidate.open()
-        if (openResult != AudioResult.OK) {
-            println("Failed to open audio output bridge: $openResult")
-            inputBridge?.stop()
-            inputBridge?.close()
+        if (outputCandidate == null) {
+            inputBridge?.let { closeQuietly(it) }
             inputBridge = null
-            return openResult
-        }
-        println("AudioBridge opened. sampleRate = ${outputCandidate.getSampleRate()}")
-        val startResult = outputCandidate.start()
-        if (startResult != AudioResult.OK) {
-            println("Failed to start audio output bridge: $startResult")
-            outputCandidate.close()
-            inputBridge?.stop()
-            inputBridge?.close()
-            inputBridge = null
-            return startResult
+            activeInputDeviceName = ""
+            return outputResult
         }
         this.audioBridge = outputCandidate
         activeOutputDeviceName = outputCandidate.getCurrentDeviceName()
@@ -152,6 +131,89 @@ abstract class AudioStreamManager {
 
         startAudioStreamJob()
         return AudioResult.OK
+    }
+
+    /** Opens and starts an input on [deviceId], in stereo if possible, else mono. Returns null if both fail. */
+    private fun openInput(deviceId: Int, sampleRate: Int, framesPerBuffer: Int): AudioInputBridge? {
+        for (channelCount in listOf(2, 1)) {
+            val candidate = AudioInputBridge.create {
+                this.sampleRate = sampleRate
+                this.framesPerBuffer = framesPerBuffer
+                channels = channelCount
+                this.deviceId = deviceId
+            }
+            val openRes = guarded("AudioInputBridge open, $channelCount channel(s)") { candidate.open() }
+            if (openRes != AudioResult.OK) {
+                println("AudioInputBridge $channelCount channel open failed: $openRes")
+                closeQuietly(candidate)
+                continue
+            }
+            val startRes = guarded("AudioInputBridge start") { candidate.start() }
+            if (startRes == AudioResult.OK) return candidate
+            println("AudioInputBridge $channelCount channel start failed: $startRes")
+            closeQuietly(candidate)
+        }
+        return null
+    }
+
+    /** Opens and starts an output on [deviceId]. Returns null on failure and reports why to [onFailure]. */
+    private fun openOutput(
+        deviceId: Int,
+        sampleRate: Int,
+        framesPerBuffer: Int,
+        onFailure: (AudioResult) -> Unit
+    ): AudioOutputBridge? {
+        val candidate = AudioOutputBridge.create {
+            this.sampleRate = sampleRate
+            this.framesPerBuffer = framesPerBuffer
+            this.deviceId = deviceId
+        }
+        val openResult = guarded("AudioOutputBridge open") { candidate.open() }
+        if (openResult != AudioResult.OK) {
+            println("Failed to open audio output bridge: $openResult")
+            onFailure(openResult)
+            closeQuietly(candidate)
+            return null
+        }
+        println("AudioBridge opened. sampleRate = ${candidate.getSampleRate()}")
+        val startResult = guarded("AudioOutputBridge start") { candidate.start() }
+        if (startResult != AudioResult.OK) {
+            println("Failed to start audio output bridge: $startResult")
+            onFailure(startResult)
+            closeQuietly(candidate)
+            return null
+        }
+        return candidate
+    }
+
+    /**
+     * Some bridges throw instead of returning an error, e.g. Java Sound throws
+     * IllegalArgumentException for a format the device does not support. Treat that as a failure
+     * so the caller can try another format or device instead of the exception escaping.
+     */
+    private inline fun guarded(what: String, action: () -> AudioResult): AudioResult =
+        try {
+            action()
+        } catch (e: Exception) {
+            println("$what threw $e")
+            AudioResult.ERROR_INTERNAL
+        }
+
+    private fun closeQuietly(bridge: AudioInputBridge) {
+        try {
+            bridge.stop()
+            bridge.close()
+        } catch (e: Exception) {
+            println("AudioInputBridge close threw $e")
+        }
+    }
+
+    private fun closeQuietly(bridge: AudioOutputBridge) {
+        try {
+            bridge.close()
+        } catch (e: Exception) {
+            println("AudioOutputBridge close threw $e")
+        }
     }
 
     fun stop() {
