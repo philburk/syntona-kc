@@ -1,7 +1,10 @@
 package com.syntona.dataflow.editor
 
+import com.syntona.ui.ArrowForwardIcon
 import com.syntona.ui.DropdownArrow
 import com.syntona.ui.LightbulbIcon
+import com.syntona.ui.LoopIcon
+import com.syntona.ui.RecordIcon
 import com.syntona.ui.VerticalEllipsisIcon
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -4895,8 +4898,9 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                         Box {
                             Button(
                                 onClick = { isTrackMenuOpen = true },
-                                modifier = Modifier.height(18.dp),
-                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                                modifier = Modifier.height(20.dp),
+                                shape = RoundedCornerShape(3.dp),
+                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
                             ) {
                                 Text("+Track", fontSize = 10.sp, fontWeight = FontWeight.Bold)
                             }
@@ -4942,34 +4946,59 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                         }
 
                         if (module.tracks.any { it.type.isRecordable }) {
-                            CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
-                                Button(
-                                    onClick = {
-                                        module.requestRecordToggle()
-                                        FileState.markDirty()
-                                    },
-                                    modifier = Modifier.width(22.dp).height(18.dp),
-                                    shape = RoundedCornerShape(3.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (module.isRecording) Color(0xFFFF1744) else Color(0xFFC62828),
-                                        contentColor = Color.White
-                                    ),
-                                    contentPadding = PaddingValues(0.dp)
-                                ) {
-                                    Text("●", fontSize = 11.sp, lineHeight = 11.sp, color = Color.White)
+                            TooltipArea(text = if (module.isRecording) "Stop Recording" else "Record") {
+                                CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
+                                    Button(
+                                        onClick = {
+                                            module.requestRecordToggle()
+                                            FileState.markDirty()
+                                        },
+                                        modifier = Modifier.size(width = 24.dp, height = 20.dp),
+                                        shape = RoundedCornerShape(3.dp),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = if (module.isRecording) Color(0xFFFF1744) else Color(0xFFC62828),
+                                            contentColor = Color.White
+                                        ),
+                                        contentPadding = PaddingValues(0.dp)
+                                    ) {
+                                        RecordIcon(
+                                            color = Color.White,
+                                            size = 10.dp
+                                        )
+                                    }
                                 }
                             }
                         }
 
-                        Text(
-                            text = if (module.loopMode) "🔁" else "➡️",
-                            color = if (module.loopMode) Color.Green else Color.LightGray,
-                            fontSize = 12.sp,
-                            modifier = Modifier.clickable {
-                                module.loopMode = !module.loopMode
-                                FileState.markDirty()
+                        TooltipArea(text = if (module.loopMode) "Loop: On" else "Loop: Off") {
+                            CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
+                                Button(
+                                    onClick = {
+                                        module.loopMode = !module.loopMode
+                                        FileState.markDirty()
+                                    },
+                                    modifier = Modifier.size(width = 24.dp, height = 20.dp),
+                                    shape = RoundedCornerShape(3.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (module.loopMode) Color(0xFF1B5E20) else Color(0xFF374151),
+                                        contentColor = if (module.loopMode) Color(0xFF81C784) else Color(0xFFB0BEC5)
+                                    ),
+                                    contentPadding = PaddingValues(0.dp)
+                                ) {
+                                    if (module.loopMode) {
+                                        LoopIcon(
+                                            color = Color(0xFF81C784),
+                                            size = 13.dp
+                                        )
+                                    } else {
+                                        ArrowForwardIcon(
+                                            color = Color(0xFFB0BEC5),
+                                            size = 13.dp
+                                        )
+                                    }
+                                }
                             }
-                        )
+                        }
                         Text("Zoom", fontSize = 10.sp, color = Color.White)
                         Slider(
                             value = coercedZoom,

@@ -214,3 +214,108 @@ fun LightbulbIcon(
     }
 }
 
+/**
+ * A record icon (solid filled circle) drawn via Canvas to avoid missing-glyph fallbacks on Web.
+ */
+@Composable
+fun RecordIcon(
+    modifier: Modifier = Modifier,
+    color: Color = Color.White,
+    size: Dp = 10.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val radius = minOf(this.size.width, this.size.height) * 0.44f
+        drawCircle(
+            color = color,
+            radius = radius,
+            center = Offset(this.size.width / 2f, this.size.height / 2f)
+        )
+    }
+}
+
+/**
+ * A loop/repeat icon (two cycling arrows) drawn via Canvas to avoid missing-glyph fallbacks on Web.
+ */
+@Composable
+fun LoopIcon(
+    modifier: Modifier = Modifier,
+    color: Color = Color.White,
+    size: Dp = 12.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+        val strokeWidth = 1.6.dp.toPx()
+
+        // Top arc and line: curves from left going up and right
+        val topPath = Path().apply {
+            moveTo(w * 0.22f, h * 0.52f)
+            lineTo(w * 0.22f, h * 0.36f)
+            quadraticTo(w * 0.22f, h * 0.22f, w * 0.38f, h * 0.22f)
+            lineTo(w * 0.68f, h * 0.22f)
+        }
+        drawPath(topPath, color = color, style = Stroke(width = strokeWidth, cap = StrokeCap.Round))
+
+        // Top arrowhead pointing right
+        val topArrow = Path().apply {
+            moveTo(w * 0.90f, h * 0.22f)
+            lineTo(w * 0.62f, h * 0.04f)
+            lineTo(w * 0.62f, h * 0.40f)
+            close()
+        }
+        drawPath(topArrow, color = color)
+
+        // Bottom arc and line: curves from right going down and left
+        val botPath = Path().apply {
+            moveTo(w * 0.78f, h * 0.48f)
+            lineTo(w * 0.78f, h * 0.64f)
+            quadraticTo(w * 0.78f, h * 0.78f, w * 0.62f, h * 0.78f)
+            lineTo(w * 0.32f, h * 0.78f)
+        }
+        drawPath(botPath, color = color, style = Stroke(width = strokeWidth, cap = StrokeCap.Round))
+
+        // Bottom arrowhead pointing left
+        val botArrow = Path().apply {
+            moveTo(w * 0.10f, h * 0.78f)
+            lineTo(w * 0.38f, h * 0.60f)
+            lineTo(w * 0.38f, h * 0.96f)
+            close()
+        }
+        drawPath(botArrow, color = color)
+    }
+}
+
+/**
+ * A right-pointing arrow icon (play-through / non-looping mode) drawn via Canvas to avoid missing-glyph fallbacks on Web.
+ */
+@Composable
+fun ArrowForwardIcon(
+    modifier: Modifier = Modifier,
+    color: Color = Color.LightGray,
+    size: Dp = 12.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+        val strokeWidth = 1.8.dp.toPx()
+
+        // Horizontal stem
+        drawLine(
+            color = color,
+            start = Offset(w * 0.12f, h * 0.5f),
+            end = Offset(w * 0.65f, h * 0.5f),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+
+        // Arrowhead pointing right
+        val arrow = Path().apply {
+            moveTo(w * 0.88f, h * 0.5f)
+            lineTo(w * 0.56f, h * 0.24f)
+            lineTo(w * 0.56f, h * 0.76f)
+            close()
+        }
+        drawPath(arrow, color = color)
+    }
+}
+
