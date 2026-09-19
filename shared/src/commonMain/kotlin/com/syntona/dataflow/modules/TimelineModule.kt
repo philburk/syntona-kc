@@ -57,8 +57,6 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
 
     var isRecording by mutableStateOf(false)
         private set
-    var recordJack: CommandJack? by mutableStateOf(null)
-        private set
 
     open fun unitsToSeconds(units: Double): Double = units
     open fun secondsToUnits(seconds: Double): Double = seconds
@@ -101,16 +99,6 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
         super.teardown()
     }
 
-    fun updateRecordJack() {
-        val hasRecordable = tracks.any { it.type.isRecordable }
-        if (hasRecordable && recordJack == null) {
-            recordJack = addCommandInput("record")
-        } else if (!hasRecordable && recordJack != null) {
-            recordJack?.let { deleteTrackInput(it) }
-            recordJack = null
-        }
-    }
-
     fun addTrack(type: TrackType, customName: String? = null): TimelineTrack {
         val id = nextTrackId++
         val trackName = customName?.takeIf { it.isNotBlank() } ?: "${type.displayName} $id"
@@ -122,7 +110,6 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
         }
         engine?.let { track.setEngine(it) }
         tracks.add(track)
-        updateRecordJack()
         return track
     }
 
@@ -144,21 +131,18 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
         if (id >= nextTrackId) {
             nextTrackId = id + 1
         }
-        updateRecordJack()
         return track
     }
 
     fun removeTrack(track: TimelineTrack) {
         track.dispose()
         tracks.remove(track)
-        updateRecordJack()
     }
 
     fun clearTracks() {
         tracks.toList().forEach { it.dispose() }
         tracks.clear()
         nextTrackId = 1
-        updateRecordJack()
     }
 
     internal fun createTrackInput(name: String): InputJack = addInput(name)
@@ -216,7 +200,6 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
             startPlayback(now, seekTime)
         }
         isRecording = true
-        recordJack?.isHighlighted = true
         val pos = getCurrentTime(now)
         tracks.filter { it.isRecordArmed }.forEach { it.onRecordStart(now, pos) }
     }
@@ -224,7 +207,6 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
     fun stopRecording(now: ScoreTime) {
         if (isRecording) {
             isRecording = false
-            recordJack?.isHighlighted = false
             val pos = getCurrentTime(now)
             tracks.filter { it.isRecordArmed }.forEach { it.onRecordStop(now, pos) }
         }
@@ -241,20 +223,6 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
 
     override fun execute(triggerMessage: Message) {
         when {
-            recordJack?.isKicked == true -> {
-                val e = engine ?: return
-                e.post(object : SyntonaCommand {
-                    override val isUndoable = false
-                    override fun execute() {
-                        if (isRecording) {
-                            stopRecording(triggerMessage.time)
-                        } else {
-                            startRecording(triggerMessage.time)
-                        }
-                    }
-                    override fun undo() {}
-                })
-            }
             start.isKicked -> {
                 val e = engine ?: return
                 e.post(object : SyntonaCommand {
@@ -360,6 +328,31 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
         val e = engine ?: return
         val jack = if (isPlaying) stop else start
         e.post(com.syntona.dataflow.engine.KickJackCommand(jack, ScoreClock.now()))
+    }
+
+    fun requestRecordToggle() {
+        val e = engine
+        if (e != null) {
+            e.post(object : SyntonaCommand {
+                override val isUndoable = false
+                override fun execute() {
+                    val now = ScoreClock.now()
+                    if (isRecording) {
+                        stopRecording(now)
+                    } else {
+                        startRecording(now)
+                    }
+                }
+                override fun undo() {}
+            })
+        } else {
+            val now = ScoreClock.now()
+            if (isRecording) {
+                stopRecording(now)
+            } else {
+                startRecording(now)
+            }
+        }
     }
 
     fun seekTo(timeSeconds: Double) {

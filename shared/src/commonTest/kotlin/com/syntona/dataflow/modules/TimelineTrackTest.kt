@@ -42,7 +42,6 @@ class TimelineTrackTest {
     fun testTrackAdditionAndJackCreation() {
         val timeline = TimelineModule()
         assertEquals(0, timeline.tracks.size)
-        assertNull(timeline.recordJack)
 
         // 1. Add Patch Track
         val patchTrack = timeline.addTrack(TrackType.PATCH)
@@ -51,7 +50,6 @@ class TimelineTrackTest {
         assertEquals("Patch 1", patchTrack.name)
         assertNull(patchTrack.inputJack)
         assertNull(patchTrack.outputJack)
-        assertNull(timeline.recordJack) // Patch tracks are not recordable
 
         // 2. Add Message Track
         val msgTrack = timeline.addTrack(TrackType.MESSAGE)
@@ -66,7 +64,6 @@ class TimelineTrackTest {
         assertEquals("out2", msgTrack.outputJack?.name)
         assertTrue(timeline.inputs.contains(msgTrack.inputJack))
         assertTrue(timeline.outputs.contains(msgTrack.outputJack))
-        assertNotNull(timeline.recordJack) // Message tracks are recordable
 
         // 3. Add MIDI Track
         val midiTrack = timeline.addTrack(TrackType.MIDI)
@@ -90,31 +87,6 @@ class TimelineTrackTest {
         assertFalse(timeline.inputs.contains(msgTrack.inputJack))
         assertFalse(timeline.outputs.contains(msgTrack.outputJack))
         timeline.teardown()
-    }
-
-    @Test
-    fun testRecordJackLifecycle() {
-        val timeline = TimelineModule()
-        assertNull(timeline.recordJack)
-
-        val patchTrack = timeline.addTrack(TrackType.PATCH)
-        assertNull(timeline.recordJack)
-
-        val midiTrack = timeline.addTrack(TrackType.MIDI)
-        assertNotNull(timeline.recordJack)
-        assertEquals("record", timeline.recordJack?.name)
-
-        val audioTrack = timeline.addTrack(TrackType.AUDIO)
-        assertNotNull(timeline.recordJack)
-
-        // Remove audio track - midi track is still recordable
-        timeline.removeTrack(audioTrack)
-        assertNotNull(timeline.recordJack)
-
-        // Remove midi track - only patch track remains
-        timeline.removeTrack(midiTrack)
-        assertNull(timeline.recordJack)
-        assertFalse(timeline.inputs.any { it.name == "record" })
     }
 
     @Test
@@ -391,20 +363,16 @@ class TimelineTrackTest {
     }
 
     @Test
-    fun testRecordJackHighlighting() {
+    fun testRecordingStateLifecycle() {
         val timeline = TimelineModule()
         timeline.addTrack(TrackType.MESSAGE)
-        val rJack = assertNotNull(timeline.recordJack)
-        assertFalse(rJack.isHighlighted)
         assertFalse(timeline.isRecording)
 
         timeline.startRecording(ScoreTime.Zero)
         assertTrue(timeline.isRecording)
-        assertTrue(rJack.isHighlighted)
 
         timeline.stopRecording(ScoreTime.Zero)
         assertFalse(timeline.isRecording)
-        assertFalse(rJack.isHighlighted)
     }
 
     @Test

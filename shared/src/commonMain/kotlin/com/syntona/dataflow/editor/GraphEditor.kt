@@ -1680,7 +1680,12 @@ fun MidiOutModuleNode(module: MidiOutModule, state: GraphState) {
 private fun formatValue(value: Double): String = formatNumber(value)
 
 @Composable
-fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
+fun JackView(
+    jack: Jack,
+    state: GraphState,
+    isLeft: Boolean,
+    trailingContent: (@Composable () -> Unit)? = null
+) {
     if (jack is CommandJack) {
         CommandJackView(jack, state, isLeft)
         return
@@ -1719,7 +1724,8 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
         horizontalArrangement = if (isLeft) Arrangement.Start else Arrangement.End,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 2.dp)
+            .padding(vertical = 1.dp)
+            .height(14.dp)
             .onGloballyPositioned { layoutCoordinates ->
                 jackRootPosition = layoutCoordinates.positionInRoot()
                 val size = layoutCoordinates.size
@@ -1817,10 +1823,11 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
         if (isLeft) {
             JackMarker(jack)
             Spacer(modifier = Modifier.width(4.dp))
-            Text(displayText, color = textColor, fontSize = 10.sp, maxLines = 1, softWrap = false)
+            Text(displayText, color = textColor, fontSize = 10.sp, lineHeight = 10.sp, maxLines = 1, softWrap = false)
+            trailingContent?.invoke()
             if (jack.module is SendModule) {
                 Spacer(modifier = Modifier.width(4.dp))
-                Text(">>", color = colors.jackDefault, fontSize = 10.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                Text(">>", color = colors.jackDefault, fontSize = 10.sp, lineHeight = 10.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
             }
             if (jack is BooleanInputJack) {
                 Spacer(modifier = Modifier.widthIn(min = 8.dp).weight(1f))
@@ -1828,7 +1835,7 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .size(16.dp)
+                        .size(14.dp)
                         .pointerInput(jack) {
                             awaitEachGesture {
                                 val down = awaitFirstDown(requireUnconsumed = true)
@@ -1854,7 +1861,7 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
                         Checkbox(
                             checked = jack.isChecked,
                             onCheckedChange = null,
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(14.dp),
                             colors = CheckboxDefaults.colors(
                                 checkedColor = colors.headerSequence,
                                 uncheckedColor = Color.Gray,
@@ -1868,7 +1875,7 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
         } else {
             Spacer(modifier = Modifier.width(4.dp))
             if (jack.module is ReceiveModule) {
-                Text(">>", color = colors.jackDefault, fontSize = 10.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
+                Text(">>", color = colors.jackDefault, fontSize = 10.sp, lineHeight = 10.sp, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold)
                 Spacer(modifier = Modifier.width(4.dp))
             }
             Box(
@@ -1878,12 +1885,14 @@ fun JackView(jack: Jack, state: GraphState, isLeft: Boolean) {
                     text = jack.name,
                     color = Color.Transparent,
                     fontSize = 10.sp,
+                    lineHeight = 10.sp,
                     maxLines = 1
                 )
                 Text(
                     text = displayText,
                     color = textColor,
                     fontSize = 10.sp,
+                    lineHeight = 10.sp,
                     maxLines = 1,
                     textAlign = TextAlign.End,
                     modifier = Modifier.matchParentSize()
@@ -1905,7 +1914,7 @@ fun CommandJackView(jack: CommandJack, state: GraphState, isLeft: Boolean) {
         horizontalArrangement = if (isLeft) Arrangement.Start else Arrangement.End,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 2.dp)
+            .padding(vertical = 1.dp)
             .onGloballyPositioned { coords ->
                 jackRootPosition = coords.positionInRoot()
                 val size = coords.size
@@ -1939,7 +1948,7 @@ fun CommandJackView(jack: CommandJack, state: GraphState, isLeft: Boolean) {
             Button(
                 onClick = {},
                 modifier = Modifier
-                    .height(24.dp)
+                    .height(16.dp)
                     .pointerInput(jack) {
                         awaitEachGesture {
                             awaitFirstDown(requireUnconsumed = false)
@@ -1964,6 +1973,7 @@ fun CommandJackView(jack: CommandJack, state: GraphState, isLeft: Boolean) {
                 Text(
                     jack.name,
                     fontSize = 10.sp,
+                    lineHeight = 10.sp,
                     maxLines = 1,
                     softWrap = false
                 )
@@ -1974,6 +1984,7 @@ fun CommandJackView(jack: CommandJack, state: GraphState, isLeft: Boolean) {
             Text(
                 badge,
                 fontSize = 10.sp,
+                lineHeight = 10.sp,
                 color = if (jack.isHighlighted) colors.buttonBgArmed else Color.Gray,
                 maxLines = 1,
                 softWrap = false
@@ -1995,7 +2006,7 @@ fun CommandOutputJackView(jack: CommandOutputJack, state: GraphState, isLeft: Bo
         horizontalArrangement = if (isLeft) Arrangement.Start else Arrangement.End,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 2.dp)
+            .padding(vertical = 1.dp)
             .onGloballyPositioned { coords ->
                 jackRootPosition = coords.positionInRoot()
                 val size = coords.size
@@ -2035,7 +2046,7 @@ fun CommandOutputJackView(jack: CommandOutputJack, state: GraphState, isLeft: Bo
             Button(
                 onClick = {},
                 modifier = Modifier
-                    .height(20.dp)
+                    .height(16.dp)
                     .pointerInput(jack) {
                         awaitEachGesture {
                             awaitFirstDown(requireUnconsumed = false)
@@ -2050,7 +2061,7 @@ fun CommandOutputJackView(jack: CommandOutputJack, state: GraphState, isLeft: Bo
                     },
                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
             ) {
-                Text("Kick", fontSize = 10.sp)
+                Text("Kick", fontSize = 10.sp, lineHeight = 10.sp)
             }
         }
         if (!isLeft) {
@@ -2627,7 +2638,7 @@ fun ResizableModuleBox(
 
     // Safety floor based on jacks so they are never hidden or clipped
     val maxJacks = maxOf(module.inputs.size, module.outputs.size)
-    val minJackHeight = if (maxJacks > 0) (8 + maxJacks * 20 + (maxJacks - 1) * 4).dp else 0.dp
+    val minJackHeight = if (maxJacks > 0) (8 + maxJacks * 16).dp else 0.dp
     val effectiveMinHeight = maxOf(minHeight, minJackHeight)
     val effectiveMinWidth = minWidth
 
@@ -4110,6 +4121,7 @@ fun TrackSectionView(
                 Text(
                     text = "⟳ ${section.name.ifEmpty { "Sec ${section.id + 1}" }}",
                     fontSize = 8.sp,
+                    lineHeight = 9.sp,
                     color = Color.White.copy(alpha = 0.7f),
                     modifier = Modifier.padding(start = 2.dp, top = 1.dp)
                 )
@@ -4189,7 +4201,7 @@ fun TrackSectionView(
                             .background(Color.White.copy(alpha = 0.4f), RoundedCornerShape(topEnd = 2.dp)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("⟳", fontSize = 8.sp, color = Color.White)
+                        Text("⟳", fontSize = 8.sp, lineHeight = 9.sp, color = Color.White)
                     }
                 }
             }
@@ -4213,25 +4225,27 @@ fun TrackSectionView(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(13.dp)
+                    .height(15.dp)
                     .background(if (isSelected) sectionColor.copy(alpha = 1.0f) else sectionColor)
                     .padding(horizontal = 2.dp),
                 contentAlignment = Alignment.CenterStart
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().fillMaxHeight(),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(
                         text = section.name.ifEmpty { "Sec ${section.id + 1}" },
                         fontSize = 8.sp,
+                        lineHeight = 9.sp,
                         color = Color.White,
                         fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Bold
                     )
                     Text(
                         text = "✕",
                         fontSize = 8.sp,
+                        lineHeight = 9.sp,
                         color = Color.White.copy(alpha = 0.7f),
                         modifier = Modifier.clickable {
                             val e = state.engine
@@ -4358,7 +4372,7 @@ fun TrackSectionView(
                         .background(Color.White.copy(alpha = 0.35f), RoundedCornerShape(topEnd = 2.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("⟳", fontSize = 8.sp, color = Color.White)
+                    Text("⟳", fontSize = 8.sp, lineHeight = 9.sp, color = Color.White)
                 }
 
                 // Resize Handle (Bottom-Right)
@@ -4404,7 +4418,7 @@ fun TrackSectionView(
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("⇥", fontSize = 8.sp, color = Color.White)
+                    Text("⇥", fontSize = 8.sp, lineHeight = 9.sp, color = Color.White)
                 }
             }
         }
@@ -4464,7 +4478,7 @@ fun TrackLaneView(
                             val handleW = 18f * density
                             val isNearTopRepeat = down.position.y <= 32f * density
                             val isNearEndRight = down.position.x >= (endPx - handleW) && down.position.x <= (endPx + 4f * density)
-                            val isNearRep0Right = hitSection.repeats > 1 && down.position.x >= (rep0EndPx - handleW) && down.position.x <= (rep0EndPx + 4f * density) && down.position.y >= (13f * density)
+                            val isNearRep0Right = hitSection.repeats > 1 && down.position.x >= (rep0EndPx - handleW) && down.position.x <= (rep0EndPx + 4f * density) && down.position.y >= (15f * density)
 
                             if (isNearTopRepeat && (isNearEndRight || isNearRep0Right)) {
                                 state.selectTrackSection(module, track, hitSection)
@@ -4699,6 +4713,7 @@ fun TrackLaneView(
                 Text(
                     text = "+ ${ghostSec.name.ifEmpty { "Sec ${ghostSec.id + 1}" }} (Copy)",
                     fontSize = 8.sp,
+                    lineHeight = 9.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
                     modifier = Modifier.padding(2.dp)
@@ -4847,7 +4862,7 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
     }
 
     val transportInputs = module.inputs.filter { jack -> module.tracks.none { it.inputJack === jack } }
-    val topSectionHeight = maxOf(64.dp, (transportInputs.size * 32).dp)
+    val topSectionHeight = maxOf(60.dp, if (transportInputs.isNotEmpty()) (transportInputs.size * 18 + 4).dp else 0.dp)
     val trackHeight = 48.dp
     val triggerHeight = 44.dp
 
@@ -4927,23 +4942,22 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                         }
 
                         if (module.tracks.any { it.type.isRecordable }) {
-                            Button(
-                                onClick = {
-                                    if (module.isRecording) {
-                                        module.stopRecording(ScoreClock.now())
-                                    } else {
-                                        module.startRecording(ScoreClock.now())
-                                    }
-                                    FileState.markDirty()
-                                },
-                                modifier = Modifier.height(18.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (module.isRecording) Color(0xFFD32F2F) else Color(0xFF4A2020),
-                                    contentColor = Color.White
-                                ),
-                                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp)
-                            ) {
-                                Text("●", fontSize = 10.sp, color = if (module.isRecording) Color.White else Color(0xFFEF9A9A))
+                            CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
+                                Button(
+                                    onClick = {
+                                        module.requestRecordToggle()
+                                        FileState.markDirty()
+                                    },
+                                    modifier = Modifier.width(22.dp).height(18.dp),
+                                    shape = RoundedCornerShape(3.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (module.isRecording) Color(0xFFFF1744) else Color(0xFFC62828),
+                                        contentColor = Color.White
+                                    ),
+                                    contentPadding = PaddingValues(0.dp)
+                                ) {
+                                    Text("●", fontSize = 11.sp, lineHeight = 11.sp, color = Color.White)
+                                }
                             }
                         }
 
@@ -5000,21 +5014,23 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                         modifier = Modifier.width(leftWidth)
                     ) {
                         Column(
-                            modifier = Modifier.fillMaxWidth().height(topSectionHeight).padding(bottom = 4.dp),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                            modifier = Modifier.fillMaxWidth().height(topSectionHeight),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
                             transportInputs.forEach { jack ->
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.Start
-                                ) {
-                                    JackView(jack, state, isLeft = true)
-                                    if (jack.name == "tempo" && isBeats && (module as? BeatLineModule)?.isTempoLocked == true) {
-                                        Text(" 🔒", fontSize = 10.sp)
+                                JackView(
+                                    jack = jack,
+                                    state = state,
+                                    isLeft = true,
+                                    trailingContent = {
+                                        if (jack.name == "tempo" && module is BeatLineModule && module.isTempoLocked) {
+                                            Text(" 🔒", fontSize = 10.sp, lineHeight = 10.sp)
+                                        }
                                     }
-                                }
+                                )
                             }
                         }
+                        Spacer(modifier = Modifier.height(4.dp))
 
                         module.tracks.forEach { track ->
                             Row(
@@ -5066,8 +5082,8 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(12.dp)
-                                .background(Color(0xFFE5E7EB), RoundedCornerShape(2.dp))
+                                .height(16.dp)
+                                .background(Color(0xFFE5E7EB), RoundedCornerShape(3.dp))
                                 .pointerInput(scrollState.maxValue, timelineWidth) {
                                     awaitPointerEventScope {
                                         while (true) {
@@ -5113,7 +5129,7 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                         .fillMaxHeight()
                                         .fillMaxWidth(ratio)
                                         .offset(x = (viewportWidth * (1f - ratio) * scrollPct))
-                                        .background(Color(0xFF888888), RoundedCornerShape(2.dp))
+                                        .background(Color(0xFF888888), RoundedCornerShape(3.dp))
                                 )
                             }
                         }
@@ -5140,7 +5156,7 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                     currentPlayheadTime = module.seekTime
                                 }
 
-                                val centerTopRemaining = (topSectionHeight - 16.dp).coerceAtLeast(44.dp)
+                                val centerTopRemaining = (topSectionHeight - 20.dp).coerceAtLeast(40.dp)
                                 Column(modifier = Modifier.fillMaxWidth().height(centerTopRemaining)) {
                                     Box(
                                         modifier = Modifier

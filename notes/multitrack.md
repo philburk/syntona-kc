@@ -32,8 +32,8 @@ and the region durations should snap to the smallest visible beat subdivisions.
 
 ## Record button
 
-The timeLine should have a "record" command jack that is visible if we add tracks capable of being recorded.
-When "record" is kicked, and track that has its "R" button enabled will start recording until stopped.
+The timeLine toolbar has a red record button that is visible if we add tracks capable of being recorded.
+When clicked, any track that has its "R" button enabled will start recording until stopped.
 
 ## Patch Track
 This track is backed by a single patch with intrinsic "start" and "stop" input jacks.
