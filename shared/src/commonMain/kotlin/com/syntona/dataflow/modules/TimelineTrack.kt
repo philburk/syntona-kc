@@ -1110,6 +1110,7 @@ class AudioTrackUnit(
         val outputs = output.getValues()
         val inputs = input.getValues()
         val blockSize = Synthesizer.FRAMES_PER_BLOCK
+        val audible = isAudible
 
         if (isRecording) {
             val rec = recordingArray
@@ -1126,7 +1127,7 @@ class AudioTrackUnit(
             }
         }
 
-        if (isInputMonitored && isAudible) {
+        if (isInputMonitored && audible) {
             for (i in 0 until blockSize) {
                 outputs[i] = inputs[i]
             }
@@ -1134,7 +1135,7 @@ class AudioTrackUnit(
             outputs.fill(0f, 0, blockSize)
         }
 
-        if (isAudible && playbackVoices.isNotEmpty()) {
+        if (playbackVoices.isNotEmpty()) {
             val amps = amplitude.getValues()
             val it = playbackVoices.iterator()
             while (it.hasNext()) {
@@ -1142,20 +1143,23 @@ class AudioTrackUnit(
                 val arr = voice.array
                 val end = voice.endFrame
                 var cur = voice.cursor
-                for (i in 0 until blockSize) {
-                    if (cur < end && cur < arr.length) {
-                        outputs[i] += arr[cur++] * amps[i]
-                    } else {
-                        break
+                if (audible) {
+                    for (i in 0 until blockSize) {
+                        if (cur < end && cur < arr.length) {
+                            outputs[i] += arr[cur++] * amps[i]
+                        } else {
+                            break
+                        }
                     }
+                } else {
+                    // Keep advancing while muted so playback stays in sync with the timeline.
+                    cur = minOf(cur + blockSize, end, arr.length)
                 }
                 voice.cursor = cur
                 if (cur >= end || cur >= arr.length) {
                     it.remove()
                 }
             }
-        } else if (!isAudible) {
-            outputs.fill(0f, 0, blockSize)
         }
     }
 }

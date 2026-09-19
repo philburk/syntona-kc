@@ -1567,6 +1567,46 @@ class TimelineTrackTest {
     }
 
     @Test
+    fun testAudioTrackPlaybackStaysInSyncWhileMuted() {
+        val timeline = TimelineModule()
+        val engine = TestEngine()
+        timeline.setEngine(engine)
+
+        val audioTrack = timeline.addTrack(TrackType.AUDIO, "Lead") as AudioTrack
+        val sec = audioTrack.addSectionDirect(id = 1, start = 0.0, duration = 1.0)
+        val audioData = sec.data as AudioSectionData
+
+        // Ramp so each frame's value identifies its position in the recording
+        val block = Synthesizer.FRAMES_PER_BLOCK
+        val numFrames = block * 4
+        val rec = SegmentedFloatArray(audioTrack.unit.segmentSize, audioTrack.unit.poolCapacity)
+        rec.extend(numFrames)
+        for (i in 0 until numFrames) rec[i] = (i + 1).toFloat()
+        audioData.recording = rec
+
+        audioTrack.onPlaybackStart(ScoreTime.Zero, 0.0, 5.0, engine)
+        val outputs = audioTrack.unit.output.getValues()
+
+        // Block 0 is audible
+        audioTrack.unit.generate()
+        for (i in 0 until block) assertEquals((i + 1).toFloat(), outputs[i], 1e-5f)
+
+        // Block 1 is muted
+        audioTrack.isMuted = true
+        audioTrack.unit.generate()
+        for (i in 0 until block) assertEquals(0f, outputs[i], 1e-5f)
+
+        // Block 2 resumes where the timeline is, not where the mute began
+        audioTrack.isMuted = false
+        audioTrack.unit.generate()
+        for (i in 0 until block) {
+            assertEquals((2 * block + i + 1).toFloat(), outputs[i], 1e-5f, "Frame $i after unmute")
+        }
+
+        audioTrack.teardown()
+    }
+
+    @Test
     fun testAudioTrackWavSerializationRoundTrip() {
         val rootGraph = GraphState()
         val timeline = TimelineModule()
