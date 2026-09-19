@@ -336,27 +336,30 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
     }
 
     fun requestRecordToggle() {
-        val e = engine
-        if (e != null) {
-            e.post(object : SyntonaCommand {
-                override val isUndoable = false
-                override fun execute() {
-                    val now = ScoreClock.now()
-                    if (isRecording) {
-                        stopRecording(now)
-                    } else {
-                        startRecording(now)
-                    }
-                }
-                override fun undo() {}
-            })
-        } else {
+        runOnEngine {
             val now = ScoreClock.now()
             if (isRecording) {
                 stopRecording(now)
             } else {
                 startRecording(now)
             }
+        }
+    }
+
+    /**
+     * Runs [action] on the engine thread, which owns track state during playback and recording.
+     * Use this for UI edits to tracks, sections and section data. Runs [action] directly if there is no engine.
+     */
+    fun runOnEngine(action: () -> Unit) {
+        val e = engine
+        if (e != null) {
+            e.post(object : SyntonaCommand {
+                override val isUndoable = false
+                override fun execute() = action()
+                override fun undo() {}
+            })
+        } else {
+            action()
         }
     }
 

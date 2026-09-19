@@ -170,16 +170,22 @@ abstract class TimelineTrack(
 
     open fun addSectionDirect(id: Int, start: Double, duration: Double, repeats: Int = 1, name: String = ""): TrackSection {
         val section = TrackSection(id, start, duration, repeats, name)
-        val insertIndex = sections.indexOfFirst { it.start > start }
+        insertSection(section)
+        if (id >= nextSectionId) {
+            nextSectionId = id + 1
+        }
+        return section
+    }
+
+    /** Inserts an existing [section] in start order, e.g. to restore it on undo. Does nothing if already present. */
+    fun insertSection(section: TrackSection) {
+        if (sections.contains(section)) return
+        val insertIndex = sections.indexOfFirst { it.start > section.start }
         if (insertIndex >= 0) {
             sections.add(insertIndex, section)
         } else {
             sections.add(section)
         }
-        if (id >= nextSectionId) {
-            nextSectionId = id + 1
-        }
-        return section
     }
 
     fun duplicateSection(section: TrackSection, newStart: Double): TrackSection? {

@@ -1,7 +1,9 @@
 package com.syntona.dataflow.modules
 
 import androidx.compose.ui.geometry.Offset
+import com.syntona.dataflow.editor.AddSectionCommand
 import com.syntona.dataflow.editor.DeleteModulesCommand
+import com.syntona.dataflow.editor.DeleteSectionCommand
 import com.syntona.dataflow.editor.GraphSerializer
 import com.syntona.dataflow.editor.GraphState
 import com.syntona.dataflow.registry.ModuleRegistry
@@ -1321,6 +1323,70 @@ class TimelineTrackTest {
         // Only once: a repeated NOTE_OFF for the same key is blocked again
         midiTrack.inputJack.receive(voice(Message.VoiceOpcode.NOTE_OFF, 60))
         assertEquals(1, sent.size)
+    }
+
+    @Test
+    fun testAddSectionCommandCreatesSectionAndSupportsUndoRedo() {
+        val timeline = TimelineModule()
+        val track = timeline.addTrack(TrackType.MESSAGE)
+        val added = mutableListOf<TrackSection>()
+
+        val cmd = AddSectionCommand(track, { track.addSection(1.0, 2.0) }) { added.add(it) }
+        assertFalse(cmd.isUndoable, "Nothing to undo before it runs")
+        cmd.execute()
+        val sec = assertNotNull(cmd.section)
+        assertTrue(cmd.isUndoable)
+        assertEquals(listOf(sec), track.sections.toList())
+        assertEquals(listOf(sec), added)
+
+        cmd.undo()
+        assertTrue(track.sections.isEmpty())
+        cmd.execute() // Redo restores the same section without creating a new one
+        assertEquals(listOf(sec), track.sections.toList())
+        assertEquals(1, added.size)
+
+        // No room: nothing is added and the command is not recorded for undo
+        val blocked = AddSectionCommand(track, { track.addSection(1.5, 2.0) })
+        blocked.execute()
+        assertNull(blocked.section)
+        assertFalse(blocked.isUndoable)
+        assertEquals(1, track.sections.size)
+    }
+
+    @Test
+    fun testDeleteSectionCommandUndoRestoresOrder() {
+        val timeline = TimelineModule()
+        val track = timeline.addTrack(TrackType.MESSAGE)
+        val first = track.addSection(0.0, 1.0)!!
+        val middle = track.addSection(2.0, 1.0)!!
+        val last = track.addSection(4.0, 1.0)!!
+
+        val cmd = DeleteSectionCommand(track, middle)
+        cmd.execute()
+        assertEquals(listOf(first, last), track.sections.toList())
+        cmd.undo()
+        assertEquals(listOf(first, middle, last), track.sections.toList())
+    }
+
+    @Test
+    fun testMessageSectionInsertEventKeepsObjectAndWidensRange() {
+        val data = MessageSectionData(initialMin = 0.0, initialMax = 1.0)
+        data.addEvent(1.0, 0.5)
+        data.addEvent(3.0, 0.5)
+
+        val ev = TrackMessageEvent(2.0, 5.0)
+        data.insertEvent(ev)
+        assertTrue(data.events[1] === ev, "Inserted in time order as the same object")
+        assertEquals(5.0, data.max)
+        assertEquals(5.0, ev.value, "Value is not clamped")
+    }
+
+    @Test
+    fun testRunOnEngineRunsDirectlyWithoutEngine() {
+        val timeline = TimelineModule()
+        var ran = false
+        timeline.runOnEngine { ran = true }
+        assertTrue(ran)
     }
 
     @Test

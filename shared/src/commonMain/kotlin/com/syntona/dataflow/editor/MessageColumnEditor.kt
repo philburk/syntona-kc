@@ -43,6 +43,8 @@ fun MessageColumnEditor(
     val data = section.data as? MessageSectionData ?: remember(section) {
         MessageSectionData().also { section.data = it }
     }
+    // Section data is also read and recorded on the engine thread, so edit it there.
+    val runOnEngine = track.timeline::runOnEngine
 
     var selectedEvent by remember { mutableStateOf<TrackMessageEvent?>(null) }
     val focusRequester = remember { FocusRequester() }
@@ -65,7 +67,7 @@ fun MessageColumnEditor(
                 override fun delete() {
                     val ev = selectedEvent
                     if (ev != null) {
-                        data.removeEvent(ev)
+                        runOnEngine { data.removeEvent(ev) }
                         selectedEvent = null
                         FileState.markDirty()
                     }
@@ -92,7 +94,7 @@ fun MessageColumnEditor(
                 ) {
                     val ev = selectedEvent
                     if (ev != null) {
-                        data.removeEvent(ev)
+                        runOnEngine { data.removeEvent(ev) }
                         selectedEvent = null
                         FileState.markDirty()
                     }
@@ -134,7 +136,7 @@ fun MessageColumnEditor(
                     modifier = Modifier
                         .background(Color(0xFF333333), RoundedCornerShape(3.dp))
                         .clickable {
-                            data.clearEvents()
+                            runOnEngine { data.clearEvents() }
                             selectedEvent = null
                             FileState.markDirty()
                         }
@@ -153,7 +155,7 @@ fun MessageColumnEditor(
                         modifier = Modifier
                             .background(Color(0xFFC62828), RoundedCornerShape(3.dp))
                             .clickable {
-                                data.removeEvent(curSel)
+                                runOnEngine { data.removeEvent(curSel) }
                                 selectedEvent = null
                                 FileState.markDirty()
                             }
@@ -184,8 +186,10 @@ fun MessageColumnEditor(
                         modifier = Modifier
                             .background(Color(0xFF2C2C2C), RoundedCornerShape(2.dp))
                             .clickable {
-                                data.min = 0.0
-                                data.max = r
+                                runOnEngine {
+                                    data.min = 0.0
+                                    data.max = r
+                                }
                                 FileState.markDirty()
                             }
                             .padding(horizontal = 4.dp, vertical = 1.dp)
@@ -272,7 +276,7 @@ fun MessageColumnEditor(
                             if (hitEvent != null) {
                                 if (isAlt) {
                                     // Alt-click deletes event
-                                    data.removeEvent(hitEvent)
+                                    runOnEngine { data.removeEvent(hitEvent) }
                                     selectedEvent = null
                                     FileState.markDirty()
                                     return@awaitEachGesture
@@ -284,7 +288,8 @@ fun MessageColumnEditor(
                                 // Click on empty space creates a new event
                                 val newTime = posToTime(clickX)
                                 val newVal = posToVal(clickY)
-                                val ev = data.addEvent(newTime, newVal)
+                                val ev = TrackMessageEvent(newTime, newVal)
+                                runOnEngine { data.insertEvent(ev) }
                                 activeEvent = ev
                                 selectedEvent = ev
                                 FileState.markDirty()
@@ -302,16 +307,18 @@ fun MessageColumnEditor(
                                 if (curEv != null) {
                                     val t = posToTime(change.position.x)
                                     val v = posToVal(change.position.y)
-                                    curEv.time = t
-                                    curEv.value = v
-                                    if (v > data.max) data.max = v
-                                    if (v < data.min) data.min = v
+                                    runOnEngine {
+                                        curEv.time = t
+                                        curEv.value = v
+                                        if (v > data.max) data.max = v
+                                        if (v < data.min) data.min = v
+                                    }
                                     FileState.markDirty()
                                 }
                             }
 
                             // Keep events sorted by time after drag
-                            data.events.sortBy { it.time }
+                            runOnEngine { data.events.sortBy { it.time } }
                         }
                     }
             ) {
@@ -408,7 +415,7 @@ fun MessageColumnEditor(
                             r < 200.0 -> r.roundToInt().toDouble()
                             else -> ((r / 10.0).roundToInt() * 10.0)
                         }.coerceAtLeast(0.1)
-                        data.max = data.min + roundedR
+                        runOnEngine { data.max = data.min + roundedR }
                         FileState.markDirty()
                     },
                     modifier = Modifier.weight(1f).width(24.dp),

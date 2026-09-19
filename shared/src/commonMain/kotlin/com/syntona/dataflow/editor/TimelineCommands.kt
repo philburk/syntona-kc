@@ -15,35 +15,34 @@ class DeleteSectionCommand(
     }
 
     override fun undo() {
-        if (!track.sections.contains(section)) {
-            val insertIndex = track.sections.indexOfFirst { it.start > section.start }
-            if (insertIndex >= 0) {
-                track.sections.add(insertIndex, section)
-            } else {
-                track.sections.add(section)
-            }
-        }
+        track.insertSection(section)
     }
 }
 
+/**
+ * Creates a section with [create] on the engine thread, so the track's section list is only
+ * changed there. [create] returns null if there is no room, and then nothing is added to the undo history.
+ */
 class AddSectionCommand(
     val track: TimelineTrack,
-    val section: TrackSection
+    private val create: () -> TrackSection?,
+    private val onAdded: (TrackSection) -> Unit = {}
 ) : SyntonaCommand {
-    override val isUndoable = true
+    var section: TrackSection? = null
+        private set
+
+    override val isUndoable: Boolean get() = section != null
 
     override fun execute() {
-        if (!track.sections.contains(section)) {
-            val insertIndex = track.sections.indexOfFirst { it.start > section.start }
-            if (insertIndex >= 0) {
-                track.sections.add(insertIndex, section)
-            } else {
-                track.sections.add(section)
-            }
+        val existing = section
+        if (existing == null) {
+            section = create()?.also(onAdded)
+        } else {
+            track.insertSection(existing) // Redo
         }
     }
 
     override fun undo() {
-        track.removeSection(section)
+        section?.let { track.removeSection(it) }
     }
 }

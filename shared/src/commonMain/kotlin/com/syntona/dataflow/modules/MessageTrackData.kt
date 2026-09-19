@@ -74,6 +74,21 @@ class MessageSectionData(
         return event
     }
 
+    /**
+     * Inserts an [event] created by the editor, in time order, widening min and max to include it.
+     * Unlike [addEvent] it keeps the given object, so the editor can select it before it is inserted.
+     */
+    fun insertEvent(event: TrackMessageEvent) {
+        if (event.value < min) min = event.value
+        if (event.value > max) max = event.value
+        val insertIndex = events.indexOfFirst { it.time > event.time }
+        if (insertIndex >= 0) {
+            events.add(insertIndex, event)
+        } else {
+            events.add(event)
+        }
+    }
+
     fun removeEvent(event: TrackMessageEvent) {
         events.remove(event)
     }

@@ -4025,7 +4025,8 @@ fun TrackHeaderView(
                 color = Color.Gray,
                 fontSize = 10.sp,
                 modifier = Modifier.clickable {
-                    module.removeTrack(track)
+                    if (state.selectedSectionInfo?.second === track) state.clearSectionSelection()
+                    module.runOnEngine { module.removeTrack(track) }
                     FileState.markDirty()
                 }
             )
@@ -4041,7 +4042,7 @@ fun TrackHeaderView(
                 isActive = track.isMuted,
                 activeColor = Color(0xFFFFA000),
                 onClick = {
-                    track.isMuted = !track.isMuted
+                    module.runOnEngine { track.isMuted = !track.isMuted }
                     FileState.markDirty()
                 }
             )
@@ -4050,7 +4051,7 @@ fun TrackHeaderView(
                 isActive = track.isSoloed,
                 activeColor = Color(0xFFFFD54F),
                 onClick = {
-                    track.isSoloed = !track.isSoloed
+                    module.runOnEngine { track.isSoloed = !track.isSoloed }
                     FileState.markDirty()
                 }
             )
@@ -4060,7 +4061,7 @@ fun TrackHeaderView(
                     isActive = track.isRecordArmed,
                     activeColor = Color(0xFFE53935),
                     onClick = {
-                        track.isRecordArmed = !track.isRecordArmed
+                        module.runOnEngine { track.isRecordArmed = !track.isRecordArmed }
                         FileState.markDirty()
                     }
                 )
@@ -4069,7 +4070,7 @@ fun TrackHeaderView(
                     isActive = track.isInputMonitored,
                     activeColor = Color(0xFFFF7043),
                     onClick = {
-                        track.isInputMonitored = !track.isInputMonitored
+                        module.runOnEngine { track.isInputMonitored = !track.isInputMonitored }
                         FileState.markDirty()
                     }
                 )
@@ -4411,7 +4412,7 @@ fun TrackSectionView(
                                                 rawDur
                                             }
                                             if (section.duration != newDur) {
-                                                section.duration = newDur
+                                                module.runOnEngine { section.duration = newDur }
                                                 FileState.markDirty()
                                             }
                                         }
@@ -4426,6 +4427,21 @@ fun TrackSectionView(
             }
         }
     }
+}
+
+/** Adds a section on the engine thread through an undoable command, then selects it. */
+private fun addSectionOnEngine(
+    state: GraphState,
+    module: TimelineModule,
+    track: TimelineTrack,
+    create: () -> TrackSection?
+) {
+    val cmd = AddSectionCommand(track, create) { newSec ->
+        state.selectTrackSection(module, track, newSec)
+        FileState.markDirty()
+    }
+    val e = state.engine
+    if (e != null) e.post(cmd) else cmd.execute()
 }
 
 @Composable
@@ -4501,7 +4517,7 @@ fun TrackLaneView(
                                             else -> initialRepeats
                                         }.coerceIn(1, maxReps)
                                         if (hitSection.repeats != targetReps) {
-                                            hitSection.repeats = targetReps
+                                            module.runOnEngine { hitSection.repeats = targetReps }
                                             FileState.markDirty()
                                         }
                                     }
@@ -4534,7 +4550,7 @@ fun TrackLaneView(
                                         if (isOptionHeld) {
                                             isDuplicating = true
                                             if (hitSection.start != initialStart) {
-                                                hitSection.start = initialStart
+                                                module.runOnEngine { hitSection.start = initialStart }
                                             }
                                             val rawGhost = targetStart.coerceIn(0.0, module.maxTime - hitSection.totalDuration)
                                             val snappedGhost = if (isBeats) {
@@ -4555,7 +4571,7 @@ fun TrackLaneView(
                                                 rawStart
                                             }
                                             if (hitSection.start != newStart) {
-                                                hitSection.start = newStart
+                                                module.runOnEngine { hitSection.start = newStart }
                                                 FileState.markDirty()
                                             }
                                         }
@@ -4571,14 +4587,8 @@ fun TrackLaneView(
 
                             if (wasDragging) {
                                 if (wasDuplicating && dropGhost != null) {
-                                    val newSec = track.duplicateSection(hitSection, dropGhost)
-                                    if (newSec != null) {
-                                        val e = state.engine
-                                        if (e != null) {
-                                            e.post(AddSectionCommand(track, newSec))
-                                        }
-                                        state.selectTrackSection(module, track, newSec)
-                                        FileState.markDirty()
+                                    addSectionOnEngine(state, module, track) {
+                                        track.duplicateSection(hitSection, dropGhost)
                                     }
                                 }
                             } else {
@@ -4625,14 +4635,8 @@ fun TrackLaneView(
                                         }
                                         if (track.canAddSectionAt(start)) {
                                             val defaultDuration = if (isBeats) 4.0 else 2.0
-                                            val newSec = track.addSection(start, defaultDuration)
-                                            if (newSec != null) {
-                                                val e = state.engine
-                                                if (e != null) {
-                                                    e.post(AddSectionCommand(track, newSec))
-                                                }
-                                                state.selectTrackSection(module, track, newSec)
-                                                FileState.markDirty()
+                                            addSectionOnEngine(state, module, track) {
+                                                track.addSection(start, defaultDuration)
                                             }
                                         }
                                     }
