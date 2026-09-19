@@ -628,6 +628,9 @@ class MidiTrack(
     )
     private val openNotes = mutableMapOf<Int, OpenRecordingNote>()
 
+    /** Tags of notes that input monitoring has sent a NOTE_ON for and not yet ended. */
+    private val monitoredNoteTags = mutableSetOf<Int>()
+
     companion object {
         /** Above MIDI note numbers and piano roll note ids, so playback tags never collide with them. */
         private const val FIRST_PLAYBACK_TAG = 1_000_000
@@ -760,11 +763,23 @@ class MidiTrack(
 
     override fun onMessageReceived(jack: InputJack, msg: Message) {
         if (jack === inputJack && msg is Message.VoiceMessage) {
-            if (isInputMonitored && passesMute(msg)) {
+            val noteOff = isNoteOff(msg)
+            // A note-off always follows its monitored note-on, even if monitoring was turned off in between.
+            val shouldSend = if (noteOff) {
+                isInputMonitored || monitoredNoteTags.contains(msg.tag)
+            } else {
+                isInputMonitored && isAudible
+            }
+            if (shouldSend) {
                 if (msg.opcode == Message.VoiceOpcode.PITCH_BEND) {
                     lastSentPitchBend = msg.value
                 }
                 outputJack.send(msg)
+                if (noteOff) {
+                    monitoredNoteTags.remove(msg.tag)
+                } else if (msg.opcode == Message.VoiceOpcode.NOTE_ON) {
+                    monitoredNoteTags.add(msg.tag)
+                }
             }
             if (isRecordArmed && timeline.isRecording) {
                 recordVoiceMessage(msg)

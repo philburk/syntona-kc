@@ -1293,6 +1293,37 @@ class TimelineTrackTest {
     }
 
     @Test
+    fun testMidiTrackMonitorOffPassesNoteOffForHeldKey() {
+        val beatLine = BeatLineModule()
+        val midiTrack = beatLine.addTrack(TrackType.MIDI) as MidiTrack
+        val sent = mutableListOf<Message.VoiceMessage>()
+        midiTrack.outputJack.connect(object : InputJack("spy", beatLine) {
+            override fun receive(msg: Message) {
+                if (msg is Message.VoiceMessage) sent.add(msg)
+            }
+        })
+        fun voice(opcode: Message.VoiceOpcode, tag: Int) =
+            Message.VoiceMessage(ScoreTime.Zero, opcode, tag = tag, value = tag.toDouble(), extra = 0.5)
+
+        // Key 60 is held while monitoring is turned off
+        midiTrack.isInputMonitored = true
+        midiTrack.inputJack.receive(voice(Message.VoiceOpcode.NOTE_ON, 60))
+        midiTrack.isInputMonitored = false
+        sent.clear()
+
+        midiTrack.inputJack.receive(voice(Message.VoiceOpcode.NOTE_ON, 64))
+        midiTrack.inputJack.receive(voice(Message.VoiceOpcode.NOTE_OFF, 64))
+        assertTrue(sent.isEmpty(), "Unmonitored notes should not pass")
+
+        midiTrack.inputJack.receive(voice(Message.VoiceOpcode.NOTE_OFF, 60))
+        assertEquals(listOf(60), sent.map { it.tag }, "Held key's NOTE_OFF should still pass")
+
+        // Only once: a repeated NOTE_OFF for the same key is blocked again
+        midiTrack.inputJack.receive(voice(Message.VoiceOpcode.NOTE_OFF, 60))
+        assertEquals(1, sent.size)
+    }
+
+    @Test
     fun testMidiTrackMuteSilencesSoundingNotes() {
         val beatLine = BeatLineModule()
         val midiTrack = beatLine.addTrack(TrackType.MIDI) as MidiTrack
