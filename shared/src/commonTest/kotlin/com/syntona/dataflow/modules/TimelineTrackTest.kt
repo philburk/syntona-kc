@@ -24,6 +24,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlin.coroutines.EmptyCoroutineContext
 import com.syntona.util.SegmentedFloatArray
 import com.softsynth.ksyn.Synthesizer
+import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -1588,6 +1589,133 @@ class TimelineTrackTest {
         assertEquals(0.125f, outputs[0], 1e-6f, "Deleted section B never plays")
 
         beatLine.stopPlayback(ScoreClock.now())
+        track.teardown()
+    }
+
+    /** Records [frames] frames of [value] into [track], which must already be recording. */
+    private fun recordConstant(track: AudioTrack, frames: Int, value: Float) {
+        val inputs = track.unit.input.getValues()
+        repeat(frames / Synthesizer.FRAMES_PER_BLOCK) {
+            inputs.fill(value, 0, Synthesizer.FRAMES_PER_BLOCK)
+            track.unit.generate()
+        }
+    }
+
+    private fun AudioTrack.frameRateForTest(): Double =
+        if (unit.frameRate > 0.0) unit.frameRate else SynthKSyn.synth.frameRate.toDouble()
+
+    @Test
+    fun testAudioTrackPunchInKeepsAudioAroundTheTake() {
+        val timeline = TimelineModule()
+        val track = timeline.addTrack(TrackType.AUDIO) as AudioTrack
+        val frameRate = track.frameRateForTest()
+        val sec = track.addSectionDirect(id = 1, start = 0.0, duration = 2.0)
+        val baseFrames = (2.0 * frameRate).toInt()
+        val base = SegmentedFloatArray(track.unit.segmentSize, track.unit.poolCapacity)
+        var remaining = baseFrames
+        while (remaining > 0) {
+            val chunk = minOf(remaining, base.segmentSize)
+            base.extend(chunk)
+            remaining -= chunk
+        }
+        base.write(0, FloatArray(baseFrames) { 0.25f })
+        (sec.data as AudioSectionData).recording = base
+
+        track.onRecordStart(ScoreTime.Zero, 0.5) // Half a second into the section
+        assertTrue((sec.data as AudioSectionData).recording === base, "Old audio stays in place while recording")
+        recordConstant(track, 64, 0.9f)
+        track.finishRecording(sec, latencyFrames = 0, stopUnits = 0.51)
+
+        val result = assertNotNull((sec.data as AudioSectionData).recording)
+        val punchIn = (0.5 * frameRate).roundToInt()
+        assertEquals(baseFrames, result.length, "Audio after the take is kept")
+        assertEquals(0.25f, result[punchIn - 1], "Audio before the punch-in is kept")
+        assertEquals(0.9f, result[punchIn], "Take starts where recording started")
+        assertEquals(0.9f, result[punchIn + 63])
+        assertEquals(0.25f, result[punchIn + 64], "Audio after the punch-out is kept")
+        assertEquals(2.0, sec.duration, "Punching in does not shorten the section")
+        track.teardown()
+    }
+
+    @Test
+    fun testAudioTrackRecordingIntoEmptySectionStartsAtRecordPosition() {
+        val timeline = TimelineModule()
+        val track = timeline.addTrack(TrackType.AUDIO) as AudioTrack
+        val frameRate = track.frameRateForTest()
+        val sec = track.addSectionDirect(id = 1, start = 1.0, duration = 4.0)
+
+        track.onRecordStart(ScoreTime.Zero, 2.0) // One second into the section
+        recordConstant(track, 64, 0.9f)
+        track.finishRecording(sec, latencyFrames = 0, stopUnits = 2.01)
+
+        val result = assertNotNull((sec.data as AudioSectionData).recording)
+        val punchIn = (1.0 * frameRate).roundToInt()
+        assertEquals(punchIn + 64, result.length)
+        assertEquals(0f, result[punchIn - 1], "Silence before the take")
+        assertEquals(0.9f, result[punchIn], "Take lines up with where recording started")
+        assertEquals(1.0, sec.start)
+        assertEquals(4.0, sec.duration)
+        track.teardown()
+    }
+
+    @Test
+    fun testAudioThumbnailRevisionChangesWhenSamplesChange() {
+        val rec = SegmentedFloatArray()
+        rec.extend(256)
+        rec.write(0, FloatArray(256) { 0.5f })
+        val thumb = AudioThumbnail()
+        thumb.updateFrom(rec)
+        val blocks = thumb.blockCount
+        val revision = thumb.revision
+
+        // Same length, different samples, as after punching in
+        val punched = SegmentedFloatArray()
+        punched.extend(256)
+        punched.write(0, FloatArray(256) { 0.9f })
+        thumb.clear()
+        thumb.updateFrom(punched)
+
+        assertEquals(blocks, thumb.blockCount, "Block count alone cannot show the change")
+        assertTrue(thumb.revision != revision, "Revision must change so views redraw")
+    }
+
+    @Test
+    fun testAudioTrackPunchInSilencesTheSectionWhileRecording() {
+        val engine = TestEngine()
+        val timeline = TimelineModule()
+        timeline.loopMode = false
+        timeline.maxTime = 16.0
+        timeline.setEngine(engine)
+        val track = timeline.addTrack(TrackType.AUDIO) as AudioTrack
+        val frameRate = track.frameRateForTest()
+        val sec = track.addSectionDirect(id = 1, start = 0.0, duration = 2.0)
+        val baseFrames = (2.0 * frameRate).toInt()
+        val base = SegmentedFloatArray(track.unit.segmentSize, track.unit.poolCapacity)
+        var remaining = baseFrames
+        while (remaining > 0) {
+            val chunk = minOf(remaining, base.segmentSize)
+            base.extend(chunk)
+            remaining -= chunk
+        }
+        base.write(0, FloatArray(baseFrames) { 0.25f })
+        (sec.data as AudioSectionData).recording = base
+        val outputs = track.unit.output.getValues()
+
+        val now = ScoreClock.now()
+        timeline.startPlayback(now, 0.0)
+        track.unit.generate()
+        assertEquals(0.25f, outputs[0], "Section plays before recording")
+
+        track.onRecordStart(ScoreClock.now(), 0.5)
+        track.unit.generate()
+        assertEquals(0f, outputs[0], "Old audio is silent under the take")
+
+        recordConstant(track, 64, 0.9f)
+        track.finishRecording(sec, latencyFrames = 0, stopUnits = 0.51)
+        track.unit.generate()
+        assertTrue(outputs[0] != 0f, "Section plays again once the take is written")
+
+        timeline.stopPlayback(ScoreClock.now())
         track.teardown()
     }
 

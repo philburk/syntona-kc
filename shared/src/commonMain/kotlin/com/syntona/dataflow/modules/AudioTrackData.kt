@@ -16,6 +16,13 @@ class AudioThumbnail(val blockSize: Int = 256) {
     var blockCount: Int by mutableStateOf(0)
         private set
 
+    /**
+     * Changes whenever the cached values change. The sample arrays are not observable and
+     * [blockCount] can stay the same, e.g. after punching in, so a view must read this to redraw.
+     */
+    var revision: Int by mutableStateOf(0)
+        private set
+
     private var lastProcessedFrame: Int = 0
 
     fun clear() {
@@ -23,6 +30,7 @@ class AudioThumbnail(val blockSize: Int = 256) {
         maxValues = FloatArray(0)
         lastProcessedFrame = 0
         blockCount = 0
+        revision++
     }
 
     fun copyFrom(other: AudioThumbnail) {
@@ -30,6 +38,7 @@ class AudioThumbnail(val blockSize: Int = 256) {
         maxValues = other.maxValues.copyOf()
         lastProcessedFrame = other.lastProcessedFrame
         blockCount = other.blockCount
+        revision++
     }
 
     /**
@@ -78,6 +87,7 @@ class AudioThumbnail(val blockSize: Int = 256) {
         maxValues = maxArr
         lastProcessedFrame = frameIdx
         blockCount = bIdx
+        revision++
     }
 }
 

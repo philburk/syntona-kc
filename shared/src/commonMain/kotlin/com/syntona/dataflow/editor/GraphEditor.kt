@@ -4164,6 +4164,7 @@ fun TrackSectionView(
                     val count = thumb.blockCount
                     if (count > 0) {
                         Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 2.dp, vertical = 2.dp)) {
+                            thumb.revision // Redraws when the samples change but the block count does not
                             val w = size.width
                             val h = size.height
                             val midY = h / 2f
@@ -4336,6 +4337,7 @@ fun TrackSectionView(
                     val count = thumb.blockCount
                     if (count > 0) {
                         Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 2.dp, vertical = 2.dp)) {
+                            thumb.revision // Redraws when the samples change but the block count does not
                             val w = size.width
                             val h = size.height
                             val midY = h / 2f

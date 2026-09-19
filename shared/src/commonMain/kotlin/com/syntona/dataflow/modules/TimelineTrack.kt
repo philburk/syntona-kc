@@ -15,6 +15,7 @@ import com.syntona.core.model.ScoreClock
 import com.syntona.core.model.ScoreTime
 import com.syntona.util.SegmentedFloatArray
 import kotlin.concurrent.Volatile
+import kotlin.math.roundToInt
 import com.syntona.dataflow.engine.DataFlowEngine
 import com.syntona.dataflow.engine.ScheduledEvent
 import com.syntona.dataflow.model.AudioInputJack
@@ -1328,6 +1329,16 @@ class AudioTrack(
     private var pendingStopUnits: Double = 0.0
     private var activeRecordingSection: TrackSection? = null
 
+    /** The take being recorded. It is combined with the section's audio when recording stops. */
+    private var rawRecording: SegmentedFloatArray? = null
+    /** Section whose audio is silenced because a take is being recorded into it. */
+    private var recordingIntoSection: TrackSection? = null
+    /** Where the take starts within the section's audio, in frames. */
+    private var punchInFrames = 0
+    /** The section's audio before recording, which the take is written over. Null if it had none. */
+    private var punchInBase: SegmentedFloatArray? = null
+    private var recordingIntoNewSection = true
+
     fun flushPendingRecordStop() {
         val sec = pendingStopSection ?: return
         val stopUnits = pendingStopUnits
@@ -1408,12 +1419,33 @@ class AudioTrack(
             frameRate = if (unit.frameRate > 0.0) unit.frameRate else SynthKSyn.synth.frameRate.toDouble()
         }
         newRec.replenish()
-        audioData.recording = newRec
-        audioData.isLoadedFromFile = false
-        audioData.thumbnail.clear()
+        rawRecording = newRec
+
+        // Recording that starts inside an existing section is punched in where it starts.
+        // The section keeps its audio until recording stops, then the take is written over it.
+        recordingIntoNewSection = existing == null
+        val offsetUnits = if (existing == null) {
+            0.0
+        } else if (sec.repeats > 1) {
+            (startUnits - sec.start) % sec.duration
+        } else {
+            startUnits - sec.start
+        }
+        punchInFrames = (timeline.unitsToSeconds(offsetUnits) * newRec.frameRate).roundToInt().coerceAtLeast(0)
+        punchInBase = audioData.recording?.takeIf { existing != null && it.length > 0 }
+
+        if (punchInFrames == 0 && punchInBase == null) {
+            // Nothing to keep, so show the take's waveform as it is recorded
+            audioData.recording = newRec
+            audioData.isLoadedFromFile = false
+            audioData.thumbnail.clear()
+        }
 
         unit.startRecording(newRec)
         startReplenishing()
+        // Stop this section's old audio, which the take is replacing
+        recordingIntoSection = sec
+        timeline.onTrackSectionsChanged(this)
     }
 
     private fun startReplenishing() {
@@ -1473,36 +1505,61 @@ class AudioTrack(
         replenishEvent?.cancel()
         replenishEvent = null
 
-        val data = sec.data as? AudioSectionData ?: return
-        val rawRec = data.recording ?: return
-        val totalRecorded = unit.recordCursor
+        val rawRec = rawRecording ?: run {
+            recordingIntoSection = null
+            return
+        }
+        val base = punchInBase
+        val offset = punchInFrames
+        rawRecording = null
+        punchInBase = null
+        punchInFrames = 0
+        val data = sec.data as? AudioSectionData ?: run {
+            recordingIntoSection = null
+            return
+        }
 
-        val trimmed = SegmentedFloatArray(unit.segmentSize, unit.poolCapacity).apply {
+        // Drop the input latency from the start of the take, then write it at the punch-in point
+        val usableFrames = (unit.recordCursor - latencyFrames).coerceAtLeast(0)
+        val baseLength = base?.length ?: 0
+        val totalFrames = maxOf(baseLength, offset + usableFrames)
+        val result = SegmentedFloatArray(unit.segmentSize, unit.poolCapacity).apply {
             frameRate = rawRec.frameRate
         }
-        val usableFrames = (totalRecorded - latencyFrames).coerceAtLeast(0)
+        var rem = totalFrames
+        while (rem > 0) {
+            val chunk = minOf(rem, result.segmentSize)
+            result.extend(chunk) // Zeroed, so a punch-in past the end of the old audio is padded with silence
+            rem -= chunk
+        }
+        if (base != null && baseLength > 0) {
+            val buf = FloatArray(baseLength)
+            base.read(0, buf, 0, baseLength)
+            result.write(0, buf)
+        }
         if (usableFrames > 0) {
-            var rem = usableFrames
-            while (rem > 0) {
-                val chunk = minOf(rem, trimmed.segmentSize)
-                trimmed.extend(chunk)
-                rem -= chunk
-            }
             val buf = FloatArray(usableFrames)
             rawRec.read(latencyFrames, buf, 0, usableFrames)
-            trimmed.write(0, buf)
+            result.write(offset, buf)
         }
-        data.recording = trimmed
+        data.recording = result
+        data.isLoadedFromFile = false
         data.thumbnail.clear()
-        data.thumbnail.updateFrom(trimmed)
-
-        val frameRate = if (trimmed.frameRate > 0.0) trimmed.frameRate else 44100.0
-        val actualDurationSec = usableFrames / frameRate
-        val actualDurationUnits = timeline.secondsToUnits(actualDurationSec)
+        data.thumbnail.updateFrom(result)
+        // Play the section again, now with the take in it
+        recordingIntoSection = null
+        timeline.onTrackSectionsChanged(this)
 
         if (sec.repeats == 1) {
+            val frameRate = if (result.frameRate > 0.0) result.frameRate else 44100.0
+            val audioDurationUnits = timeline.secondsToUnits(totalFrames / frameRate)
             val maxDur = getMaxDuration(sec, timeline.maxTime)
-            sec.duration = actualDurationUnits.coerceIn(0.1, maxDur)
+            sec.duration = if (recordingIntoNewSection) {
+                audioDurationUnits.coerceIn(0.1, maxDur)
+            } else {
+                // Punching in never shortens a section, it only grows to fit a take that ran past its end
+                maxOf(sec.duration, audioDurationUnits).coerceAtMost(maxDur)
+            }
         }
     }
 
@@ -1531,6 +1588,8 @@ class AudioTrack(
         val frameRate = if (unit.frameRate > 0.0) unit.frameRate else SynthKSyn.synth.frameRate.toDouble()
 
         sections.forEach { section ->
+            // The old audio of the section being recorded into stays silent under the take
+            if (section === recordingIntoSection) return@forEach
             val audioData = section.data as? AudioSectionData ?: return@forEach
             val rec = audioData.recording ?: return@forEach
             if (rec.length == 0) return@forEach
@@ -1573,6 +1632,7 @@ class AudioTrack(
     override fun teardown() {
         onPlaybackStop()
         flushPendingRecordStop()
+        recordingIntoSection = null
         unit.stopRecording()
         replenishEvent?.cancel()
         replenishEvent = null
