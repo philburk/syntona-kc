@@ -623,6 +623,22 @@ class MidiTrack(
     )
     private val openNotes = mutableMapOf<Int, OpenRecordingNote>()
 
+    companion object {
+        /** Above MIDI note numbers and piano roll note ids, so playback tags never collide with them. */
+        private const val FIRST_PLAYBACK_TAG = 1_000_000
+        private var nextPlaybackTag = FIRST_PLAYBACK_TAG
+
+        /**
+         * Returns a voice tag for one scheduled note. Shared by all MIDI tracks so that tracks
+         * feeding the same synth cannot turn off each other's notes. Called from the engine thread.
+         */
+        internal fun allocatePlaybackTag(): Int {
+            val tag = nextPlaybackTag
+            nextPlaybackTag = if (tag == Int.MAX_VALUE) FIRST_PLAYBACK_TAG else tag + 1
+            return tag
+        }
+    }
+
     override fun setEngine(engine: DataFlowEngine) {
         this.engine = engine
         sections.forEach { sec ->
@@ -894,7 +910,7 @@ class MidiTrack(
 
                     if (effectiveOffUnits <= startPosUnits || onTimelineUnits >= cycleEndUnits) continue
 
-                    val tag = (section.id * 100_000) + note.id
+                    val tag = allocatePlaybackTag()
 
                     // NOTE_ON
                     if (onTimelineUnits >= startPosUnits && onTimelineUnits < cycleEndUnits) {

@@ -1144,6 +1144,43 @@ class TimelineTrackTest {
     }
 
     @Test
+    fun testMidiTrackPlaybackTagsAreUniqueAcrossTracksAndRepeats() {
+        val beatLine = BeatLineModule()
+        beatLine.loopMode = false
+        beatLine.maxTime = 16.0
+        val engine = TestEngine()
+        beatLine.setEngine(engine)
+
+        // Two tracks with identical section and note ids, as when both feed the same synth
+        val tracks = List(2) { beatLine.addTrack(TrackType.MIDI) as MidiTrack }
+        val sentByTrack = tracks.associateWith { mutableListOf<Message.VoiceMessage>() }
+        tracks.forEach { track ->
+            val sec = track.addSectionDirect(id = 0, start = 0.0, duration = 1.0, repeats = 2)
+            (sec.data as MidiSectionData).addNote(startTicks = 0, durationTicks = 240, pitch = 60.0) // Fills each repeat
+            val spy = object : InputJack("spy${track.id}", beatLine) {
+                override fun receive(msg: Message) {
+                    if (msg is Message.VoiceMessage) sentByTrack.getValue(track).add(msg)
+                }
+            }
+            track.outputJack.connect(spy)
+        }
+
+        beatLine.startPlayback(ScoreTime.Zero, 0.0)
+        engine.scheduled.sortedBy { it.first.nanoseconds }.forEach { it.second() }
+
+        val allOnTags = mutableListOf<Int>()
+        sentByTrack.values.forEach { sent ->
+            val ons = sent.filter { it.opcode == Message.VoiceOpcode.NOTE_ON }
+            val offs = sent.filter { it.opcode == Message.VoiceOpcode.NOTE_OFF }
+            assertEquals(2, ons.size, "One NOTE_ON per repeat")
+            assertEquals(ons.map { it.tag }.toSet(), offs.map { it.tag }.toSet(), "Each NOTE_OFF matches a NOTE_ON")
+            allOnTags.addAll(ons.map { it.tag })
+        }
+        assertEquals(4, allOnTags.toSet().size, "Tags must differ across tracks and repeats")
+        assertTrue(allOnTags.all { it > 127 }, "Tags must not collide with MIDI note numbers")
+    }
+
+    @Test
     fun testMidiTrackMuteSilencesSoundingNotes() {
         val beatLine = BeatLineModule()
         val midiTrack = beatLine.addTrack(TrackType.MIDI) as MidiTrack
