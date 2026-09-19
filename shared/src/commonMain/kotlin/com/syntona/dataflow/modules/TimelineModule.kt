@@ -84,6 +84,8 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
     fun getEngine(): DataFlowEngine? = engine
 
     private val scheduledEvents = mutableListOf<ScheduledEvent>()
+    /** End of the cycle that is playing, in units. Tracks rescheduled mid-cycle schedule up to here. */
+    private var currentCycleEnd = 0.0
     private var nextTriggerId = 0
     private var nextTrackId = 1
 
@@ -160,6 +162,14 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
             gs.jackOffsets.remove(jack)
             gs.jackBounds.remove(jack)
         }
+    }
+
+    /** Reschedules [track] from the playhead so an edit to its sections is heard during playback. */
+    internal fun onTrackSectionsChanged(track: TimelineTrack) {
+        if (!isPlaying) return
+        val e = engine ?: return
+        val now = ScoreClock.now()
+        track.onSectionsChanged(now, getCurrentTime(now), currentCycleEnd, e)
     }
 
     /** Solo on one track changes the audibility of every track, so notify them all. */
@@ -284,6 +294,7 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
         isPlaying = true
         playbackStartPos = startPos
         playbackStartTimeNs = now.nanoseconds
+        currentCycleEnd = cycleEnd
 
         // Schedule all triggers in the range [startPos, cycleEnd)
         triggers.forEach { trigger ->

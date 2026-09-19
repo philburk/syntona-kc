@@ -7,6 +7,7 @@ import com.syntona.dataflow.editor.DeleteSectionCommand
 import com.syntona.dataflow.editor.GraphSerializer
 import com.syntona.dataflow.editor.GraphState
 import com.syntona.dataflow.registry.ModuleRegistry
+import com.syntona.core.audio.SynthKSyn
 import com.syntona.core.model.ScoreClock
 import com.syntona.core.model.ScoreTime
 import com.syntona.dataflow.model.AudioInputJack
@@ -34,12 +35,26 @@ class TimelineTrackTest {
 
     private class TestEngine : DataFlowEngine(CoroutineScope(EmptyCoroutineContext)) {
         val scheduled = mutableListOf<Pair<ScoreTime, () -> Unit>>()
+        private val events = mutableListOf<Pair<ScoreTime, ScheduledEvent>>()
 
         override fun schedule(time: ScoreTime, action: () -> Unit): ScheduledEvent {
             scheduled.add(time to action)
-            return ScheduledEvent(action)
+            return ScheduledEvent(action).also { events.add(time to it) }
+        }
+
+        /** Fires events due by [time] in time order, skipping cancelled ones, like the real engine. */
+        fun fireUntil(time: ScoreTime) {
+            while (true) {
+                val next = events
+                    .filter { !it.second.isCancelled && it.first.nanoseconds <= time.nanoseconds }
+                    .minByOrNull { it.first.nanoseconds } ?: break
+                events.remove(next)
+                next.second.fire()
+            }
         }
     }
+
+    private fun ScoreTime.plusSeconds(seconds: Double) = this + ScoreTime((seconds * 1_000_000_000.0).toLong())
 
     @Test
     fun testTrackAdditionAndJackCreation() {
@@ -1387,6 +1402,193 @@ class TimelineTrackTest {
         var ran = false
         timeline.runOnEngine { ran = true }
         assertTrue(ran)
+    }
+
+    // Section edit tests below share one layout at 120 BPM, playing from beat 1:
+    // A (beats 0-4) sounds under the playhead and is deleted while sounding,
+    // B (beat 8) is deleted before it starts, and C (beat 12) is moved to beat 5,
+    // so it starts at 2.0 s instead of 5.5 s. Editing B and C must not restart A.
+
+    private fun beatLineForSectionEdits(engine: TestEngine) = BeatLineModule().apply {
+        loopMode = false
+        maxTime = 16.0
+        setEngine(engine)
+    }
+
+    @Test
+    fun testMidiTrackSectionEditsDuringPlayback() {
+        val engine = TestEngine()
+        val beatLine = beatLineForSectionEdits(engine)
+        val track = beatLine.addTrack(TrackType.MIDI) as MidiTrack
+        fun sectionWithNote(start: Double, duration: Double, pitch: Double) =
+            track.addSection(start, duration)!!.also {
+                (it.data as MidiSectionData).addNote(startTicks = 0, durationTicks = timelineTicks(duration), pitch = pitch)
+            }
+        val a = sectionWithNote(0.0, 4.0, 60.0)
+        val b = sectionWithNote(8.0, 2.0, 67.0)
+        val c = sectionWithNote(12.0, 2.0, 72.0)
+
+        val sent = mutableListOf<Message.VoiceMessage>()
+        track.outputJack.connect(object : InputJack("spy", beatLine) {
+            override fun receive(msg: Message) {
+                if (msg is Message.VoiceMessage) sent.add(msg)
+            }
+        })
+        fun count(opcode: Message.VoiceOpcode, pitch: Double) = sent.count { it.opcode == opcode && it.value == pitch }
+
+        val base = ScoreClock.now()
+        beatLine.startPlayback(base, 1.0)
+        assertEquals(1, count(Message.VoiceOpcode.NOTE_ON, 60.0), "Note in A is chased")
+
+        track.removeSection(b)
+        track.moveSection(c, 5.0)
+        assertEquals(1, count(Message.VoiceOpcode.NOTE_ON, 60.0), "Sounding note must not be retriggered")
+        assertEquals(0, count(Message.VoiceOpcode.NOTE_OFF, 60.0))
+
+        track.removeSection(a)
+        assertEquals(1, count(Message.VoiceOpcode.NOTE_OFF, 60.0), "Deleting A ends its sounding note")
+
+        engine.fireUntil(base.plusSeconds(1.9))
+        assertEquals(0, count(Message.VoiceOpcode.NOTE_ON, 72.0))
+        engine.fireUntil(base.plusSeconds(2.1))
+        assertEquals(1, count(Message.VoiceOpcode.NOTE_ON, 72.0), "Moved section C plays at its new time")
+
+        engine.fireUntil(base.plusSeconds(7.0))
+        assertEquals(0, count(Message.VoiceOpcode.NOTE_ON, 67.0), "Deleted section B never plays")
+        assertEquals(count(Message.VoiceOpcode.NOTE_ON, 72.0), count(Message.VoiceOpcode.NOTE_OFF, 72.0))
+        beatLine.stopPlayback(ScoreClock.now())
+    }
+
+    private fun timelineTicks(beats: Double) = (beats * PianoRollTiming.TPB).toInt()
+
+    @Test
+    fun testMessageTrackSectionEditsDuringPlayback() {
+        val engine = TestEngine()
+        val beatLine = beatLineForSectionEdits(engine)
+        val track = beatLine.addTrack(TrackType.MESSAGE) as MessageTrack
+        fun sectionWithEvent(start: Double, duration: Double, time: Double, value: Double) =
+            track.addSection(start, duration)!!.also { (it.data as MessageSectionData).addEvent(time, value) }
+        val a = sectionWithEvent(0.0, 4.0, time = 2.0, value = 1.0) // Pending at 0.5 s
+        val b = sectionWithEvent(8.0, 2.0, time = 0.0, value = 2.0)
+        val c = sectionWithEvent(12.0, 2.0, time = 0.0, value = 3.0)
+
+        val received = mutableListOf<Message.FloatValue>()
+        track.outputJack.connect(object : InputJack("spy", beatLine) {
+            override fun receive(msg: Message) {
+                if (msg is Message.FloatValue) received.add(msg)
+            }
+        })
+
+        val base = ScoreClock.now()
+        beatLine.startPlayback(base, 1.0)
+        track.removeSection(b)
+        track.moveSection(c, 5.0)
+        track.removeSection(a)
+
+        engine.fireUntil(base.plusSeconds(7.0))
+        assertEquals(listOf(3.0), received.map { it.value }, "Only moved section C plays")
+        val cSeconds = (received[0].time.nanoseconds - base.nanoseconds) / 1_000_000_000.0
+        assertEquals(2.0, cSeconds, 0.1)
+        beatLine.stopPlayback(ScoreClock.now())
+    }
+
+    @Test
+    fun testPatchTrackSectionEditsDuringPlayback() {
+        val engine = TestEngine()
+        val beatLine = beatLineForSectionEdits(engine)
+        val track = beatLine.addTrack(TrackType.PATCH) as PatchTrack
+        val a = track.addSection(0.0, 4.0)!!
+        val b = track.addSection(8.0, 2.0)!!
+        val c = track.addSection(12.0, 2.0)!!
+
+        var starts = 0
+        var stops = 0
+        track.startCommandModule.output.connect(object : InputJack("startSpy", beatLine) {
+            override fun receive(msg: Message) { starts++ }
+        })
+        track.stopCommandModule.output.connect(object : InputJack("stopSpy", beatLine) {
+            override fun receive(msg: Message) { stops++ }
+        })
+
+        val base = ScoreClock.now()
+        beatLine.startPlayback(base, 1.0)
+        assertTrue(track.isPatchRunning)
+        assertEquals(1, starts)
+
+        track.removeSection(b)
+        track.moveSection(c, 5.0)
+        assertTrue(track.isPatchRunning)
+        assertEquals(1, starts, "Running patch must not be restarted")
+
+        track.removeSection(a)
+        assertFalse(track.isPatchRunning, "Deleting A stops its patch")
+        assertEquals(1, stops)
+
+        engine.fireUntil(base.plusSeconds(1.9))
+        assertEquals(1, starts)
+        engine.fireUntil(base.plusSeconds(2.1))
+        assertEquals(2, starts, "Moved section C starts at its new time")
+
+        engine.fireUntil(base.plusSeconds(7.0))
+        assertEquals(2, starts, "Deleted section B never starts")
+        assertEquals(2, stops, "C stops at its new end")
+        beatLine.stopPlayback(ScoreClock.now())
+    }
+
+    @Test
+    fun testAudioTrackSectionEditsDuringPlayback() {
+        val engine = TestEngine()
+        val beatLine = beatLineForSectionEdits(engine)
+        val track = beatLine.addTrack(TrackType.AUDIO) as AudioTrack
+        val unit = track.unit
+        val frameRate = if (unit.frameRate > 0.0) unit.frameRate else SynthKSyn.synth.frameRate.toDouble()
+        val block = Synthesizer.FRAMES_PER_BLOCK
+
+        fun sectionWithAudio(start: Double, duration: Double, value: (Int) -> Float): TrackSection {
+            val frames = (beatLine.unitsToSeconds(duration) * frameRate).toInt()
+            val rec = SegmentedFloatArray(unit.segmentSize, unit.poolCapacity)
+            var remaining = frames
+            while (remaining > 0) {
+                val chunk = minOf(remaining, rec.segmentSize)
+                rec.extend(chunk)
+                remaining -= chunk
+            }
+            for (i in 0 until frames) rec[i] = value(i)
+            return track.addSection(start, duration)!!.also { (it.data as AudioSectionData).recording = rec }
+        }
+        val a = sectionWithAudio(0.0, 4.0) { (it + 1).toFloat() } // Ramp shows the playback position
+        val b = sectionWithAudio(8.0, 2.0) { 0.25f }
+        val c = sectionWithAudio(12.0, 2.0) { 0.125f }
+        val outputs = unit.output.getValues()
+
+        val base = ScoreClock.now()
+        beatLine.startPlayback(base, 1.0)
+        // Advance A far more than the real time the test takes, so a restart from the playhead would show
+        repeat(1000) { unit.generate() }
+        val expectedNext = outputs[block - 1] + 1f
+
+        track.removeSection(b)
+        track.moveSection(c, 5.0)
+        unit.generate()
+        assertEquals(expectedNext, outputs[0], "A keeps playing from where it was")
+
+        track.removeSection(a)
+        unit.generate()
+        assertEquals(0f, outputs[0], "Deleting A stops its audio")
+
+        engine.fireUntil(base.plusSeconds(1.9))
+        unit.generate()
+        assertEquals(0f, outputs[0])
+        engine.fireUntil(base.plusSeconds(2.1))
+        unit.generate()
+        assertEquals(0.125f, outputs[0], 1e-6f, "Moved section C plays at its new time")
+
+        engine.fireUntil(base.plusSeconds(7.0))
+        unit.generate()
+        assertEquals(0.125f, outputs[0], 1e-6f, "Deleted section B never plays")
+
+        beatLine.stopPlayback(ScoreClock.now())
+        track.teardown()
     }
 
     @Test

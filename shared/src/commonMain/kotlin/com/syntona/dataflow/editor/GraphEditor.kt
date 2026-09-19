@@ -4412,7 +4412,7 @@ fun TrackSectionView(
                                                 rawDur
                                             }
                                             if (section.duration != newDur) {
-                                                module.runOnEngine { section.duration = newDur }
+                                                module.runOnEngine { track.resizeSection(section, newDur) }
                                                 FileState.markDirty()
                                             }
                                         }
@@ -4517,7 +4517,7 @@ fun TrackLaneView(
                                             else -> initialRepeats
                                         }.coerceIn(1, maxReps)
                                         if (hitSection.repeats != targetReps) {
-                                            module.runOnEngine { hitSection.repeats = targetReps }
+                                            module.runOnEngine { track.setSectionRepeats(hitSection, targetReps) }
                                             FileState.markDirty()
                                         }
                                     }
@@ -4550,7 +4550,7 @@ fun TrackLaneView(
                                         if (isOptionHeld) {
                                             isDuplicating = true
                                             if (hitSection.start != initialStart) {
-                                                module.runOnEngine { hitSection.start = initialStart }
+                                                module.runOnEngine { track.moveSection(hitSection, initialStart) }
                                             }
                                             val rawGhost = targetStart.coerceIn(0.0, module.maxTime - hitSection.totalDuration)
                                             val snappedGhost = if (isBeats) {
@@ -4571,7 +4571,7 @@ fun TrackLaneView(
                                                 rawStart
                                             }
                                             if (hitSection.start != newStart) {
-                                                module.runOnEngine { hitSection.start = newStart }
+                                                module.runOnEngine { track.moveSection(hitSection, newStart) }
                                                 FileState.markDirty()
                                             }
                                         }

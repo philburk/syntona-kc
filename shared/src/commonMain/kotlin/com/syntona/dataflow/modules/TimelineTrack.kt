@@ -165,12 +165,12 @@ abstract class TimelineTrack(
         val actualDuration = available / repeats
         if (actualDuration < 0.05) return null
         val sId = nextSectionId++
-        return addSectionDirect(sId, start, actualDuration, repeats, name)
+        return addSectionDirect(sId, start, actualDuration, repeats, name).also { sectionsChanged() }
     }
 
     open fun addSectionDirect(id: Int, start: Double, duration: Double, repeats: Int = 1, name: String = ""): TrackSection {
         val section = TrackSection(id, start, duration, repeats, name)
-        insertSection(section)
+        insertSorted(section)
         if (id >= nextSectionId) {
             nextSectionId = id + 1
         }
@@ -180,6 +180,11 @@ abstract class TimelineTrack(
     /** Inserts an existing [section] in start order, e.g. to restore it on undo. Does nothing if already present. */
     fun insertSection(section: TrackSection) {
         if (sections.contains(section)) return
+        insertSorted(section)
+        sectionsChanged()
+    }
+
+    private fun insertSorted(section: TrackSection) {
         val insertIndex = sections.indexOfFirst { it.start > section.start }
         if (insertIndex >= 0) {
             sections.add(insertIndex, section)
@@ -199,11 +204,35 @@ abstract class TimelineTrack(
             is MidiSectionData -> d.copy()
             else -> d
         }
+        sectionsChanged()
         return newSec
     }
 
     fun removeSection(section: TrackSection) {
-        sections.remove(section)
+        if (sections.remove(section)) sectionsChanged()
+    }
+
+    fun moveSection(section: TrackSection, newStart: Double) {
+        if (section.start == newStart) return
+        section.start = newStart
+        sectionsChanged()
+    }
+
+    fun resizeSection(section: TrackSection, newDuration: Double) {
+        if (section.duration == newDuration) return
+        section.duration = newDuration
+        sectionsChanged()
+    }
+
+    fun setSectionRepeats(section: TrackSection, newRepeats: Int) {
+        if (section.repeats == newRepeats) return
+        section.repeats = newRepeats
+        sectionsChanged()
+    }
+
+    /** Lets playback in progress hear an edit to this track's sections. */
+    private fun sectionsChanged() {
+        timeline.onTrackSectionsChanged(this)
     }
 
     fun clearSections() {
@@ -232,6 +261,16 @@ abstract class TimelineTrack(
     }
 
     open fun onPlaybackStart(now: ScoreTime, startPosUnits: Double, cycleEndUnits: Double, engine: DataFlowEngine) {}
+
+    /**
+     * Called during playback when this track's sections were added, removed, moved or resized.
+     * Replaces the events scheduled for the rest of the cycle, starting at [posUnits], the current playhead.
+     * Overrides must not interrupt notes, patches or audio that should keep sounding.
+     */
+    open fun onSectionsChanged(now: ScoreTime, posUnits: Double, cycleEndUnits: Double, engine: DataFlowEngine) {
+        onPlaybackStart(now, posUnits, cycleEndUnits, engine)
+    }
+
     open fun onPlaybackStop() {}
     open fun onRecordStart(now: ScoreTime, startUnits: Double) {
         onRecordStart(startUnits)
@@ -418,7 +457,8 @@ class PatchTrack(
                 if (repEnd <= startPosUnits || repStart >= cycleEndUnits) continue
 
                 if (startPosUnits >= repStart && startPosUnits < repEnd) {
-                    if (isAudible) {
+                    // Already running when rescheduled after a section edit, so leave it alone.
+                    if (isAudible && !isPatchRunning) {
                         startPatch()
                     }
                 } else if (repStart > startPosUnits && repStart < cycleEndUnits) {
@@ -623,6 +663,10 @@ class MidiTrack(
     private var engine: DataFlowEngine? = null
     private val scheduledEvents = mutableListOf<ScheduledEvent>()
     private val activeSoundingNotes = mutableMapOf<Int, Double>() // tag -> pitch
+
+    /** Identifies one playback of a note, so a reschedule can tell whether a sounding note is still wanted. */
+    private data class NoteKey(val section: TrackSection, val repStart: Double, val noteId: Int)
+    private val soundingNoteKeys = mutableMapOf<NoteKey, Int>() // key -> tag
     private var activeRecordingSection: TrackSection? = null
 
     private data class OpenRecordingNote(
@@ -681,6 +725,7 @@ class MidiTrack(
             }
             activeSoundingNotes.clear()
         }
+        soundingNoteKeys.clear()
         if (lastSentPitchBend != null && lastSentPitchBend != 0.0) {
             outputJack.send(
                 Message.VoiceMessage(
@@ -897,9 +942,42 @@ class MidiTrack(
     }
 
     override fun onPlaybackStart(now: ScoreTime, startPosUnits: Double, cycleEndUnits: Double, engine: DataFlowEngine) {
+        silenceSoundingNotes(now)
+        scheduleSections(now, startPosUnits, cycleEndUnits, engine)
+    }
+
+    override fun onSectionsChanged(now: ScoreTime, posUnits: Double, cycleEndUnits: Double, engine: DataFlowEngine) {
+        val keptNotes = scheduleSections(now, posUnits, cycleEndUnits, engine)
+        // End notes whose section was deleted or moved away from the playhead
+        soundingNoteKeys.filterKeys { it !in keptNotes }.forEach { (key, tag) ->
+            val pitch = activeSoundingNotes.remove(tag) ?: return@forEach
+            outputJack.send(
+                Message.VoiceMessage(
+                    now,
+                    Message.VoiceOpcode.NOTE_OFF,
+                    tag = tag,
+                    value = pitch,
+                    extra = PianoRollModule.NOTE_AMPLITUDE
+                )
+            )
+            soundingNoteKeys.remove(key)
+        }
+    }
+
+    /**
+     * Schedules notes and voice events from [startPosUnits] to [cycleEndUnits], replacing any already scheduled.
+     * A note that should be sounding at [startPosUnits] and already is keeps sounding with its tag,
+     * otherwise it is chased with a new NOTE_ON. Returns the keys of the notes that kept sounding.
+     */
+    private fun scheduleSections(
+        now: ScoreTime,
+        startPosUnits: Double,
+        cycleEndUnits: Double,
+        engine: DataFlowEngine
+    ): Set<NoteKey> {
         scheduledEvents.forEach { it.cancel() }
         scheduledEvents.clear()
-        silenceSoundingNotes(now)
+        val keptNotes = mutableSetOf<NoteKey>()
 
         sections.forEach { section ->
             val data = section.data as? MidiSectionData ?: return@forEach
@@ -923,7 +1001,11 @@ class MidiTrack(
 
                     if (effectiveOffUnits <= startPosUnits || onTimelineUnits >= cycleEndUnits) continue
 
-                    val tag = allocatePlaybackTag()
+                    val key = NoteKey(section, repStart, note.id)
+                    val isUnderPlayhead = startPosUnits >= onTimelineUnits && startPosUnits < effectiveOffUnits
+                    val soundingTag = if (isUnderPlayhead) soundingNoteKeys[key] else null
+                    if (soundingTag != null) keptNotes.add(key)
+                    val tag = soundingTag ?: allocatePlaybackTag()
 
                     // NOTE_ON
                     if (onTimelineUnits >= startPosUnits && onTimelineUnits < cycleEndUnits) {
@@ -942,10 +1024,11 @@ class MidiTrack(
                                     )
                                 )
                                 activeSoundingNotes[tag] = pitch
+                                soundingNoteKeys[key] = tag
                             }
                         }
                         scheduledEvents.add(sched)
-                    } else if (startPosUnits >= onTimelineUnits && startPosUnits < effectiveOffUnits) {
+                    } else if (isUnderPlayhead && soundingTag == null) {
                         // Chase note
                         if (isAudible) {
                             outputJack.send(
@@ -958,6 +1041,7 @@ class MidiTrack(
                                 )
                             )
                             activeSoundingNotes[tag] = pitch
+                            soundingNoteKeys[key] = tag
                         }
                     }
 
@@ -977,6 +1061,7 @@ class MidiTrack(
                                 )
                             )
                             activeSoundingNotes.remove(tag)
+                            soundingNoteKeys.remove(key)
                         }
                         scheduledEvents.add(sched)
                     }
@@ -1047,6 +1132,7 @@ class MidiTrack(
                 }
             }
         }
+        return keptNotes
     }
 
     override fun onPlaybackStop() {
@@ -1088,7 +1174,16 @@ class AudioTrackUnit(
     class PlaybackVoice(
         val array: SegmentedFloatArray,
         var cursor: Int,
-        val endFrame: Int
+        var endFrame: Int,
+        val key: Any? = null
+    )
+
+    /** A voice that should be playing now, for [syncVoices]. */
+    class VoiceRequest(
+        val array: SegmentedFloatArray,
+        val startFrame: Int,
+        val endFrame: Int,
+        val key: Any
     )
 
     private val playbackVoices = mutableListOf<PlaybackVoice>()
@@ -1115,12 +1210,32 @@ class AudioTrackUnit(
         }
     }
 
-    fun playAudio(array: SegmentedFloatArray, startFrame: Int, countFrames: Int) {
+    fun playAudio(array: SegmentedFloatArray, startFrame: Int, countFrames: Int, key: Any? = null) {
         if (countFrames <= 0) return
         val end = minOf(array.length, startFrame + countFrames)
         if (startFrame >= end) return
         applyToAudioThread {
-            playbackVoices.add(PlaybackVoice(array, startFrame, end))
+            playbackVoices.add(PlaybackVoice(array, startFrame, end, key))
+        }
+    }
+
+    /**
+     * Makes [requests] the voices that are playing. A voice already playing with the same key and array
+     * keeps its position, so it does not click, and only takes the new end frame. Other voices stop.
+     */
+    fun syncVoices(requests: List<VoiceRequest>) {
+        applyToAudioThread {
+            playbackVoices.removeAll { voice ->
+                requests.none { it.key == voice.key && it.array === voice.array }
+            }
+            for (req in requests) {
+                val existing = playbackVoices.find { it.key == req.key }
+                if (existing != null) {
+                    existing.endFrame = minOf(req.endFrame, req.array.length)
+                } else if (req.startFrame < minOf(req.endFrame, req.array.length)) {
+                    playbackVoices.add(PlaybackVoice(req.array, req.startFrame, minOf(req.endFrame, req.array.length), req.key))
+                }
+            }
         }
     }
 
@@ -1391,12 +1506,28 @@ class AudioTrack(
         }
     }
 
+    /** Identifies one repeat of a section, so a reschedule can keep its voice playing. */
+    private data class VoiceKey(val section: TrackSection, val repStart: Double)
+
     override fun onPlaybackStart(now: ScoreTime, startPosUnits: Double, cycleEndUnits: Double, engine: DataFlowEngine) {
+        // A new cycle restarts every voice, even one whose key matches, e.g. when looping.
+        unit.stopAllPlayback()
+        onAudibilityChanged()
+        scheduleSections(now, startPosUnits, cycleEndUnits, engine)
+    }
+
+    override fun onSectionsChanged(now: ScoreTime, posUnits: Double, cycleEndUnits: Double, engine: DataFlowEngine) {
+        scheduleSections(now, posUnits, cycleEndUnits, engine)
+    }
+
+    /**
+     * Starts the audio that should be playing at [startPosUnits], keeping voices that already are,
+     * and schedules later sections up to [cycleEndUnits], replacing anything already scheduled.
+     */
+    private fun scheduleSections(now: ScoreTime, startPosUnits: Double, cycleEndUnits: Double, engine: DataFlowEngine) {
         scheduledEvents.forEach { it.cancel() }
         scheduledEvents.clear()
-        unit.stopAllPlayback()
-
-        onAudibilityChanged()
+        val currentVoices = mutableListOf<AudioTrackUnit.VoiceRequest>()
         val frameRate = if (unit.frameRate > 0.0) unit.frameRate else SynthKSyn.synth.frameRate.toDouble()
 
         sections.forEach { section ->
@@ -1413,22 +1544,24 @@ class AudioTrack(
                 val playDurationSec = timeline.unitsToSeconds(playDurationUnits)
                 val countFrames = (playDurationSec * frameRate).toInt()
 
+                val key = VoiceKey(section, repStart)
                 if (startPosUnits >= repStart && startPosUnits < repEnd) {
                     val offsetUnits = startPosUnits - repStart
                     val offsetSec = timeline.unitsToSeconds(offsetUnits)
                     val startFrame = (offsetSec * frameRate).toInt().coerceIn(0, rec.length)
-                    unit.playAudio(rec, startFrame, countFrames)
+                    currentVoices.add(AudioTrackUnit.VoiceRequest(rec, startFrame, startFrame + countFrames, key))
                 } else if (repStart > startPosUnits && repStart < cycleEndUnits) {
                     val delayUnits = repStart - startPosUnits
                     val delaySec = timeline.unitsToSeconds(delayUnits)
                     val fireTime = now + ScoreTime((delaySec * 1_000_000_000.0).toLong())
                     val sched = engine.schedule(fireTime) {
-                        unit.playAudio(rec, 0, countFrames)
+                        unit.playAudio(rec, 0, countFrames, key)
                     }
                     scheduledEvents.add(sched)
                 }
             }
         }
+        unit.syncVoices(currentVoices)
     }
 
     override fun onPlaybackStop() {
