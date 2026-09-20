@@ -5,6 +5,7 @@ import com.softsynth.ksyn.unitgen.PitchToFrequency
 import com.softsynth.ksyn.unitgen.SawtoothOscillatorBL
 import com.syntona.dataflow.editor.GraphState
 import com.syntona.dataflow.model.AudioInputJack
+import com.syntona.dataflow.model.AutoDisableVoiceMode
 import com.syntona.dataflow.modules.AudioInputModule
 import com.syntona.dataflow.modules.AudioOutputModule
 import com.syntona.dataflow.modules.AudioOutput2Module
@@ -77,7 +78,9 @@ class SourceExporterTest {
 
         val p2fMod = UnitGeneratorModule("pitchToHz~", PitchToFrequency())
         val oscMod = UnitGeneratorModule("sawOscBL", SawtoothOscillatorBL())
-        val envMod = UnitGeneratorModule("envDAHDSR", EnvelopeDAHDSR())
+        val envMod = UnitGeneratorModule("envDAHDSR", EnvelopeDAHDSR()).apply {
+            autoDisableVoice = AutoDisableVoiceMode.YES
+        }
 
         polyPatch.graphState.addModule(p2fMod, androidx.compose.ui.geometry.Offset.Zero)
         polyPatch.graphState.addModule(oscMod, androidx.compose.ui.geometry.Offset.Zero)
@@ -128,7 +131,9 @@ class SourceExporterTest {
 
         val p2fMod = UnitGeneratorModule("pitchToHz~", PitchToFrequency())
         val oscMod = UnitGeneratorModule("sawOscBL", SawtoothOscillatorBL())
-        val envMod = UnitGeneratorModule("envDAHDSR", EnvelopeDAHDSR())
+        val envMod = UnitGeneratorModule("envDAHDSR", EnvelopeDAHDSR()).apply {
+            autoDisableVoice = AutoDisableVoiceMode.YES
+        }
 
         polyPatch.graphState.addModule(p2fMod, androidx.compose.ui.geometry.Offset.Zero)
         polyPatch.graphState.addModule(oscMod, androidx.compose.ui.geometry.Offset.Zero)
@@ -397,8 +402,12 @@ class SourceExporterTest {
         // filter.frequency <- filterEnv
         val osc = UnitGeneratorModule("osc", SawtoothOscillatorBL())
         val filter = UnitGeneratorModule("filter", com.softsynth.ksyn.unitgen.FilterLowPass())
-        val filterEnv = UnitGeneratorModule("filterEnv", EnvelopeDAHDSR())
-        val bigEnv = UnitGeneratorModule("bigEnv", EnvelopeDAHDSR())
+        val filterEnv = UnitGeneratorModule("filterEnv", EnvelopeDAHDSR()).apply {
+            autoDisableVoice = AutoDisableVoiceMode.AUTO
+        }
+        val bigEnv = UnitGeneratorModule("bigEnv", EnvelopeDAHDSR()).apply {
+            autoDisableVoice = AutoDisableVoiceMode.AUTO
+        }
         val outputMod = polyPatch.graphState.modules.filterIsInstance<AudioOutputModule>().first()
 
         polyPatch.graphState.addModule(osc, androidx.compose.ui.geometry.Offset.Zero)
@@ -435,9 +444,13 @@ class SourceExporterTest {
         // ampEnv modulates amplitude; filterEnv modulates frequency.
         // The heuristic MUST choose ampEnv!
         val osc = UnitGeneratorModule("osc", SawtoothOscillatorBL())
-        val ampEnv = UnitGeneratorModule("myEnvelope", EnvelopeDAHDSR())
+        val ampEnv = UnitGeneratorModule("myEnvelope", EnvelopeDAHDSR()).apply {
+            autoDisableVoice = AutoDisableVoiceMode.AUTO
+        }
         val filter = UnitGeneratorModule("filter", com.softsynth.ksyn.unitgen.FilterLowPass())
-        val filterEnv = UnitGeneratorModule("cutoffModEnv", EnvelopeDAHDSR())
+        val filterEnv = UnitGeneratorModule("cutoffModEnv", EnvelopeDAHDSR()).apply {
+            autoDisableVoice = AutoDisableVoiceMode.AUTO
+        }
         val outputMod = polyPatch.graphState.modules.filterIsInstance<AudioOutputModule>().first()
 
         polyPatch.graphState.addModule(osc, androidx.compose.ui.geometry.Offset.Zero)
@@ -644,9 +657,11 @@ class SourceExporterTest {
         // filterEnv -> filter.frequency
         polyPatch.graphState.connect(filterEnv.outputs.first { it.name == "out" }, filter.inputs.first { it.name == "frequency" })
 
-        // Both envSeg and filterEnv start in AutoDisableVoiceMode.AUTO
-        assertEquals(com.syntona.dataflow.model.AutoDisableVoiceMode.AUTO, envSeg.autoDisableVoice)
-        assertEquals(com.syntona.dataflow.model.AutoDisableVoiceMode.AUTO, filterEnv.autoDisableVoice)
+        // Both envSeg and filterEnv now default to NO, so explicitly set them to AUTO for this test
+        envSeg.autoDisableVoice = AutoDisableVoiceMode.AUTO
+        filterEnv.autoDisableVoice = AutoDisableVoiceMode.AUTO
+        assertEquals(AutoDisableVoiceMode.AUTO, envSeg.autoDisableVoice)
+        assertEquals(AutoDisableVoiceMode.AUTO, filterEnv.autoDisableVoice)
 
         // 1. In Auto mode, KSyn exported code now calls setupAutoDisable(this) directly on ampEnv (VariableRateMonoReader)
         // because KSyn now natively supports setupAutoDisable on SequentialDataReader/VariableRateMonoReader!

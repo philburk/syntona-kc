@@ -1092,7 +1092,10 @@ class PolyPatchModuleTest {
         polyPatch.initializeVoices(2)
 
         val osc = UnitGeneratorModule("sawOscBL", com.softsynth.ksyn.unitgen.SawtoothOscillatorBL()).apply { name = "osc" }
-        val env = UnitGeneratorModule("envDAHDSR", com.softsynth.ksyn.unitgen.EnvelopeDAHDSR()).apply { name = "ampEnv" }
+        val env = UnitGeneratorModule("envDAHDSR", com.softsynth.ksyn.unitgen.EnvelopeDAHDSR()).apply {
+            name = "ampEnv"
+            autoDisableVoice = AutoDisableVoiceMode.YES
+        }
         val out = polyPatch.graphState.modules.filterIsInstance<AudioOutputModule>().first()
         val onIn = polyPatch.graphState.modules.first { it is InputModule && it.name == "on" }
 
@@ -1148,7 +1151,10 @@ class PolyPatchModuleTest {
         polyPatch.polyphonicInstrument!!.start()
 
         val osc = UnitGeneratorModule("sawOscBL", com.softsynth.ksyn.unitgen.SawtoothOscillatorBL()).apply { name = "osc" }
-        val env = EnvSegModule().apply { name = "envSeg" }
+        val env = EnvSegModule().apply {
+            name = "envSeg"
+            autoDisableVoice = AutoDisableVoiceMode.YES
+        }
         val out = polyPatch.graphState.modules.filterIsInstance<AudioOutputModule>().first()
         val onIn = polyPatch.graphState.modules.first { it is InputModule && it.name == "on" }
         val offIn = polyPatch.graphState.modules.first { it is InputModule && it.name == "off" }
