@@ -26,7 +26,7 @@ class TableModuleTest {
             // Check index jack
             val indexJack = module.indexIn
             assertTrue(indexJack.isKickable, "indexIn should be kickable")
-            assertTrue(indexJack is IntegerInputJack, "indexIn should be an IntegerInputJack")
+            assertIs<IntegerInputJack>(indexJack, "indexIn should be an IntegerInputJack")
             assertTrue(indexJack.isInteger, "indexIn should be marked as integer")
             assertEquals(0.0, indexJack.min)
             assertEquals((n - 1).toDouble(), indexJack.max)

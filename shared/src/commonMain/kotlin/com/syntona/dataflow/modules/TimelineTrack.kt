@@ -374,7 +374,7 @@ class PatchTrack(
     private val childOutputLinks = mutableMapOf<Module, List<OutputJack>>()
 
     init {
-        patch.parentPatch = timeline.parentPatch as? PatchModule
+        patch.parentPatch = timeline.parentPatch
         ensureDefaultCommandModules()
         // Sync any modules already in the patch
         patch.graphState.modules.toList().forEach { syncOutputForChild(it) }

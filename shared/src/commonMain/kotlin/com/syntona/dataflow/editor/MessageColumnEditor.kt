@@ -304,17 +304,15 @@ fun MessageColumnEditor(
                                 change.consume()
 
                                 val curEv = activeEvent
-                                if (curEv != null) {
-                                    val t = posToTime(change.position.x)
-                                    val v = posToVal(change.position.y)
-                                    runOnEngine {
-                                        curEv.time = t
-                                        curEv.value = v
-                                        if (v > data.max) data.max = v
-                                        if (v < data.min) data.min = v
-                                    }
-                                    FileState.markDirty()
+                                val t = posToTime(change.position.x)
+                                val v = posToVal(change.position.y)
+                                runOnEngine {
+                                    curEv.time = t
+                                    curEv.value = v
+                                    if (v > data.max) data.max = v
+                                    if (v < data.min) data.min = v
                                 }
+                                FileState.markDirty()
                             }
 
                             // Keep events sorted by time after drag

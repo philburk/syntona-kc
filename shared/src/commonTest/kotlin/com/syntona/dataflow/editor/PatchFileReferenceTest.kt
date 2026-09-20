@@ -283,7 +283,7 @@ class PatchFileReferenceTest {
             ?.subBundles?.find { it.name == "basic" }
             ?.modules?.find { it.name == "clock" }
         assertNotNull(clockEntry)
-        val entryText = getModuleEntryTooltipText(clockEntry!!)
+        val entryText = getModuleEntryTooltipText(clockEntry)
         assertEquals("core.basic.clock\nperiodic incrementing clock at a rate in Hz", entryText)
     }
 

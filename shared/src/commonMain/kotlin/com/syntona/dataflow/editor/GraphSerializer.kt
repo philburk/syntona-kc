@@ -1164,7 +1164,7 @@ object GraphSerializer {
                     }
                 }
                 if (module is StepValueModule && jackName.startsWith("in") && jackName.substring(2).toIntOrNull() != null) {
-                    val hasStepValues = obj?.map?.containsKey("stepValues") == true
+                    val hasStepValues = obj.map.containsKey("stepValues")
                     if (hasStepValues) {
                         // stepValues is authoritative; do not run inputJack.setValue on step inputs
                         return@forEach
@@ -1295,7 +1295,7 @@ object GraphSerializer {
                             }
                         }
                     } else {
-                        val patchObj = obj?.map?.get("patch") as? JsonValue.Obj
+                        val patchObj = obj.map["patch"] as? JsonValue.Obj
                         if (patchObj != null) {
                             module.graphState.isDeserializing = true
                             try {

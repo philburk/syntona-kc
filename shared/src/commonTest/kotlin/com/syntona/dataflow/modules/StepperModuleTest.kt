@@ -9,6 +9,7 @@ import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.registry.ModuleRegistry
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -35,7 +36,7 @@ class StepperModuleTest {
         assertTrue(module is StepperModule, "Creator should return StepperModule")
         assertEquals("music.compose.stepper", ModuleRegistry.getBundlePath("stepper"))
 
-        val stepper = module as StepperModule
+        val stepper = module
         assertEquals("start", stepper.start.name)
         assertTrue(stepper.start.isKickable)
 
@@ -43,7 +44,7 @@ class StepperModuleTest {
         assertTrue(stepper.stop.isKickable)
 
         assertEquals("kick", stepper.kick.name)
-        assertTrue(stepper.kick is com.syntona.dataflow.model.CommandJack)
+        assertIs<com.syntona.dataflow.model.CommandJack>(stepper.kick)
         assertTrue(stepper.kick.isKickable)
         assertFalse(stepper.kick.isInteger)
         assertFalse(stepper.kick.isModuleEditorVisible)
@@ -57,7 +58,7 @@ class StepperModuleTest {
 
         assertEquals("looping", stepper.loop.name)
         assertEquals("looping", stepper.looping.name)
-        assertTrue(stepper.loop is com.syntona.dataflow.model.BooleanInputJack)
+        assertIs<com.syntona.dataflow.model.BooleanInputJack>(stepper.loop)
         assertTrue(stepper.loop.isInteger)
         assertFalse(stepper.loop.isValueDraggable)
         assertFalse(stepper.loop.isDisplayableValue)

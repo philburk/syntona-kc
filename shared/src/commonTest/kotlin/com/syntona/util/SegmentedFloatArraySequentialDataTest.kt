@@ -3,6 +3,7 @@ package com.syntona.util
 import com.softsynth.ksyn.data.SequentialData
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class SegmentedFloatArraySequentialDataTest {
@@ -10,7 +11,7 @@ class SegmentedFloatArraySequentialDataTest {
     @Test
     fun testImplementsSequentialData() {
         val array = SegmentedFloatArray()
-        assertTrue(array is SequentialData)
+        assertIs<SequentialData>(array)
     }
 
     @Test

@@ -8,6 +8,7 @@ import com.syntona.dataflow.model.OutputJack
 import com.syntona.dataflow.registry.ModuleRegistry
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -31,7 +32,7 @@ class GrabAudioModuleTest {
 
         val regularOutput = module.outputs.find { it.name == "out" }
         assertNotNull(regularOutput, "GrabAudioModule should have an output named 'out'")
-        assertTrue(regularOutput is OutputJack, "output jack should be a regular OutputJack")
+        assertIs<OutputJack>(regularOutput, "output jack should be a regular OutputJack")
     }
 
     @Test

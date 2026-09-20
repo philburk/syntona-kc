@@ -9,6 +9,7 @@ import com.syntona.dataflow.model.OutputJack
 import com.syntona.dataflow.registry.ModuleRegistry
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -45,7 +46,7 @@ class ZeroCrossingModuleTest {
         assertTrue(module.outputs[0] is AudioOutputJack)
 
         assertEquals("trigger", module.outputs[1].name)
-        assertTrue(module.outputs[1] is OutputJack)
+        assertIs<OutputJack>(module.outputs[1])
 
         module.teardown()
     }

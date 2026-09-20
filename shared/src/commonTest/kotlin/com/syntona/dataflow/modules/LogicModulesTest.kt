@@ -235,7 +235,7 @@ class LogicModulesTest {
         pass.output.connect(receiver.inJack)
 
         assertEquals("enabled", pass.enabled.name)
-        assertTrue(pass.enabled is com.syntona.dataflow.model.BooleanInputJack)
+        assertIs<com.syntona.dataflow.model.BooleanInputJack>(pass.enabled)
         assertFalse(pass.enabled.isValueDraggable)
         assertFalse(pass.enabled.isDisplayableValue)
         assertFalse(pass.enabled.isModuleEditorVisible)
@@ -304,11 +304,11 @@ class LogicModulesTest {
         assertEquals("toggle", toggle.name)
         assertEquals(2, toggle.inputs.size)
         assertEquals("reset", toggle.inputs[0].name)
-        assertTrue(toggle.reset is com.syntona.dataflow.model.CommandJack, "reset should be a CommandJack")
+        assertIs<com.syntona.dataflow.model.CommandJack>(toggle.reset, "reset should be a CommandJack")
         assertTrue(toggle.inputs[0].isKickable, "reset should be kickable")
         assertFalse(toggle.reset.isModuleEditorVisible, "reset should have isModuleEditorVisible=false")
         assertEquals("kick", toggle.inputs[1].name)
-        assertTrue(toggle.kick is com.syntona.dataflow.model.CommandJack, "kick should be a CommandJack")
+        assertIs<com.syntona.dataflow.model.CommandJack>(toggle.kick, "kick should be a CommandJack")
         assertTrue(toggle.inputs[1].isKickable, "kick should be kickable")
         assertFalse(toggle.kick.isModuleEditorVisible, "kick should have isModuleEditorVisible=false")
 

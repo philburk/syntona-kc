@@ -30,7 +30,7 @@ class EquationModuleTest {
         assertNotNull(fxy.inputX)
         assertTrue(fxy.inputX.isKickable)
         assertNotNull(fxy.inputY)
-        assertEquals(false, fxy.inputY!!.isKickable)
+        assertEquals(false, fxy.inputY.isKickable)
         assertEquals(null, fxy.inputZ)
         assertNotNull(fxy.output)
 
@@ -40,9 +40,9 @@ class EquationModuleTest {
         assertNotNull(fxyz.inputX)
         assertTrue(fxyz.inputX.isKickable)
         assertNotNull(fxyz.inputY)
-        assertEquals(false, fxyz.inputY!!.isKickable)
+        assertEquals(false, fxyz.inputY.isKickable)
         assertNotNull(fxyz.inputZ)
-        assertEquals(false, fxyz.inputZ!!.isKickable)
+        assertEquals(false, fxyz.inputZ.isKickable)
         assertNotNull(fxyz.output)
     }
 
@@ -142,7 +142,7 @@ class EquationModuleTest {
         module.onMessageReceived(module.inputX, Message.FloatValue(ScoreClock.now(), x))
 
         assertNotNull(result, "Result should not be null for formula '$formula'")
-        return result!!
+        return result
     }
 
     @Test

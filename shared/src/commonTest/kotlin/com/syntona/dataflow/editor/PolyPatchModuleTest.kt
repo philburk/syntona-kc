@@ -11,6 +11,7 @@ import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertSame
@@ -669,7 +670,7 @@ class PolyPatchModuleTest {
         // Verify only 1 input ("in") and it is an IntegerInputJack
         assertEquals(1, mod.inputs.size)
         assertEquals("in", mod.inputs[0].name)
-        assertTrue(mod.input is com.syntona.dataflow.model.IntegerInputJack)
+        assertIs<com.syntona.dataflow.model.IntegerInputJack>(mod.input)
         assertTrue(mod.input.isInteger)
 
         // Initial highlighted jack is output 0

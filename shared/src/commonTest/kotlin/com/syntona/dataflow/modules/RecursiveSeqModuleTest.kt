@@ -108,7 +108,7 @@ class RecursiveSeqModuleTest {
         // 1) Verify no -1 values (or any negative rest values) were EVER sent
         for (msg in receivedMessages) {
             assertTrue(msg is Message.FloatValue)
-            val valDouble = (msg as Message.FloatValue).value
+            val valDouble = msg.value
             assertTrue(valDouble >= 0.0, "No negative/rest values (such as -1) should be emitted. Got: $valDouble")
         }
 

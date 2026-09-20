@@ -71,7 +71,7 @@ class SoundRegistryTest {
         if (drumFMEntry != null) {
             val module = drumFMEntry.creator()
             assertTrue(module is PolyPatchModule || module is PatchModule, "drumFM should be a patch")
-            assertEquals("sounds/drumFM.json", (module as PatchModule).resourcePath)
+            assertEquals("sounds/drumFM.json", module.resourcePath)
             assertEquals(null, module.filePath)
         }
     }

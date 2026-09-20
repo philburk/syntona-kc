@@ -6,6 +6,7 @@ import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.registry.ModuleRegistry
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -115,7 +116,7 @@ class ClockDividerModuleTest {
         assertEquals("divisor", ckDiv.divisor.name)
         assertEquals("divisor", ckDiv.n.name)
         assertTrue(ckDiv.divisor.isInteger)
-        assertTrue(ckDiv.divisor is com.syntona.dataflow.model.IntegerInputJack)
+        assertIs<com.syntona.dataflow.model.IntegerInputJack>(ckDiv.divisor)
         assertEquals(1.0, ckDiv.divisor.min)
         assertEquals(128.0, ckDiv.divisor.max)
         assertEquals(2.0, ckDiv.divisor.getValue())

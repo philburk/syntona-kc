@@ -6,6 +6,7 @@ import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.registry.ModuleRegistry
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
@@ -156,8 +157,8 @@ class SequenceModuleTest {
         assertEquals("out", module.mainOutput.name)
         assertEquals("kick", module.kick.name)
         assertEquals("kick", module.increment.name)
-        assertTrue(module.kick is com.syntona.dataflow.model.CommandJack)
-        assertTrue(module.reset is com.syntona.dataflow.model.CommandJack)
+        assertIs<com.syntona.dataflow.model.CommandJack>(module.kick)
+        assertIs<com.syntona.dataflow.model.CommandJack>(module.reset)
         assertFalse(module.kick.isModuleEditorVisible)
         assertFalse(module.reset.isModuleEditorVisible)
     }
@@ -165,14 +166,14 @@ class SequenceModuleTest {
     @Test
     fun testCounterAndRandomCommandJacks() {
         val counter = CounterModule()
-        assertTrue(counter.kick is com.syntona.dataflow.model.CommandJack)
-        assertTrue(counter.increment is com.syntona.dataflow.model.CommandJack)
-        assertTrue(counter.reset is com.syntona.dataflow.model.CommandJack)
+        assertIs<com.syntona.dataflow.model.CommandJack>(counter.kick)
+        assertIs<com.syntona.dataflow.model.CommandJack>(counter.increment)
+        assertIs<com.syntona.dataflow.model.CommandJack>(counter.reset)
         assertFalse(counter.kick.isModuleEditorVisible)
         assertFalse(counter.reset.isModuleEditorVisible)
 
         val random = RandomModule()
-        assertTrue(random.kick is com.syntona.dataflow.model.CommandJack)
+        assertIs<com.syntona.dataflow.model.CommandJack>(random.kick)
         assertFalse(random.kick.isModuleEditorVisible)
     }
 

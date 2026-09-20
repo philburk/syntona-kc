@@ -32,6 +32,7 @@ import com.softsynth.ksyn.util.SampleLoader
 import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertIs
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -82,26 +83,26 @@ class TimelineTrackTest {
         assertEquals("Message 2", msgTrack.name)
         assertNotNull(msgTrack.inputJack)
         assertNotNull(msgTrack.outputJack)
-        assertTrue(msgTrack.inputJack is InputJack)
-        assertTrue(msgTrack.outputJack is OutputJack)
-        assertEquals("in2", msgTrack.inputJack?.name)
-        assertEquals("out2", msgTrack.outputJack?.name)
+        assertIs<InputJack>(msgTrack.inputJack)
+        assertIs<OutputJack>(msgTrack.outputJack)
+        assertEquals("in2", msgTrack.inputJack.name)
+        assertEquals("out2", msgTrack.outputJack.name)
         assertTrue(timeline.inputs.contains(msgTrack.inputJack))
         assertTrue(timeline.outputs.contains(msgTrack.outputJack))
 
         // 3. Add MIDI Track
         val midiTrack = timeline.addTrack(TrackType.MIDI)
         assertTrue(midiTrack is MidiTrack)
-        assertTrue(midiTrack.inputJack is VoiceInputJack)
-        assertTrue(midiTrack.outputJack is VoiceOutputJack)
+        assertIs<VoiceInputJack>(midiTrack.inputJack)
+        assertIs<VoiceOutputJack>(midiTrack.outputJack)
         assertEquals("in3", midiTrack.inputJack.name)
         assertEquals("out3", midiTrack.outputJack.name)
 
         // 4. Add Audio Track
         val audioTrack = timeline.addTrack(TrackType.AUDIO)
         assertTrue(audioTrack is AudioTrack)
-        assertTrue(audioTrack.inputJack is AudioInputJack)
-        assertTrue(audioTrack.outputJack is AudioOutputJack)
+        assertIs<AudioInputJack>(audioTrack.inputJack)
+        assertIs<AudioOutputJack>(audioTrack.outputJack)
         assertEquals("in4", audioTrack.inputJack.name)
         assertEquals("out4", audioTrack.outputJack.name)
 
@@ -2359,8 +2360,8 @@ class TimelineTrackTest {
         val timeline = TimelineModule()
         val audioTrack = timeline.addTrack(TrackType.AUDIO, "Audio1") as AudioTrack
         assertEquals("Audio1", audioTrack.name)
-        assertTrue(audioTrack.inputJack is AudioInputJack)
-        assertTrue(audioTrack.outputJack is AudioOutputJack)
+        assertIs<AudioInputJack>(audioTrack.inputJack)
+        assertIs<AudioOutputJack>(audioTrack.outputJack)
         assertFalse(audioTrack.isMuted)
         assertFalse(audioTrack.isRecordArmed)
         assertFalse(audioTrack.isInputMonitored)

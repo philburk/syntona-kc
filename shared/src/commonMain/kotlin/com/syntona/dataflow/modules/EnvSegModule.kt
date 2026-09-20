@@ -91,7 +91,7 @@ class EnvSegModule : Module("envSeg") {
             max = 1.0
             setValue(1.0)
         }
-        output = addAudioOutput("out", unit.output!!, 0)
+        output = addAudioOutput("out", unit.output, 0)
     }
 
     override fun onMessageReceived(jack: InputJack, msg: Message) {

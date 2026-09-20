@@ -104,7 +104,7 @@ class KSynAudioBridge(val synth: Synthesizer): AudioStreamManager() {
 
         try {
             while (isActive()) { // Check isActive for cooperative cancellation
-                val stereoBuffer = if (isInputActive && activeInputBridge != null) {
+                val stereoBuffer = if (isInputActive) {
                     if (duplexMode == DuplexMode.PREPARING) {
                         var totalReadFramesThisLoop = 0
                         val maxTempFrames = tempInputBuffer.size / inputChannels

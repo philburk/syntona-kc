@@ -190,7 +190,7 @@ class SampleReaderModuleTest {
         readerModule.rateMultiplier.generate()
         readerModule.unit.generate()
 
-        val outputs = readerModule.unit.output!!.getValues()
+        val outputs = readerModule.unit.output.getValues()
         var nonZeroCount = 0
         for (i in 0 until 8) {
             if (outputs[i] > 0.1f) nonZeroCount++
@@ -256,7 +256,7 @@ class SampleReaderModuleTest {
         readerModule.rateMultiplier.generate()
         readerModule.unit.generate()
 
-        val outputs = readerModule.unit.output!!.getValues()
+        val outputs = readerModule.unit.output.getValues()
         // At rate = 1.0, the output should contain non-zero samples around 0.75f
         var nonZeroCount = 0
         for (i in 0 until 8) {
@@ -289,7 +289,7 @@ class SampleReaderModuleTest {
         readerModule.rateMultiplier.generate()
         readerModule.unit.generate()
 
-        val outputs = readerModule.unit.output!!.getValues()
+        val outputs = readerModule.unit.output.getValues()
         // Mixed down sample should be (0.6 + 0.8)/2 = 0.7f
         var nonZeroCount = 0
         for (i in 0 until 8) {
