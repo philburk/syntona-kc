@@ -61,7 +61,12 @@ object InstrumentRegistry {
     /**
      * Registers an instrument JSON directly into the music.instruments bundle.
      */
-    fun registerInstrument(name: String, jsonContent: String, filePath: String? = null) {
+    fun registerInstrument(
+        name: String,
+        jsonContent: String,
+        filePath: String? = null,
+        description: String? = null
+    ) {
         instrumentJsonCache[name] = jsonContent
         val instrumentsBundle = ModuleRegistry.getOrCreateBundle(
             ModuleRegistry.getOrCreateBundle(ModuleRegistry.root, "music"),
@@ -69,10 +74,20 @@ object InstrumentRegistry {
         )
         instrumentsBundle.modules.removeAll { it.name == name }
         instrumentsBundle.modules.add(
-            ModuleRegistry.ModuleEntry(name) {
+            ModuleRegistry.ModuleEntry(name, description = description ?: ModuleRegistry.moduleDescriptions[name]) {
                 createInstrumentPatch(name, jsonContent, filePath ?: "instruments/$name.json")
             }
         )
+    }
+
+    /**
+     * Unregisters an instrument from the music.instruments bundle.
+     */
+    fun unregisterInstrument(name: String) {
+        instrumentJsonCache.remove(name)
+        val music = ModuleRegistry.root.subBundles.find { it.name == "music" }
+        val instruments = music?.subBundles?.find { it.name == "instruments" }
+        instruments?.modules?.removeAll { it.name == name }
     }
 
     /**

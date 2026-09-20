@@ -6,12 +6,22 @@ import com.syntona.dataflow.modules.UnitGeneratorModule
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.AudioOutputJack
 import kotlinx.coroutines.runBlocking
+import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 class InstrumentRegistryTest {
+
+    @AfterTest
+    fun tearDown() {
+        InstrumentRegistry.unregisterInstrument("testPolySynth")
+        val music = ModuleRegistry.root.subBundles.find { it.name == "music" }
+        val instruments = music?.subBundles?.find { it.name == "instruments" }
+        instruments?.modules?.clear()
+        InstrumentRegistry.instrumentJsonCache.clear()
+    }
 
     @Test
     fun testMusicInstrumentsBundleExists() {
@@ -43,29 +53,39 @@ class InstrumentRegistryTest {
             }
         """.trimIndent()
 
-        InstrumentRegistry.registerInstrument("testPolySynth", json, "instruments/testPolySynth.json")
+        try {
+            InstrumentRegistry.registerInstrument(
+                "testPolySynth",
+                json,
+                "instruments/testPolySynth.json",
+                description = "test polyphonic synthesizer instrument"
+            )
 
-        val music = ModuleRegistry.root.subBundles.find { it.name == "music" }!!
-        val instruments = music.subBundles.find { it.name == "instruments" }!!
-        val entry = instruments.modules.find { it.name == "testPolySynth" }
-        assertNotNull(entry, "testPolySynth should be registered under music.instruments")
+            val music = ModuleRegistry.root.subBundles.find { it.name == "music" }!!
+            val instruments = music.subBundles.find { it.name == "instruments" }!!
+            val entry = instruments.modules.find { it.name == "testPolySynth" }
+            assertNotNull(entry, "testPolySynth should be registered under music.instruments")
+            assertEquals("test polyphonic synthesizer instrument", entry.description)
 
-        val createdModule = entry.creator()
-        assertTrue(createdModule is PolyPatchModule, "Created module should be PolyPatchModule")
-        assertEquals(3, createdModule.maxVoices)
-        assertEquals("instruments/testPolySynth.json", createdModule.resourcePath)
-        assertEquals(null, createdModule.filePath)
-        assertEquals("testPolySynth", createdModule.name)
+            val createdModule = entry.creator()
+            assertTrue(createdModule is PolyPatchModule, "Created module should be PolyPatchModule")
+            assertEquals(3, createdModule.maxVoices)
+            assertEquals("instruments/testPolySynth.json", createdModule.resourcePath)
+            assertEquals(null, createdModule.filePath)
+            assertEquals("testPolySynth", createdModule.name)
 
-        // Check that inner module exists
-        val hasSineOsc = createdModule.graphState.modules.any { it.name == "sineOsc" }
-        assertTrue(hasSineOsc, "sineOsc should exist in deserialized polyPatch")
+            // Check that inner module exists
+            val hasSineOsc = createdModule.graphState.modules.any { it.name == "sineOsc" }
+            assertTrue(hasSineOsc, "sineOsc should exist in deserialized polyPatch")
 
-        // Default modules should also be present
-        assertTrue(createdModule.graphState.modules.any { it.name == "pitch" })
-        assertTrue(createdModule.graphState.modules.any { it.name == "on" })
-        assertTrue(createdModule.graphState.modules.any { it.name == "off" })
-        assertTrue(createdModule.graphState.modules.any { it.name == "output" })
+            // Default modules should also be present
+            assertTrue(createdModule.graphState.modules.any { it.name == "pitch" })
+            assertTrue(createdModule.graphState.modules.any { it.name == "on" })
+            assertTrue(createdModule.graphState.modules.any { it.name == "off" })
+            assertTrue(createdModule.graphState.modules.any { it.name == "output" })
+        } finally {
+            InstrumentRegistry.unregisterInstrument("testPolySynth")
+        }
     }
 
     @Test
