@@ -14,7 +14,8 @@ object CopyPasteService {
 
     fun copy(graphState: GraphState, modules: List<Module>, density: Float = 1f) {
         pasteCount = 0
-        pasteBuffer = GraphSerializer.serialize(graphState, modules, density)
+        // Copying must not write audio files: this is a clipboard, not a save
+        pasteBuffer = GraphSerializer.serialize(graphState, modules, density, writeAudioFiles = false)
     }
 
     fun paste(graphState: GraphState, density: Float = 1f) {

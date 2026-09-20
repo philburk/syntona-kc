@@ -102,6 +102,12 @@ class AudioSectionData(
     val thumbnail = AudioThumbnail()
     var isLoadedFromFile: Boolean = false
 
+    /** Absolute path where this audio is known to exist, so a save can skip writing it again. */
+    var savedWavPath: String? = null
+
+    /** True when the audio changed since it was last written, e.g. after recording. */
+    var needsWavWrite: Boolean = false
+
     init {
         recording?.let { thumbnail.updateFrom(it) }
     }
@@ -113,6 +119,9 @@ class AudioSectionData(
     fun copy(): AudioSectionData {
         val copyData = AudioSectionData(recording, wavFileName)
         copyData.isLoadedFromFile = isLoadedFromFile
+        // The copy needs a file of its own, which the next save gives it
+        copyData.savedWavPath = null
+        copyData.needsWavWrite = recording != null
         copyData.thumbnail.copyFrom(thumbnail)
         return copyData
     }

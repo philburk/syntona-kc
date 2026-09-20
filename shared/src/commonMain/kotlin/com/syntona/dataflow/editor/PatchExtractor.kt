@@ -50,7 +50,7 @@ object PatchExtractor {
         val outgoingByJack = outgoingConns.groupBy { it.output }
 
         // 3. Serialize selected modules to JSON
-        val json = GraphSerializer.serialize(graphState, modulesToExtract, density)
+        val json = GraphSerializer.serialize(graphState, modulesToExtract, density, writeAudioFiles = false)
 
         // 4. Remove selected modules from parent graph
         graphState.removeModulesDirectly(modulesToExtract)

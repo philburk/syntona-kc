@@ -74,6 +74,38 @@ data class RootWindowGeometry(val x: Float?, val y: Float?, val width: Float?, v
 
 object GraphSerializer {
 
+    /**
+     * Names and writes the WAV files for one save. Audio tracks store their file name in the patch,
+     * so a section keeps the same file across saves and reloads; the counter only names sections
+     * that have no file yet or whose name another section in this document already claimed, which
+     * is what copying a timeline or a section produces.
+     */
+    private class AudioSaveContext(val basePath: String?, val writeFiles: Boolean) {
+        /** Each document keeps its audio in its own folder, so documents sharing a folder cannot collide. */
+        private val folder: String = "audio/" + (basePath?.let { documentName(it) } ?: "patch")
+        private val claimedNames = mutableSetOf<String>()
+        private var nextIndex = 1
+
+        /** The name to save this section's audio under, keeping the one it already has when possible. */
+        fun claimName(data: AudioSectionData): String {
+            val existing = data.wavFileName
+            if (existing != null && existing.startsWith("$folder/") && claimedNames.add(existing)) {
+                return existing
+            }
+            // No name yet, taken by another section, or belonging to another document
+            while (true) {
+                val name = "$folder/take_${nextIndex++}.wav"
+                if (claimedNames.add(name)) return name
+            }
+        }
+
+        private fun documentName(path: String): String {
+            val fileName = path.replace('\\', '/').substringAfterLast('/')
+            val stem = fileName.substringBeforeLast('.', fileName).ifBlank { "patch" }
+            return stem.map { if (it.isLetterOrDigit() || it == '-' || it == '_') it else '_' }.joinToString("")
+        }
+    }
+
     fun serialize(
         graphState: GraphState,
         modules: List<Module>,
@@ -82,9 +114,10 @@ object GraphSerializer {
         rootWindowY: Float? = null,
         rootWindowWidth: Float? = null,
         rootWindowHeight: Float? = null,
-        basePath: String? = null
+        basePath: String? = null,
+        writeAudioFiles: Boolean = true
     ): String {
-        val raw = buildRawJson(graphState, modules, density, basePath)
+        val raw = buildRawJson(graphState, modules, density, basePath, writeAudioFiles)
         val parsedRoot = try { JsonParser(raw).parse() as? JsonValue.Obj } catch (_: Exception) { null }
             ?: return prettyPrintJson(raw)
         val merged = LinkedHashMap<String, JsonValue>()
@@ -141,9 +174,26 @@ object GraphSerializer {
 
 
 
-    fun serializePatch(patch: PatchModule, density: Float = 1f, basePath: String? = null): String {
+    fun serializePatch(
+        patch: PatchModule,
+        density: Float = 1f,
+        basePath: String? = null,
+        writeAudioFiles: Boolean = true
+    ): String = serializePatchRaw(patch, density, basePath, null, writeAudioFiles)
+
+    /** [parentAudioContext] is passed when this patch is part of a larger save, e.g. a patch track. */
+    private fun serializePatchRaw(
+        patch: PatchModule,
+        density: Float,
+        basePath: String?,
+        parentAudioContext: AudioSaveContext?,
+        writeAudioFiles: Boolean = true
+    ): String {
         val effectiveBasePath = basePath ?: patch.filePath ?: FileState.currentFilePath
-        val raw = buildRawJson(patch.graphState, patch.graphState.modules.toList(), density, effectiveBasePath)
+        val raw = buildRawJson(
+            patch.graphState, patch.graphState.modules.toList(), density, effectiveBasePath,
+            parentAudioContext?.writeFiles ?: writeAudioFiles, parentAudioContext
+        )
         val parsed = try { JsonParser(raw).parse() as? JsonValue.Obj } catch (_: Exception) { null }
             ?: return raw
         val merged = LinkedHashMap<String, JsonValue>()
@@ -171,9 +221,13 @@ object GraphSerializer {
         graphState: GraphState,
         modules: List<Module>,
         density: Float,
-        basePath: String? = null
+        basePath: String? = null,
+        writeAudioFiles: Boolean = true,
+        parentAudioContext: AudioSaveContext? = null
     ): String = buildString {
         val effectiveBasePath = basePath ?: graphState.parentPatch?.filePath ?: FileState.currentFilePath
+        // Shared with nested patches so that every section in one document gets a distinct file
+        val audioContext = parentAudioContext ?: AudioSaveContext(effectiveBasePath, writeAudioFiles)
         val internalConns = graphState.connections.filter { conn ->
             modules.any { it === conn.output.module } &&
             modules.any { it === conn.input.module }
@@ -319,7 +373,7 @@ object GraphSerializer {
                     track.inputJack?.let { append(",\"inJack\":\"${it.name.jsonEscape}\"") }
                     track.outputJack?.let { append(",\"outJack\":\"${it.name.jsonEscape}\"") }
                     if (track is PatchTrack) {
-                        val patchJson = serializePatch(track.patch, density, effectiveBasePath)
+                        val patchJson = serializePatchRaw(track.patch, density, effectiveBasePath, audioContext)
                         append(",\"patch\":$patchJson")
                     }
                     append(",\"sections\":[")
@@ -356,18 +410,23 @@ object GraphSerializer {
                         val audioData = sec.data as? AudioSectionData
                         if (audioData != null) {
                             val rec = audioData.recording
-                            if (rec != null && rec.length > 0) {
-                                val wavRel = audioData.wavFileName ?: "audio/track_${track.id}_sec_${sec.id}.wav"
+                            if (rec != null && rec.length > 0 && audioContext.writeFiles && !effectiveBasePath.isNullOrBlank()) {
+                                val wavRel = audioContext.claimName(audioData)
                                 audioData.wavFileName = wavRel
                                 val absWavPath = resolvePath(wavRel, effectiveBasePath)
-                                try {
-                                    val count = rec.length
-                                    val samples = FloatArray(count)
-                                    rec.read(0, samples, 0, count)
-                                    val sRate = if (rec.frameRate > 0.0) rec.frameRate.toInt() else SynthKSyn.synth.frameRate
-                                    writeWavFile(absWavPath, samples, sRate, 1)
-                                } catch (e: Exception) {
-                                    println("Failed to write audio track WAV to $absWavPath: ${e.message}")
+                                // Only write audio that is new, re-recorded, renamed, or going to a new location
+                                if (audioData.needsWavWrite || audioData.savedWavPath != absWavPath) {
+                                    try {
+                                        val count = rec.length
+                                        val samples = FloatArray(count)
+                                        rec.read(0, samples, 0, count)
+                                        val sRate = if (rec.frameRate > 0.0) rec.frameRate.toInt() else SynthKSyn.synth.frameRate
+                                        writeWavFile(absWavPath, samples, sRate, 1)
+                                        audioData.savedWavPath = absWavPath
+                                        audioData.needsWavWrite = false
+                                    } catch (e: Exception) {
+                                        println("Failed to write audio track WAV to $absWavPath: ${e.message}")
+                                    }
                                 }
                                 append(",\"wavFile\":\"${wavRel.jsonEscape}\"")
                             } else if (audioData.wavFileName != null) {
@@ -458,7 +517,12 @@ object GraphSerializer {
                     // referenced external file
                 } else {
                     append(",\"patch\":")
-                    append(buildRawJson(module.graphState, module.graphState.modules.toList(), density, module.filePath ?: effectiveBasePath))
+                    append(
+                        buildRawJson(
+                            module.graphState, module.graphState.modules.toList(), density,
+                            module.filePath ?: effectiveBasePath, writeAudioFiles, audioContext
+                        )
+                    )
                 }
             }
             append("}")
@@ -837,6 +901,8 @@ object GraphSerializer {
                                         newRec.write(0, data)
                                         audioData.recording = newRec
                                         audioData.isLoadedFromFile = true
+                                        audioData.savedWavPath = absWavPath
+                                        audioData.needsWavWrite = false
                                         audioData.updateThumbnail()
                                     } catch (e: Exception) {
                                         println("Failed to decode WAV from $absWavPath: ${e.message}")

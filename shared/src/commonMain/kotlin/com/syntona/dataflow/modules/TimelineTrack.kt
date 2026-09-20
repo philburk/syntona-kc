@@ -1544,6 +1544,8 @@ class AudioTrack(
         }
         data.recording = result
         data.isLoadedFromFile = false
+        data.needsWavWrite = true
+        data.savedWavPath = null
         data.thumbnail.clear()
         data.thumbnail.updateFrom(result)
         // Play the section again, now with the take in it

@@ -24,6 +24,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlin.coroutines.EmptyCoroutineContext
 import com.syntona.util.SegmentedFloatArray
 import com.softsynth.ksyn.Synthesizer
+import com.syntona.core.audio.writeWavFile
+import com.syntona.dataflow.editor.CopyPasteService
+import com.syntona.dataflow.editor.readBinaryFileDirect
+import com.syntona.util.resolvePath
+import com.softsynth.ksyn.util.SampleLoader
 import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -1719,6 +1724,101 @@ class TimelineTrackTest {
         track.teardown()
     }
 
+    /** Builds a timeline with one audio track holding one section of [frames] frames of [value]. */
+    private fun timelineWithAudio(graph: GraphState, frames: Int, value: Float): TimelineModule {
+        val timeline = TimelineModule()
+        graph.addModule(timeline, Offset.Zero)
+        val track = timeline.addTrack(TrackType.AUDIO) as AudioTrack
+        val sec = track.addSectionDirect(id = 1, start = 0.0, duration = 1.0)
+        val rec = SegmentedFloatArray(track.unit.segmentSize, track.unit.poolCapacity)
+        rec.extend(frames)
+        rec.write(0, FloatArray(frames) { value })
+        (sec.data as AudioSectionData).apply {
+            recording = rec
+            needsWavWrite = true
+        }
+        return timeline
+    }
+
+    private fun wavFileNames(json: String): List<String> =
+        Regex("\"wavFile\"\\s*:\\s*\"([^\"]+)\"").findAll(json).map { it.groupValues[1] }.toList()
+
+    @Test
+    fun testTwoTimelinesInOneDocumentGetSeparateWavFiles() {
+        val graph = GraphState()
+        timelineWithAudio(graph, frames = 64, value = 0.25f)
+        timelineWithAudio(graph, frames = 64, value = 0.5f)
+
+        val basePath = "build/tmp_two_timelines.sntn"
+        val names = wavFileNames(GraphSerializer.serialize(graph, graph.modules, basePath = basePath))
+        assertEquals(2, names.size)
+        assertEquals(names.toSet().size, names.size, "Each section needs a file of its own")
+        names.forEach { assertTrue(it.startsWith("audio/tmp_two_timelines/"), "Unexpected path $it") }
+        graph.modules.filterIsInstance<TimelineModule>().forEach { timeline ->
+            timeline.tracks.forEach { (it as AudioTrack).teardown() }
+        }
+    }
+
+    @Test
+    fun testSavingTwiceKeepsWavNamesAndDoesNotRewriteFiles() {
+        val graph = GraphState()
+        val timeline = timelineWithAudio(graph, frames = 64, value = 0.25f)
+
+        val basePath = "build/tmp_rewrite_check.sntn"
+        val firstNames = wavFileNames(GraphSerializer.serialize(graph, graph.modules, basePath = basePath))
+        assertEquals(1, firstNames.size)
+        val wavPath = resolvePath(firstNames[0], basePath)
+        assertNotNull(readBinaryFileDirect(wavPath), "First save writes the audio")
+
+        // Replace the file with a shorter one, which a second save would overwrite
+        writeWavFile(wavPath, FloatArray(8) { 0.5f }, 48000, 1)
+        val secondNames = wavFileNames(GraphSerializer.serialize(graph, graph.modules, basePath = basePath))
+        assertEquals(firstNames, secondNames, "Names stay the same across saves")
+        val bytes = assertNotNull(readBinaryFileDirect(wavPath))
+        assertEquals(8, SampleLoader.loadFloatSample(bytes).numFrames, "Unchanged audio is not written again")
+
+        timeline.tracks.forEach { (it as AudioTrack).teardown() }
+    }
+
+    @Test
+    fun testSerializingWithoutAudioWritesNoWavFiles() {
+        val graph = GraphState()
+        val timeline = timelineWithAudio(graph, frames = 64, value = 0.25f)
+        val data = (timeline.tracks.first().sections.first().data as AudioSectionData)
+
+        val basePath = "build/tmp_no_audio_write.sntn"
+        val json = GraphSerializer.serialize(graph, graph.modules, basePath = basePath, writeAudioFiles = false)
+
+        assertTrue(wavFileNames(json).isEmpty(), "No file is named")
+        assertNull(data.wavFileName)
+        assertNull(data.savedWavPath, "No audio is written")
+
+        // The clipboard serializes this way, so copying never writes audio files
+        CopyPasteService.copy(graph, graph.modules.toList())
+        assertNull(data.savedWavPath)
+        CopyPasteService.clear()
+        timeline.tracks.forEach { (it as AudioTrack).teardown() }
+    }
+
+    @Test
+    fun testSectionsSharingAWavNameAreGivenSeparateFiles() {
+        val graph = GraphState()
+        val first = timelineWithAudio(graph, frames = 64, value = 0.25f)
+        val second = timelineWithAudio(graph, frames = 64, value = 0.5f)
+        // As after pasting a timeline, both sections claim one file
+        val shared = "audio/tmp_shared_name/take_1.wav"
+        (first.tracks.first().sections.first().data as AudioSectionData).wavFileName = shared
+        (second.tracks.first().sections.first().data as AudioSectionData).wavFileName = shared
+
+        val basePath = "build/tmp_shared_name.sntn"
+        val names = wavFileNames(GraphSerializer.serialize(graph, graph.modules, basePath = basePath))
+        assertEquals(2, names.size)
+        assertEquals(names.toSet().size, names.size, "The second section is given a file of its own")
+        assertTrue(names.contains(shared), "The first section keeps the name it had")
+
+        listOf(first, second).forEach { t -> t.tracks.forEach { (it as AudioTrack).teardown() } }
+    }
+
     @Test
     fun testMidiTrackMuteSilencesSoundingNotes() {
         val beatLine = BeatLineModule()
@@ -2203,7 +2303,10 @@ class TimelineTrackTest {
         val fakeBasePath = "build/tmp_audio_test_patch.sntn"
         val json = GraphSerializer.serialize(rootGraph, rootGraph.modules, basePath = fakeBasePath)
         assertTrue(json.contains("\"wavFile\""), "Serialized JSON should contain wavFile attribute")
-        assertTrue(json.contains("audio/track_"), "Wav file path should point to audio/ folder")
+        assertTrue(
+            json.contains("audio/tmp_audio_test_patch/take_"),
+            "Wav file path should point to this document's folder under audio/"
+        )
 
         // Deserialize
         val loadedGraph = GraphState()
