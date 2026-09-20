@@ -4161,10 +4161,11 @@ fun TrackSectionView(
                 val ghostAudioData = section.data as? AudioSectionData
                 if (ghostAudioData != null) {
                     val thumb = ghostAudioData.thumbnail
-                    val count = thumb.blockCount
+                    // One consistent view: the count always matches these arrays
+                    val blocks = thumb.blocks
+                    val count = blocks.count
                     if (count > 0) {
                         Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 2.dp, vertical = 2.dp)) {
-                            thumb.revision // Redraws when the samples change but the block count does not
                             val w = size.width
                             val h = size.height
                             val midY = h / 2f
@@ -4182,8 +4183,8 @@ fun TrackSectionView(
                                 val blockSec = (b * thumb.blockSize).toDouble() / sRate
                                 val bx = ((blockSec / secDurSec) * w).toFloat()
                                 if (bx > w) break
-                                val minV = thumb.minValues[b]
-                                val maxV = thumb.maxValues[b]
+                                val minV = blocks.minValues[b]
+                                val maxV = blocks.maxValues[b]
                                 val topY = (midY - maxV * (midY - 2f)).coerceIn(1f, h - 1f)
                                 val bottomY = (midY - minV * (midY - 2f)).coerceIn(1f, h - 1f)
                                 drawLine(
@@ -4334,10 +4335,11 @@ fun TrackSectionView(
                 val audioData = section.data as? AudioSectionData
                 if (audioData != null) {
                     val thumb = audioData.thumbnail
-                    val count = thumb.blockCount
+                    // One consistent view: the count always matches these arrays
+                    val blocks = thumb.blocks
+                    val count = blocks.count
                     if (count > 0) {
                         Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 2.dp, vertical = 2.dp)) {
-                            thumb.revision // Redraws when the samples change but the block count does not
                             val w = size.width
                             val h = size.height
                             val midY = h / 2f
@@ -4355,8 +4357,8 @@ fun TrackSectionView(
                                 val blockSec = (b * thumb.blockSize).toDouble() / sRate
                                 val bx = ((blockSec / secDurSec) * w).toFloat()
                                 if (bx > w) break
-                                val minV = thumb.minValues[b]
-                                val maxV = thumb.maxValues[b]
+                                val minV = blocks.minValues[b]
+                                val maxV = blocks.maxValues[b]
                                 val topY = (midY - maxV * (midY - 2f)).coerceIn(1f, h - 1f)
                                 val bottomY = (midY - minV * (midY - 2f)).coerceIn(1f, h - 1f)
                                 drawLine(

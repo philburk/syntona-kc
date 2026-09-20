@@ -1664,14 +1664,13 @@ class TimelineTrackTest {
     }
 
     @Test
-    fun testAudioThumbnailRevisionChangesWhenSamplesChange() {
+    fun testAudioThumbnailPublishesCountAndValuesTogether() {
         val rec = SegmentedFloatArray()
         rec.extend(256)
         rec.write(0, FloatArray(256) { 0.5f })
         val thumb = AudioThumbnail()
         thumb.updateFrom(rec)
-        val blocks = thumb.blockCount
-        val revision = thumb.revision
+        val before = thumb.blocks
 
         // Same length, different samples, as after punching in
         val punched = SegmentedFloatArray()
@@ -1680,8 +1679,32 @@ class TimelineTrackTest {
         thumb.clear()
         thumb.updateFrom(punched)
 
-        assertEquals(blocks, thumb.blockCount, "Block count alone cannot show the change")
-        assertTrue(thumb.revision != revision, "Revision must change so views redraw")
+        assertEquals(before.count, thumb.blocks.count, "Block count alone cannot show the change")
+        assertTrue(thumb.blocks !== before, "Views must see a new object so they redraw")
+        // A view reads one object, so its count can never exceed its arrays
+        assertTrue(thumb.blocks.count <= thumb.blocks.minValues.size)
+        assertTrue(thumb.blocks.count <= thumb.blocks.maxValues.size)
+        assertEquals(0.9f, thumb.blocks.maxValues[0], 1e-6f)
+    }
+
+    @Test
+    fun testAudioThumbnailClearThenRefillNeverExposesAnEmptyArrayWithBlocks() {
+        val rec = SegmentedFloatArray()
+        rec.extend(1024)
+        rec.write(0, FloatArray(1024) { 0.4f })
+        val thumb = AudioThumbnail()
+        thumb.updateFrom(rec)
+
+        // Mid-rebuild, as finishRecording does: whatever a draw reads must be self consistent
+        thumb.clear()
+        val duringRebuild = thumb.blocks
+        assertEquals(0, duringRebuild.count)
+        assertTrue(duringRebuild.count <= duringRebuild.minValues.size)
+
+        thumb.updateFrom(rec)
+        val after = thumb.blocks
+        assertTrue(after.count > 0)
+        assertTrue(after.count <= after.minValues.size, "Count must fit its own arrays")
     }
 
     @Test
