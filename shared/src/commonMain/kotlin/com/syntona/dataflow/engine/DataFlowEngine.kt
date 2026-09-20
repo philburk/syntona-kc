@@ -4,6 +4,7 @@ import androidx.compose.runtime.snapshots.Snapshot
 import com.syntona.core.model.ScoreClock
 import com.syntona.core.model.ScoreTime
 import com.syntona.core.model.ScheduledQueue
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
@@ -93,19 +94,33 @@ open class DataFlowEngine(private val scope: CoroutineScope) {
     }
 
     private fun processCommand(cmd: SyntonaCommand) {
-        Snapshot.withMutableSnapshot { cmd.execute() }
+        // One failing command must not stop the engine, which drives playback and every UI edit
+        if (!runGuarded("command ${cmd::class.simpleName}") { cmd.execute() }) return
         if (cmd.isUndoable) {
             undoStack.addLast(cmd)
             redoStack.clear()
         }
     }
 
+    /** Runs [action] in a snapshot. Returns false if it failed, having reported why. */
+    private fun runGuarded(what: String, action: () -> Unit): Boolean =
+        try {
+            Snapshot.withMutableSnapshot(action)
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            println("DataFlowEngine: $what failed: $e")
+            e.printStackTrace()
+            false
+        }
+
     private fun fireScheduledEvents() {
         val now = ScoreClock.now()
         while (true) {
             val event = scheduledQueue.removeNext(now) ?: break
             if (!event.isCancelled) {
-                Snapshot.withMutableSnapshot { event.fire() }
+                runGuarded("scheduled event") { event.fire() }
             }
         }
     }

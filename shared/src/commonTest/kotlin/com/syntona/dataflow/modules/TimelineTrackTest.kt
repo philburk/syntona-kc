@@ -1820,6 +1820,70 @@ class TimelineTrackTest {
     }
 
     @Test
+    fun testFinishRecordingWithNoRoomKeepsSectionInsideTheGap() {
+        val timeline = TimelineModule()
+        val track = timeline.addTrack(TrackType.AUDIO) as AudioTrack
+        // A section with almost no room before the next one, as when recording at the end
+        val sec = track.addSectionDirect(id = 1, start = 0.0, duration = 0.02)
+        track.addSectionDirect(id = 2, start = 0.02, duration = 1.0)
+
+        track.onRecordStart(ScoreTime.Zero, 0.0)
+        recordConstant(track, 64, 0.5f)
+        track.finishRecording(sec, latencyFrames = 0, stopUnits = 0.01)
+
+        assertTrue(sec.duration > 0.0, "Section keeps a usable duration")
+        assertTrue(sec.duration <= 0.02 + 1e-9, "Section must not overlap the next one")
+        track.teardown()
+    }
+
+    @Test
+    fun testFinishRecordingANewSectionWithNoRoomLeftDoesNotThrow() {
+        val timeline = TimelineModule()
+        timeline.maxTime = 16.0
+        val track = timeline.addTrack(TrackType.AUDIO) as AudioTrack
+
+        track.onRecordStart(ScoreTime.Zero, 5.0) // Creates a section
+        val sec = track.sections.single()
+        recordConstant(track, 64, 0.5f)
+        // The room ahead disappears while recording, e.g. the song end moves in
+        timeline.maxTime = 5.0
+        track.finishRecording(sec, latencyFrames = 0, stopUnits = 5.01)
+
+        assertTrue(sec.duration > 0.0, "Section keeps a usable duration")
+        track.teardown()
+    }
+
+    @Test
+    fun testMessageTrackRecordStopWithNoRoomKeepsSectionInsideTheGap() {
+        val timeline = TimelineModule()
+        val track = timeline.addTrack(TrackType.MESSAGE) as MessageTrack
+        val sec = track.addSectionDirect(id = 1, start = 0.0, duration = 0.02)
+        track.addSectionDirect(id = 2, start = 0.02, duration = 1.0)
+
+        track.onRecordStart(ScoreTime.Zero, 0.0)
+        track.onRecordStop(ScoreTime.Zero, 1.0) // Recorded past the room available
+
+        assertTrue(sec.duration <= 0.02 + 1e-9, "Section must not overlap the next one")
+    }
+
+    @Test
+    fun testSectionsCannotStartAtOrAfterTheEndOfTheTimeline() {
+        val timeline = TimelineModule()
+        timeline.maxTime = 8.0
+        val track = timeline.addTrack(TrackType.AUDIO) as AudioTrack
+
+        assertFalse(track.canAddSectionAt(8.0))
+        assertFalse(track.canAddSectionAt(9.0))
+        assertTrue(track.canAddSectionAt(7.0))
+        assertNull(track.addSection(8.0, 2.0), "No section is added at the end")
+
+        // Recording at the end adds nothing rather than an unusable section
+        track.onRecordStart(ScoreTime.Zero, 8.0)
+        assertTrue(track.sections.isEmpty())
+        track.teardown()
+    }
+
+    @Test
     fun testMidiTrackMuteSilencesSoundingNotes() {
         val beatLine = BeatLineModule()
         val midiTrack = beatLine.addTrack(TrackType.MIDI) as MidiTrack

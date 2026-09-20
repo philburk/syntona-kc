@@ -127,8 +127,15 @@ abstract class TimelineTrack(
     open val outputJack: OutputJack? get() = outputJacks.firstOrNull()
     open val outputJacks: List<OutputJack> get() = listOfNotNull(outputJack)
 
+    companion object {
+        /** Shortest a section can be, matching the floor that [getMaxDuration] reports. */
+        const val MIN_SECTION_DURATION = 0.01
+    }
+
     fun canAddSectionAt(start: Double, duration: Double = 0.05): Boolean {
         if (start < 0.0) return false
+        // A section starting at the end of the timeline has no room to grow and cannot play
+        if (start >= timeline.maxTime) return false
         if (sections.any { start >= it.start && start < it.end }) return false
         val nextSec = sections.filter { it.start > start }.minByOrNull { it.start }
         if (nextSec != null && (nextSec.start - start) < 0.05) return false
@@ -557,7 +564,7 @@ class MessageTrack(
         activeRecordingSection?.let { sec ->
             if (stopUnits > sec.start && sec.repeats == 1) {
                 val maxDur = getMaxDuration(sec, timeline.maxTime)
-                val newDur = (stopUnits - sec.start).coerceIn(0.5, maxDur)
+                val newDur = (stopUnits - sec.start).coerceAtLeast(0.5).coerceAtMost(maxDur)
                 if (newDur > sec.duration) {
                     sec.duration = newDur
                 }
@@ -804,7 +811,7 @@ class MidiTrack(
         activeRecordingSection?.let { sec ->
             if (stopUnits > sec.start && sec.repeats == 1) {
                 val maxDur = getMaxDuration(sec, timeline.maxTime)
-                val newDur = (stopUnits - sec.start).coerceIn(0.5, maxDur)
+                val newDur = (stopUnits - sec.start).coerceAtLeast(0.5).coerceAtMost(maxDur)
                 if (newDur > sec.duration) {
                     sec.duration = newDur
                 }
@@ -1557,7 +1564,7 @@ class AudioTrack(
             val audioDurationUnits = timeline.secondsToUnits(totalFrames / frameRate)
             val maxDur = getMaxDuration(sec, timeline.maxTime)
             sec.duration = if (recordingIntoNewSection) {
-                audioDurationUnits.coerceIn(0.1, maxDur)
+                audioDurationUnits.coerceAtMost(maxDur).coerceAtLeast(MIN_SECTION_DURATION)
             } else {
                 // Punching in never shortens a section, it only grows to fit a take that ran past its end
                 maxOf(sec.duration, audioDurationUnits).coerceAtMost(maxDur)
