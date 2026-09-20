@@ -17,6 +17,7 @@ class OutputModule : Module("output") {
         set(value) {
             _name = value
             patchJack?.name = value
+            (patch as? TrackPatchModule)?.track?.syncOutputNamesForChild(this)
         }
 
     // Set by the parent PatchModule when this module is added to its graphState

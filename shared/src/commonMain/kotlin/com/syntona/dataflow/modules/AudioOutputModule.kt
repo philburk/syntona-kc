@@ -28,6 +28,7 @@ class AudioOutputModule : Module("output~") {
             _name = value
             patchJack?.name = value
             (patch as? PolyPatchModule)?.onAudioOutputNameChanged(this, value)
+            (patch as? TrackPatchModule)?.track?.syncOutputNamesForChild(this)
         }
 
     internal var patch: PatchModule? = null

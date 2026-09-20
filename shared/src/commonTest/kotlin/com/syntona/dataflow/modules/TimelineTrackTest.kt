@@ -267,9 +267,11 @@ class TimelineTrackTest {
         assertEquals(2, patchTrack.outputJacks.size)
 
         // Remove AudioOutputModule
+        val msgJackName = patchTrack.outputJacks[1].name
         patchTrack.patch.graphState.removeModulesDirectly(listOf(audioOut))
         assertEquals(1, patchTrack.outputJacks.size)
-        assertEquals(msgOut.name, patchTrack.outputJacks[0].name.substringAfter("_", patchTrack.outputJacks[0].name))
+        // The surviving jack keeps its name, so connections made to it still match
+        assertEquals(msgJackName, patchTrack.outputJacks[0].name)
     }
 
     @Test
@@ -2002,6 +2004,82 @@ class TimelineTrackTest {
 
         track.teardown()
         loadedTrack.teardown()
+    }
+
+    @Test
+    fun testPatchTrackJackNamesDoNotDependOnCreationOrder() {
+        val timeline = TimelineModule()
+        val track = timeline.addTrack(TrackType.PATCH, "SynthTrack") as PatchTrack
+        val trackId = track.id
+
+        val first = AudioOutputModule()
+        track.patch.graphState.addModule(first, Offset(200f, 100f))
+        val second = AudioOutputModule()
+        track.patch.graphState.addModule(second, Offset(200f, 200f))
+
+        assertEquals("out$trackId", track.outputJacks[0].name, "A default-named output keeps a short name")
+        val secondName = track.outputJacks[1].name
+        assertEquals("out${trackId}b", secondName, "A second default-named output is lettered, not order-numbered")
+
+        // Deleting the first output must not rename the second, which connections refer to
+        track.patch.graphState.removeModulesDirectly(listOf(first))
+        assertEquals(1, track.outputJacks.size)
+        assertEquals(secondName, track.outputJacks[0].name, "The surviving jack keeps its name")
+
+        // Renaming the module renames its jack
+        second.name = "lead"
+        assertEquals("out${trackId}_lead", track.outputJacks[0].name)
+    }
+
+    @Test
+    fun testPatchTrackJackNamesSurviveSaveAndReload() {
+        val graph = GraphState()
+        val timeline = TimelineModule()
+        graph.addModule(timeline, Offset.Zero)
+        val track = timeline.addTrack(TrackType.PATCH, "SynthTrack") as PatchTrack
+        val first = AudioOutputModule()
+        track.patch.graphState.addModule(first, Offset(200f, 100f))
+        val second = AudioOutput2Module()
+        track.patch.graphState.addModule(second, Offset(200f, 200f))
+        track.patch.graphState.removeModulesDirectly(listOf(first)) // Leaves the later jacks in place
+        val namesBefore = track.outputJacks.map { it.name }
+        assertEquals(2, namesBefore.size)
+
+        val json = GraphSerializer.serialize(graph, graph.modules)
+        val loadedGraph = GraphState()
+        GraphSerializer.deserialize(loadedGraph, json)
+        val loadedTrack = loadedGraph.modules.filterIsInstance<TimelineModule>().first().tracks.first() as PatchTrack
+
+        assertEquals(namesBefore, loadedTrack.outputJacks.map { it.name }, "Jack names survive a reload")
+    }
+
+    @Test
+    fun testPatchTrackWithoutStoredJackNamesUsesTheOldNames() {
+        val graph = GraphState()
+        val timeline = TimelineModule()
+        graph.addModule(timeline, Offset.Zero)
+        val track = timeline.addTrack(TrackType.PATCH, "SynthTrack") as PatchTrack
+        val trackId = track.id
+        val first = OutputModule().also { it.name = "a" }
+        track.patch.graphState.addModule(first, Offset(200f, 100f))
+        val second = OutputModule().also { it.name = "b" }
+        track.patch.graphState.addModule(second, Offset(200f, 200f))
+
+        // A patch saved before jack names were stored, as an older Syntona wrote it
+        val json = GraphSerializer.serialize(graph, graph.modules)
+        // Renaming the key makes the loader treat the names as missing, as an old file would
+        val legacyJson = json.replace("\"outJacks\"", "\"ignoredJacks\"")
+        assertFalse(legacyJson.contains("\"outJacks\""), "Stored names hidden for this test")
+
+        val loadedGraph = GraphState()
+        GraphSerializer.deserialize(loadedGraph, legacyJson)
+        val loadedTrack = loadedGraph.modules.filterIsInstance<TimelineModule>().first().tracks.first() as PatchTrack
+
+        assertEquals(
+            listOf("out$trackId", "out${trackId}_b"),
+            loadedTrack.outputJacks.map { it.name },
+            "Old patches keep the names their connections use"
+        )
     }
 
     @Test

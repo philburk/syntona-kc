@@ -1882,14 +1882,18 @@ fun JackView(
                 Spacer(modifier = Modifier.width(4.dp))
             }
             Box(
-                contentAlignment = Alignment.CenterEnd
+                contentAlignment = Alignment.CenterEnd,
+                // Shrinks instead of pushing the marker out of the module, which would hide a
+                // connector that still works. The full name is on the module's own jack list.
+                modifier = Modifier.weight(1f, fill = false)
             ) {
                 Text(
                     text = jack.name,
                     color = Color.Transparent,
                     fontSize = 10.sp,
                     lineHeight = 10.sp,
-                    maxLines = 1
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = displayText,
@@ -1897,6 +1901,7 @@ fun JackView(
                     fontSize = 10.sp,
                     lineHeight = 10.sp,
                     maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.End,
                     modifier = Modifier.matchParentSize()
                 )

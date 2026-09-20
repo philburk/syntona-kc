@@ -386,6 +386,18 @@ object GraphSerializer {
                     if (track is PatchTrack) {
                         val patchJson = serializePatchRaw(track.patch, density, effectiveBasePath, audioContext)
                         append(",\"patch\":$patchJson")
+                        // Saved so connections keep matching, whatever order the jacks were made in
+                        append(",\"outJacks\":[")
+                        track.outputJackNamesInOrder().forEachIndexed { oi, names ->
+                            if (oi > 0) append(",")
+                            append("[")
+                            names.forEachIndexed { ni, jackName ->
+                                if (ni > 0) append(",")
+                                append("\"${jackName.jsonEscape}\"")
+                            }
+                            append("]")
+                        }
+                        append("]")
                     }
                     append(",\"sections\":[")
                     track.sections.forEachIndexed { si, sec ->
@@ -822,6 +834,18 @@ object GraphSerializer {
                                 val patchJson = patchObj.stringify(0)
                                 deserialize(track.patch.graphState, patchJson, density = density, basePath = basePath)
                                 track.ensureDefaultCommandModules()
+                                val storedJackNames = (trackObj.map["outJacks"] as? JsonValue.Arr)?.items
+                                if (storedJackNames != null) {
+                                    track.applyOutputJackNames(
+                                        storedJackNames.map { entry ->
+                                            (entry as? JsonValue.Arr)?.items.orEmpty()
+                                                .mapNotNull { (it as? JsonValue.Str)?.value }
+                                        }
+                                    )
+                                } else {
+                                    // Saved before jack names were stored, so rebuild the old ones
+                                    track.applyLegacyOutputJackNames()
+                                }
                             } finally {
                                 track.patch.graphState.isDeserializing = false
                             }

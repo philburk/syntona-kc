@@ -402,13 +402,13 @@ class PatchTrack(
         if (childOutputLinks.containsKey(module)) return
         when (module) {
             is AudioOutputModule -> {
-                val base = if (_mirroredOutputs.isEmpty()) "out$id" else "out${id}_${module.name}"
+                val base = baseNameFor(module, listOf(""))
                 val jack = timeline.createTrackAudioOutput(base, module.passThrough.output, 0)
                 childOutputLinks[module] = listOf(jack)
                 _mirroredOutputs.add(jack)
             }
             is AudioOutput2Module -> {
-                val base = if (_mirroredOutputs.isEmpty()) "out$id" else "out${id}_${module.name}"
+                val base = baseNameFor(module, listOf("0", "1"))
                 val j0 = timeline.createTrackAudioOutput("${base}0", module.twoInDualOut.output, 0)
                 val j1 = timeline.createTrackAudioOutput("${base}1", module.twoInDualOut.output, 1)
                 childOutputLinks[module] = listOf(j0, j1)
@@ -416,10 +416,85 @@ class PatchTrack(
                 _mirroredOutputs.add(j1)
             }
             is OutputModule -> {
-                val base = if (_mirroredOutputs.isEmpty()) "out$id" else "out${id}_${module.name}"
+                val base = baseNameFor(module, listOf(""))
                 val jack = timeline.createTrackOutput(base)
                 childOutputLinks[module] = listOf(jack)
                 _mirroredOutputs.add(jack)
+            }
+        }
+    }
+
+    /**
+     * Names a mirrored jack after the output module it belongs to, e.g. out2_lead, or just out2
+     * while the module still has its default name. Deliberately independent of the order the jacks
+     * were created in, so deleting one output does not rename the others.
+     */
+    private fun baseNameFor(module: Module, suffixes: List<String>): String {
+        val desired = if (hasDefaultName(module)) "out$id" else "out${id}_${module.name}"
+        val ownJacks = childOutputLinks[module].orEmpty().toSet()
+        val taken = timeline.outputs.filter { it !in ownJacks }.map { it.name }.toSet()
+        fun isFree(base: String) = suffixes.none { "$base$it" in taken }
+        if (isFree(desired)) return desired
+        var suffix = 'b'
+        while (suffix <= 'z') {
+            val candidate = "$desired$suffix"
+            if (isFree(candidate)) return candidate
+            suffix++
+        }
+        return "$desired${timeline.outputs.size}"
+    }
+
+    /**
+     * True while an output module still carries the name it was given automatically, e.g. out1 or
+     * aOut2 from [PatchModule.onChildModuleAdded]. Such a name says nothing, so the jack keeps the
+     * short form and only takes the module's name once the user has chosen one.
+     */
+    private fun hasDefaultName(module: Module): Boolean {
+        val name = module.name
+        return name.isBlank() || name == module.type || name == "aOutput" ||
+                Regex("^(out|aOut)\\d+$").matches(name)
+    }
+
+    /** Renames the jacks of [module] after it was renamed, keeping the patch and timeline in step. */
+    internal fun syncOutputNamesForChild(module: Module) {
+        val jacks = childOutputLinks[module] ?: return
+        val base = baseNameFor(module, if (jacks.size > 1) listOf("0", "1") else listOf(""))
+        if (jacks.size > 1) {
+            jacks.forEachIndexed { index, jack -> jack.name = "$base$index" }
+        } else {
+            jacks.firstOrNull()?.name = base
+        }
+    }
+
+    /** Names of the mirrored jacks of each child module that has any, in patch module order. */
+    fun outputJackNamesInOrder(): List<List<String>> =
+        patch.graphState.modules.mapNotNull { module -> childOutputLinks[module]?.map { it.name } }
+
+    /** Restores jack names saved with the patch, so connections made to them still match. */
+    fun applyOutputJackNames(names: List<List<String>>) {
+        val modules = patch.graphState.modules.filter { childOutputLinks.containsKey(it) }
+        modules.forEachIndexed { index, module ->
+            val stored = names.getOrNull(index) ?: return@forEachIndexed
+            childOutputLinks[module]?.forEachIndexed { jackIndex, jack ->
+                stored.getOrNull(jackIndex)?.let { jack.name = it }
+            }
+        }
+    }
+
+    /**
+     * Names jacks the way patches saved before the names were stored did: the first output module
+     * in the patch got a plain out<id>, later ones were suffixed with their module's name.
+     */
+    fun applyLegacyOutputJackNames() {
+        var isFirst = true
+        patch.graphState.modules.forEach { module ->
+            val jacks = childOutputLinks[module] ?: return@forEach
+            val base = if (isFirst) "out$id" else "out${id}_${module.name}"
+            isFirst = false
+            if (jacks.size > 1) {
+                jacks.forEachIndexed { index, jack -> jack.name = "$base$index" }
+            } else {
+                jacks.firstOrNull()?.name = base
             }
         }
     }
