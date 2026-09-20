@@ -34,7 +34,7 @@ class KeyNotesModuleTest {
         assertNotNull(offset, "KeyNotesModule should have an input named 'offset'")
         assertEquals(0.0, offset.min)
         assertEquals(80.0, offset.max)
-        assertEquals(48.0, offset.getDoubleValue())
+        assertEquals(36.0, offset.getDoubleValue())
     }
 
     @Test
@@ -61,20 +61,20 @@ class KeyNotesModuleTest {
         graphState.addModule(receiver, androidx.compose.ui.geometry.Offset.Zero)
         graphState.connect(keyNotesModule.output, receiver.input)
 
-        // Default offset is 48.
+        // Default offset is 36.
         // Row 4 (zxcvbnm,): offset + 0
         // Row 3 (asdfghjk): offset + 12
         // Row 2 (qwertyui): offset + 24
         // Row 1 (12345678): offset + 36
 
-        // 1. Press 'z' (ASCII 122). Row 4 index 0 -> 48 + 0 + 0 = 48.
+        // 1. Press 'z' (ASCII 122). Row 4 index 0 -> 36 + 0 + 0 = 36.
         val processedZ = graphState.handleKeyStroke(122, isDown = true)
         assertTrue(processedZ, "Keystroke 'z' should be processed")
         val zMsg = lastMessage as? Message.VoiceMessage
         assertNotNull(zMsg)
         assertEquals(Message.VoiceOpcode.NOTE_ON, zMsg.opcode)
-        assertEquals(48, zMsg.tag)
-        assertEquals(48.0, zMsg.value)
+        assertEquals(36, zMsg.tag)
+        assertEquals(36.0, zMsg.value)
 
         // 2. Release 'z' (ASCII 122).
         val releasedZ = graphState.handleKeyStroke(122, isDown = false)
@@ -82,80 +82,80 @@ class KeyNotesModuleTest {
         val zReleaseMsg = lastMessage as? Message.VoiceMessage
         assertNotNull(zReleaseMsg)
         assertEquals(Message.VoiceOpcode.NOTE_OFF, zReleaseMsg.opcode)
-        assertEquals(48, zReleaseMsg.tag)
-        assertEquals(48.0, zReleaseMsg.value)
+        assertEquals(36, zReleaseMsg.tag)
+        assertEquals(36.0, zReleaseMsg.value)
 
-        // 3. Press 'x' (ASCII 120). Row 4 index 1 -> 48 + 0 + 2 = 50.
+        // 3. Press 'x' (ASCII 120). Row 4 index 1 -> 36 + 0 + 2 = 38.
         val processedX = graphState.handleKeyStroke(120, isDown = true)
         assertTrue(processedX, "Keystroke 'x' should be processed")
         val xMsg = lastMessage as? Message.VoiceMessage
         assertNotNull(xMsg)
         assertEquals(Message.VoiceOpcode.NOTE_ON, xMsg.opcode)
-        assertEquals(50, xMsg.tag)
+        assertEquals(38, xMsg.tag)
 
-        // 4. Press ',' (ASCII 44). Row 4 index 7 (octave note) -> 48 + 0 + 12 = 60.
+        // 4. Press ',' (ASCII 44). Row 4 index 7 (octave note) -> 36 + 0 + 12 = 48.
         val processedComma = graphState.handleKeyStroke(44, isDown = true)
         assertTrue(processedComma, "Keystroke ',' should be processed")
         val commaMsg = lastMessage as? Message.VoiceMessage
         assertNotNull(commaMsg)
-        assertEquals(60, commaMsg.tag)
+        assertEquals(48, commaMsg.tag)
 
-        // 5. Press 'a' (ASCII 97). Row 3 index 0 -> 48 + 12 + 0 = 60.
+        // 5. Press 'a' (ASCII 97). Row 3 index 0 -> 36 + 12 + 0 = 48.
         // Verifies the user's issue with 'a' is resolved and connects to the octave below!
         val processedA = graphState.handleKeyStroke(97, isDown = true)
         assertTrue(processedA, "Keystroke 'a' should be processed")
         val aMsg = lastMessage as? Message.VoiceMessage
         assertNotNull(aMsg)
-        assertEquals(60, aMsg.tag)
+        assertEquals(48, aMsg.tag)
 
-        // 6. Press 's' (ASCII 115). Row 3 index 1 -> 48 + 12 + 2 = 62.
+        // 6. Press 's' (ASCII 115). Row 3 index 1 -> 36 + 12 + 2 = 50.
         val processedS = graphState.handleKeyStroke(115, isDown = true)
         assertTrue(processedS, "Keystroke 's' should be processed")
         val sMsg = lastMessage as? Message.VoiceMessage
         assertNotNull(sMsg)
-        assertEquals(62, sMsg.tag)
+        assertEquals(50, sMsg.tag)
 
-        // 7. Press 'k' (ASCII 107). Row 3 index 7 -> 48 + 12 + 12 = 72.
+        // 7. Press 'k' (ASCII 107). Row 3 index 7 -> 36 + 12 + 12 = 60.
         val processedK = graphState.handleKeyStroke(107, isDown = true)
         assertTrue(processedK, "Keystroke 'k' should be processed")
         val kMsg = lastMessage as? Message.VoiceMessage
         assertNotNull(kMsg)
-        assertEquals(72, kMsg.tag)
+        assertEquals(60, kMsg.tag)
 
-        // 8. Press 'q' (ASCII 113). Row 2 index 0 -> 48 + 24 + 0 = 72.
+        // 8. Press 'q' (ASCII 113). Row 2 index 0 -> 36 + 24 + 0 = 60.
         val processedQ = graphState.handleKeyStroke(113, isDown = true)
         assertTrue(processedQ, "Keystroke 'q' should be processed")
         val qMsg = lastMessage as? Message.VoiceMessage
         assertNotNull(qMsg)
-        assertEquals(72, qMsg.tag)
+        assertEquals(60, qMsg.tag)
 
-        // 9. Press 'i' (ASCII 105). Row 2 index 7 -> 48 + 24 + 12 = 84.
+        // 9. Press 'i' (ASCII 105). Row 2 index 7 -> 36 + 24 + 12 = 72.
         val processedI = graphState.handleKeyStroke(105, isDown = true)
         assertTrue(processedI, "Keystroke 'i' should be processed")
         val iMsg = lastMessage as? Message.VoiceMessage
         assertNotNull(iMsg)
-        assertEquals(84, iMsg.tag)
+        assertEquals(72, iMsg.tag)
 
-        // 10. Press '1' (ASCII 49). Row 1 index 0 -> 48 + 36 + 0 = 84.
+        // 10. Press '1' (ASCII 49). Row 1 index 0 -> 36 + 36 + 0 = 72.
         val processed1 = graphState.handleKeyStroke(49, isDown = true)
         assertTrue(processed1, "Keystroke '1' should be processed")
         val oneMsg = lastMessage as? Message.VoiceMessage
         assertNotNull(oneMsg)
-        assertEquals(84, oneMsg.tag)
+        assertEquals(72, oneMsg.tag)
 
-        // 11. Press '2' (ASCII 50). Row 1 index 1 -> 48 + 36 + 2 = 86.
+        // 11. Press '2' (ASCII 50). Row 1 index 1 -> 36 + 36 + 2 = 74.
         val processed2 = graphState.handleKeyStroke(50, isDown = true)
         assertTrue(processed2, "Keystroke '2' should be processed")
         val twoMsg = lastMessage as? Message.VoiceMessage
         assertNotNull(twoMsg)
-        assertEquals(86, twoMsg.tag)
+        assertEquals(74, twoMsg.tag)
 
-        // 12. Press '8' (ASCII 56). Row 1 index 7 -> 48 + 36 + 12 = 96.
+        // 12. Press '8' (ASCII 56). Row 1 index 7 -> 36 + 36 + 12 = 84.
         val processed8 = graphState.handleKeyStroke(56, isDown = true)
         assertTrue(processed8, "Keystroke '8' should be processed")
         val eightMsg = lastMessage as? Message.VoiceMessage
         assertNotNull(eightMsg)
-        assertEquals(96, eightMsg.tag)
+        assertEquals(84, eightMsg.tag)
     }
 
     @Test
@@ -270,7 +270,7 @@ class KeyNotesModuleTest {
         graphState.connect(keyNotesModule.output, receiver.input)
 
         graphState.handleKeyStroke(122, isDown = true)
-        assertEquals(48, (lastMessage as? Message.VoiceMessage)?.tag)
+        assertEquals(36, (lastMessage as? Message.VoiceMessage)?.tag)
 
         // Moving the offset while the key is held must not strand the sounding note.
         keyNotesModule.offsetIn.setValue(60.0)
@@ -278,7 +278,7 @@ class KeyNotesModuleTest {
         val release = lastMessage as? Message.VoiceMessage
         assertNotNull(release)
         assertEquals(Message.VoiceOpcode.NOTE_OFF, release.opcode)
-        assertEquals(48, release.tag)
+        assertEquals(36, release.tag)
     }
 
     @Test
@@ -324,35 +324,35 @@ class KeyNotesModuleTest {
         graphState.addModule(receiver, androidx.compose.ui.geometry.Offset.Zero)
         graphState.connect(keyNotesModule.output, receiver.input)
 
-        // 1. Press 'z' with Shift key down -> MIDI note 72 (48 + 0 + 24)
+        // 1. Press 'z' with Shift key down -> MIDI note 60 (36 + 0 + 24)
         val processedZShift = graphState.handleKeyStroke(122, isDown = true, isShiftPressed = true)
         assertTrue(processedZShift)
         val zMsg = lastMessage as? Message.VoiceMessage
         assertNotNull(zMsg)
-        assertEquals(72, zMsg.tag)
+        assertEquals(60, zMsg.tag)
 
-        // 2. Release 'z' with Shift key released -> NOTE_OFF still at MIDI note 72
+        // 2. Release 'z' with Shift key released -> NOTE_OFF still at MIDI note 60
         val releasedZNoShift = graphState.handleKeyStroke(122, isDown = false, isShiftPressed = false)
         assertTrue(releasedZNoShift)
         val zReleaseMsg = lastMessage as? Message.VoiceMessage
         assertNotNull(zReleaseMsg)
         assertEquals(Message.VoiceOpcode.NOTE_OFF, zReleaseMsg.opcode)
-        assertEquals(72, zReleaseMsg.tag)
+        assertEquals(60, zReleaseMsg.tag)
 
-        // 3. Press 'x' with Shift key released -> MIDI note 50 (48 + 2)
+        // 3. Press 'x' with Shift key released -> MIDI note 38 (36 + 2)
         val processedXNoShift = graphState.handleKeyStroke(120, isDown = true, isShiftPressed = false)
         assertTrue(processedXNoShift)
         val xMsg = lastMessage as? Message.VoiceMessage
         assertNotNull(xMsg)
-        assertEquals(50, xMsg.tag)
+        assertEquals(38, xMsg.tag)
 
-        // 4. Release 'x' with Shift key down -> NOTE_OFF still at MIDI note 50
+        // 4. Release 'x' with Shift key down -> NOTE_OFF still at MIDI note 38
         val releasedXShift = graphState.handleKeyStroke(120, isDown = false, isShiftPressed = true)
         assertTrue(releasedXShift)
         val xReleaseMsg = lastMessage as? Message.VoiceMessage
         assertNotNull(xReleaseMsg)
         assertEquals(Message.VoiceOpcode.NOTE_OFF, xReleaseMsg.opcode)
-        assertEquals(50, xReleaseMsg.tag)
+        assertEquals(38, xReleaseMsg.tag)
     }
 
     @Test
