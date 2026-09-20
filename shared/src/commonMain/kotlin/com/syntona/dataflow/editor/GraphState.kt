@@ -189,13 +189,17 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
     }
 
     // Core deletion logic used by DeleteModulesCommand.execute()
-    fun removeModulesDirectly(modulesToRemove: List<Module>) {
+    /**
+     * Removes [modulesToRemove] and their connections. Pass tearDown = false for modules that have
+     * already been torn down, e.g. when a closed document releases a graph it has stopped.
+     */
+    fun removeModulesDirectly(modulesToRemove: List<Module>, tearDown: Boolean = true) {
         if (modulesToRemove.isEmpty()) return
         modulesToRemove.forEach { module ->
             moduleRemovedListeners.forEach { it(module) }
         }
         modulesToRemove.forEach { module ->
-            module.teardown()
+            if (tearDown) module.teardown()
             val connsToRemove = connections.filter { it.output.module === module || it.input.module === module }
             connsToRemove.forEach { conn ->
                 disconnect(conn.output, conn.input)
@@ -320,8 +324,8 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
         }
     }
 
-    fun clearAllModules() {
-        removeModulesDirectly(modules.toList())
+    fun clearAllModules(tearDown: Boolean = true) {
+        removeModulesDirectly(modules.toList(), tearDown)
         resetScroll()
     }
 

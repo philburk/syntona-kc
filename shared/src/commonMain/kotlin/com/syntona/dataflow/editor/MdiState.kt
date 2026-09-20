@@ -255,7 +255,10 @@ class MdiState {
             windows.removeAll { w -> orphans.any { it === w } }
             FileState.removeDocument(closedDocument)
             closedDocument.rootPatch.graphState.onChange = null
+            // Stops the modules, then releases them. Teardown alone leaves them in the graph, so
+            // that undoing a delete can restore a patch, but a closed document is never coming back.
             closedDocument.rootPatch.teardown()
+            closedDocument.rootPatch.graphState.clearAllModules(tearDown = false)
         }
         if (activeGraphState == null) {
             windows.lastOrNull { !it.minimized }?.graphState?.let { focusGraph(it) }
