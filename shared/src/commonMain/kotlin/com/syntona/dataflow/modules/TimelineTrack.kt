@@ -210,6 +210,11 @@ abstract class TimelineTrack(
         newSec.data = when (val d = section.data) {
             is MessageSectionData -> d.copy()
             is MidiSectionData -> d.copy()
+            is AudioSectionData -> {
+                // Audio is shared rather than copied, so the new section is an alias of this one
+                if (d.ownerSection == null) d.ownerSection = section
+                d
+            }
             else -> d
         }
         sectionsChanged()
@@ -217,7 +222,21 @@ abstract class TimelineTrack(
     }
 
     fun removeSection(section: TrackSection) {
-        if (sections.remove(section)) sectionsChanged()
+        if (!sections.remove(section)) return
+        passOnAudioOwnership(section)
+        sectionsChanged()
+    }
+
+    /**
+     * Deleting the section that owns shared audio hands ownership to the next section sharing it,
+     * so that section stops being an alias. Ownership is dropped when nothing shares it any more.
+     */
+    private fun passOnAudioOwnership(removed: TrackSection) {
+        val data = removed.data as? AudioSectionData ?: return
+        if (data.ownerSection !== removed) return
+        data.ownerSection = timeline.tracks
+            .flatMap { it.sections }
+            .firstOrNull { it !== removed && it.data === data }
     }
 
     fun moveSection(section: TrackSection, newStart: Double) {
@@ -1402,6 +1421,12 @@ class AudioTrack(
         flushPendingRecordStop()
 
         val existing = sections.find { startUnits >= it.start && startUnits < it.end }
+        if (existing != null && (existing.data as? AudioSectionData)?.isAliasFor(existing) == true) {
+            // Recording here would rewrite audio that belongs to another section
+            println("Audio track '$name': not recording into a shared copy of a region.")
+            activeRecordingSection = null
+            return
+        }
         val sec = if (existing != null) {
             existing
         } else if (canAddSectionAt(startUnits)) {
@@ -1597,8 +1622,8 @@ class AudioTrack(
         val frameRate = if (unit.frameRate > 0.0) unit.frameRate else SynthKSyn.synth.frameRate.toDouble()
 
         sections.forEach { section ->
-            // The old audio of the section being recorded into stays silent under the take
-            if (section === recordingIntoSection) return@forEach
+            // Every section sharing the audio being recorded into stays silent under the take
+            if (recordingIntoSection != null && section.data === recordingIntoSection?.data) return@forEach
             val audioData = section.data as? AudioSectionData ?: return@forEach
             val rec = audioData.recording ?: return@forEach
             if (rec.length == 0) return@forEach

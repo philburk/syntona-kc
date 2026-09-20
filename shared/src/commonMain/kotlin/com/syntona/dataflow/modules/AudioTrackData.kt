@@ -97,8 +97,9 @@ class AudioThumbnail(val blockSize: Int = 256) {
 }
 
 /**
- * Section data payload for an [AudioTrack].
- * Holds the recorded or loaded [SegmentedFloatArray], relative WAV file path, and cached [AudioThumbnail].
+ * Audio shared by one or more sections: the recorded or loaded [SegmentedFloatArray], the WAV file
+ * it is saved in, and the cached [AudioThumbnail]. Copying a section with Option-drag shares this
+ * rather than duplicating the samples, so the copies play, save and load as one clip.
  */
 class AudioSectionData(
     var recording: SegmentedFloatArray? = null,
@@ -106,6 +107,18 @@ class AudioSectionData(
 ) {
     val thumbnail = AudioThumbnail()
     var isLoadedFromFile: Boolean = false
+
+    /**
+     * The section this audio belongs to. Other sections sharing it are aliases, drawn dimmed and
+     * not recorded into. Null until the audio is shared, and moved on when the owner is deleted.
+     */
+    var ownerSection: TrackSection? by mutableStateOf(null)
+
+    /** True when [section] is an alias, i.e. it shares audio that belongs to another section. */
+    fun isAliasFor(section: TrackSection): Boolean {
+        val owner = ownerSection
+        return owner != null && owner !== section
+    }
 
     /** Absolute path where this audio is known to exist, so a save can skip writing it again. */
     var savedWavPath: String? = null
@@ -124,7 +137,7 @@ class AudioSectionData(
     fun copy(): AudioSectionData {
         val copyData = AudioSectionData(recording, wavFileName)
         copyData.isLoadedFromFile = isLoadedFromFile
-        // The copy needs a file of its own, which the next save gives it
+        // A deep copy is independent audio, not an alias, and needs a file of its own
         copyData.savedWavPath = null
         copyData.needsWavWrite = recording != null
         copyData.thumbnail.copyFrom(thumbnail)

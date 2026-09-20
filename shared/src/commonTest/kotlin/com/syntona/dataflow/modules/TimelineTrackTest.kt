@@ -1906,6 +1906,104 @@ class TimelineTrackTest {
         track.teardown()
     }
 
+    /** An audio track with one section holding [frames] frames of [value], ready to duplicate. */
+    private fun audioTrackWithClip(timeline: TimelineModule, frames: Int, value: Float): AudioTrack {
+        val track = timeline.addTrack(TrackType.AUDIO) as AudioTrack
+        val sec = track.addSectionDirect(id = 1, start = 0.0, duration = 1.0)
+        val rec = SegmentedFloatArray(track.unit.segmentSize, track.unit.poolCapacity)
+        rec.extend(frames)
+        rec.write(0, FloatArray(frames) { value })
+        (sec.data as AudioSectionData).apply {
+            recording = rec
+            needsWavWrite = true
+        }
+        return track
+    }
+
+    @Test
+    fun testDuplicatingAnAudioSectionSharesItsClip() {
+        val timeline = TimelineModule()
+        val track = audioTrackWithClip(timeline, frames = 64, value = 0.25f)
+        val original = track.sections.single()
+
+        val copy = assertNotNull(track.duplicateSection(original, 2.0))
+        val clip = assertNotNull(copy.data as? AudioSectionData)
+        assertTrue(clip === original.data, "The copy shares the clip instead of duplicating samples")
+        assertFalse(clip.isAliasFor(original), "The original owns the clip")
+        assertTrue(clip.isAliasFor(copy), "The copy is an alias")
+        track.teardown()
+    }
+
+    @Test
+    fun testDeletingTheOwnerPassesTheClipToTheNextSection() {
+        val timeline = TimelineModule()
+        val track = audioTrackWithClip(timeline, frames = 64, value = 0.25f)
+        val original = track.sections.single()
+        val copy = assertNotNull(track.duplicateSection(original, 2.0))
+        val second = assertNotNull(track.duplicateSection(original, 4.0))
+        val clip = original.data as AudioSectionData
+
+        track.removeSection(original)
+        assertFalse(clip.isAliasFor(copy), "The next section becomes the owner")
+        assertTrue(clip.isAliasFor(second))
+
+        track.removeSection(second)
+        track.removeSection(copy)
+        assertNull(clip.ownerSection, "Nothing shares the clip any more")
+        track.teardown()
+    }
+
+    @Test
+    fun testRecordingIsRefusedOnAnAliasButAllowedOnTheOwner() {
+        val timeline = TimelineModule()
+        val track = audioTrackWithClip(timeline, frames = 64, value = 0.25f)
+        val original = track.sections.single()
+        val copy = assertNotNull(track.duplicateSection(original, 2.0))
+
+        // Recording into the alias is refused and changes nothing
+        track.onRecordStart(ScoreTime.Zero, 2.5)
+        recordConstant(track, 64, 0.9f)
+        track.finishRecording(copy, latencyFrames = 0, stopUnits = 2.6)
+        val clip = original.data as AudioSectionData
+        assertEquals(0.25f, assertNotNull(clip.recording)[0], "The shared audio is untouched")
+        assertEquals(64, assertNotNull(clip.recording).length, "No take was punched into the shared audio")
+
+        // Recording into the owner is allowed, and both sections hear the new take
+        track.onRecordStart(ScoreTime.Zero, 0.0)
+        recordConstant(track, 64, 0.9f)
+        track.finishRecording(original, latencyFrames = 0, stopUnits = 0.1)
+        assertEquals(0.9f, assertNotNull(clip.recording)[0], "The owner's take replaces the clip")
+        assertTrue(copy.data === clip, "The alias still shares the clip")
+        track.teardown()
+    }
+
+    @Test
+    fun testSharedClipIsSavedOnceAndStillSharedAfterReload() {
+        val graph = GraphState()
+        val timeline = TimelineModule()
+        graph.addModule(timeline, Offset.Zero)
+        val track = audioTrackWithClip(timeline, frames = 64, value = 0.25f)
+        val original = track.sections.single()
+        assertNotNull(track.duplicateSection(original, 2.0))
+
+        val basePath = "build/tmp_shared_clip.sntn"
+        val json = GraphSerializer.serialize(graph, graph.modules, basePath = basePath)
+        assertEquals(1, wavFileNames(json).toSet().size, "One file for the shared clip")
+        assertEquals(2, wavFileNames(json).size, "Both sections name it")
+
+        val loadedGraph = GraphState()
+        GraphSerializer.deserialize(loadedGraph, json, basePath = basePath)
+        val loadedTrack = loadedGraph.modules.filterIsInstance<TimelineModule>().first().tracks.first() as AudioTrack
+        val (loadedOriginal, loadedCopy) = loadedTrack.sections.sortedBy { it.start }
+        val loadedClip = assertNotNull(loadedOriginal.data as? AudioSectionData)
+        assertTrue(loadedCopy.data === loadedClip, "Sharing survives a reload")
+        assertFalse(loadedClip.isAliasFor(loadedOriginal))
+        assertTrue(loadedClip.isAliasFor(loadedCopy))
+
+        track.teardown()
+        loadedTrack.teardown()
+    }
+
     @Test
     fun testMidiTrackMuteSilencesSoundingNotes() {
         val beatLine = BeatLineModule()

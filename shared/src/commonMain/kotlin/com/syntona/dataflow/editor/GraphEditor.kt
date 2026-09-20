@@ -4106,6 +4106,11 @@ fun TrackSectionView(
 ) {
     val sectionH = height - 6.dp
     val isSelected = state.selectedSectionInfo?.third === section
+    // A section sharing another section's audio is drawn dimmed, like a repeat
+    val isAudioAlias = (section.data as? AudioSectionData)?.isAliasFor(section) == true
+    val bodyAlpha = if (isAudioAlias) 0.35f else 0.8f
+    val headerColor = if (isAudioAlias) sectionColor.copy(alpha = 0.55f) else sectionColor
+    val waveAlpha = if (isAudioAlias) 0.45f else 0.85f
 
     if (section.repeats > 1) {
         for (r in 1 until section.repeats) {
@@ -4219,10 +4224,10 @@ fun TrackSectionView(
             .offset { IntOffset((section.start * pxPerUnit).roundToInt(), (3f * density).roundToInt()) }
             .width(((section.duration * pxPerUnit) / density).dp)
             .height(sectionH)
-            .background(sectionColor.copy(alpha = 0.8f), RoundedCornerShape(2.dp))
+            .background(sectionColor.copy(alpha = bodyAlpha), RoundedCornerShape(2.dp))
             .border(
                 if (isSelected) 2.dp else 1.dp,
-                if (isSelected) Color.White else sectionColor,
+                if (isSelected) Color.White else headerColor,
                 RoundedCornerShape(2.dp)
             )
     ) {
@@ -4232,7 +4237,7 @@ fun TrackSectionView(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(15.dp)
-                    .background(if (isSelected) sectionColor.copy(alpha = 1.0f) else sectionColor)
+                    .background(if (isSelected) headerColor.copy(alpha = 1.0f) else headerColor)
                     .padding(horizontal = 2.dp),
                 contentAlignment = Alignment.CenterStart
             ) {
@@ -4362,7 +4367,7 @@ fun TrackSectionView(
                                 val topY = (midY - maxV * (midY - 2f)).coerceIn(1f, h - 1f)
                                 val bottomY = (midY - minV * (midY - 2f)).coerceIn(1f, h - 1f)
                                 drawLine(
-                                    color = Color.White.copy(alpha = 0.85f),
+                                    color = Color.White.copy(alpha = waveAlpha),
                                     start = Offset(bx, minOf(topY, bottomY)),
                                     end = Offset(bx, maxOf(topY, bottomY).coerceAtLeast(minOf(topY, bottomY) + 1f)),
                                     strokeWidth = strokeW

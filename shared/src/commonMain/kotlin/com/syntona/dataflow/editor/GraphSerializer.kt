@@ -43,6 +43,7 @@ import com.syntona.dataflow.modules.EquationModule
 import com.syntona.dataflow.modules.ScaleModule
 import com.syntona.dataflow.modules.BeatClockModule
 import com.syntona.dataflow.modules.TimelineModule
+import com.syntona.dataflow.modules.TrackSection
 import com.syntona.dataflow.modules.TrackType
 import com.syntona.dataflow.modules.PatchTrack
 import com.syntona.dataflow.modules.MessageTrack
@@ -84,18 +85,28 @@ object GraphSerializer {
         /** Each document keeps its audio in its own folder, so documents sharing a folder cannot collide. */
         private val folder: String = "audio/" + (basePath?.let { documentName(it) } ?: "patch")
         private val claimedNames = mutableSetOf<String>()
+        private val namesByClip = mutableMapOf<AudioSectionData, String>()
         private var nextIndex = 1
+
+        /** True once this clip's file has been named in this save, i.e. a section already wrote it. */
+        fun isAlreadySaved(data: AudioSectionData): Boolean = namesByClip.containsKey(data)
 
         /** The name to save this section's audio under, keeping the one it already has when possible. */
         fun claimName(data: AudioSectionData): String {
+            // Sections sharing one clip share its file
+            namesByClip[data]?.let { return it }
             val existing = data.wavFileName
             if (existing != null && existing.startsWith("$folder/") && claimedNames.add(existing)) {
+                namesByClip[data] = existing
                 return existing
             }
             // No name yet, taken by another section, or belonging to another document
             while (true) {
                 val name = "$folder/take_${nextIndex++}.wav"
-                if (claimedNames.add(name)) return name
+                if (claimedNames.add(name)) {
+                    namesByClip[data] = name
+                    return name
+                }
             }
         }
 
@@ -410,12 +421,17 @@ object GraphSerializer {
                         val audioData = sec.data as? AudioSectionData
                         if (audioData != null) {
                             val rec = audioData.recording
+                            if (audioData.isAliasFor(sec)) {
+                                append(",\"audioAlias\":true")
+                            }
                             if (rec != null && rec.length > 0 && audioContext.writeFiles && !effectiveBasePath.isNullOrBlank()) {
+                                val alreadySaved = audioContext.isAlreadySaved(audioData)
                                 val wavRel = audioContext.claimName(audioData)
                                 audioData.wavFileName = wavRel
                                 val absWavPath = resolvePath(wavRel, effectiveBasePath)
-                                // Only write audio that is new, re-recorded, renamed, or going to a new location
-                                if (audioData.needsWavWrite || audioData.savedWavPath != absWavPath) {
+                                // Only write audio that is new, re-recorded, renamed, or going to a new
+                                // location, and only once for a clip several sections share
+                                if (!alreadySaved && (audioData.needsWavWrite || audioData.savedWavPath != absWavPath)) {
                                     try {
                                         val count = rec.length
                                         val samples = FloatArray(count)
@@ -779,6 +795,9 @@ object GraphSerializer {
                 }
 
                 module.clearTracks()
+                // Sections that name the same WAV file share one clip again, as they did when saved
+                val clipsByWavFile = mutableMapOf<String, AudioSectionData>()
+                val loadedAudioSections = mutableListOf<Triple<TrackSection, AudioSectionData, Boolean>>()
                 (obj?.map?.get("tracks") as? JsonValue.Arr)?.items?.forEach { trackVal ->
                     val trackObj = trackVal as? JsonValue.Obj ?: return@forEach
                     val id = (trackObj.map["id"] as? JsonValue.Num)?.value?.toInt() ?: return@forEach
@@ -879,8 +898,12 @@ object GraphSerializer {
 
                         val wavRel = (secObj.map["wavFile"] as? JsonValue.Str)?.value
                         if (wavRel != null || track is AudioTrack) {
-                            val audioData = AudioSectionData(wavFileName = wavRel)
-                            if (wavRel != null) {
+                            val shared = wavRel?.let { clipsByWavFile[it] }
+                            val audioData = shared ?: AudioSectionData(wavFileName = wavRel)
+                            val isAlias = (secObj.map["audioAlias"] as? JsonValue.Bool)?.value == true
+                            loadedAudioSections.add(Triple(sec, audioData, isAlias))
+                            if (wavRel != null) clipsByWavFile[wavRel] = audioData
+                            if (wavRel != null && shared == null) {
                                 val absWavPath = resolvePath(wavRel, effectiveBasePath)
                                 val bytes = readBinaryFileDirect(absWavPath)
                                 if (bytes != null) {
@@ -911,6 +934,14 @@ object GraphSerializer {
                             }
                             sec.data = audioData
                         }
+                    }
+                }
+                // A clip that several sections share belongs to the one that is not an alias
+                loadedAudioSections.groupBy { it.second }.forEach { (clip, sharers) ->
+                    clip.ownerSection = if (sharers.size > 1) {
+                        (sharers.firstOrNull { !it.third } ?: sharers.first()).first
+                    } else {
+                        null
                     }
                 }
             }
