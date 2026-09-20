@@ -30,7 +30,6 @@ Add a "normalize sample" to the sample and recorder module menu.
 
 Add a monitor[X] on the recorder module so we can hear the incoming signal.
 
-Add arpeggiator module.
 
 Composing Tutorial
 * beatClock
@@ -41,13 +40,14 @@ Composing Tutorial
 * pianoRoll
 * hierarchy editor ?
 
-TimeLine and BeatLine
-Adding and using Triggers
-Add and edit a Message Track, drag aliased loops
-Add and edit a MIDI Track
-Add an Audio Track, drag copy, punch in
-Increase song time, zoom in and out
+TimeLine and BeatLine Tutorial
+* Adding and using Triggers
+* Add and edit a Message Track, drag aliased loops
+* Add and edit a MIDI Track
+* Add an Audio Track, drag copy, punch in
+* Increase song time, zoom in and out
 
+Add arpeggiator module.
 
 # ----------------------------------------------- MEDIUM PRIORITY
 

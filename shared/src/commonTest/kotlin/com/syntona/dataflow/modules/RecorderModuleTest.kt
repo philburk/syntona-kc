@@ -236,8 +236,9 @@ class RecorderModuleTest {
         kick(recorder, "pause")
 
         val firstRecording = recorder.unit.recording
+        val initialLength = firstRecording.length
         assertEquals(firstRecording, reader.dataInput.currentData)
-        assertTrue(firstRecording.length > 0)
+        assertTrue(initialLength > 0)
 
         // Start looping on the reader
         reader.loopInput.setValue(1.0)
@@ -246,8 +247,12 @@ class RecorderModuleTest {
         // While reader is looping, start a new recording take on recorder
         kick(recorder, "record")
 
-        // Old recording held by reader should not be truncated or mutated
-        assertEquals(firstRecording, reader.dataInput.currentData)
+        // New recording is sent on record command; old recording is not truncated or mutated
+        val secondRecording = recorder.unit.recording
+        assertTrue(secondRecording !== firstRecording)
+        assertEquals(secondRecording, reader.dataInput.currentData)
+        assertEquals(initialLength, firstRecording.length)
+
         // Reader can still safely read samples from the old recording without IndexOutOfBoundsException
         reader.unit.generate()
 
@@ -260,10 +265,9 @@ class RecorderModuleTest {
         // Stop new recording
         kick(recorder, "pause")
 
-        // New recording should now be published to reader
-        val secondRecording = recorder.unit.recording
-        assertTrue(secondRecording !== firstRecording)
+        // New recording should now contain the newly recorded frames
         assertEquals(secondRecording, reader.dataInput.currentData)
+        assertTrue(secondRecording.length > 0)
 
         recorder.teardown()
         reader.teardown()
