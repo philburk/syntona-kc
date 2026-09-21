@@ -198,6 +198,7 @@ open class PatchModule(name: String = "patch", type: String = "patch") : Module(
                     parentPatch?.graphState?.let { parentGs ->
                         parentGs.jackOffsets.remove(jack)
                         parentGs.jackBounds.remove(jack)
+                        parentGs.jackMarkerCenters.remove(jack)
                         val conns = parentGs.connections.filter { it.input === jack }
                         conns.forEach { parentGs.disconnect(it.output, it.input) }
                     }
@@ -211,6 +212,7 @@ open class PatchModule(name: String = "patch", type: String = "patch") : Module(
                     parentPatch?.graphState?.let { parentGs ->
                         parentGs.jackOffsets.remove(jack)
                         parentGs.jackBounds.remove(jack)
+                        parentGs.jackMarkerCenters.remove(jack)
                         val conns = parentGs.connections.filter { it.input === jack }
                         conns.forEach { parentGs.disconnect(it.output, it.input) }
                     }
@@ -224,6 +226,7 @@ open class PatchModule(name: String = "patch", type: String = "patch") : Module(
                     parentPatch?.graphState?.let { parentGs ->
                         parentGs.jackOffsets.remove(jack)
                         parentGs.jackBounds.remove(jack)
+                        parentGs.jackMarkerCenters.remove(jack)
                         val conns = parentGs.connections.filter { it.output === jack }
                         conns.forEach { parentGs.disconnect(it.output, it.input) }
                     }
@@ -237,6 +240,7 @@ open class PatchModule(name: String = "patch", type: String = "patch") : Module(
                     parentPatch?.graphState?.let { parentGs ->
                         parentGs.jackOffsets.remove(jack)
                         parentGs.jackBounds.remove(jack)
+                        parentGs.jackMarkerCenters.remove(jack)
                         val conns = parentGs.connections.filter { it.input === jack }
                         conns.forEach { parentGs.disconnect(it.output, it.input) }
                     }
@@ -250,6 +254,7 @@ open class PatchModule(name: String = "patch", type: String = "patch") : Module(
                     parentPatch?.graphState?.let { parentGs ->
                         parentGs.jackOffsets.remove(jack)
                         parentGs.jackBounds.remove(jack)
+                        parentGs.jackMarkerCenters.remove(jack)
                         val conns = parentGs.connections.filter { it.output === jack }
                         conns.forEach { parentGs.disconnect(it.output, it.input) }
                     }
@@ -264,6 +269,7 @@ open class PatchModule(name: String = "patch", type: String = "patch") : Module(
                     parentPatch?.graphState?.let { parentGs ->
                         parentGs.jackOffsets.remove(j0)
                         parentGs.jackBounds.remove(j0)
+                        parentGs.jackMarkerCenters.remove(j0)
                         val conns = parentGs.connections.filter { it.output === j0 }
                         conns.forEach { parentGs.disconnect(it.output, it.input) }
                     }
@@ -274,6 +280,7 @@ open class PatchModule(name: String = "patch", type: String = "patch") : Module(
                     parentPatch?.graphState?.let { parentGs ->
                         parentGs.jackOffsets.remove(j1)
                         parentGs.jackBounds.remove(j1)
+                        parentGs.jackMarkerCenters.remove(j1)
                         val conns = parentGs.connections.filter { it.output === j1 }
                         conns.forEach { parentGs.disconnect(it.output, it.input) }
                     }

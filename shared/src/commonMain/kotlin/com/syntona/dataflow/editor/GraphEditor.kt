@@ -445,6 +445,9 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                     WireRenderer(state)
                 }
 
+                // Draw Endpoint Jack Rings on top of modules for highlighted wires
+                EndpointJackRings(state)
+
                 // Draw selection rectangle (in screen space, account for rootOffset)
                 val selRectStart = state.selectionRectStart
                 val selRectEnd = state.selectionRectEnd
@@ -853,6 +856,77 @@ fun WireRenderer(state: GraphState) {
                     end = end,
                     strokeWidth = 3f,
                     cap = StrokeCap.Round
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Draws prominent accent rings around jack connectors connected to highlighted (selected) module(s),
+ * making destination ports clearly visible across the canvas.
+ */
+@Composable
+fun EndpointJackRings(state: GraphState) {
+    val selectedModules = state.selectedModules
+    if (selectedModules.isEmpty()) return
+
+    val colors = LocalGraphColors.current
+    val density = LocalDensity.current
+
+    Canvas(modifier = Modifier.fillMaxSize()) {
+        val selectedSet = selectedModules.toSet()
+
+        // Collect all unique jacks connected to any highlighted connection
+        val connectedJacks = mutableSetOf<Jack>()
+        state.connections.forEach { conn ->
+            if (conn.output.module in selectedSet || conn.input.module in selectedSet) {
+                connectedJacks.add(conn.output)
+                connectedJacks.add(conn.input)
+            }
+        }
+
+        val draggingOutput = state.draggingWireByOutput
+        if (draggingOutput != null && draggingOutput.module in selectedSet) {
+            connectedJacks.add(draggingOutput)
+        }
+        val draggingInput = state.draggingWireToInput
+        if (draggingInput != null && draggingInput.module in selectedSet) {
+            connectedJacks.add(draggingInput)
+        }
+
+        if (connectedJacks.isEmpty()) return@Canvas
+
+        val ringRadius = with(density) { 8.5.dp.toPx() }
+        val haloRadius = with(density) { 11.dp.toPx() }
+        val strokeWidth = with(density) { 2.dp.toPx() }
+        val ringColor = colors.moduleBorderSelected
+
+        connectedJacks.forEach { jack ->
+            val center = state.jackMarkerCenters[jack]
+                ?: state.jackBounds[jack]?.center
+                ?: state.jackOffsets[jack]
+                ?: Offset.Zero
+
+            if (center != Offset.Zero) {
+                // Subtle outer glow
+                drawCircle(
+                    color = ringColor.copy(alpha = 0.22f),
+                    radius = haloRadius,
+                    center = center
+                )
+                // Semi-transparent interior fill
+                drawCircle(
+                    color = ringColor.copy(alpha = 0.15f),
+                    radius = ringRadius,
+                    center = center
+                )
+                // Crisp accent ring stroke
+                drawCircle(
+                    color = ringColor,
+                    radius = ringRadius,
+                    center = center,
+                    style = Stroke(width = strokeWidth)
                 )
             }
         }
@@ -1879,7 +1953,7 @@ fun JackView(
             }
     ) {
         if (isLeft) {
-            JackMarker(jack)
+            JackMarker(jack, state)
             Spacer(modifier = Modifier.width(4.dp))
             Text(displayText, color = textColor, fontSize = 10.sp, lineHeight = 10.sp, maxLines = 1, softWrap = false)
             trailingContent?.invoke()
@@ -1963,7 +2037,7 @@ fun JackView(
             }
             Spacer(modifier = Modifier.width(4.dp))
             // Outputs are never kickable, so this is the plain type-coloured square.
-            JackMarker(jack)
+            JackMarker(jack, state)
         }
     }
 }
@@ -2001,7 +2075,15 @@ fun CommandJackView(jack: CommandJack, state: GraphState, isLeft: Boolean) {
             }
     ) {
         if (isLeft) {
-            Box(modifier = Modifier.size(8.dp).background(colors.jackKickable))
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .background(colors.jackKickable)
+                    .onGloballyPositioned { coords ->
+                        val pos = coords.positionInRoot() - state.rootOffset
+                        state.jackMarkerCenters[jack] = pos + Offset(coords.size.width / 2f, coords.size.height / 2f)
+                    }
+            )
             Spacer(modifier = Modifier.width(4.dp))
         }
         // A highlighted command jack is one whose module is waiting for something - armed, or
@@ -2055,7 +2137,15 @@ fun CommandJackView(jack: CommandJack, state: GraphState, isLeft: Boolean) {
         }
         if (!isLeft) {
             Spacer(modifier = Modifier.width(4.dp))
-            Box(modifier = Modifier.size(8.dp).background(colors.jackKickable))
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .background(colors.jackKickable)
+                    .onGloballyPositioned { coords ->
+                        val pos = coords.positionInRoot() - state.rootOffset
+                        state.jackMarkerCenters[jack] = pos + Offset(coords.size.width / 2f, coords.size.height / 2f)
+                    }
+            )
         }
     }
 }
@@ -2102,7 +2192,15 @@ fun CommandOutputJackView(jack: CommandOutputJack, state: GraphState, isLeft: Bo
             }
     ) {
         if (isLeft) {
-            Box(modifier = Modifier.size(8.dp).background(colors.jackKickable))
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .background(colors.jackKickable)
+                    .onGloballyPositioned { coords ->
+                        val pos = coords.positionInRoot() - state.rootOffset
+                        state.jackMarkerCenters[jack] = pos + Offset(coords.size.width / 2f, coords.size.height / 2f)
+                    }
+            )
             Spacer(modifier = Modifier.width(4.dp))
         }
         CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
@@ -2129,7 +2227,15 @@ fun CommandOutputJackView(jack: CommandOutputJack, state: GraphState, isLeft: Bo
         }
         if (!isLeft) {
             Spacer(modifier = Modifier.width(4.dp))
-            Box(modifier = Modifier.size(8.dp).background(colors.jackKickable))
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .background(colors.jackKickable)
+                    .onGloballyPositioned { coords ->
+                        val pos = coords.positionInRoot() - state.rootOffset
+                        state.jackMarkerCenters[jack] = pos + Offset(coords.size.width / 2f, coords.size.height / 2f)
+                    }
+            )
         }
     }
 }
@@ -2148,7 +2254,7 @@ fun CommandOutputJackView(jack: CommandOutputJack, state: GraphState, isLeft: Bo
  * means kickable.
  */
 @Composable
-private fun JackMarker(jack: Jack, squareSize: Dp = 8.dp) {
+private fun JackMarker(jack: Jack, state: GraphState? = null, squareSize: Dp = 8.dp) {
     val colors = LocalGraphColors.current
     val isUniversal = jack is UniversalInputJack || jack is UniversalOutputJack
     val typeColor = when {
@@ -2167,6 +2273,14 @@ private fun JackMarker(jack: Jack, squareSize: Dp = 8.dp) {
             .then(
                 if (isUniversal) Modifier.border(1.dp, colors.jackUniversalBorder, shape = markerShape)
                 else Modifier
+            )
+            .then(
+                if (state != null) {
+                    Modifier.onGloballyPositioned { coords ->
+                        val pos = coords.positionInRoot() - state.rootOffset
+                        state.jackMarkerCenters[jack] = pos + Offset(coords.size.width / 2f, coords.size.height / 2f)
+                    }
+                } else Modifier
             )
         Box(modifier = boxModifier)
         if (jack is InputJack && jack.isKickable) {
@@ -2232,7 +2346,7 @@ fun CompactJackConnector(jack: Jack, state: GraphState, isLeft: Boolean) {
     ) {
         // Square plus triangle is exactly the 12.dp box, so a kickable jack keeps the same
         // footprint in the compact nodes and nothing around it shifts.
-        JackMarker(jack)
+        JackMarker(jack, state)
     }
 }
 
@@ -3995,6 +4109,7 @@ fun TimelineTriggerJackView(
                 val clippedX = unclippedX.coerceIn(viewportLeftGraphX, viewportRightGraphX)
                 val connectionOffset = Offset(clippedX, pos.y + bottomCenterOffset.y)
                 state.updateJackOffset(jack, connectionOffset, Size(size.width.toFloat(), size.height.toFloat()))
+                state.jackMarkerCenters[jack] = Offset(clippedX, pos.y + size.height / 2f)
             }
             .pointerInput(jack) {
                 awaitEachGesture {

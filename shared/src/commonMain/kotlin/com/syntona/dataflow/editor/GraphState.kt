@@ -101,6 +101,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
     // Maps each Jack to its global offset on the canvas for drawing wires
     val jackOffsets = mutableStateMapOf<Jack, Offset>()
     val jackBounds = mutableStateMapOf<Jack, Rect>()
+    val jackMarkerCenters = mutableStateMapOf<Jack, Offset>()
     private val pressedKeyCodes = mutableSetOf<Int>()
 
     var rootOffset by mutableStateOf(Offset.Zero)
@@ -207,10 +208,12 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
             module.inputs.forEach {
                 jackOffsets.remove(it)
                 jackBounds.remove(it)
+                jackMarkerCenters.remove(it)
             }
             module.outputs.forEach {
                 jackOffsets.remove(it)
                 jackBounds.remove(it)
+                jackMarkerCenters.remove(it)
             }
             if (editingModule === module) editingModule = null
             modulePositions.remove(module)

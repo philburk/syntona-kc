@@ -161,6 +161,7 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
             toDisconnect.forEach { conn -> gs.disconnect(conn.output, conn.input) }
             gs.jackOffsets.remove(jack)
             gs.jackBounds.remove(jack)
+            gs.jackMarkerCenters.remove(jack)
         }
     }
 
@@ -184,6 +185,7 @@ open class TimelineModule(name: String = "timeline") : Module(name), EngineAware
             toDisconnect.forEach { conn -> gs.disconnect(conn.output, conn.input) }
             gs.jackOffsets.remove(jack)
             gs.jackBounds.remove(jack)
+            gs.jackMarkerCenters.remove(jack)
         }
     }
 
