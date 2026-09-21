@@ -24,6 +24,8 @@ import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.model.OutputJack
+import com.softsynth.audiobridge.AudioInputBridge
+import com.syntona.getPlatform
 import com.syntona.dataflow.model.VoiceInputJack
 import com.syntona.dataflow.model.VoiceOutputJack
 
@@ -44,6 +46,12 @@ enum class TrackType {
             MESSAGE -> true
             MIDI -> true
             AUDIO -> true
+        }
+
+    val isSupported: Boolean
+        get() = when (this) {
+            AUDIO -> !getPlatform().isWeb && AudioInputBridge.isSupported()
+            else -> true
         }
 }
 

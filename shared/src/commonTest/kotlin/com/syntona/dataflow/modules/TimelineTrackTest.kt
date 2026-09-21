@@ -115,6 +115,18 @@ class TimelineTrackTest {
     }
 
     @Test
+    fun testTrackTypeSupport() {
+        assertTrue(TrackType.PATCH.isSupported)
+        assertTrue(TrackType.MESSAGE.isSupported)
+        assertTrue(TrackType.MIDI.isSupported)
+        if (com.syntona.getPlatform().isWeb) {
+            assertFalse(TrackType.AUDIO.isSupported)
+        } else {
+            assertEquals(com.softsynth.audiobridge.AudioInputBridge.isSupported(), TrackType.AUDIO.isSupported)
+        }
+    }
+
+    @Test
     fun testTrackSectionCalculations() {
         val section = TrackSection(
             id = 1,

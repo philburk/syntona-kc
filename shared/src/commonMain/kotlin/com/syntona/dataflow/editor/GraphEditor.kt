@@ -4994,7 +4994,7 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                         FileState.markDirty()
                                     }
                                 )
-                                if (AudioInputBridge.isSupported()) {
+                                if (TrackType.AUDIO.isSupported) {
                                     androidx.compose.material3.DropdownMenuItem(
                                         text = { Text("Audio Track", fontSize = 12.sp) },
                                         onClick = {
