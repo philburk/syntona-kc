@@ -801,11 +801,22 @@ fun WireRenderer(state: GraphState) {
                 }
 
                 if (isHighlighted) {
-                    // Wide orange wire under the regular wire (matches module selection highlight)
+                    val glowColor = colors.moduleBorderSelected
+                    // Multi-stage wire glow effect (Gaussian-like soft radiance falloff)
                     drawPath(
                         path = path,
-                        color = colors.moduleBorderSelected,
+                        color = glowColor.copy(alpha = 0.15f),
+                        style = Stroke(width = 14f, cap = StrokeCap.Round)
+                    )
+                    drawPath(
+                        path = path,
+                        color = glowColor.copy(alpha = 0.35f),
                         style = Stroke(width = 8f, cap = StrokeCap.Round)
+                    )
+                    drawPath(
+                        path = path,
+                        color = glowColor.copy(alpha = 0.65f),
+                        style = Stroke(width = 5.5f, cap = StrokeCap.Round)
                     )
                 }
 
@@ -842,11 +853,73 @@ fun WireRenderer(state: GraphState) {
                     else -> colors.wireDragging
                 }
                 if (isDraggingHighlighted) {
+                    val glowColor = colors.moduleBorderSelected
                     drawLine(
-                        color = colors.moduleBorderSelected,
+                        color = glowColor.copy(alpha = 0.15f),
+                        start = start,
+                        end = end,
+                        strokeWidth = 14f,
+                        cap = StrokeCap.Round
+                    )
+                    drawLine(
+                        color = glowColor.copy(alpha = 0.35f),
                         start = start,
                         end = end,
                         strokeWidth = 8f,
+                        cap = StrokeCap.Round
+                    )
+                    drawLine(
+                        color = glowColor.copy(alpha = 0.65f),
+                        start = start,
+                        end = end,
+                        strokeWidth = 5.5f,
+                        cap = StrokeCap.Round
+                    )
+                }
+                drawLine(
+                    color = wireColor,
+                    start = start,
+                    end = end,
+                    strokeWidth = 3f,
+                    cap = StrokeCap.Round
+                )
+            }
+        }
+
+        val draggingInput = state.draggingWireToInput
+        if (draggingInput != null) {
+            val start = state.dragPointerPosition
+            val end = state.jackOffsets[draggingInput] ?: Offset.Zero
+            if (end != Offset.Zero) {
+                val isDraggingHighlighted = hasSelection && draggingInput.module in selectedSet
+                val wireColor = when (draggingInput) {
+                    is AudioInputJack -> colors.wireAudio
+                    is VoiceInputJack -> colors.wireVoice
+                    is DataQueueInputJack -> colors.wireDataQueue
+                    is UniversalInputJack -> colors.wireUniversal
+                    else -> colors.wireDragging
+                }
+                if (isDraggingHighlighted) {
+                    val glowColor = colors.moduleBorderSelected
+                    drawLine(
+                        color = glowColor.copy(alpha = 0.15f),
+                        start = start,
+                        end = end,
+                        strokeWidth = 14f,
+                        cap = StrokeCap.Round
+                    )
+                    drawLine(
+                        color = glowColor.copy(alpha = 0.35f),
+                        start = start,
+                        end = end,
+                        strokeWidth = 8f,
+                        cap = StrokeCap.Round
+                    )
+                    drawLine(
+                        color = glowColor.copy(alpha = 0.65f),
+                        start = start,
+                        end = end,
+                        strokeWidth = 5.5f,
                         cap = StrokeCap.Round
                     )
                 }
