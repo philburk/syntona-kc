@@ -4769,6 +4769,49 @@ fun TrackLaneView(
     }
 }
 
+/**
+ * Where a timeline module's lanes start and end. Drawing and the pointer handlers must agree on
+ * this, or a click maps to a different time than the one drawn under the pointer.
+ */
+internal class TimelineLayout(
+    val jackColWidth: Dp,
+    val headerCardWidth: Dp,
+    val leftWidth: Dp,
+    val rightWidth: Dp,
+    val hasOutputs: Boolean,
+    val spacing: Dp,
+    val viewportWidth: Dp
+)
+
+internal fun timelineLayoutOf(module: TimelineModule): TimelineLayout {
+    val hasTrackInputs = module.tracks.any { it.inputJack != null }
+    val jackColWidth = if (hasTrackInputs) 38.dp else 0.dp
+    val headerCardWidth = 86.dp
+    val leftWidth = jackColWidth + headerCardWidth
+    val hasOutputs = module.tracks.any { it.outputJacks.isNotEmpty() }
+    val rightWidth = if (hasOutputs) 52.dp else 0.dp
+    val spacing = 6.dp
+    val viewportWidth = (
+        module.width.dp - leftWidth - (if (hasOutputs) rightWidth + spacing else 0.dp) - spacing - 2.dp
+        ).coerceAtLeast(100.dp)
+    return TimelineLayout(jackColWidth, headerCardWidth, leftWidth, rightWidth, hasOutputs, spacing, viewportWidth)
+}
+
+/** Smallest zoom, which fits the whole song plus its tail into [viewportWidth]. */
+internal fun timelineMinZoom(viewportWidth: Dp, maxTime: Double): Float =
+    (viewportWidth.value / (24f * (maxTime.toFloat() + 5.0f))).coerceIn(0.01f, 1f)
+
+internal fun timelineMaxZoom(viewportWidth: Dp): Float =
+    (viewportWidth.value / (24f * 2.0f)).coerceIn(4f, 20f)
+
+/** The zoom actually used, which is what pixels on screen are worth. */
+internal fun timelineCoercedZoom(module: TimelineModule, viewportWidth: Dp): Float =
+    module.zoom.coerceIn(timelineMinZoom(viewportWidth, module.maxTime), timelineMaxZoom(viewportWidth))
+
+/** Pixels per unit (beat or second) as drawn, for turning a pointer position into a time. */
+internal fun timelinePxPerUnit(module: TimelineModule, densityScale: Float): Float =
+    densityScale * 24f * timelineCoercedZoom(module, timelineLayoutOf(module).viewportWidth)
+
 @Composable
 fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
     val isBeats = module is BeatLineModule
@@ -4781,16 +4824,17 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
     val mdiState = LocalMdiState.current
 
     val hasTrackInputs = module.tracks.any { it.inputJack != null }
-    val jackColWidth = if (hasTrackInputs) 38.dp else 0.dp
-    val headerCardWidth = 86.dp
-    val leftWidth = jackColWidth + headerCardWidth
-    val hasOutputs = module.tracks.any { it.outputJacks.isNotEmpty() }
-    val rightWidth = if (hasOutputs) 52.dp else 0.dp
-    val spacing = 6.dp
-    val viewportWidth = (module.width.dp - leftWidth - (if (hasOutputs) rightWidth + spacing else 0.dp) - spacing - 2.dp).coerceAtLeast(100.dp)
+    val layout = timelineLayoutOf(module)
+    val jackColWidth = layout.jackColWidth
+    val headerCardWidth = layout.headerCardWidth
+    val leftWidth = layout.leftWidth
+    val hasOutputs = layout.hasOutputs
+    val rightWidth = layout.rightWidth
+    val spacing = layout.spacing
+    val viewportWidth = layout.viewportWidth
 
-    val minZoom = (viewportWidth.value / (24f * (module.maxTime.toFloat() + 5.0f))).coerceIn(0.01f, 1f)
-    val maxZoom = (viewportWidth.value / (24f * 2.0f)).coerceIn(4f, 20f)
+    val minZoom = timelineMinZoom(viewportWidth, module.maxTime)
+    val maxZoom = timelineMaxZoom(viewportWidth)
     val coercedZoom = module.zoom.coerceIn(minZoom, maxZoom)
 
     val scrollState = rememberScrollState()
@@ -5211,16 +5255,7 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                             .height(16.dp)
                                             .background(Color(0xFFE0E0E0), RoundedCornerShape(2.dp))
                                             .pointerInput(module) {
-                                                val getPxPerSecond = {
-                                                    val d = density.density
-                                                    val inputsWidthPx = leftWidth.value * d
-                                                    val spacingPx = spacing.value * d
-                                                    val viewportWidthPx = (module.width.toFloat() * d - inputsWidthPx - spacingPx).coerceAtLeast(100f * d)
-                                                    val minZoomVal = (viewportWidthPx / (d * 24f * (module.maxTime.toFloat() + 5.0f))).coerceIn(0.01f, 1f)
-                                                    val maxZoomVal = (viewportWidthPx / (d * 24f * 2.0f)).coerceIn(4f, 20f)
-                                                    val currentZoom = module.zoom.coerceIn(minZoomVal, maxZoomVal)
-                                                    d * 24f * currentZoom
-                                                }
+                                                val getPxPerSecond = { timelinePxPerUnit(module, density.density) }
 
                                                 awaitPointerEventScope {
                                                     while (true) {
@@ -5426,16 +5461,7 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                             .height(20.dp)
                                             .background(Color(0xFFCCCCCC), RoundedCornerShape(2.dp))
                                             .pointerInput(module) {
-                                                val getPxPerSecond = {
-                                                    val d = density.density
-                                                    val inputsWidthPx = leftWidth.value * d
-                                                    val spacingPx = spacing.value * d
-                                                    val viewportWidthPx = (module.width.toFloat() * d - inputsWidthPx - spacingPx).coerceAtLeast(100f * d)
-                                                    val minZoomVal = (viewportWidthPx / (d * 24f * (module.maxTime.toFloat() + 5.0f))).coerceIn(0.01f, 1f)
-                                                    val maxZoomVal = (viewportWidthPx / (d * 24f * 2.0f)).coerceIn(4f, 20f)
-                                                    val currentZoom = module.zoom.coerceIn(minZoomVal, maxZoomVal)
-                                                    d * 24f * currentZoom
-                                                }
+                                                val getPxPerSecond = { timelinePxPerUnit(module, density.density) }
 
                                                 awaitPointerEventScope {
                                                     while (true) {
@@ -5603,16 +5629,7 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                         .height(triggerHeight)
                                         .background(Color(0xFFE5E7EB), RoundedCornerShape(bottomStart = 2.dp, bottomEnd = 2.dp))
                                         .pointerInput(module, isBeats) {
-                                            val getPxPerSecond = {
-                                                val d = density.density
-                                                val inputsWidthPx = leftWidth.value * d
-                                                val spacingPx = spacing.value * d
-                                                val viewportWidthPx = (module.width.toFloat() * d - inputsWidthPx - spacingPx).coerceAtLeast(100f * d)
-                                                val minZoomVal = (viewportWidthPx / (d * 24f * (module.maxTime.toFloat() + 5.0f))).coerceIn(0.01f, 1f)
-                                                val maxZoomVal = (viewportWidthPx / (d * 24f * 2.0f)).coerceIn(4f, 20f)
-                                                val currentZoom = module.zoom.coerceIn(minZoomVal, maxZoomVal)
-                                                d * 24f * currentZoom
-                                            }
+                                            val getPxPerSecond = { timelinePxPerUnit(module, density.density) }
 
                                             awaitPointerEventScope {
                                                 var lastTapMark: kotlin.time.TimeMark? = null
