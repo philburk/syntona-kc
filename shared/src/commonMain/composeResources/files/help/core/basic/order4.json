@@ -1,0 +1,179 @@
+{
+  "version": "0.7.8 beta",
+  "versionCode": 458760,
+  "modules": [
+    {
+      "id": 0,
+      "type": "core.basic.order4",
+      "name": "order4",
+      "x": 194.9,
+      "y": 430,
+      "jacks": {
+        "in": {
+          "v": 11,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 1,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 443.9,
+      "y": 365.1,
+      "jacks": {
+        "in": {
+          "v": 0,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "core.math.-",
+      "name": "-",
+      "x": 395.9,
+      "y": 372,
+      "jacks": {
+        "A": {
+          "v": 11,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "B": {
+          "v": 11,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "core.basic.counter",
+      "name": "counter",
+      "x": 72.9,
+      "y": 408
+    },
+    {
+      "id": 4,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 292.9,
+      "y": 330,
+      "jacks": {
+        "in": {
+          "v": 11,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "core.math.-",
+      "name": "-",
+      "x": 395.9,
+      "y": 470,
+      "jacks": {
+        "A": {
+          "v": 11,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "B": {
+          "v": 11,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 445,
+      "y": 463.1,
+      "jacks": {
+        "in": {
+          "v": 1,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 45,
+      "y": 23.1,
+      "text": "The order4 module passes any incoming message out all 4 outputs in order from bottom up.  This order can matter when using kickable and non-kickable jacks.\n\nToDo: Click the \"kick\" button on the counter module several times.\n\nNote that out3 sends before out4. So the B jack is set before the A jack is kicked. So the subtraction result is zero.\n\nNote that out1 sends to A before out2 sends to B. So the subtraction occurs before B is set. It just uses the previous value.",
+      "w": 493.66162,
+      "h": 246.91162
+    }
+  ],
+  "connections": [
+    {
+      "from": 3,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "in"
+    },
+    {
+      "from": 0,
+      "fromJack": "out4",
+      "to": 2,
+      "toJack": "A"
+    },
+    {
+      "from": 0,
+      "fromJack": "out3",
+      "to": 2,
+      "toJack": "B"
+    },
+    {
+      "from": 2,
+      "fromJack": "out",
+      "to": 1,
+      "toJack": "in"
+    },
+    {
+      "from": 0,
+      "fromJack": "out2",
+      "to": 5,
+      "toJack": "B"
+    },
+    {
+      "from": 5,
+      "fromJack": "out",
+      "to": 6,
+      "toJack": "in"
+    },
+    {
+      "from": 0,
+      "fromJack": "out1",
+      "to": 5,
+      "toJack": "A"
+    },
+    {
+      "from": 0,
+      "fromJack": "out4",
+      "to": 4,
+      "toJack": "in"
+    }
+  ],
+  "windowX": 38,
+  "windowY": 38,
+  "windowWidth": 652.048828125,
+  "windowHeight": 631.7930297851562
+}

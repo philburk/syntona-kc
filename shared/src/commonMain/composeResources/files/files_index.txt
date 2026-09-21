@@ -32,6 +32,7 @@ examples/valueList.json
 examples/vibrato.json
 examples/wavey_square.json
 examples/zeroCrossing.json
+help/core/basic/order4.json
 help/ksyn/control/crossFade.json
 help/ksyn/control/grabAudio.json
 help/ksyn/data/sample.json

@@ -55,6 +55,7 @@ object ModuleRegistry {
         "mod8" to "route incoming values modulo 8 to 8 outputs",
         "mod16" to "route incoming values modulo 16 to 16 outputs",
         "link" to "open a linked patch file when triggered",
+        "order4" to "send one message out of four outputs in order, bottom jack first",
         "oneShot" to "pass a single message when armed and triggered",
         "send" to "send messages wirelessly to named receive modules",
         "receive" to "receive messages wirelessly from matching send modules",
@@ -308,6 +309,7 @@ object ModuleRegistry {
         basic.modules.add(ModuleEntry("mod16") { Mod16Module() })
         basic.modules.add(ModuleEntry("link") { LinkModule() })
         basic.modules.add(ModuleEntry("oneShot") { OneShotModule() })
+        basic.modules.add(ModuleEntry("order4") { Order4Module() })
         basic.modules.add(ModuleEntry("send") { SendModule() })
         basic.modules.add(ModuleEntry("receive") { ReceiveModule() })
 
