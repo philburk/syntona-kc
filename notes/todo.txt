@@ -7,26 +7,21 @@ Install the MIDI Add-on.
 BUG: deleting modules using BACKSPACE or DELETE key sometimes does not work. Edit menu Cut always works.
 Need repro steps.
 
-Try to save a native signed version.
+Improve instruments. Setup autoDisable.
 
-Need order4 ?
+Add "amplitude" port to drumFM, use in example/matchNoteOn
 
 Move polyPatch into ksyn.patches bundle.
 
 Add ksyn.patches.soundPatch module with "trigger" and audio "out".
 Uses a Circuit so that setupAutoDisable() can be used to reduce CPU load.
 Can be exported as a Circuit to JSyn or KSyn.
+Should we have an interface like PitchedVoice in KSyn or KMSL?
 
 Add a waitAll module that waits for all connected patches to finish.
 This can be used to implement a parallelConnection.
 
 BUG: delay not working in polyPatch! Why?
-
-Add "amplitude" port to drumFM, use in example/matchNoteOn
-
-Add a "normalize sample" to the sample and recorder module menu.
-
-Add a monitor[X] on the recorder module so we can hear the incoming signal.
 
 Composing Tutorial
 * beatClock
@@ -44,9 +39,21 @@ TimeLine and BeatLine Tutorial
 * Add an Audio Track, drag copy, punch in
 * Increase song time, zoom in and out
 
+Try to save a native signed version.
+
 Add arpeggiator module.
 
+Claude says:
+* Transport behavior: recording stops at the first loop boundary; playing to the end leaves the playhead
+there so Start does nothing until you rewind. Your design calls.
+* Smaller: the waveform draws every block, which will matter on long recordings; edits inside a
+section aren't heard until the next cycle; old WAV files are never deleted.
+
 # ----------------------------------------------- MEDIUM PRIORITY
+
+Add a "normalize sample" to the sample and recorder module menu.
+
+Add a monitor[X] on the recorder module so we can hear the incoming signal.
 
 Add multiTrack module like a DAW, + button for MIDI or Audio or composable Patch tracks.
 Audio tracks have audio in/out, MIDI tracks have VoiceMessage in/out.
