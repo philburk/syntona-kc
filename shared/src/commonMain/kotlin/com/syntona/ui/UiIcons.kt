@@ -4,7 +4,9 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -316,6 +318,101 @@ fun ArrowForwardIcon(
             close()
         }
         drawPath(arrow, color = color)
+    }
+}
+
+/**
+ * An icon indicating whether patch wires are rendered in front of or behind modules.
+ * Drawn via Compose Canvas to avoid missing-glyph fallbacks on Web.
+ *
+ * Visual design:
+ * - A module rectangle (with header) and a curved patch wire line.
+ * - When [wiresOnTop] is true, the wire passes in front across the face of the module (continuous).
+ * - When [wiresOnTop] is false, the module is drawn over the wire (the wire disappears behind the module).
+ */
+@Composable
+fun WireLayerIcon(
+    wiresOnTop: Boolean,
+    modifier: Modifier = Modifier,
+    color: Color = Color.White,
+    wireColor: Color = Color(0xFF44DD44),
+    size: Dp = 16.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+
+        // Module rectangle coordinates (centered slightly to the right)
+        val modLeft = w * 0.28f
+        val modTop = h * 0.20f
+        val modWidth = w * 0.58f
+        val modHeight = h * 0.62f
+        val cornerRadius = CornerRadius(2.dp.toPx(), 2.dp.toPx())
+
+        // Curved wire path: enters bottom-left, arches across the module, exits top-right
+        val wirePath = Path().apply {
+            moveTo(w * 0.10f, h * 0.85f)
+            cubicTo(
+                w * 0.15f, h * 0.35f,
+                w * 0.70f, h * 0.10f,
+                w * 0.95f, h * 0.50f
+            )
+        }
+        val wireStrokeWidth = 2.dp.toPx()
+
+        fun drawWire() {
+            drawPath(
+                path = wirePath,
+                color = wireColor,
+                style = Stroke(width = wireStrokeWidth, cap = StrokeCap.Round)
+            )
+            // Small jack circle at start
+            drawCircle(
+                color = wireColor,
+                radius = 1.6.dp.toPx(),
+                center = Offset(w * 0.10f, h * 0.85f)
+            )
+        }
+
+        fun drawModule() {
+            // Module body fill
+            drawRoundRect(
+                color = Color(0xFF282828),
+                topLeft = Offset(modLeft, modTop),
+                size = Size(modWidth, modHeight),
+                cornerRadius = cornerRadius
+            )
+            // Module header bar
+            val headerHeight = modHeight * 0.30f
+            drawRoundRect(
+                color = Color(0xFF444444),
+                topLeft = Offset(modLeft, modTop),
+                size = Size(modWidth, headerHeight),
+                cornerRadius = CornerRadius(2.dp.toPx(), 2.dp.toPx())
+            )
+            // Module border
+            drawRoundRect(
+                color = color.copy(alpha = 0.6f),
+                topLeft = Offset(modLeft, modTop),
+                size = Size(modWidth, modHeight),
+                cornerRadius = cornerRadius,
+                style = Stroke(width = 1.dp.toPx())
+            )
+            // Small jack dot on the module
+            drawCircle(
+                color = color.copy(alpha = 0.8f),
+                radius = 1.2.dp.toPx(),
+                center = Offset(modLeft + 3.dp.toPx(), modTop + headerHeight + (modHeight - headerHeight) * 0.5f)
+            )
+        }
+
+        if (wiresOnTop) {
+            drawModule()
+            drawWire()
+        } else {
+            drawWire()
+            drawModule()
+        }
     }
 }
 

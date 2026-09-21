@@ -164,5 +164,8 @@ class SettingsStore(
 
         /** Key for the most recently saved or opened patch files. */
         const val KEY_RECENT_PATCHES = "recentPatches"
+
+        /** Key for whether wires are rendered on top of modules. */
+        const val KEY_WIRES_ON_TOP = "wiresOnTop"
     }
 }

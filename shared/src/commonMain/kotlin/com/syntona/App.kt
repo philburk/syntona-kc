@@ -2,6 +2,8 @@ package com.syntona
 
 import com.syntona.ui.ChevronRightIcon
 import com.syntona.ui.DropdownArrow
+import com.syntona.ui.WireLayerIcon
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
@@ -13,6 +15,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
@@ -47,6 +50,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -1356,6 +1360,49 @@ fun App(
                                                      helpExpanded = false
                                                      openUrlInBrowser("https://discord.com/channels/1532908817677942846/1532924422321864855")
                                                  }
+                                             )
+                                         }
+                                     }
+                                 }
+
+                                 if (showFileMenuInToolbar) {
+                                     Spacer(modifier = Modifier.width(4.dp))
+                                     Box(
+                                         modifier = Modifier
+                                             .width(1.dp)
+                                             .fillMaxHeight(0.6f)
+                                             .background(Color.Gray.copy(alpha = 0.5f))
+                                     )
+                                     Spacer(modifier = Modifier.width(4.dp))
+                                 }
+
+                                 // Toggle wires on top of or behind modules
+                                 val isWiresOnTop = GraphViewSettings.wiresOnTop
+                                 TooltipArea(
+                                     text = if (isWiresOnTop) "Wires Now on Top: Click to draw wires behind modules"
+                                     else "Wires Now Behind: Click to draw wires on top of modules",
+                                     alignment = Alignment.BottomStart
+                                 ) {
+                                     CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
+                                         Button(
+                                             onClick = { GraphViewSettings.toggleWiresOnTop() },
+                                             modifier = Modifier.size(width = 34.dp, height = 30.dp),
+                                             shape = RoundedCornerShape(4.dp),
+                                             colors = ButtonDefaults.buttonColors(
+                                                 containerColor = if (isWiresOnTop) Color(0xFF2D4356) else Color(0xFF2A2A2A),
+                                                 contentColor = if (isWiresOnTop) Color(0xFF80D8FF) else Color(0xFFB0BEC5)
+                                             ),
+                                             border = BorderStroke(
+                                                 width = 1.dp,
+                                                 color = if (isWiresOnTop) Color(0xFF5C89AF) else Color(0xFF444444)
+                                             ),
+                                             contentPadding = PaddingValues(0.dp)
+                                         ) {
+                                             WireLayerIcon(
+                                                 wiresOnTop = isWiresOnTop,
+                                                 color = if (isWiresOnTop) Color(0xFFECEFF1) else Color(0xFFB0BEC5),
+                                                 wireColor = if (isWiresOnTop) Color(0xFF44DD44) else Color(0xFF81C784),
+                                                 size = 18.dp
                                              )
                                          }
                                      }

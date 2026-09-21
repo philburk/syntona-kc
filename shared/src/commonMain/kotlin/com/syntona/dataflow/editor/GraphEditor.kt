@@ -391,8 +391,10 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                     }
                 }
 
-                // Draw Wires behind modules
-                WireRenderer(state)
+                // Draw Wires behind modules when wiresOnTop is false
+                if (!GraphViewSettings.wiresOnTop) {
+                    WireRenderer(state)
+                }
 
                 // Draw Modules — add cases here for modules with custom layouts
                 CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
@@ -435,6 +437,11 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                             else -> ModuleNode(module, state)
                         }
                     }
+                }
+
+                // Draw Wires on top of modules when wiresOnTop is true
+                if (GraphViewSettings.wiresOnTop) {
+                    WireRenderer(state)
                 }
 
                 // Draw selection rectangle (in screen space, account for rootOffset)

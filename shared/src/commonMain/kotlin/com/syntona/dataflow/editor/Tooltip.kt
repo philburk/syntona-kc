@@ -29,6 +29,8 @@ import com.syntona.dataflow.registry.ModuleRegistry
 fun TooltipArea(
     text: String,
     modifier: Modifier = Modifier,
+    alignment: Alignment = Alignment.TopStart,
+    offset: IntOffset? = null,
     content: @Composable () -> Unit
 ) {
     if (text.isEmpty()) {
@@ -39,10 +41,14 @@ fun TooltipArea(
     val scope = rememberCoroutineScope()
     var hoverJob by remember { mutableStateOf<Job?>(null) }
     var width by remember { mutableStateOf(0) }
+    var height by remember { mutableStateOf(0) }
 
     Box(
         modifier = modifier
-            .onSizeChanged { width = it.width }
+            .onSizeChanged {
+                width = it.width
+                height = it.height
+            }
             .pointerInput(text) {
                 awaitPointerEventScope {
                     while (true) {
@@ -67,9 +73,13 @@ fun TooltipArea(
     ) {
         content()
         if (isHovered) {
+            val resolvedOffset = offset ?: when (alignment) {
+                Alignment.BottomStart, Alignment.BottomCenter, Alignment.BottomEnd -> IntOffset(0, height + 4)
+                else -> IntOffset(width + 4, 0)
+            }
             androidx.compose.ui.window.Popup(
-                alignment = Alignment.TopStart,
-                offset = IntOffset(width + 4, 0),
+                alignment = alignment,
+                offset = resolvedOffset,
                 properties = androidx.compose.ui.window.PopupProperties(
                     focusable = false,
                     dismissOnBackPress = true,

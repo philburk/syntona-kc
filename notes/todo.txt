@@ -7,7 +7,9 @@ Install the MIDI Add-on.
 BUG: deleting modules using BACKSPACE or DELETE key sometimes does not work. Edit menu Cut always works.
 Need repro steps.
 
+Widget to put wires in front.
 Highlight wires connected to highlighted modules for easier visualization.
+Label wire outputs with order (1) (2)
 
 Improve instruments. Setup autoDisable.
 
@@ -147,10 +149,6 @@ Add wavefolder example
 
 Maybe??? Add a resource folder with a "library" of patches. Add a "Load Patch from Library" file item,
 similar to the Help menu items. Or add them to the moduleTree. Example???
-
-Help trace wires by highlighting the wires connected to a highlighted module.
-Widget to put wires in front.
-Label wire outputs with order (1) (2)
 
 Samples -----------------------------
 Loaded sample module is best for playing sampled instruments, eg. clarinet.
