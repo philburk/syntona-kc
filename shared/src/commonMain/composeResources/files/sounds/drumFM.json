@@ -1,7 +1,11 @@
 {
-  "version": "0.6.1 beta",
-  "versionCode": 393217,
+  "version": "0.7.8 beta",
+  "versionCode": 458760,
   "type": "core.patch",
+  "windowX": 589,
+  "windowY": 479.875,
+  "windowWidth": 747.91162109375,
+  "windowHeight": 498.91162109375,
   "patch": {
     "modules": [
       {
@@ -22,7 +26,7 @@
       },
       {
         "id": 1,
-        "type": "ksyn.data.envSeg",
+        "type": "ksyn.control.envSeg",
         "name": "ampEnv",
         "x": 294.9,
         "y": 20,
@@ -41,7 +45,7 @@
             "add": false
           },
           "amplitude": {
-            "v": 0.7251962423324585,
+            "v": 0.7936522364616394,
             "min": 0,
             "max": 1,
             "kickable": false,
@@ -52,7 +56,8 @@
         "sustainBegin": -1,
         "sustainEnd": -1,
         "releaseBegin": -1,
-        "releaseEnd": -1
+        "releaseEnd": -1,
+        "autoDisableVoice": "NO"
       },
       {
         "id": 2,
@@ -109,7 +114,7 @@
       },
       {
         "id": 4,
-        "type": "ksyn.data.envSeg",
+        "type": "ksyn.control.envSeg",
         "name": "modEnv",
         "x": 420.9,
         "y": 235,
@@ -139,14 +144,15 @@
         "sustainBegin": -1,
         "sustainEnd": -1,
         "releaseBegin": -1,
-        "releaseEnd": -1
+        "releaseEnd": -1,
+        "autoDisableVoice": "NO"
       },
       {
         "id": 5,
         "type": "core.math.pitchToHz",
         "name": "pitchToHz",
-        "x": 186.9,
-        "y": 185,
+        "x": 127.9,
+        "y": 127,
         "jacks": {
           "in": {
             "v": 38.40356433251505,
@@ -218,13 +224,28 @@
         "id": 10,
         "type": "core.input",
         "name": "depth",
-        "x": 44.9,
-        "y": 365,
+        "x": 36.9,
+        "y": 324,
         "jacks": {
           "depth": {
             "v": 1,
             "min": 0,
             "max": 4,
+            "kickable": false
+          }
+        }
+      },
+      {
+        "id": 11,
+        "type": "core.input",
+        "name": "amplitude",
+        "x": 35.9,
+        "y": 252,
+        "jacks": {
+          "amplitude": {
+            "v": 0.7936522364616394,
+            "min": 0,
+            "max": 1,
             "kickable": false
           }
         }
@@ -301,6 +322,12 @@
         "from": 10,
         "fromJack": "out",
         "to": 4,
+        "toJack": "amplitude"
+      },
+      {
+        "from": 11,
+        "fromJack": "out",
+        "to": 1,
         "toJack": "amplitude"
       }
     ]

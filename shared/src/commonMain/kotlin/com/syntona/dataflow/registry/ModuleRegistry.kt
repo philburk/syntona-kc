@@ -378,7 +378,7 @@ object ModuleRegistry {
         midi.modules.add(ModuleEntry("matchControl4") { MatchControl4Module() })
         midi.modules.add(ModuleEntry("matchControl8") { MatchControl8Module() })
         midi.modules.add(ModuleEntry("matchNoteOn") { MatchNoteOnModule() })
-        midi.modules.add(ModuleEntry("matchNoteOn4") { MatchNoteOn4Module() })
+        midi.modules.add(ModuleEntry("matchNoteOn4", "examples/matchNoteOn4.json") { MatchNoteOn4Module() })
         midi.modules.add(ModuleEntry("matchNoteOn8") { MatchNoteOn8Module() })
         midi.modules.add(ModuleEntry("packVoice") { PackVoiceModule() })
         midi.modules.add(ModuleEntry("packBend") { PackBendModule() })

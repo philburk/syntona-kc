@@ -9,6 +9,7 @@ examples/keyboard13.json
 examples/lineIn.json
 examples/looper.json
 examples/matchControl.json
+examples/matchNoteOn4.json
 examples/midiIn.json
 examples/midiOut.json
 examples/midi_branch.json

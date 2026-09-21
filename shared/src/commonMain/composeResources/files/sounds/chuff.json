@@ -1,7 +1,11 @@
 {
-  "version": "0.6.1 beta",
-  "versionCode": 393217,
+  "version": "0.7.8 beta",
+  "versionCode": 458760,
   "type": "core.patch",
+  "windowX": 38,
+  "windowY": 38,
+  "windowWidth": 600,
+  "windowHeight": 450,
   "patch": {
     "modules": [
       {
@@ -108,7 +112,8 @@
             "kickable": false,
             "add": false
           }
-        }
+        },
+        "autoDisableVoice": "NO"
       },
       {
         "id": 5,
@@ -119,6 +124,21 @@
         "text": "Multiple a sine wave by noise to get a nicely shaped \"chuff\".",
         "w": 437.78662,
         "h": 77.08839
+      },
+      {
+        "id": 6,
+        "type": "core.input",
+        "name": "amplitude",
+        "x": 23.1,
+        "y": 259,
+        "jacks": {
+          "amplitude": {
+            "v": 1,
+            "min": 0,
+            "max": 1,
+            "kickable": false
+          }
+        }
       }
     ],
     "connections": [
@@ -144,6 +164,12 @@
         "from": 4,
         "fromJack": "out",
         "to": 1,
+        "toJack": "amplitude"
+      },
+      {
+        "from": 6,
+        "fromJack": "out",
+        "to": 4,
         "toJack": "amplitude"
       }
     ]
