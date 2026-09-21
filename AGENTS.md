@@ -8,6 +8,11 @@
 Do not base any permanent tests on files outside of the syntona-kc repository. They may go away.
 Only use files outside of the repo if the users ask you to debug a problem using a specific file.
 
+## Module Behavior
+
+When sending messages out multiple jacks from one module at the same time,
+start sending from the bottom jacks and work up.
+
 ## Codebase Conventions
 
 If the user references a module by its short name, for example "envSeg module",
