@@ -214,11 +214,13 @@ fun main() {
                         if (!FileState.isResource && gs != null) {
                             val rootPatch = FileState.activeDocument?.rootPatch
                             if (rootPatch != null) {
+                                state.syncChildWindowStates(rootPatch)
                                 val modifiedChildren = rootPatch.findModifiedReferencedPatches()
                                 if (modifiedChildren.isNotEmpty()) {
                                     FileState.patchesToConfirmSave.clear()
                                     FileState.patchesToConfirmSave.addAll(modifiedChildren)
                                     FileState.postConfirmationSaveAction = {
+                                        state.syncChildWindowStates(rootPatch)
                                         val json = GraphSerializer.serialize(
                                             gs, gs.modules.toList(), density,
                                             rootWindowX = rootPatch.windowX,
@@ -269,11 +271,13 @@ fun main() {
                         if (gs != null) {
                             val rootPatch = FileState.activeDocument?.rootPatch
                             if (rootPatch != null) {
+                                state.syncChildWindowStates(rootPatch)
                                 val modifiedChildren = rootPatch.findModifiedReferencedPatches()
                                 if (modifiedChildren.isNotEmpty()) {
                                     FileState.patchesToConfirmSave.clear()
                                     FileState.patchesToConfirmSave.addAll(modifiedChildren)
                                     FileState.postConfirmationSaveAction = {
+                                        state.syncChildWindowStates(rootPatch)
                                         showSaveFileDialog(
                                             GraphSerializer.serialize(
                                                 gs, gs.modules.toList(), density,
@@ -313,11 +317,13 @@ fun main() {
                             if (gs != null) {
                                 val rootPatch = FileState.activeDocument?.rootPatch
                                 if (rootPatch != null) {
+                                    state.syncChildWindowStates(rootPatch)
                                     val modifiedChildren = rootPatch.findModifiedReferencedPatches()
                                     if (modifiedChildren.isNotEmpty()) {
                                         FileState.patchesToConfirmSave.clear()
                                         FileState.patchesToConfirmSave.addAll(modifiedChildren)
                                         FileState.postConfirmationSaveAction = {
+                                            state.syncChildWindowStates(rootPatch)
                                             showSaveAsResourceFileDialog(
                                                 GraphSerializer.serialize(
                                                     gs, gs.modules.toList(), density,
@@ -356,6 +362,7 @@ fun main() {
                     Item("Save Patch As...") {
                         val target = state.activeGraphState?.parentPatch
                         if (target != null) {
+                            state.syncChildWindowStates(target)
                             val json = GraphSerializer.serializePatch(target, density)
                             val defaultName = target.filePath?.let { p ->
                                 p.substringAfterLast('/').substringAfterLast('\\').ifEmpty { p }
@@ -388,6 +395,7 @@ fun main() {
                         Item("Save Patch as Resource...") {
                             val target = state.activeGraphState?.parentPatch
                             if (target != null) {
+                                state.syncChildWindowStates(target)
                                 val json = GraphSerializer.serializePatch(target, density)
                                 val defaultName = target.filePath?.let { p ->
                                     p.substringAfterLast('/').substringAfterLast('\\').ifEmpty { p }

@@ -576,4 +576,80 @@ class MultiDocumentTest {
         assertTrue(rootWindow2.position.y > rootWindow1.position.y)
         assertEquals(Offset(38f, 38f), rootWindow2.position)
     }
+
+    @Test
+    fun testChildWindowOpenAndCloseMarksDocumentDirty() {
+        val mdi = MdiState()
+        val doc = newDocument("doc")
+        val rootWindow = MdiWindowInfo(
+            id = doc.rootPatch,
+            title = "doc",
+            closable = false,
+            graphState = doc.rootPatch.graphState,
+            content = {}
+        )
+        mdi.open(rootWindow)
+
+        val childPatch = PatchModule("child")
+        doc.rootPatch.graphState.addModule(childPatch, Offset.Zero)
+
+        // Clear dirty flag from adding module
+        doc.markSaved("/path/to/doc.sntn")
+        childPatch.clearModifiedRecursively()
+        assertFalse(doc.isDirty, "Document should be clean initially")
+
+        val childWindow = MdiWindowInfo(
+            id = childPatch,
+            title = "child",
+            closable = true,
+            graphState = childPatch.graphState,
+            content = {}
+        )
+
+        // Opening a child window should set isWindowOpen and mark document dirty
+        mdi.open(childWindow)
+        assertTrue(childPatch.isWindowOpen)
+        assertTrue(doc.isDirty, "Opening child window should mark document dirty")
+
+        // Save again
+        doc.markSaved("/path/to/doc.sntn")
+        childPatch.clearModifiedRecursively()
+        assertFalse(doc.isDirty)
+
+        // Closing the child window should set isWindowOpen to false and mark document dirty
+        mdi.close(childPatch)
+        assertFalse(childPatch.isWindowOpen)
+        assertTrue(doc.isDirty, "Closing child window should mark document dirty")
+    }
+
+    @Test
+    fun testSyncChildWindowStates() {
+        val mdi = MdiState()
+        val doc = newDocument("doc")
+        val rootPatch = doc.rootPatch
+        val child1 = PatchModule("child1")
+        val child2 = PatchModule("child2")
+        rootPatch.graphState.addModule(child1, Offset.Zero)
+        rootPatch.graphState.addModule(child2, Offset.Zero)
+
+        // Suppose deserialization left both as open
+        child1.isWindowOpen = true
+        child2.isWindowOpen = true
+
+        // Only child1 actually has an open window in mdi
+        val window1 = MdiWindowInfo(
+            id = child1,
+            title = "child1",
+            closable = true,
+            graphState = child1.graphState,
+            content = {}
+        )
+        mdi.windows.add(window1)
+
+        // Sync window states
+        mdi.syncChildWindowStates(rootPatch)
+
+        assertTrue(child1.isWindowOpen, "child1 is open in mdi so isWindowOpen should be true")
+        assertFalse(child2.isWindowOpen, "child2 has no window in mdi so isWindowOpen should be false")
+    }
 }

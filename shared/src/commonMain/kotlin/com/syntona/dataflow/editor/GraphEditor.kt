@@ -2307,9 +2307,13 @@ fun PatchModuleNode(module: PatchModule, state: GraphState) {
                         val newY = window.position.y / density.density
                         val newW = window.width.value
                         val newH = window.height.value
-                        if (module.windowWidth != null && (module.windowWidth != newW || module.windowHeight != newH)) {
+                        if (module.windowWidth != null && (
+                            module.windowWidth != newW || module.windowHeight != newH ||
+                            module.windowX != newX || module.windowY != newY
+                        )) {
                             module.isModified = true
                             module.parentPatch?.graphState?.markChanged()
+                            FileState.documentFor(module.graphState)?.markDirty()
                         }
                         module.windowX = newX
                         module.windowY = newY

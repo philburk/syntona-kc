@@ -113,10 +113,22 @@ fun restoreWindowStates(
                         content = { GraphEditor(module.graphState) }
                     )
                     window.onGeometryChanged = {
-                        module.windowX = window.position.x / density
-                        module.windowY = window.position.y / density
-                        module.windowWidth = window.width.value
-                        module.windowHeight = window.height.value
+                        val newX = window.position.x / density
+                        val newY = window.position.y / density
+                        val newW = window.width.value
+                        val newH = window.height.value
+                        if (module.windowWidth != null && (
+                            module.windowWidth != newW || module.windowHeight != newH ||
+                            module.windowX != newX || module.windowY != newY
+                        )) {
+                            module.isModified = true
+                            module.parentPatch?.graphState?.markChanged()
+                            FileState.documentFor(module.graphState)?.markDirty()
+                        }
+                        module.windowX = newX
+                        module.windowY = newY
+                        module.windowWidth = newW
+                        module.windowHeight = newH
                     }
                     window.onGeometryChanged?.invoke()
                     mdiState.open(window)
@@ -583,6 +595,7 @@ fun App(
                                      val gs = docRoot.graphState
                                      val engine = syntonaModel.engine
                                      val performShareUrl: () -> Unit = {
+                                         mdiState.syncChildWindowStates(docRoot)
                                          val json = GraphSerializer.serialize(
                                              gs, gs.modules.toList(), appDensity,
                                              rootWindowX = docRoot.windowX,
@@ -769,11 +782,13 @@ fun App(
                                                   enabled = FileState.isDirty && FileState.currentFilePath != null && !FileState.isResource,
                                                   onClick = {
                                                       fileExpanded = false
+                                                      mdiState.syncChildWindowStates(docRoot)
                                                       val modifiedChildren = docRoot.findModifiedReferencedPatches()
                                                       if (modifiedChildren.isNotEmpty()) {
                                                           FileState.patchesToConfirmSave.clear()
                                                           FileState.patchesToConfirmSave.addAll(modifiedChildren)
                                                           FileState.postConfirmationSaveAction = {
+                                                              mdiState.syncChildWindowStates(docRoot)
                                                               val path = FileState.currentFilePath
                                                               val json = GraphSerializer.serialize(
                                                                   gs, gs.modules.toList(), appDensity,
@@ -844,11 +859,13 @@ fun App(
                                                    trailingIcon = { ShortcutHint("⌘⇧S") },
                                                    onClick = {
                                                        fileExpanded = false
+                                                       mdiState.syncChildWindowStates(docRoot)
                                                        val modifiedChildren = docRoot.findModifiedReferencedPatches()
                                                        if (modifiedChildren.isNotEmpty()) {
                                                            FileState.patchesToConfirmSave.clear()
                                                            FileState.patchesToConfirmSave.addAll(modifiedChildren)
                                                            FileState.postConfirmationSaveAction = {
+                                                               mdiState.syncChildWindowStates(docRoot)
                                                                showSaveFileDialog(
                                                                    GraphSerializer.serialize(
                                                                        gs, gs.modules.toList(), appDensity,
@@ -905,11 +922,13 @@ fun App(
                                                        text = { Text("SaveAsResource...") },
                                                        onClick = {
                                                            fileExpanded = false
+                                                           mdiState.syncChildWindowStates(docRoot)
                                                            val modifiedChildren = docRoot.findModifiedReferencedPatches()
                                                            if (modifiedChildren.isNotEmpty()) {
                                                                FileState.patchesToConfirmSave.clear()
                                                                FileState.patchesToConfirmSave.addAll(modifiedChildren)
                                                                FileState.postConfirmationSaveAction = {
+                                                                   mdiState.syncChildWindowStates(docRoot)
                                                                    showSaveAsResourceFileDialog(
                                                                        GraphSerializer.serialize(
                                                                            gs, gs.modules.toList(), appDensity,

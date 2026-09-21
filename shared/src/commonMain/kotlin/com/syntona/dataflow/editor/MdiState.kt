@@ -178,7 +178,15 @@ class MdiState {
     }
 
     fun open(window: MdiWindowInfo) {
-        (window.id as? PatchModule)?.isWindowOpen = true
+        val patch = window.id as? PatchModule
+        if (patch != null) {
+            patch.isWindowOpen = true
+            if (patch.parentPatch != null && patch.parentPatch?.graphState?.isDeserializing != true) {
+                patch.isModified = true
+                patch.parentPatch?.graphState?.markChanged()
+                FileState.documentFor(patch.graphState)?.markDirty()
+            }
+        }
         val existing = windows.find { it.id == window.id }
         if (existing != null) {
             if (existing.minimized) existing.minimized = false
@@ -239,7 +247,15 @@ class MdiState {
             w.onClose?.invoke()
         }
         if (removed.isNotEmpty()) {
-            (id as? com.syntona.dataflow.modules.PatchModule)?.isWindowOpen = false
+            val patch = id as? com.syntona.dataflow.modules.PatchModule
+            if (patch != null) {
+                patch.isWindowOpen = false
+                if (patch.parentPatch != null) {
+                    patch.isModified = true
+                    patch.parentPatch?.graphState?.markChanged()
+                    FileState.documentFor(patch.graphState)?.markDirty()
+                }
+            }
         }
         windows.removeAll { it.id == id && it.closable }
 
@@ -345,6 +361,19 @@ class MdiState {
      */
     fun closeAllClosable() {
         closeSubWindows(FileState.activeDocument)
+    }
+
+    /**
+     * Synchronizes each child patch's [PatchModule.isWindowOpen] with whether an MDI window
+     * for it is currently open in [windows].
+     */
+    fun syncChildWindowStates(rootPatch: PatchModule) {
+        for (module in rootPatch.graphState.modules) {
+            if (module is PatchModule) {
+                module.isWindowOpen = windows.any { it.id === module }
+                syncChildWindowStates(module)
+            }
+        }
     }
 }
 
