@@ -1,8 +1,12 @@
 {
-  "version": "0.7.0 beta",
-  "versionCode": 458752,
+  "version": "0.7.8 beta",
+  "versionCode": 458760,
   "type": "core.polyPatch",
   "maxVoices": 4,
+  "windowX": 38,
+  "windowY": 38,
+  "windowWidth": 700.875,
+  "windowHeight": 498,
   "patch": {
     "modules": [
       {
@@ -221,7 +225,8 @@
             "kickable": false,
             "add": false
           }
-        }
+        },
+        "autoDisableVoice": "YES"
       }
     ],
     "connections": [

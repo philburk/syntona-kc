@@ -1,8 +1,10 @@
 {
-  "version": "0.7.0 beta",
-  "versionCode": 458752,
+  "version": "0.7.8 beta",
+  "versionCode": 458760,
   "type": "core.polyPatch",
   "maxVoices": 6,
+  "windowX": 38,
+  "windowY": 38,
   "windowWidth": 1020,
   "windowHeight": 600,
   "patch": {
@@ -158,7 +160,7 @@
       {
         "id": 9,
         "type": "ksyn.control.envDAHDSR",
-        "name": "envDAHDSR",
+        "name": "ampEnv",
         "x": 678.9,
         "y": 193,
         "jacks": {
@@ -218,12 +220,13 @@
             "kickable": false,
             "add": false
           }
-        }
+        },
+        "autoDisableVoice": "YES"
       },
       {
         "id": 10,
         "type": "ksyn.control.envDAHDSR",
-        "name": "envDAHDSR",
+        "name": "cutoffEnv",
         "x": 262,
         "y": 186.9,
         "jacks": {
@@ -283,7 +286,8 @@
             "kickable": false,
             "add": false
           }
-        }
+        },
+        "autoDisableVoice": "NO"
       },
       {
         "id": 11,

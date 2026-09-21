@@ -1,6 +1,6 @@
 {
-  "version": "0.7.0 beta",
-  "versionCode": 458752,
+  "version": "0.7.8 beta",
+  "versionCode": 458760,
   "type": "core.polyPatch",
   "maxVoices": 4,
   "windowX": 38,
@@ -186,7 +186,8 @@
             "kickable": false,
             "add": false
           }
-        }
+        },
+        "autoDisableVoice": "YES"
       },
       {
         "id": 8,

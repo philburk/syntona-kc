@@ -1,6 +1,6 @@
 {
-  "version": "0.7.0 beta",
-  "versionCode": 458752,
+  "version": "0.7.8 beta",
+  "versionCode": 458760,
   "type": "core.polyPatch",
   "maxVoices": 4,
   "windowX": 38,
@@ -13,8 +13,8 @@
         "id": 0,
         "type": "core.input",
         "name": "on",
-        "x": 50,
-        "y": 60,
+        "x": 45,
+        "y": 85,
         "jacks": {
           "on": {
             "v": 0,
@@ -28,8 +28,8 @@
         "id": 1,
         "type": "core.input",
         "name": "off",
-        "x": 50,
-        "y": 130,
+        "x": 45,
+        "y": 155,
         "jacks": {
           "off": {
             "v": 0,
@@ -43,8 +43,8 @@
         "id": 2,
         "type": "core.input",
         "name": "pitch",
-        "x": 50,
-        "y": 200,
+        "x": 45,
+        "y": 225,
         "jacks": {
           "pitch": {
             "v": 60,
@@ -58,8 +58,8 @@
         "id": 3,
         "type": "core.input",
         "name": "amplitude",
-        "x": 50,
-        "y": 270,
+        "x": 45,
+        "y": 295,
         "jacks": {
           "amplitude": {
             "v": 1,
@@ -73,8 +73,8 @@
         "id": 4,
         "type": "core.input",
         "name": "pressure",
-        "x": 50,
-        "y": 340,
+        "x": 45,
+        "y": 365,
         "jacks": {
           "pressure": {
             "v": 0,
@@ -88,8 +88,8 @@
         "id": 5,
         "type": "ksyn.output~",
         "name": "output",
-        "x": 540,
-        "y": 203,
+        "x": 535,
+        "y": 228,
         "jacks": {
           "in": {
             "v": 0,
@@ -104,8 +104,8 @@
         "id": 6,
         "type": "ksyn.sources.sawOscBL",
         "name": "sawOscBL",
-        "x": 273.9,
-        "y": 214,
+        "x": 268.9,
+        "y": 239,
         "jacks": {
           "frequency": {
             "v": 440,
@@ -127,8 +127,8 @@
         "id": 7,
         "type": "core.math.pitchToHz",
         "name": "pitchToHz",
-        "x": 155,
-        "y": 183.1,
+        "x": 150,
+        "y": 208.1,
         "jacks": {
           "in": {
             "v": 60,
@@ -142,8 +142,8 @@
         "id": 8,
         "type": "ksyn.control.envSeg",
         "name": "ampEnv",
-        "x": 408.9,
-        "y": 92,
+        "x": 403.9,
+        "y": 117,
         "jacks": {
           "looping": {
             "min": 0,
@@ -166,11 +166,22 @@
             "add": false
           }
         },
-        "envData": [0.019999999552965164, 0.8999999761581421, 0.10000000149011612, 0.5, 0.08138889074325562, 0.6577181220054626, 0.05902776122093201, 0.4530201256275177, 0.0902777910232544, 0.681208074092865, 0.277777761220932, 0.1812080591917038, 0.3263888955116272, 0],
+        "envData": [0.019999999552965164, 0.8999999761581421, 0.10000000149011612, 0.5, 0.08138889074325562, 0.6577181220054626, 0.05902776122093201, 0.4530201256275177, 0.0902777910232544, 0.681208074092865, 0.277777761220932, 0.1812080591917038, 0.3244692087173462, 0],
         "sustainBegin": 2,
         "sustainEnd": 5,
         "releaseBegin": -1,
-        "releaseEnd": -1
+        "releaseEnd": -1,
+        "autoDisableVoice": "YES"
+      },
+      {
+        "id": 9,
+        "type": "core.input.comment",
+        "name": "comment",
+        "x": 26.9,
+        "y": 4.9,
+        "text": "Use a segmented envelope with a sustain loop for a tremolo effect.",
+        "w": 493.75,
+        "h": 50
       }
     ],
     "connections": [

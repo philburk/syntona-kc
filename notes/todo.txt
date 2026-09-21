@@ -7,11 +7,7 @@ Install the MIDI Add-on.
 BUG: deleting modules using BACKSPACE or DELETE key sometimes does not work. Edit menu Cut always works.
 Need repro steps.
 
-Widget to put wires in front.
-Highlight wires connected to highlighted modules for easier visualization.
 Label wire outputs with order (1) (2)
-
-Improve instruments. Setup autoDisable.
 
 Composing Tutorial
 * beatClock
@@ -32,6 +28,8 @@ TimeLine and BeatLine Tutorial
 Try to save a native signed version.
 
 # ----------------------------------------------- HIGH PRIORITY
+
+Better mapping of velocity to amplitude. Different curves in MIDI Settings.
 
 Add Asset Manager that can Zip WAV files in a ZIP.
 
