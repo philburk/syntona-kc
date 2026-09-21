@@ -1,5 +1,5 @@
 
-# ----------------------------------------------- HIGH PRIORITY
+# ----------------------------------------------- TOP PRIORITY
 
 On FireFox plug in MIDI hardware before running Syntona.
 Install the MIDI Add-on.
@@ -12,20 +12,6 @@ Highlight wires connected to highlighted modules for easier visualization.
 Label wire outputs with order (1) (2)
 
 Improve instruments. Setup autoDisable.
-
-Move polyPatch into ksyn.patches bundle.
-
-Add ksyn.patches.soundPatch module with "trigger" and audio "out".
-Uses a Circuit so that setupAutoDisable() can be used to reduce CPU load.
-Can be exported as a Circuit to JSyn or KSyn.
-Should we have an interface like PitchedVoice in KSyn or KMSL?
-
-Add a waitAll module that waits for all connected patches to finish.
-This can be used to implement a parallelConnection.
-
-BUG: delay not working in polyPatch! Why?
-
-Add Asset Manager that can Zip WAV files in a ZIP.
 
 Composing Tutorial
 * beatClock
@@ -45,6 +31,24 @@ TimeLine and BeatLine Tutorial
 
 Try to save a native signed version.
 
+# ----------------------------------------------- HIGH PRIORITY
+
+Add Asset Manager that can Zip WAV files in a ZIP.
+
+Move polyPatch into ksyn.patches bundle.
+
+Add ksyn.patches.soundPatch module with "trigger" and audio "out".
+Uses a Circuit so that setupAutoDisable() can be used to reduce CPU load.
+Can be exported as a Circuit to JSyn or KSyn.
+Should we have an interface like PitchedVoice in KSyn or KMSL?
+
+Add a waitAll module that waits for all connected patches to finish.
+This can be used to implement a parallelConnection.
+
+BUG: delay not working in polyPatch! Why?
+
+Timeline - show time as a popup when dragging a Trigger or a region.
+
 Add arpeggiator module.
 
 Claude says:
@@ -55,24 +59,21 @@ section aren't heard until the next cycle; old WAV files are never deleted.
 
 # ----------------------------------------------- MEDIUM PRIORITY
 
-Add a "normalize sample" to the sample and recorder module menu.
+Add a "normalize sample" function to the sample and recorder module menu.
 
 Add a monitor[X] on the recorder module so we can hear the incoming signal.
 
-Add multiTrack module like a DAW, + button for MIDI or Audio or composable Patch tracks.
-Audio tracks have audio in/out, MIDI tracks have VoiceMessage in/out.
+For timeLine DAW:
 Support quantization based on tempo, save original content for requantization.
-Save audio in adjacent /audio/ folder. What does Logic do?
 
 Add GitHub CI in YAML that runs a bunch of the JVM desktop tests every time I commit code or submit a pull request.
 
-A seq with numeric fields or knobs or horizontal faders that can be swept quickly to make a shape.
+A seq8 with numeric fields or knobs or horizontal faders that can be swept quickly to make a shape.
 
 Convert Syntona timestamps to KSyn timestamps and apply small "advance-time" for jitter reduction.
 
 The orange MIDI jacks and the yellow SequentialData jacks look too similar.
 
-Timeline - show time as a popup when dragging.
 
 A module similar to the stepper that fires all values immediately when kicked.
 No "looping" start or stop jack.

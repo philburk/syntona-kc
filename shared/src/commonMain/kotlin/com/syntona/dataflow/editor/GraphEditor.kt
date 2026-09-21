@@ -79,6 +79,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -758,7 +759,19 @@ fun GraphHorizontalScrollbar(
 fun WireRenderer(state: GraphState) {
     val colors = LocalGraphColors.current
     Canvas(modifier = Modifier.fillMaxSize()) {
-        state.connections.forEach { conn ->
+        val selectedModules = state.selectedModules
+        val hasSelection = selectedModules.isNotEmpty()
+        val selectedSet = if (hasSelection) selectedModules.toSet() else emptySet()
+
+        val (highlightedConns, normalConns) = if (hasSelection) {
+            state.connections.partition { conn ->
+                conn.output.module in selectedSet || conn.input.module in selectedSet
+            }
+        } else {
+            emptyList<GraphState.UIConnection>() to state.connections.toList()
+        }
+
+        fun drawConnection(conn: GraphState.UIConnection, isHighlighted: Boolean) {
             val start = state.jackOffsets[conn.output] ?: Offset.Zero
             val end = state.jackOffsets[conn.input] ?: Offset.Zero
 
@@ -783,8 +796,32 @@ fun WireRenderer(state: GraphState) {
                         cubicTo(controlX, start.y, controlX, end.y, end.x, end.y)
                     }
                 }
-                drawPath(path, color = wireColor, style = Stroke(width = 3f))
+
+                if (isHighlighted) {
+                    // Wide orange wire under the regular wire (matches module selection highlight)
+                    drawPath(
+                        path = path,
+                        color = colors.moduleBorderSelected,
+                        style = Stroke(width = 8f, cap = StrokeCap.Round)
+                    )
+                }
+
+                drawPath(
+                    path = path,
+                    color = wireColor,
+                    style = Stroke(width = 3f, cap = StrokeCap.Round)
+                )
             }
+        }
+
+        // Draw normal wires first
+        normalConns.forEach { conn ->
+            drawConnection(conn, isHighlighted = false)
+        }
+
+        // Draw highlighted wires second, so they always render on top of normal wires
+        highlightedConns.forEach { conn ->
+            drawConnection(conn, isHighlighted = true)
         }
 
         // Draw rubber-band wire as a simple straight line
@@ -793,6 +830,7 @@ fun WireRenderer(state: GraphState) {
             val start = state.jackOffsets[draggingOutput] ?: Offset.Zero
             val end = state.dragPointerPosition
             if (start != Offset.Zero) {
+                val isDraggingHighlighted = hasSelection && draggingOutput.module in selectedSet
                 val wireColor = when (draggingOutput) {
                     is AudioOutputJack -> colors.wireAudio
                     is VoiceOutputJack -> colors.wireVoice
@@ -800,11 +838,21 @@ fun WireRenderer(state: GraphState) {
                     is UniversalOutputJack -> colors.wireUniversal
                     else -> colors.wireDragging
                 }
+                if (isDraggingHighlighted) {
+                    drawLine(
+                        color = colors.moduleBorderSelected,
+                        start = start,
+                        end = end,
+                        strokeWidth = 8f,
+                        cap = StrokeCap.Round
+                    )
+                }
                 drawLine(
                     color = wireColor,
                     start = start,
                     end = end,
-                    strokeWidth = 3f
+                    strokeWidth = 3f,
+                    cap = StrokeCap.Round
                 )
             }
         }
