@@ -1,0 +1,182 @@
+{
+  "version": "0.7.8 beta",
+  "versionCode": 458760,
+  "modules": [
+    {
+      "id": 0,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 30.5,
+      "y": 16.9,
+      "text": "A Message Track can be used to record any regular Syntona messages that have a value. These might be coming from a fader or from some algorithmic process. A Message track has an input and an output jack. So you can record information and then play it back through the out jack. \n\nTo Do:\n* Click on the \"+Track\" button and select Message Track.\n* Connect the knob to the \"in1\" jack on the new Message Track.\n* Connect the  \"out1\" port from the Message Track to the A port on the \"+\" module.\n* Press the \"I\" button on the message track. The \"I\" button is to enable input monitoring for the track. You can play through the track in and practice before you record. \n* Move the fader up and down and hear its effect on the output sound. \n* Click Rewind to move to the beginning.\n* Click the \"R\" button to arm the track for recording.\n* Press the red record button at the top of the timeline. Then move the fader.\n* Press the stop button on the timeline \n* Press the Rewind then the Start button and notice that your recorded values are being played back. \n",
+      "w": 834.4038,
+      "h": 302.9624
+    },
+    {
+      "id": 1,
+      "type": "music.compose.beatLine",
+      "name": "beatLine",
+      "x": 188,
+      "y": 392,
+      "jacks": {
+        "tempo": {
+          "v": 120,
+          "min": 20,
+          "max": 300,
+          "kickable": false
+        }
+      },
+      "width": 671.6453769952059,
+      "maxTime": 16,
+      "loopStart": 0,
+      "loopEnd": 4,
+      "loopMode": false,
+      "zoom": 1,
+      "seekTime": 16,
+      "triggers": [
+        {
+          "id": 0,
+          "time": 1,
+          "jack": "t0"
+        },
+        {
+          "id": 2,
+          "time": 0,
+          "jack": "t2"
+        },
+        {
+          "id": 3,
+          "time": 2,
+          "jack": "t3"
+        }
+      ],
+      "tracks": []
+    },
+    {
+      "id": 2,
+      "type": "ksyn.lineOut",
+      "name": "lineOut",
+      "x": 1036.9,
+      "y": 560.6,
+      "jacks": {
+        "in0": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "in1": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "core.input.knob",
+      "name": "knob",
+      "x": 55.3,
+      "y": 462.7,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 23.411216735839844,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "ksyn.sources.sineOsc",
+      "name": "sineOsc",
+      "x": 948.7,
+      "y": 488.2,
+      "jacks": {
+        "frequency": {
+          "v": 123.41121673583984,
+          "min": 40,
+          "max": 2000,
+          "kickable": false,
+          "add": true
+        },
+        "amplitude": {
+          "v": 0.21556532382965088,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "core.math.+",
+      "name": "+",
+      "x": 891.3,
+      "y": 489.1,
+      "jacks": {
+        "A": {
+          "v": 23.411216735839844,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "B": {
+          "v": 100,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 941.9,
+      "y": 400,
+      "jacks": {
+        "in": {
+          "v": 123.41121673583984,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": 4,
+      "fromJack": "out",
+      "to": 2,
+      "toJack": "in0"
+    },
+    {
+      "from": 5,
+      "fromJack": "out",
+      "to": 4,
+      "toJack": "frequency"
+    },
+    {
+      "from": 5,
+      "fromJack": "out",
+      "to": 6,
+      "toJack": "in"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 1135.474365234375,
+  "windowHeight": 792.8145141601562
+}
