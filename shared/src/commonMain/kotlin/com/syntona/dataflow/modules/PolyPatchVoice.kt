@@ -167,7 +167,10 @@ class PolyPatchVoice(
     }
 
     override fun teardown() {
-        for (unit in voiceCircuit.getUnits()) {
+        outputPassThrough.output.disconnectAll()
+        outputPassThrough.input.disconnectAll()
+        voiceCircuit.remove(outputPassThrough)
+        for (unit in voiceCircuit.getUnits().toList()) {
             voiceCircuit.remove(unit)
         }
         super.teardown()

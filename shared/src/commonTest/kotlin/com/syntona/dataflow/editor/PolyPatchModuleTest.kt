@@ -16,6 +16,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
+import kotlinx.coroutines.cancel
 
 class PolyPatchModuleTest {
 
@@ -1391,6 +1392,54 @@ class PolyPatchModuleTest {
         val maxVal1 = buffer1.maxOrNull() ?: 0f
         val minVal1 = buffer1.minOrNull() ?: 0f
         assertTrue(maxVal1 != 0f || minVal1 != 0f, "out1 should produce audio signal")
+    }
+
+    @Test
+    fun testTeardownSubpatchWithPolyPatchAndOscillatorDoesNotCrashAudio() = kotlinx.coroutines.runBlocking {
+        val testScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default)
+        try {
+            val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
+            val rootGs = GraphState()
+            rootGs.engine = com.syntona.dataflow.engine.DataFlowEngine(testScope)
+
+            // Create subpatch containing a PolyPatch and LineOut
+            val subpatch = PatchModule("subpatch")
+            val polyPatch = PolyPatchModule("poly")
+            polyPatch.initializeVoices(2)
+
+            val osc = UnitGeneratorModule("sineOsc", SineOscillator())
+            polyPatch.graphState.addModule(osc, androidx.compose.ui.geometry.Offset.Zero)
+            val audioOut = AudioOutputModule()
+            polyPatch.graphState.addModule(audioOut, androidx.compose.ui.geometry.Offset.Zero)
+
+            val oscOut = osc.outputs.first { it.name == "out" }
+            val audioIn = audioOut.inputs.first { it.name == "in" }
+            polyPatch.graphState.connect(oscOut, audioIn)
+
+            subpatch.graphState.addModule(polyPatch, androidx.compose.ui.geometry.Offset.Zero)
+            val lineOutMod = UnitGeneratorModule("lineOut", com.softsynth.ksyn.unitgen.LineOut())
+            subpatch.graphState.addModule(lineOutMod, androidx.compose.ui.geometry.Offset.Zero)
+
+            val polyOutJack = polyPatch.outputs.first { it.name == "output" }
+            val lineInJack = lineOutMod.inputs.first { it.name == "in0" }
+            subpatch.graphState.connect(polyOutJack, lineInJack)
+
+            rootGs.addModule(subpatch, androidx.compose.ui.geometry.Offset(100f, 100f))
+
+            for (i in 0 until 5) {
+                engine.generateNextBuffer()
+            }
+
+            // Teardown / clear all modules from root
+            rootGs.clearAllModules()
+
+            // Subsequent buffers must not crash due to null engine in dangling oscillator
+            for (i in 0 until 10) {
+                engine.generateNextBuffer()
+            }
+        } finally {
+            testScope.cancel()
+        }
     }
 }
 

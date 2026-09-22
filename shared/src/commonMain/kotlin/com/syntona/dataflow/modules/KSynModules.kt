@@ -100,6 +100,13 @@ open class UnitGeneratorModule(name: String, val unit: UnitGenerator) : Module(n
         if (unit.isStartRequired) {
             unit.stop()
         }
+        for (port in unit.getPorts()) {
+            if (port is com.softsynth.ksyn.ports.UnitBlockPort) {
+                for (i in 0 until port.numParts) {
+                    port.disconnectAll(i)
+                }
+            }
+        }
         SynthKSyn.synth.remove(unit)
         super.teardown()
     }

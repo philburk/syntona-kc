@@ -200,11 +200,11 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
             moduleRemovedListeners.forEach { it(module) }
         }
         modulesToRemove.forEach { module ->
-            if (tearDown) module.teardown()
             val connsToRemove = connections.filter { it.output.module === module || it.input.module === module }
             connsToRemove.forEach { conn ->
                 disconnect(conn.output, conn.input)
             }
+            if (tearDown) module.teardown()
             module.inputs.forEach {
                 jackOffsets.remove(it)
                 jackBounds.remove(it)

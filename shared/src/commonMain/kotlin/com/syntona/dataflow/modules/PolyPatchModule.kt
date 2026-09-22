@@ -1006,10 +1006,19 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
             if (instrument.isStartRequired) {
                 instrument.stop()
             }
+            instrument.getOutputPort().disconnectAll()
+            instrument.amplitude.disconnectAll()
+            instrument.pitchOffset.disconnectAll()
+            for (voice in voices) {
+                instrument.remove(voice.getUnitGenerator())
+            }
             SynthKSyn.synth.remove(instrument)
         }
+        polyphonicInstrument = null
         for (mixer in auxMixers.values) {
             if (mixer.isStartRequired) mixer.stop()
+            mixer.output.disconnectAll()
+            mixer.input.disconnectAll()
             SynthKSyn.synth.remove(mixer)
         }
         auxMixers.clear()
