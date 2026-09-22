@@ -416,3 +416,140 @@ fun WireLayerIcon(
     }
 }
 
+/**
+ * A circular repeat / loop arrow icon (⟳) used for section repeat handles
+ * and repeat section headers.
+ * Drawn via Compose Canvas to avoid font missing-glyph fallbacks (☒) on Web targets.
+ */
+@Composable
+fun RepeatIcon(
+    modifier: Modifier = Modifier,
+    color: Color = Color.White,
+    size: Dp = 8.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+        val strokeWidth = (minOf(w, h) * 0.15f).coerceIn(1.0f, 1.8f)
+        val cx = w * 0.48f
+        val cy = h * 0.54f
+        val r = minOf(w, h) * 0.34f
+        val arrowW = w * 0.32f
+        val arrowH = h * 0.20f
+
+        // Draw circular arc from 15° clockwise around to 270° (top: x = cx, y = cy - r)
+        val arcRect = androidx.compose.ui.geometry.Rect(cx - r, cy - r, cx + r, cy + r)
+        val arcPath = Path().apply {
+            arcTo(arcRect, startAngleDegrees = 15f, sweepAngleDegrees = 255f, forceMoveTo = true)
+        }
+        drawPath(arcPath, color = color, style = Stroke(width = strokeWidth, cap = StrokeCap.Round))
+
+        // Arrowhead at top (x = cx, y = cy - r) pointing right
+        val arrow = Path().apply {
+            moveTo(cx + arrowW, cy - r)
+            lineTo(cx - 0.5f, cy - r - arrowH)
+            lineTo(cx - 0.5f, cy - r + arrowH)
+            close()
+        }
+        drawPath(arrow, color = color)
+    }
+}
+
+/**
+ * A resize handle icon (arrow pointing right to a vertical bar: ⇥ / ->|)
+ * used for dragging the right edge of track sections to adjust duration.
+ * Drawn via Compose Canvas to avoid font missing-glyph fallbacks (☒) on Web targets.
+ */
+@Composable
+fun ResizeHandleIcon(
+    modifier: Modifier = Modifier,
+    color: Color = Color.White,
+    size: Dp = 8.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+        val strokeWidth = (minOf(w, h) * 0.15f).coerceIn(1.0f, 1.8f)
+
+        // Vertical bar on the right edge
+        val barX = w * 0.88f
+        drawLine(
+            color = color,
+            start = Offset(barX, h * 0.12f),
+            end = Offset(barX, h * 0.88f),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+
+        // Horizontal stem
+        val midY = h * 0.5f
+        drawLine(
+            color = color,
+            start = Offset(w * 0.08f, midY),
+            end = Offset(w * 0.50f, midY),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round
+        )
+
+        // Arrowhead pointing right towards the bar
+        val arrow = Path().apply {
+            moveTo(w * 0.72f, midY)
+            lineTo(w * 0.42f, h * 0.20f)
+            lineTo(w * 0.42f, h * 0.80f)
+            close()
+        }
+        drawPath(arrow, color = color)
+    }
+}
+
+/**
+ * A padlock icon (🔒) used to indicate locked settings (e.g. locked tempo).
+ * Drawn via Compose Canvas to avoid font missing-glyph fallbacks (☒) on Web targets.
+ */
+@Composable
+fun LockIcon(
+    modifier: Modifier = Modifier,
+    color: Color = Color.White,
+    size: Dp = 10.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+        val strokeWidth = (w * 0.14f).coerceIn(1.0f, 1.8f)
+
+        // Shackle (inverted U at top)
+        val shackleRadius = w * 0.22f
+        val shackleTop = h * 0.12f
+        val shackleBottom = h * 0.45f
+        val shacklePath = Path().apply {
+            moveTo(w * 0.5f - shackleRadius, shackleBottom)
+            lineTo(w * 0.5f - shackleRadius, shackleTop + shackleRadius)
+            arcTo(
+                androidx.compose.ui.geometry.Rect(
+                    w * 0.5f - shackleRadius,
+                    shackleTop,
+                    w * 0.5f + shackleRadius,
+                    shackleTop + shackleRadius * 2f
+                ),
+                startAngleDegrees = 180f,
+                sweepAngleDegrees = 180f,
+                forceMoveTo = false
+            )
+            lineTo(w * 0.5f + shackleRadius, shackleBottom)
+        }
+        drawPath(shacklePath, color = color, style = Stroke(width = strokeWidth, cap = StrokeCap.Round))
+
+        // Body (rounded rect at bottom)
+        val bodyLeft = w * 0.20f
+        val bodyTop = h * 0.42f
+        val bodyWidth = w * 0.60f
+        val bodyHeight = h * 0.50f
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(bodyLeft, bodyTop),
+            size = Size(bodyWidth, bodyHeight),
+            cornerRadius = CornerRadius(1.5.dp.toPx(), 1.5.dp.toPx())
+        )
+    }
+}
+

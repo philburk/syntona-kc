@@ -97,3 +97,4 @@ tutorials/09_timeline/01_timeline_overview.sntn
 tutorials/09_timeline/01_trigger_track.json
 tutorials/09_timeline/02_message_track.json
 tutorials/09_timeline/03_patch_track.json
+tutorials/09_timeline/04_midi_track.json

@@ -34,3 +34,9 @@ The design for exporting JSyn or KSyn code from Syntona is in "notes/export_sour
 
 When adding new modules, add a corresponding one-line help entry to the table in
 ModuleRegistry.moduleDescriptions.
+
+## Compatibility
+
+Syntona must be able to run on both desktop and web platforms.
+Make sure that any widgets or UI elements are web compatible.
+Only use WASM compatible libraries.

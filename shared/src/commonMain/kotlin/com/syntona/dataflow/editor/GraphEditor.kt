@@ -3,8 +3,11 @@ package com.syntona.dataflow.editor
 import com.syntona.ui.ArrowForwardIcon
 import com.syntona.ui.DropdownArrow
 import com.syntona.ui.LightbulbIcon
+import com.syntona.ui.LockIcon
 import com.syntona.ui.LoopIcon
 import com.syntona.ui.RecordIcon
+import com.syntona.ui.RepeatIcon
+import com.syntona.ui.ResizeHandleIcon
 import com.syntona.ui.VerticalEllipsisIcon
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -4377,13 +4380,19 @@ fun TrackSectionView(
                         RoundedCornerShape(2.dp)
                     )
             ) {
-                Text(
-                    text = "⟳ ${section.name.ifEmpty { "Sec ${section.id + 1}" }}",
-                    fontSize = 8.sp,
-                    lineHeight = 9.sp,
-                    color = Color.White.copy(alpha = 0.7f),
-                    modifier = Modifier.padding(start = 2.dp, top = 1.dp)
-                )
+                Row(
+                    modifier = Modifier.padding(start = 2.dp, top = 1.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    RepeatIcon(size = 7.dp, color = Color.White.copy(alpha = 0.7f))
+                    Text(
+                        text = section.name.ifEmpty { "Sec ${section.id + 1}" },
+                        fontSize = 8.sp,
+                        lineHeight = 9.sp,
+                        color = Color.White.copy(alpha = 0.7f)
+                    )
+                }
 
                 val ghostMidiData = section.data as? MidiSectionData
                 if (ghostMidiData != null) {
@@ -4462,7 +4471,7 @@ fun TrackSectionView(
                             .background(Color.White.copy(alpha = 0.4f), RoundedCornerShape(topEnd = 2.dp)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("⟳", fontSize = 8.sp, lineHeight = 9.sp, color = Color.White)
+                        RepeatIcon(size = 8.dp, color = Color.White)
                     }
                 }
             }
@@ -4635,7 +4644,7 @@ fun TrackSectionView(
                         .background(Color.White.copy(alpha = 0.35f), RoundedCornerShape(topEnd = 2.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("⟳", fontSize = 8.sp, lineHeight = 9.sp, color = Color.White)
+                    RepeatIcon(size = 8.dp, color = Color.White)
                 }
 
                 // Resize Handle (Bottom-Right)
@@ -4681,7 +4690,7 @@ fun TrackSectionView(
                         },
                     contentAlignment = Alignment.Center
                 ) {
-                    Text("⇥", fontSize = 8.sp, lineHeight = 9.sp, color = Color.White)
+                    ResizeHandleIcon(size = 8.dp, color = Color.White)
                 }
             }
         }
@@ -5361,7 +5370,7 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                     isLeft = true,
                                     trailingContent = {
                                         if (jack.name == "tempo" && module is BeatLineModule && module.isTempoLocked) {
-                                            Text(" 🔒", fontSize = 10.sp, lineHeight = 10.sp)
+                                            LockIcon(modifier = Modifier.padding(start = 2.dp), size = 9.dp, color = Color(0xFFCCCCCC))
                                         }
                                     }
                                 )
@@ -5695,7 +5704,7 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                                 .background(Color(0xFFD32F2F), RoundedCornerShape(2.dp)),
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Text("⇥", color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                            ResizeHandleIcon(size = 9.dp, color = Color.White)
                                         }
                                     }
 
