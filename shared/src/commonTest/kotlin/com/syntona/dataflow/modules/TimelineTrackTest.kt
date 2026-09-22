@@ -2835,5 +2835,60 @@ class TimelineTrackTest {
         newBeatLine.tempo.setValue(175.0)
         assertEquals(175.0, forwardedVal)
     }
+
+    @Test
+    fun testBeatClockInsidePatchTrackReceivesEngineAndAdvances() {
+        val beatLine = BeatLineModule()
+        val engine = TestEngine()
+        beatLine.setEngine(engine)
+
+        val patchTrack = beatLine.addTrack(TrackType.PATCH, "PatchTrack") as PatchTrack
+        val beatClock = BeatClockModule()
+        patchTrack.patch.graphState.addModule(beatClock, Offset(100f, 100f))
+
+        val receivedCounts = mutableListOf<Double>()
+        beatClock.countOut.connect(object : InputJack("spy", beatClock) {
+            override fun receive(msg: Message) {
+                if (msg is Message.FloatValue) {
+                    receivedCounts.add(msg.value)
+                }
+            }
+        })
+
+        val now = ScoreTime(1_000_000_000L)
+        beatClock.start.receive(Message.FloatValue(now, 1.0))
+
+        assertEquals(emptyList<Double>(), receivedCounts)
+        engine.fireUntil(now.plusSeconds(1.2))
+        assertEquals(listOf(1.0, 2.0), receivedCounts)
+    }
+
+    @Test
+    fun testBeatClockInsidePatchTrackCreatedBeforeEngineSet() {
+        val beatLine = BeatLineModule()
+        val patchTrack = beatLine.addTrack(TrackType.PATCH, "PatchTrack") as PatchTrack
+        val beatClock = BeatClockModule()
+        patchTrack.patch.graphState.addModule(beatClock, Offset(100f, 100f))
+
+        val receivedCounts = mutableListOf<Double>()
+        beatClock.countOut.connect(object : InputJack("spy", beatClock) {
+            override fun receive(msg: Message) {
+                if (msg is Message.FloatValue) {
+                    receivedCounts.add(msg.value)
+                }
+            }
+        })
+
+        val engine = TestEngine()
+        beatLine.setEngine(engine)
+
+        val now = ScoreTime(1_000_000_000L)
+        beatClock.start.receive(Message.FloatValue(now, 1.0))
+
+        assertEquals(emptyList<Double>(), receivedCounts)
+        engine.fireUntil(now.plusSeconds(1.2))
+        assertEquals(listOf(1.0, 2.0), receivedCounts)
+    }
 }
+
 

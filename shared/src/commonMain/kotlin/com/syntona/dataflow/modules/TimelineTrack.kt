@@ -412,6 +412,7 @@ class PatchTrack(
 
     init {
         patch.parentPatch = timeline.parentPatch
+        timeline.getEngine()?.let { patch.setEngine(it) }
         ensureDefaultCommandModules()
         // Sync any modules already in the patch
         patch.graphState.modules.toList().forEach { syncOutputForChild(it) }
@@ -604,6 +605,10 @@ class PatchTrack(
             isPatchRunning = false
             stopCommandModule.receive(Message.FloatValue(ScoreClock.now(), 0.0))
         }
+    }
+
+    override fun setEngine(engine: DataFlowEngine) {
+        patch.setEngine(engine)
     }
 
     override fun onPlaybackStart(now: ScoreTime, startPosUnits: Double, cycleEndUnits: Double, engine: DataFlowEngine) {

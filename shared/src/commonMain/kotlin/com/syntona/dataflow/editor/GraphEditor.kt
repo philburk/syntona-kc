@@ -5104,6 +5104,7 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
 
     val openPatchTrackEditor = { track: PatchTrack ->
         state.clearSelection()
+        (state.engine ?: module.getEngine())?.let { track.setEngine(it) }
         val window = MdiWindowInfo(
             id = track.patch,
             title = "Track: ${track.name}",
