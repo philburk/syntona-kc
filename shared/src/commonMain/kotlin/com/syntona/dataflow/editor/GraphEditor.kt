@@ -403,7 +403,10 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                         when (module) {
                             is NumberModule -> NumberModuleNode(module, state)
                             is EquationModule -> EquationModuleNode(module, state)
-                            is ScaleModule -> ScaleModuleNode(module, state)
+                            is ScaleModule -> {
+                                if (module.isEditable) ScaleModuleNode(module, state)
+                                else ModuleNode(module, state)
+                            }
                             is FaderModule -> FaderModuleNode(module, state)
                             is KnobModule -> KnobModuleNode(module, state)
                             is PatchModule -> PatchModuleNode(module, state)
@@ -3908,14 +3911,18 @@ fun EquationField(
 
 @Composable
 fun ScaleModuleNode(module: ScaleModule, state: GraphState) {
+    if (!module.isEditable) {
+        ModuleNode(module, state)
+        return
+    }
     val colors = LocalGraphColors.current
     val position = state.modulePositions[module] ?: Offset.Zero
     val isSelected = state.selectedModules.contains(module)
     val borderColor = if (isSelected) colors.moduleBorderSelected else colors.moduleBorder
     val borderWidth = if (isSelected) 2.dp else 1.dp
 
-    val moduleWidth = if (module.isEditable) 240.dp else 135.dp
-    val inputsWidth = if (module.isEditable) 54.dp else 40.dp
+    val moduleWidth = 240.dp
+    val inputsWidth = 54.dp
 
     Surface(
         modifier = Modifier
@@ -3951,27 +3958,18 @@ fun ScaleModuleNode(module: ScaleModule, state: GraphState) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.End
                 ) {
-                    if (module.isEditable) {
-                        ScaleField(
-                            value = module.scaleString,
-                            errorMessage = module.errorMessage,
-                            onCommit = { scaleStr ->
-                                val success = module.updateScale(scaleStr)
-                                if (success) {
-                                    state.markChanged()
-                                    FileState.markDirty()
-                                }
-                            },
-                            modifier = Modifier.weight(1f)
-                        )
-                    } else {
-                        Text(
-                            text = "[${module.scaleDegrees.joinToString(",") { formatNumber(it) }}]",
-                            color = Color.DarkGray,
-                            fontSize = 11.sp,
-                            modifier = Modifier.weight(1f).padding(horizontal = 4.dp)
-                        )
-                    }
+                    ScaleField(
+                        value = module.scaleString,
+                        errorMessage = module.errorMessage,
+                        onCommit = { scaleStr ->
+                            val success = module.updateScale(scaleStr)
+                            if (success) {
+                                state.markChanged()
+                                FileState.markDirty()
+                            }
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
 
                     Spacer(modifier = Modifier.width(4.dp))
 

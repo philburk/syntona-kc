@@ -87,3 +87,10 @@ tutorials/07_audio_input/03_measure_latency.json
 tutorials/07_audio_input/04_record_audio.json
 tutorials/07_audio_input/05_sampleReader.json
 tutorials/07_audio_input/06_pitchDetector.json
+tutorials/08_composing/01_composing_overview.json
+tutorials/08_composing/02_clockdiv_poly.json
+tutorials/08_composing/03_stepper_chromatic.json
+tutorials/08_composing/04_scale_custom.json
+tutorials/08_composing/04_scale_pentatonic.json
+tutorials/08_composing/05_scale_custom.json
+tutorials/08_composing/06_table_sequence.json

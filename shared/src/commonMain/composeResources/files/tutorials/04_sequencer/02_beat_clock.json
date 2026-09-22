@@ -1,6 +1,6 @@
 {
-  "version": "0.7.5 beta",
-  "versionCode": 458757,
+  "version": "0.7.8 beta",
+  "versionCode": 458760,
   "modules": [
     {
       "id": 0,
@@ -10,7 +10,7 @@
       "y": 407.1,
       "jacks": {
         "frequency": {
-          "v": 249.6011962890625,
+          "v": 110,
           "min": 40,
           "max": 8000,
           "kickable": false,
@@ -60,7 +60,8 @@
           "kickable": false,
           "add": false
         }
-      }
+      },
+      "autoDisableVoice": "NO"
     },
     {
       "id": 2,
@@ -93,13 +94,13 @@
       "y": 319,
       "jacks": {
         "kick": {
-          "v": 98,
+          "v": 310,
           "min": 0,
           "max": 100,
           "kickable": true
         },
         "in": {
-          "v": 249.6011962890625,
+          "v": 110,
           "min": 40,
           "max": 8000,
           "kickable": false
@@ -112,7 +113,7 @@
       "name": "comment",
       "x": 49.9,
       "y": 28,
-      "text": "You may be tired of clicking the \"trigger\" button. So I added a beatClock that will do it for us.\n\nThe beatClock tells the knob to send its value to both the oscillator and the envelope.\n\nTo Do:\n* Click the \"start\" button on the beatClock.\n* Click on the beatClock's \"tempo\" jack and drag up and down.\n* Click on the knob and drag up and down to change the oscillator frequency.\n* Use on the beatClock's menu to change the pulse period in beats to 3/8.\n\n",
+      "text": "You may be tired of clicking the \"trigger\" button. So I added a beatClock that will do it for us.\n\nThe beatClock tells the knob to send its value to the oscillator and then triggers the envelope.\n\nTo Do:\n* Click the \"start\" button on the beatClock.\n* Click on the beatClock's \"tempo\" jack and drag up and down.\n* Click on the knob and drag up and down to change the oscillator frequency.\n* Use on the beatClock's menu to change the pulse period in beats to 8:3.\n\n",
       "w": 544.875,
       "h": 227
     },
@@ -124,7 +125,7 @@
       "y": 299,
       "jacks": {
         "tempo": {
-          "v": 120.57981144577352,
+          "v": 120,
           "min": 20,
           "max": 300,
           "kickable": false

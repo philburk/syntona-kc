@@ -223,5 +223,32 @@ class ModuleRegistryTest {
             ModuleRegistry.setDescription("sineOsc", originalSine)
         }
     }
+
+    @Test
+    fun testScaleModulesConfiguration() {
+        val pentatonicCreator = ModuleRegistry.findCreator("music.compose.pentatonic")
+        assertNotNull(pentatonicCreator)
+        val pentatonic = pentatonicCreator() as com.syntona.dataflow.modules.ScaleModule
+        assertEquals("pentatonic", pentatonic.name)
+        kotlin.test.assertFalse(pentatonic.isEditable)
+        assertEquals(listOf("in", "offset"), pentatonic.inputs.map { it.name })
+        assertEquals(listOf("out"), pentatonic.outputs.map { it.name })
+
+        val diatonicCreator = ModuleRegistry.findCreator("music.compose.diatonic")
+        assertNotNull(diatonicCreator)
+        val diatonic = diatonicCreator() as com.syntona.dataflow.modules.ScaleModule
+        assertEquals("diatonic", diatonic.name)
+        kotlin.test.assertFalse(diatonic.isEditable)
+        assertEquals(listOf("in", "offset"), diatonic.inputs.map { it.name })
+        assertEquals(listOf("out"), diatonic.outputs.map { it.name })
+
+        val scaleCreator = ModuleRegistry.findCreator("music.compose.scale")
+        assertNotNull(scaleCreator)
+        val scale = scaleCreator() as com.syntona.dataflow.modules.ScaleModule
+        assertEquals("scale", scale.name)
+        kotlin.test.assertTrue(scale.isEditable)
+        assertEquals(listOf("in", "offset"), scale.inputs.map { it.name })
+        assertEquals(listOf("out"), scale.outputs.map { it.name })
+    }
 }
 

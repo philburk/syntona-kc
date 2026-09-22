@@ -1,0 +1,30 @@
+{
+  "version": "0.7.8 beta",
+  "versionCode": 458760,
+  "modules": [
+    {
+      "id": 0,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 75,
+      "y": 40.9,
+      "text": "You can compose and perform experimental music using Syntona.\n\nWhat is composing? Let's use a broad definition of \"organizing sound in time\".\n\nWe will look at various ways of generating rhythm, melodies and harmonies.",
+      "w": 476.125,
+      "h": 154
+    },
+    {
+      "id": 1,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 295.9,
+      "y": 250,
+      "filePath": "tutorials/08_composing/02_clockdiv_poly.json",
+      "buttonText": ">> Next, 02_clockdiv_poly"
+    }
+  ],
+  "connections": [],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 800,
+  "windowHeight": 500
+}

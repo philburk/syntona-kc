@@ -9,19 +9,18 @@ Need repro steps.
 
 Label wire outputs with order (1) (2)
 
+choose module and choose(4) in the f(x)
+
 Composing Tutorial
-* beatClock
-* clockDiv
-* stepper
-* scale
-* table8
+* oneShot
 * pianoRoll
-* hierarchy editor ?
+* using done jacks
 
 TimeLine and BeatLine Tutorial
 * Adding and using Triggers
-* Add and edit a Message Track, drag aliased loops
+* Add and edit a Message Track
 * Add and edit a MIDI Track
+* drag aliased loops
 * Add an Audio Track, drag copy, punch in
 * Increase song time, zoom in and out
 

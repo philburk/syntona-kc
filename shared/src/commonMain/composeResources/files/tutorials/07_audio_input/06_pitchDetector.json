@@ -1,4 +1,6 @@
 {
+  "version": "0.7.8 beta",
+  "versionCode": 458760,
   "modules": [
     {
       "id": 0,
@@ -24,7 +26,7 @@
       "x": 181.9,
       "y": 293,
       "jacks": {
-        "input": {
+        "in": {
           "v": 0,
           "min": 0,
           "max": 1,
@@ -63,14 +65,14 @@
       "x": 872,
       "y": 461.1,
       "jacks": {
-        "input0": {
+        "in0": {
           "v": 0,
           "min": 0,
           "max": 1,
           "kickable": false,
           "add": false
         },
-        "input1": {
+        "in1": {
           "v": 0,
           "min": 0,
           "max": 1,
@@ -81,19 +83,19 @@
     },
     {
       "id": 5,
-      "type": "ksyn.math.aMax",
-      "name": "aMax",
+      "type": "ksyn.math.max~",
+      "name": "max~",
       "x": 420,
       "y": 403.9,
       "jacks": {
-        "inputa": {
+        "inA": {
           "v": 0,
           "min": 0,
           "max": 1,
           "kickable": false,
           "add": false
         },
-        "inputb": {
+        "inB": {
           "v": 0,
           "min": 0,
           "max": 1,
@@ -104,19 +106,19 @@
     },
     {
       "id": 6,
-      "type": "ksyn.math.a-",
-      "name": "a-",
+      "type": "ksyn.math.-~",
+      "name": "-~",
       "x": 329,
       "y": 430.1,
       "jacks": {
-        "inputa": {
+        "inA": {
           "v": 0,
           "min": 0,
           "max": 1,
           "kickable": false,
           "add": false
         },
-        "inputb": {
+        "inB": {
           "v": 0.6739307641983032,
           "min": 0,
           "max": 1,
@@ -132,14 +134,14 @@
       "x": 134.9,
       "y": 482,
       "jacks": {
-        "input": {
+        "in": {
           "v": 0,
           "min": 0,
           "max": 1,
           "kickable": false,
           "add": false
         },
-        "halflife": {
+        "halfLife": {
           "v": 0.10000000149011612,
           "min": 0,
           "max": 1,
@@ -150,19 +152,19 @@
     },
     {
       "id": 8,
-      "type": "ksyn.math.a*",
-      "name": "a*",
+      "type": "ksyn.math.*~",
+      "name": "*~",
       "x": 500.9,
       "y": 462,
       "jacks": {
-        "inputa": {
+        "inA": {
           "v": 0,
           "min": 0,
           "max": 1,
           "kickable": false,
           "add": false
         },
-        "inputb": {
+        "inB": {
           "v": 0,
           "min": 0,
           "max": 1,
@@ -173,19 +175,19 @@
     },
     {
       "id": 9,
-      "type": "ksyn.math.a*",
-      "name": "a*",
+      "type": "ksyn.math.*~",
+      "name": "*~",
       "x": 576.9,
       "y": 526,
       "jacks": {
-        "inputa": {
+        "inA": {
           "v": 0,
           "min": 0,
           "max": 1,
           "kickable": false,
           "add": false
         },
-        "inputb": {
+        "inB": {
           "v": 2.6516757011413574,
           "min": 0,
           "max": 1,
@@ -213,6 +215,15 @@
           "kickable": false
         }
       }
+    },
+    {
+      "id": 11,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 456,
+      "y": 272.1,
+      "filePath": "tutorials/08_composing/01_composing_overview.json",
+      "buttonText": ">> Next, 01_composing_overview"
     }
   ],
   "connections": [
@@ -224,61 +235,61 @@
     },
     {
       "from": 0,
-      "fromJack": "output0",
+      "fromJack": "out0",
       "to": 2,
-      "toJack": "input"
+      "toJack": "in"
     },
     {
       "from": 3,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 4,
-      "toJack": "input0"
+      "toJack": "in0"
     },
     {
       "from": 3,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 4,
-      "toJack": "input1"
+      "toJack": "in1"
     },
     {
       "from": 2,
       "fromJack": "confidence",
       "to": 6,
-      "toJack": "inputa"
+      "toJack": "inA"
     },
     {
       "from": 6,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 5,
-      "toJack": "inputa"
+      "toJack": "inA"
     },
     {
       "from": 0,
-      "fromJack": "output0",
+      "fromJack": "out0",
       "to": 7,
-      "toJack": "input"
+      "toJack": "in"
     },
     {
       "from": 5,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 8,
-      "toJack": "inputa"
+      "toJack": "inA"
     },
     {
       "from": 7,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 8,
-      "toJack": "inputb"
+      "toJack": "inB"
     },
     {
       "from": 8,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 9,
-      "toJack": "inputa"
+      "toJack": "inA"
     },
     {
       "from": 9,
-      "fromJack": "output",
+      "fromJack": "out",
       "to": 3,
       "toJack": "amplitude"
     },
@@ -286,7 +297,7 @@
       "from": 10,
       "fromJack": "out",
       "to": 9,
-      "toJack": "inputb"
+      "toJack": "inB"
     }
   ],
   "windowX": 10,
