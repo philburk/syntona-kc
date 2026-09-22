@@ -4271,7 +4271,7 @@ fun TrackHeaderView(
                 modifier = Modifier.weight(1f).padding(end = 2.dp)
             )
             Text(
-                text = "✕",
+                text = "X",
                 color = Color.Gray,
                 fontSize = 10.sp,
                 modifier = Modifier.clickable {
@@ -4504,7 +4504,7 @@ fun TrackSectionView(
                         fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Bold
                     )
                     Text(
-                        text = "✕",
+                        text = "X",
                         fontSize = 8.sp,
                         lineHeight = 9.sp,
                         color = Color.White.copy(alpha = 0.7f),
