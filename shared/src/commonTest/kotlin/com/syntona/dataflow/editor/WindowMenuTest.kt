@@ -99,6 +99,8 @@ class WindowMenuTest {
         mdi.openWindowFor(firstOsc)
         mdi.openWindowFor(second.rootPatch)
         mdi.openWindowFor(secondOsc)
+        first.markSaved("/tmp/first.sntn")
+        second.markSaved("/tmp/second.sntn")
 
         val entries = WindowMenu.build(mdi)
         assertEquals(
@@ -125,6 +127,7 @@ class WindowMenuTest {
         mdi.openWindowFor(doc.rootPatch)
         mdi.openWindowFor(first)
         mdi.openWindowFor(second)
+        doc.markSaved("/tmp/doc.sntn")
 
         assertEquals(
             listOf("doc.sntn", "osc", "osc (2)"),
@@ -198,6 +201,7 @@ class WindowMenuTest {
         val rootWindow = mdi.openWindowFor(doc.rootPatch)
         val oscWindow = mdi.openWindowFor(osc)
         mdi.openWindowFor(filter)
+        doc.markSaved("/tmp/song.sntn")
 
         fun columnOf(label: String) =
             WindowMenu.build(mdi).single { it.label == label }.menuText.indexOfFirst { it != ' ' && it != '*' }
@@ -226,6 +230,7 @@ class WindowMenuTest {
         doc.rootPatch.graphState.addModule(osc, Offset.Zero)
         mdi.openWindowFor(doc.rootPatch)
         val oscWindow = mdi.openWindowFor(osc)
+        doc.markSaved("/tmp/song.sntn")
 
         // osc was opened last, so it is the one in front.
         val entries = WindowMenu.build(mdi)

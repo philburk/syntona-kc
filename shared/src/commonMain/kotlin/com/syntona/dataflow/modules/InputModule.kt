@@ -7,7 +7,7 @@ import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
 
-class InputModule : Module("input") {
+open class InputModule : Module("input") {
     val output = addOutput("out")
 
     private var _name by mutableStateOf("input")

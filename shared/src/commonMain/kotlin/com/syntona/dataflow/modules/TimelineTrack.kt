@@ -316,6 +316,7 @@ abstract class TimelineTrack(
     }
     open fun onRecordStop() {}
     open fun onMessageReceived(jack: InputJack, msg: Message) {}
+    open fun onTempoChanged(msg: Message) {}
 }
 
 /**
@@ -325,6 +326,15 @@ class IntrinsicCommandModule(initialName: String) : CommandModule() {
     override val isDeletable: Boolean get() = false
     init {
         name = initialName
+        isIntrinsic = true
+    }
+}
+
+class IntrinsicInputModule(initialName: String) : InputModule() {
+    override val isDeletable: Boolean get() = false
+    init {
+        name = initialName
+        isIntrinsic = true
     }
 }
 
@@ -332,6 +342,10 @@ class TrackPatchModule(name: String, val track: PatchTrack) : PatchModule(name, 
     override fun canDeleteChildModule(module: Module): Boolean {
         if (module === track.startCommandModule || module === track.stopCommandModule) return false
         if (module is CommandModule && (module.name == "start" || module.name == "stop")) return false
+        if (track.isBeatLine) {
+            if (module === track.tempoInputModule) return false
+            if (module is InputModule && module.name == "tempo") return false
+        }
         return super.canDeleteChildModule(module)
     }
 
@@ -364,8 +378,19 @@ class PatchTrack(
     var isPatchRunning by mutableStateOf(false)
         private set
 
+    val isBeatLine: Boolean
+        get() = timeline is BeatLineModule || timeline.type == "beatLine"
+
     private val fallbackStartMod by lazy { IntrinsicCommandModule("start") }
     private val fallbackStopMod by lazy { IntrinsicCommandModule("stop") }
+    private val fallbackTempoMod by lazy {
+        IntrinsicInputModule("tempo").apply {
+            defaultMin = 20.0
+            defaultMax = 300.0
+            val currentBpm = (timeline as? BeatLineModule)?.getTempoBpm() ?: 120.0
+            defaultValue = currentBpm
+        }
+    }
 
     val startCommandModule: CommandModule
         get() = patch.graphState.modules.filterIsInstance<CommandModule>().find { it.name == "start" }
@@ -374,6 +399,10 @@ class PatchTrack(
     val stopCommandModule: CommandModule
         get() = patch.graphState.modules.filterIsInstance<CommandModule>().find { it.name == "stop" }
             ?: fallbackStopMod
+
+    val tempoInputModule: InputModule?
+        get() = patch.graphState.modules.filterIsInstance<InputModule>().find { it.name == "tempo" }
+            ?: if (isBeatLine) fallbackTempoMod else null
 
     private val _mirroredOutputs = mutableStateListOf<OutputJack>()
     override val outputJacks: List<OutputJack> get() = _mirroredOutputs
@@ -403,6 +432,25 @@ class PatchTrack(
             patch.graphState.addModule(stopMod, Offset(20f, 80f))
         } else {
             stopMod.isIntrinsic = true
+        }
+
+        if (isBeatLine) {
+            var tempoMod = patch.graphState.modules.filterIsInstance<InputModule>().find { it.name == "tempo" }
+            if (tempoMod == null) {
+                tempoMod = IntrinsicInputModule("tempo").apply {
+                    defaultMin = 20.0
+                    defaultMax = 300.0
+                    val currentBpm = (timeline as? BeatLineModule)?.getTempoBpm() ?: 120.0
+                    defaultValue = currentBpm
+                }
+                patch.graphState.addModule(tempoMod, Offset(20f, 140f))
+            } else {
+                tempoMod.isIntrinsic = true
+                if (tempoMod.defaultMin == 0.0 && tempoMod.defaultMax == 100.0) {
+                    tempoMod.defaultMin = 20.0
+                    tempoMod.defaultMax = 300.0
+                }
+            }
         }
     }
 
@@ -535,7 +583,20 @@ class PatchTrack(
 
     fun startPatch() {
         isPatchRunning = true
+        if (isBeatLine) {
+            val bpm = (timeline as? BeatLineModule)?.getTempoBpm() ?: 120.0
+            onTempoChanged(Message.FloatValue(ScoreClock.now(), bpm))
+        }
         startCommandModule.receive(Message.FloatValue(ScoreClock.now(), 1.0))
+    }
+
+    override fun onTempoChanged(msg: Message) {
+        val mod = tempoInputModule ?: return
+        if (mod.patchJack != null) {
+            mod.patchJack?.receive(msg)
+        } else {
+            mod.receive(msg)
+        }
     }
 
     fun stopPatch() {

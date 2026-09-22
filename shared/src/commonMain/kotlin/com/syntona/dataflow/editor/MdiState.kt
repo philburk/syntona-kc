@@ -182,7 +182,6 @@ class MdiState {
         if (patch != null) {
             patch.isWindowOpen = true
             if (patch.parentPatch != null && patch.parentPatch?.graphState?.isDeserializing != true) {
-                patch.isModified = true
                 patch.parentPatch?.graphState?.markChanged()
                 FileState.documentFor(patch.graphState)?.markDirty()
             }
@@ -251,7 +250,6 @@ class MdiState {
             if (patch != null) {
                 patch.isWindowOpen = false
                 if (patch.parentPatch != null) {
-                    patch.isModified = true
                     patch.parentPatch?.graphState?.markChanged()
                     FileState.documentFor(patch.graphState)?.markDirty()
                 }

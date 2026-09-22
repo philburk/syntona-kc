@@ -2706,5 +2706,134 @@ class TimelineTrackTest {
 
         audioTrack.teardown()
     }
+
+    @Test
+    fun testBeatLinePatchTrackIntrinsicTempoModule() {
+        val beatLine = BeatLineModule()
+        val patchTrack = beatLine.addTrack(TrackType.PATCH, "BeatSynth") as PatchTrack
+
+        val tempoMod = patchTrack.tempoInputModule
+        assertNotNull(tempoMod, "PatchTrack on BeatLineModule should have tempoInputModule")
+        assertEquals("tempo", tempoMod.name)
+        assertTrue(tempoMod.isIntrinsic, "tempo module should be intrinsic")
+        assertFalse(tempoMod.isDeletable, "tempo module should not be deletable")
+        assertFalse(patchTrack.patch.canDeleteChildModule(tempoMod), "patch should not allow deleting tempo module")
+        assertEquals(120.0, tempoMod.defaultValue)
+        assertEquals(20.0, tempoMod.defaultMin)
+        assertEquals(300.0, tempoMod.defaultMax)
+    }
+
+    @Test
+    fun testTimelineModulePatchTrackNoTempoModule() {
+        val timeline = TimelineModule()
+        val patchTrack = timeline.addTrack(TrackType.PATCH, "TimeSynth") as PatchTrack
+
+        assertNull(patchTrack.tempoInputModule, "PatchTrack on TimelineModule should not have tempoInputModule")
+        assertNull(patchTrack.patch.graphState.modules.filterIsInstance<InputModule>().find { it.name == "tempo" })
+    }
+
+    @Test
+    fun testBeatLineTempoChangesForwardedToPatchTrack() {
+        val beatLine = BeatLineModule()
+        val patchTrack = beatLine.addTrack(TrackType.PATCH, "BeatSynth") as PatchTrack
+
+        val tempoMod = patchTrack.tempoInputModule
+        assertNotNull(tempoMod)
+
+        var receivedTempo = 0.0
+        tempoMod.output.connect(object : InputJack("spy", beatLine) {
+            override fun receive(msg: Message) {
+                if (msg is Message.FloatValue) receivedTempo = msg.value
+            }
+        })
+
+        // 1. Changing tempo via setValue
+        beatLine.tempo.setValue(145.0)
+        assertEquals(145.0, receivedTempo, "setValue on beatLine.tempo should forward to tempoMod.output")
+        assertEquals(145.0, tempoMod.patchJack?.getValue())
+
+        // 2. Changing tempo via Message.FloatValue
+        val testTime = ScoreTime(500_000_000L)
+        beatLine.tempo.receive(Message.FloatValue(testTime, 92.5))
+        assertEquals(92.5, receivedTempo, "FloatValue on beatLine.tempo should forward to tempoMod.output")
+        assertEquals(92.5, tempoMod.patchJack?.getValue())
+    }
+
+    @Test
+    fun testBeatLinePatchTrackStartPatchSendsCurrentTempoFirst() {
+        val beatLine = BeatLineModule()
+        beatLine.tempo.setValue(135.0)
+        val patchTrack = beatLine.addTrack(TrackType.PATCH, "BeatSynth") as PatchTrack
+
+        val eventOrder = mutableListOf<String>()
+        patchTrack.tempoInputModule!!.output.connect(object : InputJack("tempoSpy", beatLine) {
+            override fun receive(msg: Message) {
+                eventOrder.add("tempo:${(msg as? Message.FloatValue)?.value}")
+            }
+        })
+        patchTrack.startCommandModule.output.connect(object : InputJack("startSpy", beatLine) {
+            override fun receive(msg: Message) {
+                eventOrder.add("start")
+            }
+        })
+
+        patchTrack.startPatch()
+        assertEquals(listOf("tempo:135.0", "start"), eventOrder, "Tempo should be sent before start command")
+    }
+
+    @Test
+    fun testBeatLinePatchTrackSerializationPreservesTempoModuleAndConnections() {
+        val rootGraph = GraphState()
+        val beatLine = BeatLineModule()
+        rootGraph.addModule(beatLine, Offset(50f, 50f))
+
+        val patchTrack = beatLine.addTrack(TrackType.PATCH, "Synth") as PatchTrack
+        val tempoMod = patchTrack.tempoInputModule!!
+
+        val envCreator = ModuleRegistry.findCreator("ksyn.control.envDAHDSR") ?: ModuleRegistry.findCreator("envDAHDSR")
+        assertNotNull(envCreator)
+        val envMod = envCreator()
+        patchTrack.patch.graphState.addModule(envMod, Offset(200f, 100f))
+        val attackJack = envMod.inputs.find { it.name == "attack" }!!
+        patchTrack.patch.graphState.connect(tempoMod.output, attackJack)
+
+        beatLine.tempo.setValue(155.0)
+
+        // Serialize
+        val json = GraphSerializer.serialize(rootGraph, rootGraph.modules.toList())
+
+        // Deserialize
+        val newGraph = GraphState()
+        GraphSerializer.deserialize(newGraph, json)
+
+        val newBeatLine = newGraph.modules.filterIsInstance<BeatLineModule>().first()
+        assertEquals(155.0, newBeatLine.tempo.getValue())
+
+        val newPatchTrack = newBeatLine.tracks.filterIsInstance<PatchTrack>().first()
+        val tempoMods = newPatchTrack.patch.graphState.modules.filterIsInstance<InputModule>().filter { it.name == "tempo" }
+        assertEquals(1, tempoMods.size, "Should not duplicate tempo module on deserialize")
+
+        val loadedTempoMod = newPatchTrack.tempoInputModule
+        assertNotNull(loadedTempoMod)
+        assertTrue(loadedTempoMod.isIntrinsic)
+        assertFalse(loadedTempoMod.isDeletable)
+
+        val loadedEnvMod = newPatchTrack.patch.graphState.modules.find { it.name.contains("envDAHDSR") || it.type.contains("envDAHDSR") }!!
+        val loadedAttackJack = loadedEnvMod.inputs.find { it.name == "attack" }!!
+        assertTrue(
+            newPatchTrack.patch.graphState.connections.any { it.output === loadedTempoMod.output && it.input === loadedAttackJack },
+            "tempo module connection to attack jack should be restored"
+        )
+
+        // Verify changing tempo on restored beatLine forwards to connected module
+        var forwardedVal = 0.0
+        loadedTempoMod.output.connect(object : InputJack("spy", newBeatLine) {
+            override fun receive(msg: Message) {
+                if (msg is Message.FloatValue) forwardedVal = msg.value
+            }
+        })
+        newBeatLine.tempo.setValue(175.0)
+        assertEquals(175.0, forwardedVal)
+    }
 }
 

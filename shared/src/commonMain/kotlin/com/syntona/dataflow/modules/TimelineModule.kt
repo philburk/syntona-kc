@@ -434,6 +434,7 @@ class BeatLineModule : TimelineModule("beatLine") {
                 return
             }
             super.receive(msg)
+            tracks.forEach { it.onTempoChanged(msg) }
         }
     }).also {
         it.min = 20.0
