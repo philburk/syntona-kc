@@ -1,6 +1,6 @@
 {
-  "version": "0.7.8 beta",
-  "versionCode": 458760,
+  "version": "0.7.9 beta",
+  "versionCode": 458761,
   "modules": [
     {
       "id": 0,
@@ -628,6 +628,15 @@
           }
         ]
       }
+    },
+    {
+      "id": 5,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 160.9,
+      "y": 316,
+      "filePath": "tutorials/09_timeline/02_message_track.json",
+      "buttonText": ">> Next, 02_message_track"
     }
   ],
   "connections": [

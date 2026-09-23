@@ -1,0 +1,30 @@
+{
+  "version": "0.7.9 beta",
+  "versionCode": 458761,
+  "modules": [
+    {
+      "id": 0,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 107.7,
+      "y": 72.5,
+      "text": "The timeline and beatline modules can be used to arrange different kinds of information very precisely in time. A timeLine uses seconds for its horizontal axis. A beatLine uses beats and subdivisions of beats. Other than that they are very similar.\n\n A timeLine is somewhat like the multi-track recorder that is common in other music programs. The difference here is that it is a module that can be connected to other modules. Also, you can have multiple timeLines in a single piece. One timeLine can trigger another timeLine. and a timeLine can even contain a patch that contains other timeLines. So they are very flexible.",
+      "w": 533.7124,
+      "h": 227.11084
+    },
+    {
+      "id": 1,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 212,
+      "y": 331.1,
+      "filePath": "tutorials/09_timeline/01_trigger_track.json",
+      "buttonText": ">> Next, 01_trigger_track"
+    }
+  ],
+  "connections": [],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 800,
+  "windowHeight": 500
+}

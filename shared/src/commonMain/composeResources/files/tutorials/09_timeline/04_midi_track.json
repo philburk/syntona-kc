@@ -1,6 +1,6 @@
 {
-  "version": "0.7.8 beta",
-  "versionCode": 458760,
+  "version": "0.7.9 beta",
+  "versionCode": 458761,
   "modules": [
     {
       "id": 0,
@@ -8,9 +8,9 @@
       "name": "comment",
       "x": 55.6,
       "y": 38.7,
-      "text": "A MIDI track can record and playback Channel voice messages. These messages might be coming from the midi keyboard or ASCII keyboard or even an algorithmic process. The messages may include note on off, pitch bend, control change or channel pressure. \n\nIn this example, we are using a keynotes module, but you could use a  midiIn if you have a MIDI keyboard handy.\n\nTo Do:\n* Press the \"I\" button to enable Input monitoring.\n* Press the \"R\" button on the MIDI track to arm it for recording.\n* Press the red record button at the top of the timeline.\n* Play some notes by hitting keys and then click on the stop button.\n* Press Rewind and Start to play back the notes. ",
-      "w": 644.3475,
-      "h": 235.62244
+      "text": "A MIDI track can record and playback Channel voice messages. These messages might be coming from the midi keyboard or ASCII keyboard or even an algorithmic process. The messages may include note on off, pitch bend, control change or channel pressure. \n\nIn this example, we are using a keynotes module, but you could use a  midiIn if you have a MIDI keyboard handy.\n\nTo Do:\n* Press the \"I\" button to enable Input monitoring.\n* Press Rewind to go to the beginning.\n* Press the \"R\" button on the MIDI track to arm it for recording.\n* Press the red record button at the top of the timeline.\n* Play some notes by hitting keys and then click on the stop button.\n* Press Rewind and Start to play back the notes. \n* Double click the recorder region header open the note editor.",
+      "w": 670.2957,
+      "h": 297.44568
     },
     {
       "id": 1,
@@ -39,8 +39,8 @@
       "id": 2,
       "type": "music.compose.beatLine",
       "name": "beatLine",
-      "x": 126.5,
-      "y": 364.6,
+      "x": 124.5,
+      "y": 419.6,
       "jacks": {
         "tempo": {
           "v": 120,
@@ -60,7 +60,7 @@
       "loopEnd": 13.5,
       "loopMode": false,
       "zoom": 1,
-      "seekTime": 17.875088834,
+      "seekTime": 0,
       "triggers": [],
       "tracks": [
         {

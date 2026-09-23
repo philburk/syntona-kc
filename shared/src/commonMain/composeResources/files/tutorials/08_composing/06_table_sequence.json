@@ -1,6 +1,6 @@
 {
-  "version": "0.7.8 beta",
-  "versionCode": 458760,
+  "version": "0.7.9 beta",
+  "versionCode": 458761,
   "modules": [
     {
       "id": 0,
@@ -603,7 +603,7 @@
       "y": 303,
       "jacks": {
         "pitch": {
-          "v": 67.02,
+          "v": 72,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -637,7 +637,7 @@
       "y": 456,
       "jacks": {
         "in": {
-          "v": 55,
+          "v": 167,
           "min": 0,
           "max": 100,
           "kickable": true
@@ -677,7 +677,6 @@
           "kickable": false
         },
         "in2": {
-          "v": 64,
           "min": 0,
           "max": 100,
           "kickable": false
@@ -708,7 +707,7 @@
           "kickable": false
         },
         "index": {
-          "v": 1,
+          "v": 5,
           "min": 0,
           "max": 7,
           "kickable": true,
@@ -716,6 +715,15 @@
         }
       },
       "stepValues": ["60.0", "67.02", "64.0", "62.0", "69.0", "72.0", "67.0", "60.0"]
+    },
+    {
+      "id": 10,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 277.9,
+      "y": 234,
+      "filePath": "tutorials/09_timeline/00_timeline_overview.sntn",
+      "buttonText": ">> Next, 00_timeline_overview"
     }
   ],
   "connections": [

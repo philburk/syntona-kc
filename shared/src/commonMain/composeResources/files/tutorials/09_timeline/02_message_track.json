@@ -1,6 +1,6 @@
 {
-  "version": "0.7.8 beta",
-  "versionCode": 458760,
+  "version": "0.7.9 beta",
+  "versionCode": 458761,
   "modules": [
     {
       "id": 0,
@@ -8,7 +8,7 @@
       "name": "comment",
       "x": 30.5,
       "y": 16.9,
-      "text": "A Message Track can be used to record any regular Syntona messages that have a value. These might be coming from a fader or from some algorithmic process. A Message track has an input and an output jack. So you can record information and then play it back through the out jack. \n\nTo Do:\n* Click on the \"+Track\" button and select Message Track.\n* Connect the knob to the \"in1\" jack on the new Message Track.\n* Connect the  \"out1\" port from the Message Track to the A port on the \"+\" module.\n* Press the \"I\" button on the message track. The \"I\" button is to enable input monitoring for the track. You can play through the track in and practice before you record. \n* Move the fader up and down and hear its effect on the output sound. \n* Click Rewind to move to the beginning.\n* Click the \"R\" button to arm the track for recording.\n* Press the red record button at the top of the timeline. Then move the fader.\n* Press the stop button on the timeline \n* Press the Rewind then the Start button and notice that your recorded values are being played back. \n",
+      "text": "A Message Track can be used to record any regular Syntona messages that have a value. These might be coming from a fader or from some algorithmic process. A Message track has an input and an output jack. So you can record information and then play it back through the out jack. \n\nTo Do:\n* Click on the \"+Track\" button and select Message Track.\n* Connect the knob to the \"in1\" jack on the new Message Track.\n* Connect the  \"out1\" port from the Message Track to the A port on the \"+\" module.\n* Press the \"I\" button on the message track. The \"I\" button is to enable input monitoring for the track. You can play through the track in and practice before you record. \n* Move the fader up and down and hear its effect on the output sound. \n* Click Rewind to move to the beginning.\n* Click the \"R\" button to arm the track for recording.\n* Press the red record button at the top of the timeline. Then move the fader.\n* Press the Stop button on the timeline \n* Press the Rewind then the Start button and notice that your recorded values are being played back. \n",
       "w": 834.4038,
       "h": 302.9624
     },
@@ -153,6 +153,15 @@
           "kickable": true
         }
       }
+    },
+    {
+      "id": 7,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 271.9,
+      "y": 347,
+      "filePath": "tutorials/09_timeline/03_patch_track.json",
+      "buttonText": ">> Next, 03_patch_track"
     }
   ],
   "connections": [
