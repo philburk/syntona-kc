@@ -1,6 +1,6 @@
 {
-  "version": "0.7.8 beta",
-  "versionCode": 458760,
+  "version": "0.7.11 beta",
+  "versionCode": 458763,
   "type": "core.polyPatch",
   "maxVoices": 6,
   "windowX": 37.125,
@@ -266,8 +266,8 @@
         "id": 9,
         "type": "ksyn.sources.sineOsc",
         "name": "sineOsc",
-        "x": 543.9,
-        "y": 307,
+        "x": 527.9,
+        "y": 359,
         "jacks": {
           "frequency": {
             "v": 440,
@@ -289,8 +289,8 @@
         "id": 10,
         "type": "ksyn.math.*~",
         "name": "mult",
-        "x": 464.9,
-        "y": 263,
+        "x": 400.9,
+        "y": 309,
         "jacks": {
           "inA": {
             "v": 0,
@@ -310,26 +310,6 @@
       },
       {
         "id": 11,
-        "type": "core.input.knob",
-        "name": "mcRatio",
-        "x": 353.9,
-        "y": 269.9,
-        "jacks": {
-          "kick": {
-            "min": 0,
-            "max": 100,
-            "kickable": true
-          },
-          "in": {
-            "v": 2.0077428817749023,
-            "min": 0,
-            "max": 10,
-            "kickable": false
-          }
-        }
-      },
-      {
-        "id": 12,
         "type": "core.math.+",
         "name": "+",
         "x": 182.9,
@@ -349,7 +329,7 @@
         }
       },
       {
-        "id": 13,
+        "id": 12,
         "type": "core.input.comment",
         "name": "comment",
         "x": 247.9,
@@ -359,7 +339,7 @@
         "h": 56.875
       },
       {
-        "id": 14,
+        "id": 13,
         "type": "core.math.pitchToHz",
         "name": "pitchToHz",
         "x": 284,
@@ -374,7 +354,7 @@
         }
       },
       {
-        "id": 15,
+        "id": 14,
         "type": "core.input",
         "name": "depth",
         "x": 41.9,
@@ -384,6 +364,21 @@
             "v": 1.8,
             "min": 0,
             "max": 8,
+            "kickable": false
+          }
+        }
+      },
+      {
+        "id": 15,
+        "type": "core.input",
+        "name": "mcRatio",
+        "x": 43,
+        "y": 432.9,
+        "jacks": {
+          "mcRatio": {
+            "v": 2.0077428817749023,
+            "min": 0,
+            "max": 10,
             "kickable": false
           }
         }
@@ -427,19 +422,13 @@
         "toJack": "frequency"
       },
       {
-        "from": 11,
-        "fromJack": "out",
-        "to": 10,
-        "toJack": "inB"
-      },
-      {
         "from": 4,
         "fromJack": "out",
-        "to": 12,
+        "to": 11,
         "toJack": "A"
       },
       {
-        "from": 12,
+        "from": 11,
         "fromJack": "out",
         "to": 7,
         "toJack": "amplitude"
@@ -447,17 +436,17 @@
       {
         "from": 2,
         "fromJack": "out",
-        "to": 14,
+        "to": 13,
         "toJack": "in"
       },
       {
-        "from": 14,
+        "from": 13,
         "fromJack": "out",
         "to": 8,
         "toJack": "frequency"
       },
       {
-        "from": 14,
+        "from": 13,
         "fromJack": "out",
         "to": 10,
         "toJack": "inA"
@@ -487,10 +476,16 @@
         "toJack": "in"
       },
       {
+        "from": 14,
+        "fromJack": "out",
+        "to": 11,
+        "toJack": "B"
+      },
+      {
         "from": 15,
         "fromJack": "out",
-        "to": 12,
-        "toJack": "B"
+        "to": 10,
+        "toJack": "inB"
       }
     ]
   }
