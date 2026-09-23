@@ -845,4 +845,28 @@ class SourceExporterTest {
         assertTrue(code.contains("chebyshevOsc.order = 5"), code)
         assertTrue(code.contains("chebyshevOsc.drive.setup("), code)
     }
+
+    @Test
+    fun testExportAllocatesDelayBuffers() {
+        // A delay line is silent until allocated, and allocate() resets the delay port's
+        // maximum, so it must be written before the port limits.
+        val patch = PatchModule("echo")
+        val delayMod = com.syntona.dataflow.registry.ModuleRegistry.findCreator("delay~")!!.invoke()
+        val outMod = AudioOutputModule()
+        outMod.name = "audioOut"
+        patch.graphState.addModule(delayMod, androidx.compose.ui.geometry.Offset.Zero)
+        patch.graphState.addModule(outMod, androidx.compose.ui.geometry.Offset.Zero)
+        patch.graphState.connect(delayMod.outputs.first { it.name == "out" }, outMod.input)
+
+        val frames = com.syntona.dataflow.registry.ModuleRegistry.DELAY_BUFFER_FRAMES
+        for ((language, code) in listOf(
+            "KSyn" to KSynSourceExporter.export(patch, "Echo"),
+            "JSyn" to JSynSourceExporter.export(patch, "Echo")
+        )) {
+            val allocateAt = code.indexOf(".allocate($frames)")
+            val limitsAt = code.indexOf("// Port limits and default values")
+            assertTrue(allocateAt >= 0, "$language export never allocates the delay:\n$code")
+            assertTrue(allocateAt < limitsAt, "$language allocates after the port limits:\n$code")
+        }
+    }
 }

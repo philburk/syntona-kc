@@ -9,6 +9,9 @@ import com.syntona.dataflow.modules.*
  */
 object ModuleRegistry {
 
+    /** Size of every delay~ buffer: 2 seconds at 48 kHz. Exported source uses it too. */
+    const val DELAY_BUFFER_FRAMES = 48000 * 2
+
     val ksynFactories = mutableMapOf<String, () -> UnitGenerator>()
     val ksynClassFactories = mutableMapOf<kotlin.reflect.KClass<out UnitGenerator>, () -> UnitGenerator>()
 
@@ -493,12 +496,11 @@ object ModuleRegistry {
 
         val effects = getOrCreateBundle(ksyn, "effects")
         addKSynModule(effects, "phaseShifter", ::PhaseShifter)
-        ksynFactories["delay~"] = ::InterpolatingDelay
-        effects.modules.add(ModuleEntry("delay~") {
-            val delay = InterpolatingDelay()
-            delay.allocate(48000 * 2)
-            UnitGeneratorModule("delay~", delay)
-        })
+        // One factory for the palette and for polyPatch voices, which are rebuilt from
+        // ksynFactories. A delay that is never allocated outputs silence.
+        val delayFactory = { InterpolatingDelay().apply { allocate(DELAY_BUFFER_FRAMES) } }
+        ksynFactories["delay~"] = delayFactory
+        effects.modules.add(ModuleEntry("delay~") { UnitGeneratorModule("delay~", delayFactory()) })
         addKSynModule(effects, "pan", ::Pan)
         addKSynModule(effects, "plateReverb", ::PlateReverb)
         addKSynModule(effects, "roomReverb", ::RoomReverb)

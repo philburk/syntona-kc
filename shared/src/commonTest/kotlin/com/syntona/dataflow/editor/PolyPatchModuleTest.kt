@@ -1441,5 +1441,34 @@ class PolyPatchModuleTest {
             testScope.cancel()
         }
     }
+
+    @Test
+    fun testDelayInVoicesHasABuffer() = kotlinx.coroutines.runBlocking {
+        // Voices are rebuilt from ModuleRegistry.ksynFactories, not copied from the template, so
+        // a delay whose buffer is only allocated by the palette entry was silent in every voice.
+        val polyPatch = PolyPatchModule()
+        polyPatch.initializeVoices(2)
+
+        val template = com.syntona.dataflow.registry.ModuleRegistry.findCreator("delay~")!!.invoke()
+        polyPatch.graphState.addModule(template, androidx.compose.ui.geometry.Offset.Zero)
+
+        val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
+        val delays = polyPatch.voices.map { voice ->
+            val voiceModule = assertIs<UnitGeneratorModule>(voice.templateToVoiceMap[template])
+            assertIs<com.softsynth.ksyn.unitgen.InterpolatingDelay>(voiceModule.unit).also {
+                it.input.set(1.0)
+                it.delay.set(0.0)
+            }
+        }
+        // Port values set while the engine runs are applied on the audio thread.
+        engine.generateNextBuffer()
+
+        for (delay in delays) {
+            // With zero delay an allocated delay line passes its input straight through;
+            // an unallocated one returns without writing anything.
+            delay.generate()
+            assertEquals(1.0f, delay.output.getValues()[0], "delay in a voice produced no output")
+        }
+    }
 }
 

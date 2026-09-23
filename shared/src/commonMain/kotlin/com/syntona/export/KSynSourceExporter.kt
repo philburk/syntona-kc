@@ -369,6 +369,17 @@ object KSynSourceExporter {
         }
         sb.appendLine()
 
+        // A delay line outputs silence until it has a buffer. allocate() also resets the delay
+        // port's maximum, so it has to come before the port limits below.
+        val delayUnits = unitMap.filterKeys { it.unit is InterpolatingDelay }.values
+        if (delayUnits.isNotEmpty()) {
+            sb.appendLine("        // Delay buffers")
+            for (info in delayUnits) {
+                sb.appendLine("        ${info.varName}.allocate(${ModuleRegistry.DELAY_BUFFER_FRAMES})")
+            }
+            sb.appendLine()
+        }
+
         // Configure input port settings (setup min/value/max and isValueAdded)
         sb.appendLine("        // Port limits and default values")
         for ((module, info) in unitMap) {

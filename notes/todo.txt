@@ -9,7 +9,20 @@ Need repro steps.
 
 Label wire outputs with order (1) (2)
 
+Add Granular synthesis.
+
+Add Asset Manager that can Zip WAV files in a ZIP.
+
+Try to save a native signed version.
+
 choose module and choose(4) in the f(x)
+
+A seq8 with numeric fields or knobs or horizontal faders that can be swept quickly to make a shape.
+
+Move mixers to their own bundle.
+Add Mute and Solo buttons to the mixers.
+Maybe add a MixerSend and then have a separate mixer panel separate from the dataflow.
+That will be useful if we support a more DAW-like interface.,
 
 Composing Tutorial
 * oneShot
@@ -17,20 +30,12 @@ Composing Tutorial
 * using done jacks
 
 TimeLine and BeatLine Tutorial
-* Adding and using Triggers
-* Add and edit a Message Track
-* Add and edit a MIDI Track
-* drag aliased loops
 * Add an Audio Track, drag copy, punch in
-* Increase song time, zoom in and out
 
-Try to save a native signed version.
 
 # ----------------------------------------------- HIGH PRIORITY
 
 Better mapping of velocity to amplitude. Different curves in MIDI Settings.
-
-Add Asset Manager that can Zip WAV files in a ZIP.
 
 Move polyPatch into ksyn.patches bundle.
 
@@ -58,19 +63,15 @@ section aren't heard until the next cycle; old WAV files are never deleted.
 
 Add a "normalize sample" function to the sample and recorder module menu.
 
-Add a monitor[X] on the recorder module so we can hear the incoming signal.
-
-For timeLine DAW:
+For beatLine DAW:
 Support quantization based on tempo, save original content for requantization.
 
 Add GitHub CI in YAML that runs a bunch of the JVM desktop tests every time I commit code or submit a pull request.
 
-A seq8 with numeric fields or knobs or horizontal faders that can be swept quickly to make a shape.
 
 Convert Syntona timestamps to KSyn timestamps and apply small "advance-time" for jitter reduction.
 
 The orange MIDI jacks and the yellow SequentialData jacks look too similar.
-
 
 A module similar to the stepper that fires all values immediately when kicked.
 No "looping" start or stop jack.
@@ -169,14 +170,8 @@ Change keyboard13 so we can drag between notes for legato sweeps. ON/ON/OFF/OFF.
 
 Maybe be able to click on wires to select and disconnect by BACKSPACE.
 
-Move mixers to their own bundle.
-Maybe add a MixerSend and then have a separate mixer panel separate from the dataflow.
-That will be useful if we support a more DAW-like interface.,
-
 Seq8 should support feedback cycle.
 seq16
-
-Add Granular synthesis.
 
 Add Gaussian distribution and histogram.
 
