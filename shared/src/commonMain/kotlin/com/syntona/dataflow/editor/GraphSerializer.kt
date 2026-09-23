@@ -42,6 +42,7 @@ import com.syntona.dataflow.modules.ModuloSelectModule
 import com.syntona.dataflow.modules.EquationModule
 import com.syntona.dataflow.modules.ScaleModule
 import com.syntona.dataflow.modules.BeatClockModule
+import com.syntona.dataflow.modules.ChebyshevOscModule
 import com.syntona.dataflow.modules.TimelineModule
 import com.syntona.dataflow.modules.TrackSection
 import com.syntona.dataflow.modules.TrackType
@@ -359,6 +360,9 @@ object GraphSerializer {
             }
             if (module is BeatClockModule) {
                 append(",\"division\":\"${module.division.jsonEscape}\"")
+            }
+            if (module is ChebyshevOscModule) {
+                append(",\"order\":${module.order}")
             }
             if (module is TimelineModule) {
                 append(",\"width\":${module.width}")
@@ -786,6 +790,9 @@ object GraphSerializer {
                         BeatClockModule.normalizeDivision(rawDiv)
                     }
                 }
+            }
+            if (module is ChebyshevOscModule) {
+                (obj?.map?.get("order") as? JsonValue.Num)?.value?.let { module.order = it.toInt() }
             }
             if (module is TimelineModule) {
                 (obj?.map?.get("width") as? JsonValue.Num)?.value?.let { module.width = it }

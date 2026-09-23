@@ -186,6 +186,7 @@ object ModuleRegistry {
         "impulse" to "single-sample impulse click generator",
         "impulseBL" to "band-limited impulse train generator",
         "morphOscBL" to "oscillator that changes from sine to sawtooth to pulse",
+        "chebyshevOsc" to "sine wave shaped by a Chebyshev polynomial; drive sets the brightness",
         "pulseOsc" to "variable pulse width oscillator",
         "pulseOscBL" to "band-limited variable pulse width oscillator",
         "whiteNoise" to "white noise random audio generator",
@@ -428,6 +429,11 @@ object ModuleRegistry {
         addKSynModule(sources, "impulse", ::ImpulseOscillator)
         addKSynModule(sources, "impulseBL", ::ImpulseOscillatorBL)
         addKSynModule(sources, "morphOscBL", ::MorphingOscillatorBL)
+        // Registered by hand rather than with addKSynModule, which would build a plain
+        // UnitGeneratorModule without the polynomial order menu.
+        ksynFactories[ChebyshevOscModule.TYPE_NAME] = ::ChebyshevOscillator
+        ksynClassFactories[ChebyshevOscillator::class] = ::ChebyshevOscillator
+        sources.modules.add(ModuleEntry(ChebyshevOscModule.TYPE_NAME) { ChebyshevOscModule() })
         addKSynModule(sources, "pulseOsc", ::PulseOscillator)
         addKSynModule(sources, "pulseOscBL", ::PulseOscillatorBL)
         addKSynModule(sources, "whiteNoise", ::WhiteNoise)

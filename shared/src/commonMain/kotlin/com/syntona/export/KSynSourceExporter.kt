@@ -14,6 +14,7 @@ import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.modules.AudioInputModule
 import com.syntona.dataflow.modules.AudioOutputModule
 import com.syntona.dataflow.modules.AudioOutput2Module
+import com.syntona.dataflow.modules.ChebyshevOscModule
 import com.syntona.dataflow.modules.EnvSegModule
 import com.syntona.dataflow.modules.FaderModule
 import com.syntona.dataflow.modules.InputModule
@@ -401,6 +402,12 @@ object KSynSourceExporter {
             val valAmp = SourceExporter.formatDouble(module.amplitude.getValue())
             val maxAmp = SourceExporter.formatDouble(module.amplitude.max)
             sb.appendLine("        ${info.readerVarName}.amplitude.setup($minAmp, $valAmp, $maxAmp)")
+        }
+        // Settings chosen from a menu rather than a jack, so the port loop above misses them.
+        for ((module, info) in unitMap) {
+            if (module is ChebyshevOscModule) {
+                sb.appendLine("        ${info.varName}.order = ${module.order}")
+            }
         }
         sb.appendLine()
 

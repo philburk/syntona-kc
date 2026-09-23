@@ -150,6 +150,8 @@ import com.syntona.dataflow.modules.MatchControlSequentialModule
 import com.syntona.dataflow.modules.MatchNoteOnModule
 import com.syntona.dataflow.modules.MatchNoteOnSequentialModule
 import com.syntona.dataflow.modules.BeatClockModule
+import com.syntona.dataflow.modules.ChebyshevOscModule
+import com.softsynth.ksyn.unitgen.ChebyshevOscillator
 import com.syntona.dataflow.modules.BeatLineModule
 import com.syntona.dataflow.modules.TimelineBeatUtils
 import com.syntona.dataflow.modules.TimelineModule
@@ -1232,70 +1234,29 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color? = null, la
             // Jacks: inputs at top, outputs at bottom, single column
             module.inputs.forEach { JackView(it, state, isLeft = true) }
             if (module is BeatClockModule) {
-                HorizontalDivider(color = Color.Black, thickness = 1.dp)
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp, vertical = 4.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "kicks/beat",
-                        color = Color.Gray,
-                        fontSize = 10.sp
+                ModuleOptionDropdown(
+                    caption = "kicks/beat",
+                    selected = module.division,
+                    options = listOf(
+                        "1:4", "1:2", "1:1", "2:1", "4:1", "8:1", "16:1", "32:1",
+                        "1:3", "8:3", "16:3",
+                        "3:1", "6:1", "12:1",
+                        "5:1", "10:1"
                     )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Box(
-                        contentAlignment = Alignment.Center
-                    ) {
-                        var expanded by remember { mutableStateOf(false) }
-                        Box(
-                            modifier = Modifier
-                                .border(1.dp, Color.Gray, RoundedCornerShape(4.dp))
-                                .background(Color(0xFFE0E0E0))
-                                .clickable { expanded = true }
-                                .padding(horizontal = 12.dp, vertical = 4.dp)
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                Text(
-                                    text = module.division,
-                                    color = Color.Black,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
-                                DropdownArrow(
-                                    color = Color.Gray,
-                                    size = 7.dp
-                                )
-                            }
-                        }
-                        androidx.compose.material3.DropdownMenu(
-                            expanded = expanded,
-                            onDismissRequest = { expanded = false }
-                        ) {
-                            val divisions = listOf(
-                                "1:4", "1:2", "1:1", "2:1", "4:1", "8:1", "16:1", "32:1",
-                                "1:3", "8:3", "16:3",
-                                "3:1", "6:1", "12:1",
-                                "5:1", "10:1"
-                            )
-                            divisions.forEach { div ->
-                                androidx.compose.material3.DropdownMenuItem(
-                                    text = { Text(div, fontSize = 12.sp) },
-                                    onClick = {
-                                        module.division = div
-                                        FileState.markDirty()
-                                        expanded = false
-                                    },
-                                    modifier = Modifier.height(28.dp),
-                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
-                                )
-                            }
-                        }
-                    }
+                ) { div ->
+                    module.division = div
+                    FileState.markDirty()
+                }
+            }
+            if (module is ChebyshevOscModule) {
+                ModuleOptionDropdown(
+                    caption = "order",
+                    selected = module.order,
+                    options = ChebyshevOscillator.ORDERS
+                ) { order ->
+                    module.order = order
+                    state.markChanged()
+                    FileState.markDirty()
                 }
             }
             if (module !is TimelineModule) {
@@ -1303,6 +1264,85 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color? = null, la
                     HorizontalDivider(color = Color.Black, thickness = 1.dp)
                 }
                 module.outputs.forEach { JackView(it, state, isLeft = false) }
+            }
+        }
+    }
+}
+
+/**
+ * A captioned choice drawn inside a module node below its input jacks, such as the beatClock's
+ * kicks per beat. Shows the [selected] option and opens a menu of [options] when clicked.
+ *
+ * Sized like a jack row, with the caption beside the button, so it costs one line of height.
+ */
+@Composable
+private fun <T> ModuleOptionDropdown(
+    caption: String,
+    selected: T,
+    options: List<T>,
+    optionLabel: (T) -> String = { it.toString() },
+    onSelect: (T) -> Unit
+) {
+    HorizontalDivider(color = Color.Black, thickness = 1.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 6.dp, end = 4.dp, top = 1.dp, bottom = 1.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = caption,
+            color = Color.Gray,
+            fontSize = 10.sp,
+            lineHeight = 10.sp
+        )
+        Spacer(modifier = Modifier.width(6.dp))
+        Box(
+            contentAlignment = Alignment.Center
+        ) {
+            var expanded by remember { mutableStateOf(false) }
+            Box(
+                modifier = Modifier
+                    .height(14.dp)
+                    .border(1.dp, Color.Gray, RoundedCornerShape(3.dp))
+                    .background(Color(0xFFE0E0E0))
+                    .clickable { expanded = true }
+                    .padding(horizontal = 5.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    Text(
+                        text = optionLabel(selected),
+                        color = Color.Black,
+                        fontSize = 10.sp,
+                        lineHeight = 10.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    DropdownArrow(
+                        color = Color.Gray,
+                        size = 6.dp
+                    )
+                }
+            }
+            androidx.compose.material3.DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                options.forEach { option ->
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text(optionLabel(option), fontSize = 12.sp) },
+                        onClick = {
+                            onSelect(option)
+                            expanded = false
+                        },
+                        modifier = Modifier.height(28.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                    )
+                }
             }
         }
     }

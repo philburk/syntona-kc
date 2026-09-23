@@ -25,8 +25,15 @@ dependencyResolutionManagement {
                 includeGroupAndSubgroups("com.google")
             }
         }
+        // Local first, so a KSyn or audio-bridge build published with publishToMavenLocal
+        // is used before a release of the same version on Maven Central. Limited to our own
+        // libraries, so a stale copy of anything else in ~/.m2 is never picked up.
+        mavenLocal {
+            mavenContent {
+                includeGroupAndSubgroups("com.softsynth")
+            }
+        }
         mavenCentral()
-        mavenLocal()
     }
 }
 

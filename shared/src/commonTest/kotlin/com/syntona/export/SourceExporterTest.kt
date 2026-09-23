@@ -9,6 +9,7 @@ import com.syntona.dataflow.model.AutoDisableVoiceMode
 import com.syntona.dataflow.modules.AudioInputModule
 import com.syntona.dataflow.modules.AudioOutputModule
 import com.syntona.dataflow.modules.AudioOutput2Module
+import com.syntona.dataflow.modules.ChebyshevOscModule
 import com.syntona.dataflow.modules.FaderModule
 import com.syntona.dataflow.modules.InputModule
 import com.syntona.dataflow.modules.KnobModule
@@ -824,5 +825,24 @@ class SourceExporterTest {
         assertTrue(jsynCode.contains("public UnitOutputPort output;"), "JSyn must declare output port:\n$jsynCode")
         assertTrue(jsynCode.contains("output = twoInDualOut.output;"), "JSyn must assign output port:\n$jsynCode")
         assertTrue(jsynCode.contains("addPort(output, \"output\");"), "JSyn must add output port:\n$jsynCode")
+    }
+
+    @Test
+    fun testKSynExportKeepsChebyshevOrder() {
+        // The order is picked from a menu, not a jack, so it has to be written out explicitly
+        // or the exported oscillator would fall back to its default.
+        val patch = PatchModule("cheby")
+        val oscMod = ChebyshevOscModule()
+        oscMod.order = 5
+        val outMod = AudioOutputModule()
+        outMod.name = "audioOut"
+        patch.graphState.addModule(oscMod, androidx.compose.ui.geometry.Offset.Zero)
+        patch.graphState.addModule(outMod, androidx.compose.ui.geometry.Offset.Zero)
+        patch.graphState.connect(oscMod.outputs.first { it.name == "out" }, outMod.input)
+
+        val code = KSynSourceExporter.export(patch, "ChebyVoice")
+        assertTrue(code.contains("private val chebyshevOsc = ChebyshevOscillator()"), code)
+        assertTrue(code.contains("chebyshevOsc.order = 5"), code)
+        assertTrue(code.contains("chebyshevOsc.drive.setup("), code)
     }
 }

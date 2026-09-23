@@ -2,6 +2,7 @@ examples/basic_sequence.json
 examples/drum_rhythm.json
 examples/etude_001.json
 examples/filter_bank_delay.json
+examples/fm_experiments.json
 examples/glow_flash.json
 examples/keyNotes.json
 examples/key_control.json
@@ -40,6 +41,7 @@ help/ksyn/data/sample.json
 help/music/compose/scale.json
 help/music/input/keyboard13.json
 help/music/input/pianoRoll.json
+instruments/chebyshevOrgan.json
 instruments/minimalSaw.json
 instruments/sawBasic.json
 instruments/sawLowPass.json

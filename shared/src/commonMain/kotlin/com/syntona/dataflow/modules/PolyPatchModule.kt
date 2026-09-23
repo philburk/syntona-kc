@@ -838,6 +838,15 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
             is ScaleModule -> {
                 ScaleModule(templateModule.name, templateModule.isEditable, templateModule.scaleDegrees.copyOf())
             }
+            // Must come before UnitGeneratorModule, whose branch rebuilds a plain module from the
+            // unit factory and would silently drop the order chosen in the menu.
+            is ChebyshevOscModule -> {
+                ChebyshevOscModule().apply {
+                    name = templateModule.name
+                    order = templateModule.order
+                    autoDisableVoice = templateModule.autoDisableVoice
+                }
+            }
             is UnitGeneratorModule -> {
                 val resolvedType = ModuleRegistry.resolveLegacyTypeName(templateModule.type)
                 val factory = ModuleRegistry.ksynFactories[templateModule.type]
@@ -886,6 +895,14 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
         for (voice in voices) {
             val voiceMod = voice.templateToVoiceMap[templateMod] as? EnvSegModule ?: continue
             voiceMod.envelope = newEnvelope
+        }
+    }
+
+    fun syncChebyshevOrder(templateMod: ChebyshevOscModule, order: Int) {
+        if (!isInitialized) return
+        for (voice in voices) {
+            val voiceMod = voice.templateToVoiceMap[templateMod] as? ChebyshevOscModule ?: continue
+            voiceMod.order = order
         }
     }
 
