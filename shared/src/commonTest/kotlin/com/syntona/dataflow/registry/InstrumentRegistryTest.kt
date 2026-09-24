@@ -112,26 +112,35 @@ class InstrumentRegistryTest {
             val twoOpFM = twoOpEntry.creator() as PolyPatchModule
             assertTrue(twoOpFM.isInitialized)
 
-            // Check template mcRatio knob value
-            val mcRatioKnob = twoOpFM.graphState.modules.find { it.name == "mcRatio" } as? com.syntona.dataflow.modules.KnobModule
-            assertNotNull(mcRatioKnob)
-            assertEquals(2.0077, mcRatioKnob.value, 1e-3)
+            // Check template mcRatio input module default value
+            val mcRatioInput = twoOpFM.graphState.modules.find { it.name == "mcRatio" } as? com.syntona.dataflow.modules.InputModule
+            assertNotNull(mcRatioInput)
+            assertEquals(2.0077, mcRatioInput.defaultValue, 1e-3)
 
-            // Check voice 0 mcRatio and a* multiplier inputb
+            // Check the external mcRatio jack on the instrument
+            val mcRatioJack = twoOpFM.inputs.find { it.name == "mcRatio" }
+            assertNotNull(mcRatioJack, "twoOpFM should expose an mcRatio input jack")
+            assertEquals(2.0077, mcRatioJack.getValue(), 1e-3)
+
+            // Check voice 0 has a copy of the mcRatio input module
             val voice0 = twoOpFM.voices[0]
-            val voiceMcRatio = voice0.templateToVoiceMap[mcRatioKnob] as? com.syntona.dataflow.modules.KnobModule
+            val voiceMcRatio = voice0.templateToVoiceMap[mcRatioInput] as? com.syntona.dataflow.modules.InputModule
             assertNotNull(voiceMcRatio)
-            assertEquals(2.0077, voiceMcRatio.value, 1e-3)
 
-            // Check connection from mcRatio knob to target module in graph
-            val mcRatioConn = twoOpFM.graphState.connections.find { it.output.module === mcRatioKnob }
+            // Check connection from mcRatio input to target module in graph
+            val mcRatioConn = twoOpFM.graphState.connections.find { it.output.module === mcRatioInput }
             assertNotNull(mcRatioConn, "Connection from mcRatio should exist in twoOpFM")
             val targetMod = mcRatioConn.input.module
             val voiceTargetMod = voice0.templateToVoiceMap[targetMod]
             assertNotNull(voiceTargetMod, "Voice target module should exist in voice0")
             val voiceTargetInJack = voiceTargetMod.inputs.find { it.name == mcRatioConn.input.name }
             assertNotNull(voiceTargetInJack)
-            assertEquals(2.0077, voiceTargetInJack.getValue(), 1e-3)
+
+            // Sending a value to the mcRatio jack should propagate to the voice target
+            mcRatioJack.receive(
+                com.syntona.dataflow.model.Message.FloatValue(com.syntona.core.model.ScoreTime.Zero, 3.5)
+            )
+            assertEquals(3.5, voiceTargetInJack.getValue(), 1e-3)
 
             // Send a NoteOn message and verify voice 0 handles it
             twoOpFM.voiceInputJack.receive(
