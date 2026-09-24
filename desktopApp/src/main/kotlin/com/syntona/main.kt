@@ -32,21 +32,26 @@ fun main() {
     System.setProperty("apple.awt.application.name", "Syntona")
     application {
         if (java.awt.Desktop.isDesktopSupported()) {
-        val desktop = java.awt.Desktop.getDesktop()
-        if (desktop.isSupported(java.awt.Desktop.Action.APP_QUIT_HANDLER)) {
-            desktop.setQuitHandler { _, response ->
-                // Every open document is at stake when quitting, not just the frontmost one.
-                if (FileState.hasAnyUnsavedWork) {
-                    response.cancelQuit()
-                    FileState.requestIfAnyDirty {
-                        exitApplication()
+            val desktop = java.awt.Desktop.getDesktop()
+            if (desktop.isSupported(java.awt.Desktop.Action.APP_QUIT_HANDLER)) {
+                desktop.setQuitHandler { _, response ->
+                    // Every open document is at stake when quitting, not just the frontmost one.
+                    if (FileState.hasAnyUnsavedWork) {
+                        response.cancelQuit()
+                        FileState.requestIfAnyDirty {
+                            exitApplication()
+                        }
+                    } else {
+                        response.performQuit()
                     }
-                } else {
-                    response.performQuit()
+                }
+            }
+            if (desktop.isSupported(java.awt.Desktop.Action.APP_ABOUT)) {
+                desktop.setAboutHandler {
+                    com.syntona.ui.AboutDialogState.open()
                 }
             }
         }
-    }
 
     Window(
         onCloseRequest = {
@@ -556,6 +561,9 @@ fun main() {
                     }
                     Item("Discuss Syntona on Discord...") {
                         com.syntona.openUrlInBrowser("https://discord.com/channels/1532908817677942846/1532924422321864855")
+                    }
+                    Item("About Syntona...") {
+                        com.syntona.ui.AboutDialogState.open()
                     }
                 }
             }

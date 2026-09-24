@@ -1361,6 +1361,13 @@ fun App(
                                                      openUrlInBrowser("https://discord.com/channels/1532908817677942846/1532924422321864855")
                                                  }
                                              )
+                                             CompactDropdownMenuItem(
+                                                 text = { Text("About Syntona...") },
+                                                 onClick = {
+                                                     helpExpanded = false
+                                                     com.syntona.ui.AboutDialogState.open()
+                                                 }
+                                             )
                                          }
                                      }
                                  }
@@ -1700,6 +1707,11 @@ fun App(
                     if (com.syntona.ui.SettingsDialogState.isVisible) {
                         com.syntona.ui.SettingsDialog(
                             onDismiss = { com.syntona.ui.SettingsDialogState.close() }
+                        )
+                    }
+                    if (com.syntona.ui.AboutDialogState.isVisible) {
+                        com.syntona.ui.AboutDialog(
+                            onDismiss = { com.syntona.ui.AboutDialogState.close() }
                         )
                     }
                     com.syntona.dataflow.modules.PolyPatchPrompter.activePromptModule?.let { module ->

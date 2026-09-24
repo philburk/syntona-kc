@@ -47,8 +47,6 @@ Should we have an interface like PitchedVoice in KSyn or KMSL?
 Add a waitAll module that waits for all connected patches to finish.
 This can be used to implement a parallelConnection.
 
-BUG: delay not working in polyPatch! Why?
-
 Timeline - show time as a popup when dragging a Trigger or a region.
 
 Add arpeggiator module.
