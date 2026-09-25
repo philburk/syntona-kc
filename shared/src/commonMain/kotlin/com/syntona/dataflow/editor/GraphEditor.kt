@@ -82,6 +82,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.foundation.text.selection.LocalTextSelectionColors
+import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -215,6 +217,11 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                     fontSize = 12.sp
                 )
                 var tempName by remember(parentPatch) { mutableStateOf(parentPatch.name) }
+                // Follow renames made elsewhere while this window is open, such as in a
+                // timeline track header, which shares the name of its patch.
+                LaunchedEffect(parentPatch.name) {
+                    tempName = parentPatch.name
+                }
                 Box(
                     modifier = Modifier
                         .width(200.dp)
@@ -4277,6 +4284,9 @@ private fun TrackButton(
     }
 }
 
+/** Selection highlight for track names, bright enough to read against the dark header. */
+private val TRACK_NAME_SELECTION = Color(0xFF3D7BD9)
+
 @Composable
 fun TrackHeaderView(
     track: TimelineTrack,
@@ -4299,20 +4309,34 @@ fun TrackHeaderView(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            BasicTextField(
-                value = track.name,
-                onValueChange = {
-                    track.name = it
-                    FileState.markDirty()
-                },
-                textStyle = TextStyle(
-                    color = Color.White,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Medium
-                ),
-                singleLine = true,
-                modifier = Modifier.weight(1f).padding(end = 2.dp)
-            )
+            val mdiState = LocalMdiState.current
+            // The header is near-black, so the default black cursor and pale selection are
+            // invisible on it.
+            CompositionLocalProvider(
+                LocalTextSelectionColors provides TextSelectionColors(
+                    handleColor = TRACK_NAME_SELECTION,
+                    backgroundColor = TRACK_NAME_SELECTION.copy(alpha = 0.6f)
+                )
+            ) {
+                BasicTextField(
+                    value = track.name,
+                    onValueChange = {
+                        track.name = it
+                        if (track is PatchTrack) {
+                            mdiState.windows.find { win -> win.id === track.patch }?.title = it
+                        }
+                        FileState.markDirty()
+                    },
+                    textStyle = TextStyle(
+                        color = Color.White,
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Medium
+                    ),
+                    cursorBrush = SolidColor(Color.White),
+                    singleLine = true,
+                    modifier = Modifier.weight(1f).padding(end = 2.dp)
+                )
+            }
             Text(
                 text = "X",
                 color = Color.Gray,
@@ -5154,19 +5178,47 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
     val openPatchTrackEditor = { track: PatchTrack ->
         state.clearSelection()
         (state.engine ?: module.getEngine())?.let { track.setEngine(it) }
+        val patch = track.patch
+        val savedX = patch.windowX
+        val savedY = patch.windowY
         val window = MdiWindowInfo(
-            id = track.patch,
-            title = "Track: ${track.name}",
-            position = Offset(
-                ((state.modulePositions[module]?.x ?: 100f) + 30f) * density.density,
-                ((state.modulePositions[module]?.y ?: 100f) + 40f) * density.density
-            ),
-            width = 650.dp,
-            height = 480.dp,
-            graphState = track.patch.graphState,
+            id = patch,
+            // Same as the patch name, which the editor's own name field also sets as the title.
+            title = track.name,
+            position = if (savedX != null && savedY != null) {
+                Offset(savedX * density.density, savedY * density.density)
+            } else {
+                Offset(
+                    ((state.modulePositions[module]?.x ?: 100f) + 30f) * density.density,
+                    ((state.modulePositions[module]?.y ?: 100f) + 40f) * density.density
+                )
+            },
+            width = patch.windowWidth?.dp ?: 650.dp,
+            height = patch.windowHeight?.dp ?: 480.dp,
+            graphState = patch.graphState,
             onClose = { state.clearSelection() },
-            content = { GraphEditor(state = track.patch.graphState) }
+            content = { GraphEditor(state = patch.graphState) }
         )
+        // Remembered on the track's patch, which is saved with the timeline, so the editor
+        // reopens where it was left, in this session and after reloading the file.
+        window.onGeometryChanged = {
+            val newX = window.position.x / density.density
+            val newY = window.position.y / density.density
+            val newW = window.width.value
+            val newH = window.height.value
+            if (patch.windowWidth != null && (
+                patch.windowWidth != newW || patch.windowHeight != newH ||
+                patch.windowX != newX || patch.windowY != newY
+            )) {
+                state.markChanged()
+                FileState.markDirty()
+            }
+            patch.windowX = newX
+            patch.windowY = newY
+            patch.windowWidth = newW
+            patch.windowHeight = newH
+        }
+        window.onGeometryChanged?.invoke()
         mdiState.open(window)
     }
 

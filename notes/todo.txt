@@ -7,13 +7,21 @@ Install the MIDI Add-on.
 BUG: deleting modules using BACKSPACE or DELETE key sometimes does not work. Edit menu Cut always works.
 Need repro steps.
 
+BUG: click edit button a Patch Track window, increase window size, close editor then reopen
+EXPECT: open with the new size
+ACTUAL: opens with the old small size
+
+BUG: when editing the name of a Patch Track, it is very hard to see the cursor.
+It is the same as the background color.
+
+BUG: the name on the Patch Track and the name in the patch window editor do not match!
+Should we make them agree or remove one of the name editors?
+
 Label wire outputs with order (1) (2)
 
 Add Granular synthesis.
 
 Add Asset Manager that can Zip WAV files in a ZIP.
-
-Try to save a native signed version.
 
 choose module and choose(4) in the f(x)
 

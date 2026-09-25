@@ -374,6 +374,16 @@ class PatchTrack(
 
     val patch: PatchModule = patchInstance ?: TrackPatchModule(name, this)
 
+    /**
+     * The track and its patch share one name, so renaming in the track header and in the patch
+     * editor window stay in agreement.
+     */
+    override var name: String
+        get() = patch.name
+        set(value) {
+            patch.name = value
+        }
+
     private val scheduledEvents = mutableListOf<ScheduledEvent>()
     var isPatchRunning by mutableStateOf(false)
         private set

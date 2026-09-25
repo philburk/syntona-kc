@@ -246,6 +246,52 @@ class TimelineTrackTest {
     }
 
     @Test
+    fun testPatchTrackNameIsItsPatchName() {
+        // The track header and the patch editor window each have a name field; renaming in
+        // either one must show up in the other.
+        val timeline = TimelineModule()
+        val track = timeline.addTrack(TrackType.PATCH, "Drums") as PatchTrack
+        assertEquals("Drums", track.patch.name)
+
+        track.name = "Kicks"
+        assertEquals("Kicks", track.patch.name)
+
+        track.patch.name = "Snares"
+        assertEquals("Snares", track.name)
+
+        timeline.teardown()
+    }
+
+    @Test
+    fun testPatchTrackNameAndEditorSizeSurviveSaveAndLoad() {
+        val graphState = GraphState()
+        val timeline = TimelineModule()
+        graphState.addModule(timeline, Offset.Zero)
+        val track = timeline.addTrack(TrackType.PATCH, "Drums") as PatchTrack
+        track.patch.name = "Snares"
+        track.patch.windowX = 40f
+        track.patch.windowY = 50f
+        track.patch.windowWidth = 900f
+        track.patch.windowHeight = 700f
+
+        val json = GraphSerializer.serialize(graphState, graphState.modules)
+        val loadedState = GraphState()
+        GraphSerializer.deserialize(loadedState, json)
+        val loaded = loadedState.modules.filterIsInstance<TimelineModule>().first()
+            .tracks.single() as PatchTrack
+
+        assertEquals("Snares", loaded.name)
+        assertEquals("Snares", loaded.patch.name)
+        assertEquals(40f, loaded.patch.windowX)
+        assertEquals(50f, loaded.patch.windowY)
+        assertEquals(900f, loaded.patch.windowWidth)
+        assertEquals(700f, loaded.patch.windowHeight)
+
+        timeline.teardown()
+        loaded.timeline.teardown()
+    }
+
+    @Test
     fun testPatchTrackOutputsAndIntrinsicCommands() {
         val timeline = TimelineModule()
         val patchTrack = timeline.addTrack(TrackType.PATCH, "SynthTrack") as PatchTrack
