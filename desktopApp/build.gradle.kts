@@ -69,6 +69,13 @@ abstract class FinalizeDmgTask : DefaultTask() {
     @get:Input
     abstract val version: Property<String>
 
+    @get:Input
+    @get:org.gradle.api.tasks.Optional
+    abstract val keychainProfile: Property<String>
+
+    @get:Input
+    abstract val skipNotarization: Property<Boolean>
+
     @TaskAction
     fun finalizeDmg() {
         val dir = dmgDir.get().asFile
@@ -79,12 +86,42 @@ abstract class FinalizeDmgTask : DefaultTask() {
             oldDmg.renameTo(targetDmg)
         }
         if (targetDmg.exists()) {
-            ProcessBuilder(
+            val signResult = ProcessBuilder(
                 "codesign", "--force", "--sign",
                 "Developer ID Application: Philip Burk (9D2MR4L34E)",
                 targetDmg.absolutePath
             ).inheritIO().start().waitFor()
+            if (signResult != 0) {
+                throw GradleException("codesign failed with exit code $signResult")
+            }
             println("Created and signed DMG: ${targetDmg.absolutePath}")
+
+            if (!skipNotarization.get()) {
+                val profile = keychainProfile.getOrElse("NOTARY_PROFILE")
+                println("Submitting ${targetDmg.name} to Apple notary service (keychain profile: $profile)...")
+                val notaryResult = ProcessBuilder(
+                    "xcrun", "notarytool", "submit",
+                    targetDmg.absolutePath,
+                    "--keychain-profile", profile,
+                    "--wait"
+                ).inheritIO().start().waitFor()
+
+                if (notaryResult != 0) {
+                    throw GradleException("Apple notarization failed with exit code $notaryResult")
+                }
+
+                println("Stapling notarization ticket to ${targetDmg.name}...")
+                val stapleResult = ProcessBuilder(
+                    "xcrun", "stapler", "staple",
+                    targetDmg.absolutePath
+                ).inheritIO().start().waitFor()
+
+                if (stapleResult != 0) {
+                    throw GradleException("xcrun stapler failed with exit code $stapleResult")
+                }
+
+                println("Successfully notarized and stapled DMG: ${targetDmg.absolutePath}")
+            }
         }
     }
 }
@@ -92,6 +129,17 @@ abstract class FinalizeDmgTask : DefaultTask() {
 val finalizeDmg = tasks.register<FinalizeDmgTask>("finalizeDmg") {
     dmgDir.set(layout.buildDirectory.dir("compose/binaries/main/dmg"))
     version.set(syntonaVersion)
+    keychainProfile.set(
+        providers.gradleProperty("notaryProfile")
+            .orElse(providers.environmentVariable("NOTARY_PROFILE"))
+            .orElse("NOTARY_PROFILE")
+    )
+    skipNotarization.set(
+        providers.gradleProperty("skipNotarization")
+            .map { it.toBoolean() }
+            .orElse(providers.environmentVariable("SKIP_NOTARIZATION").map { it.toBoolean() })
+            .orElse(false)
+    )
 }
 
 tasks.matching { it.name == "packageDmg" }.configureEach {
