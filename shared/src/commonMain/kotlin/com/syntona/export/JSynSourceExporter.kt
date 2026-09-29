@@ -380,12 +380,14 @@ object JSynSourceExporter {
             sb.appendLine()
         }
 
-        // Export envelopes
-        for (env in envelopes) {
-            val prefix = if (env.varName.contains("amp", ignoreCase = true)) "Amp" else "Env"
-            sb.appendLine("        ${env.varName}.export(this, \"$prefix\");")
+        // Export envelopes. A voice only exposes the ports defined by its input modules.
+        if (!isPoly) {
+            for (env in envelopes) {
+                val prefix = if (env.varName.contains("amp", ignoreCase = true)) "Amp" else "Env"
+                sb.appendLine("        ${env.varName}.export(this, \"$prefix\");")
+            }
+            sb.appendLine()
         }
-        sb.appendLine()
 
         // A delay line outputs silence until it has a buffer. allocate() also resets the delay
         // port's maximum, so it has to come before the port limits below.
@@ -431,6 +433,11 @@ object JSynSourceExporter {
             val valAmp = SourceExporter.formatDouble(module.amplitude.getValue())
             val maxAmp = SourceExporter.formatDouble(module.amplitude.max)
             sb.appendLine("        ${info.readerVarName}.amplitude.setup($minAmp, $valAmp, $maxAmp);")
+        }
+        // Custom input ports use the range of their input module.
+        for (info in customInputs) {
+            val (min, value, max) = info.defaultRange ?: continue
+            sb.appendLine("        ${info.varName}.setup(${SourceExporter.formatDouble(min)}, ${SourceExporter.formatDouble(value)}, ${SourceExporter.formatDouble(max)});")
         }
         sb.appendLine()
 

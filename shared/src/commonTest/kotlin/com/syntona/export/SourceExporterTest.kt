@@ -708,15 +708,15 @@ class SourceExporterTest {
         assertTrue(ksynCode.contains("val fcfmRatio: UnitInputPort"), "KSyn must declare fcfmRatio port:\n$ksynCode")
         assertTrue(ksynCode.contains("val modAmp: UnitInputPort"), "KSyn must declare modAmp port:\n$ksynCode")
         assertTrue(ksynCode.contains("fcfmRatio = divide.inputB"), "KSyn must set fcfmRatio = divide.inputB:\n$ksynCode")
-        assertTrue(ksynCode.contains("addPort(fcfmRatio, \"fcfmRatio\")"), "KSyn must addPort fcfmRatio:\n$ksynCode")
+        assertTrue(ksynCode.contains("addPort(fcfmRatio, \"FcfmRatio\")"), "KSyn must addPort fcfmRatio:\n$ksynCode")
         assertTrue(ksynCode.contains("modAmp = modOsc.amplitude"), "KSyn must set modAmp = modOsc.amplitude:\n$ksynCode")
-        assertTrue(ksynCode.contains("addPort(modAmp, \"modAmp\")"), "KSyn must addPort modAmp:\n$ksynCode")
+        assertTrue(ksynCode.contains("addPort(modAmp, \"ModAmp\")"), "KSyn must addPort modAmp:\n$ksynCode")
 
         val jsynCode = JSynSourceExporter.export(polyPatch, "FMPair")
         assertTrue(jsynCode.contains("public UnitInputPort fcfmRatio;"), "JSyn must declare fcfmRatio port:\n$jsynCode")
         assertTrue(jsynCode.contains("public UnitInputPort modAmp;"), "JSyn must declare modAmp port:\n$jsynCode")
-        assertTrue(jsynCode.contains("addPort(fcfmRatio = divide.inputB, \"fcfmRatio\");"), "JSyn must addPort fcfmRatio:\n$jsynCode")
-        assertTrue(jsynCode.contains("addPort(modAmp = modOsc.amplitude, \"modAmp\");"), "JSyn must addPort modAmp:\n$jsynCode")
+        assertTrue(jsynCode.contains("addPort(fcfmRatio = divide.inputB, \"FcfmRatio\");"), "JSyn must addPort fcfmRatio:\n$jsynCode")
+        assertTrue(jsynCode.contains("addPort(modAmp = modOsc.amplitude, \"ModAmp\");"), "JSyn must addPort modAmp:\n$jsynCode")
     }
 
     @Test
@@ -742,7 +742,7 @@ class SourceExporterTest {
         assertTrue(ksynCode.contains("vibratoPassThrough.output.connect(osc1.frequency)"), "KSyn must connect PassThrough to osc1:\n$ksynCode")
         assertTrue(ksynCode.contains("vibratoPassThrough.output.connect(osc2.frequency)"), "KSyn must connect PassThrough to osc2:\n$ksynCode")
         assertTrue(ksynCode.contains("vibrato = vibratoPassThrough.input"), "KSyn must bind port to passThrough.input:\n$ksynCode")
-        assertTrue(ksynCode.contains("addPort(vibrato, \"vibrato\")"), "KSyn must expose vibrato port:\n$ksynCode")
+        assertTrue(ksynCode.contains("addPort(vibrato, \"Vibrato\")"), "KSyn must expose vibrato port:\n$ksynCode")
 
         val jsynCode = JSynSourceExporter.export(polyPatch, "FanOutVoice")
         assertTrue(jsynCode.contains("private PassThrough vibratoPassThrough;"), "JSyn must declare PassThrough for fan-out:\n$jsynCode")
@@ -750,7 +750,7 @@ class SourceExporterTest {
         assertTrue(jsynCode.contains("add(vibratoPassThrough = new PassThrough());"), "JSyn must add PassThrough in constructor:\n$jsynCode")
         assertTrue(jsynCode.contains("vibratoPassThrough.output.connect(osc1.frequency);"), "JSyn must connect PassThrough to osc1:\n$jsynCode")
         assertTrue(jsynCode.contains("vibratoPassThrough.output.connect(osc2.frequency);"), "JSyn must connect PassThrough to osc2:\n$jsynCode")
-        assertTrue(jsynCode.contains("addPort(vibrato = vibratoPassThrough.input, \"vibrato\");"), "JSyn must expose vibrato port:\n$jsynCode")
+        assertTrue(jsynCode.contains("addPort(vibrato = vibratoPassThrough.input, \"Vibrato\");"), "JSyn must expose vibrato port:\n$jsynCode")
     }
 
     @Test
@@ -761,12 +761,57 @@ class SourceExporterTest {
 
         val ksynCode = KSynSourceExporter.export(polyPatch, "UnconnectedVoice")
         assertTrue(ksynCode.contains("val extraIn: UnitInputPort"), "KSyn must declare extraIn port:\n$ksynCode")
-        assertTrue(ksynCode.contains("extraIn = UnitInputPort(\"extraIn\")"), "KSyn must initialize new UnitInputPort:\n$ksynCode")
-        assertTrue(ksynCode.contains("addPort(extraIn, \"extraIn\")"), "KSyn must add extraIn port:\n$ksynCode")
+        assertTrue(ksynCode.contains("extraIn = UnitInputPort(\"ExtraIn\")"), "KSyn must initialize new UnitInputPort:\n$ksynCode")
+        assertTrue(ksynCode.contains("addPort(extraIn, \"ExtraIn\")"), "KSyn must add extraIn port:\n$ksynCode")
 
         val jsynCode = JSynSourceExporter.export(polyPatch, "UnconnectedVoice")
         assertTrue(jsynCode.contains("public UnitInputPort extraIn;"), "JSyn must declare extraIn port:\n$jsynCode")
-        assertTrue(jsynCode.contains("addPort(extraIn = new UnitInputPort(\"extraIn\"), \"extraIn\");"), "JSyn must add new UnitInputPort:\n$jsynCode")
+        assertTrue(jsynCode.contains("addPort(extraIn = new UnitInputPort(\"ExtraIn\"), \"ExtraIn\");"), "JSyn must add new UnitInputPort:\n$jsynCode")
+    }
+
+    @Test
+    fun testExportCustomControlInputPorts() {
+        val polyPatch = PolyPatchModule("ControlInputVoice")
+
+        val osc = UnitGeneratorModule("osc", SawtoothOscillatorBL())
+        val ampEnv = UnitGeneratorModule("ampEnv", EnvelopeDAHDSR())
+        val filterEnv = UnitGeneratorModule("filterEnv", EnvelopeDAHDSR())
+        val driveIn = InputModule().apply { name = "drive" }
+        val releaseIn = InputModule().apply { name = "release" }
+        val outputMod = polyPatch.graphState.modules.filterIsInstance<AudioOutputModule>().first()
+
+        for (m in listOf(osc, ampEnv, filterEnv, driveIn, releaseIn)) {
+            polyPatch.graphState.addModule(m, androidx.compose.ui.geometry.Offset.Zero)
+        }
+        polyPatch.graphState.connect(osc.outputs.first { it.name == "out" }, ampEnv.inputs.first { it.name == "amplitude" })
+        polyPatch.graphState.connect(ampEnv.outputs.first { it.name == "out" }, outputMod.inputs.first { it.name == "in" })
+        // drive has one target, release fans out to both envelopes.
+        polyPatch.graphState.connect(driveIn.output, filterEnv.inputs.first { it.name == "amplitude" })
+        polyPatch.graphState.connect(releaseIn.output, filterEnv.inputs.first { it.name == "release" })
+        polyPatch.graphState.connect(releaseIn.output, ampEnv.inputs.first { it.name == "release" })
+        // Connecting adopts the target's range, so set the defaults afterwards.
+        releaseIn.defaultValue = 2.5
+
+        val ksynCode = KSynSourceExporter.export(polyPatch, "ControlInputVoice")
+        assertTrue(ksynCode.contains("val drive: UnitInputPort"), "KSyn must declare drive port:\n$ksynCode")
+        assertTrue(ksynCode.contains("drive = filterEnv.amplitude"), "KSyn must bind drive directly:\n$ksynCode")
+        assertTrue(ksynCode.contains("addPort(drive, \"Drive\")"), "KSyn must add drive port:\n$ksynCode")
+        assertTrue(ksynCode.contains("addPort(release, \"Release\")"), "KSyn must add release port:\n$ksynCode")
+        assertTrue(ksynCode.contains("private val releasePassThrough = PassThrough()"), "KSyn must fan out release:\n$ksynCode")
+        assertTrue(ksynCode.contains("release = releasePassThrough.input"), "KSyn must bind release to PassThrough:\n$ksynCode")
+        assertTrue(ksynCode.contains("releasePassThrough.output.connect(filterEnv.release)"), ksynCode)
+        assertTrue(ksynCode.contains("releasePassThrough.output.connect(ampEnv.release)"), ksynCode)
+        assertTrue(ksynCode.contains("release.setup(0.0, 2.5, 15.0)"), "KSyn must set release range:\n$ksynCode")
+        assertFalse(ksynCode.contains(".export(this"), "KSyn voice must not export envelope ports:\n$ksynCode")
+
+        val jsynCode = JSynSourceExporter.export(polyPatch, "ControlInputVoice")
+        assertTrue(jsynCode.contains("public UnitInputPort drive;"), "JSyn must declare drive port:\n$jsynCode")
+        assertTrue(jsynCode.contains("addPort(drive = filterEnv.amplitude, \"Drive\");"), "JSyn must add drive port:\n$jsynCode")
+        assertTrue(jsynCode.contains("addPort(release = releasePassThrough.input, \"Release\");"), "JSyn must add release port:\n$jsynCode")
+        assertTrue(jsynCode.contains("releasePassThrough.output.connect(filterEnv.release);"), jsynCode)
+        assertTrue(jsynCode.contains("releasePassThrough.output.connect(ampEnv.release);"), jsynCode)
+        assertTrue(jsynCode.contains("release.setup(0.0, 2.5, 15.0);"), "JSyn must set release range:\n$jsynCode")
+        assertFalse(jsynCode.contains(".export(this"), "JSyn voice must not export envelope ports:\n$jsynCode")
     }
 
     @Test

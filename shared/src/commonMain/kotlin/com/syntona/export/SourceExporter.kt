@@ -37,12 +37,18 @@ object SourceExporter {
         val module: EnvSegModule
     )
 
+    /**
+     * An input port on the exported circuit, created from an input~ module, or from a
+     * non-standard input module in a PolyPatch. [defaultRange] is (min, value, max),
+     * or null if the input module has no default value.
+     */
     data class CustomInputInfo(
-        val module: AudioInputModule,
+        val module: Module,
         val varName: String,
         val portName: String,
         val targets: List<PortEndpoint>,
-        val passThroughVarName: String?
+        val passThroughVarName: String?,
+        val defaultRange: Triple<Double, Double, Double>? = null
     )
 
     private val STANDARD_VOICE_INPUT_NAMES = setOf("on", "off", "pitch", "amplitude", "pressure")
@@ -56,11 +62,13 @@ object SourceExporter {
         usedVarNames: MutableSet<String>,
         resolveTarget: (Module, InputJack) -> PortEndpoint?
     ): List<CustomInputInfo> {
-        val audioInputs = patch.graphState.modules.filterIsInstance<AudioInputModule>()
-        val filtered = if (isPoly) {
-            audioInputs.filter { !isStandardVoiceInput(it.name) }
-        } else {
-            audioInputs
+        val filtered = patch.graphState.modules.filter {
+            when (it) {
+                is AudioInputModule -> !isPoly || !isStandardVoiceInput(it.name)
+                // Control inputs other than on/off/pitch/etc. become extra ports on a voice.
+                is InputModule -> isPoly && !isStandardVoiceInput(it.name)
+                else -> false
+            }
         }
 
         val result = mutableListOf<CustomInputInfo>()
@@ -85,9 +93,15 @@ object SourceExporter {
                 CustomInputInfo(
                     module = module,
                     varName = varName,
-                    portName = module.name,
+                    // JSyn/KSyn convention: port names are capitalized, e.g. "Pitch".
+                    portName = module.name.replaceFirstChar { it.uppercaseChar() },
                     targets = targets,
-                    passThroughVarName = passThroughVar
+                    passThroughVarName = passThroughVar,
+                    defaultRange = when (module) {
+                        is AudioInputModule -> if (module.hasValue) Triple(module.defaultMin, module.defaultValue, module.defaultMax) else null
+                        is InputModule -> if (module.hasValue) Triple(module.defaultMin, module.defaultValue, module.defaultMax) else null
+                        else -> null
+                    }
                 )
             )
         }
