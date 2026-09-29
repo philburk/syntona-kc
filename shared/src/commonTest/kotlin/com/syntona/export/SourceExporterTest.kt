@@ -845,6 +845,26 @@ class SourceExporterTest {
     }
 
     @Test
+    fun testExportIncludesPatchComments() {
+        val polyPatch = PolyPatchModule("CommentVoice")
+        polyPatch.graphState.addModule(UnitGeneratorModule("saw", SawtoothOscillatorBL()), androidx.compose.ui.geometry.Offset.Zero)
+        // Added out of order: the lower comment first.
+        val lower = com.syntona.dataflow.modules.CommentModule().apply { text = "Second note." }
+        val upper = com.syntona.dataflow.modules.CommentModule().apply { text = "First line.\nKeep */ safe." }
+        polyPatch.graphState.addModule(lower, androidx.compose.ui.geometry.Offset(10f, 300f))
+        polyPatch.graphState.addModule(upper, androidx.compose.ui.geometry.Offset(200f, 10f))
+
+        val expected = " * Exported from Syntona patch: CommentVoice\n *\n * First line.\n * Keep * / safe.\n *\n * Second note.\n *\n"
+        val ksynCode = KSynSourceExporter.export(polyPatch, "CommentVoice")
+        assertTrue(ksynCode.contains(expected), ksynCode)
+        val jsynCode = JSynSourceExporter.export(polyPatch, "CommentVoice")
+        assertTrue(jsynCode.contains(expected), jsynCode)
+
+        // Comments are not flagged as unexportable.
+        assertEquals(null, SourceExporter.exportWarningMessage(polyPatch, forJSyn = false))
+    }
+
+    @Test
     fun testFindKSynOnlyUnits() {
         val polyPatch = PolyPatchModule("KSynOnlyVoice")
         polyPatch.graphState.addModule(UnitGeneratorModule("saw", SawtoothOscillatorBL()), androidx.compose.ui.geometry.Offset.Zero)

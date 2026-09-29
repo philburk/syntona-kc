@@ -129,6 +129,11 @@ object JSynSourceExporter {
         sb.appendLine("/**")
         sb.appendLine(" * Exported from Syntona patch: ${patch.name}")
         sb.appendLine(" *")
+        val commentLines = SourceExporter.formatPatchComments(patch)
+        if (commentLines.isNotEmpty()) {
+            commentLines.forEach { sb.appendLine(it) }
+            sb.appendLine(" *")
+        }
         sb.appendLine(" * This code was exported from Syntona. Rather then editing this file, you may want to")
         sb.appendLine(" * modify the Syntona patch and then re-export this source code.")
         sb.appendLine(" */")

@@ -10,6 +10,7 @@ import com.syntona.dataflow.model.OutputJack
 import com.syntona.dataflow.modules.AudioInputModule
 import com.syntona.dataflow.modules.AudioOutputModule
 import com.syntona.dataflow.modules.AudioOutput2Module
+import com.syntona.dataflow.modules.CommentModule
 import com.syntona.dataflow.modules.EnvSegModule
 import com.syntona.dataflow.modules.FaderModule
 import com.syntona.dataflow.modules.InputModule
@@ -138,6 +139,28 @@ object SourceExporter {
         val ignoredModules: List<Module>,
         val audioModules: List<Module>
     )
+
+    /**
+     * Returns the text of the patch's comment modules as lines for the class doc comment,
+     * each starting with " * ". Comments are in reading order, top to bottom then left to right,
+     * separated by a blank line. Returns an empty list if there are no comments.
+     */
+    fun formatPatchComments(patch: PatchModule): List<String> {
+        val positions = patch.graphState.modulePositions
+        val comments = patch.graphState.modules.filterIsInstance<CommentModule>()
+            .filter { it.text.isNotBlank() }
+            .sortedWith(compareBy({ positions[it]?.y ?: 0f }, { positions[it]?.x ?: 0f }))
+        val lines = mutableListOf<String>()
+        for (comment in comments) {
+            if (lines.isNotEmpty()) lines.add(" *")
+            for (line in comment.text.trim().lines()) {
+                // A "*/" in the text would end the doc comment early.
+                val safe = line.trimEnd().replace("*/", "* /")
+                lines.add(if (safe.isEmpty()) " *" else " * $safe")
+            }
+        }
+        return lines
+    }
 
     /**
      * Builds the warning shown before exporting [patch], or null if there is nothing to warn about.
@@ -306,7 +329,7 @@ object SourceExporter {
 
         for (module in patch.graphState.modules) {
             when (module) {
-                is KnobModule, is FaderModule -> {
+                is KnobModule, is FaderModule, is CommentModule -> {
                     ignored.add(module)
                 }
                 is UnitGeneratorModule, is AudioInputModule, is AudioOutputModule, is AudioOutput2Module, is PitchToFrequencyModule, is EnvSegModule -> {
