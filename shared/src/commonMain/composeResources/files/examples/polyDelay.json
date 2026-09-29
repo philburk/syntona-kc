@@ -1,0 +1,1053 @@
+{
+  "version": "0.7.11 beta",
+  "versionCode": 458763,
+  "modules": [
+    {
+      "id": 0,
+      "type": "core.input.onLoad",
+      "name": "onLoad",
+      "x": 51.1,
+      "y": 181
+    },
+    {
+      "id": 1,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 46.9,
+      "y": 13.1,
+      "text": "Polyphonic delay.",
+      "w": 498.82324,
+      "h": 99.25
+    },
+    {
+      "id": 2,
+      "type": "ksyn.lineOut",
+      "name": "lineOut",
+      "x": 1125.9,
+      "y": 324,
+      "jacks": {
+        "in0": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "in1": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "music.compose.recursiveSeq",
+      "name": "recursiveSeq",
+      "x": 201.1,
+      "y": 222,
+      "jacks": {
+        "step": {
+          "v": 14019,
+          "min": 0,
+          "max": 100,
+          "kickable": true,
+          "integer": true
+        },
+        "stepsPerCycle": {
+          "v": 8,
+          "min": 2,
+          "max": 32,
+          "kickable": false,
+          "integer": true
+        },
+        "density": {
+          "v": 0.781637858971406,
+          "min": 0,
+          "max": 1,
+          "kickable": false
+        },
+        "limit": {
+          "v": 11,
+          "min": 2,
+          "max": 35,
+          "kickable": false,
+          "integer": true
+        },
+        "maxJump": {
+          "v": 5,
+          "min": 2,
+          "max": 35,
+          "kickable": false,
+          "integer": true
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "music.compose.scale",
+      "name": "scale",
+      "x": 348.9,
+      "y": 182.1,
+      "jacks": {
+        "in": {
+          "v": 5,
+          "min": 0,
+          "max": 100,
+          "kickable": true,
+          "integer": true
+        },
+        "offset": {
+          "v": 36,
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        }
+      },
+      "scale": "0,2,4,7,9"
+    },
+    {
+      "id": 5,
+      "type": "music.midi.packNote",
+      "name": "packNote",
+      "x": 642,
+      "y": 184.9,
+      "jacks": {
+        "pitch": {
+          "v": 48,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "tag": {
+          "v": -1,
+          "min": -1,
+          "max": 127,
+          "kickable": false,
+          "integer": true
+        },
+        "amplitude": {
+          "v": 0.2,
+          "min": 0,
+          "max": 2,
+          "kickable": false
+        },
+        "duration": {
+          "v": 20,
+          "min": 0,
+          "max": 1000,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "music.compose.beatClock",
+      "name": "beatClock",
+      "x": 41,
+      "y": 259.9,
+      "jacks": {
+        "tempo": {
+          "v": 90.08590212755715,
+          "min": 20,
+          "max": 300,
+          "kickable": false
+        }
+      },
+      "division": "4:1"
+    },
+    {
+      "id": 7,
+      "type": "core.polyPatch",
+      "name": "delayByPitch",
+      "x": 930.9,
+      "y": 337.9,
+      "jacks": {
+        "input": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      },
+      "maxVoices": 8,
+      "windowX": 205,
+      "windowY": 286.125,
+      "windowWidth": 889.875,
+      "windowHeight": 620,
+      "windowOpen": true,
+      "patch": {
+        "modules": [
+          {
+            "id": 0,
+            "type": "core.input",
+            "name": "on",
+            "x": 37,
+            "y": 105,
+            "jacks": {
+              "on": {
+                "min": 0,
+                "max": 100,
+                "kickable": false
+              }
+            }
+          },
+          {
+            "id": 1,
+            "type": "core.input",
+            "name": "off",
+            "x": 37,
+            "y": 170,
+            "jacks": {
+              "off": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false
+              }
+            }
+          },
+          {
+            "id": 2,
+            "type": "core.input",
+            "name": "pitch",
+            "x": 37,
+            "y": 240,
+            "jacks": {
+              "pitch": {
+                "min": 0,
+                "max": 100,
+                "kickable": false
+              }
+            }
+          },
+          {
+            "id": 3,
+            "type": "core.input",
+            "name": "amplitude",
+            "x": 37,
+            "y": 310,
+            "jacks": {
+              "amplitude": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "kickable": false
+              }
+            }
+          },
+          {
+            "id": 4,
+            "type": "core.input",
+            "name": "pressure",
+            "x": 37,
+            "y": 380,
+            "jacks": {
+              "pressure": {
+                "min": 0,
+                "max": 100,
+                "kickable": false
+              }
+            }
+          },
+          {
+            "id": 5,
+            "type": "ksyn.output~",
+            "name": "output",
+            "x": 687,
+            "y": 233,
+            "jacks": {
+              "in": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 6,
+            "type": "ksyn.control.envDAHDSR",
+            "name": "ampEnv",
+            "x": 557.9,
+            "y": 129,
+            "jacks": {
+              "in": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "delay": {
+                "v": 0,
+                "min": 0,
+                "max": 2,
+                "kickable": false,
+                "add": false
+              },
+              "attack": {
+                "v": 0.009999999776482582,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "hold": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "decay": {
+                "v": 0.20000000298023224,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "sustain": {
+                "v": 0.8958424925804138,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "release": {
+                "v": 5.863730430603027,
+                "min": 0,
+                "max": 15,
+                "kickable": false,
+                "add": false
+              },
+              "amplitude": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            },
+            "autoDisableVoice": "NO"
+          },
+          {
+            "id": 7,
+            "type": "core.math.pitchToHz",
+            "name": "pitchToHz",
+            "x": 188.9,
+            "y": 215,
+            "jacks": {
+              "in": {
+                "v": 60,
+                "min": 0,
+                "max": 100,
+                "kickable": true
+              }
+            }
+          },
+          {
+            "id": 8,
+            "type": "core.input.comment",
+            "name": "comment",
+            "x": 97.9,
+            "y": 5.9,
+            "text": "Delay the input based on the incoming pitch value. Convert Hz to a delay time in seconds using a \"*~\".",
+            "w": 403.875,
+            "h": 89.875
+          },
+          {
+            "id": 9,
+            "type": "ksyn.effects.delay~",
+            "name": "delay~",
+            "x": 426.9,
+            "y": 279,
+            "jacks": {
+              "in": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "delay": {
+                "v": 0.2156079262495041,
+                "min": 0,
+                "max": 2.176870822906494,
+                "kickable": false,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 10,
+            "type": "ksyn.input~",
+            "name": "in",
+            "x": 38.9,
+            "y": 442,
+            "jacks": {
+              "in": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 11,
+            "type": "ksyn.math.*~",
+            "name": "*~",
+            "x": 307.9,
+            "y": 225,
+            "jacks": {
+              "inA": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "inB": {
+                "v": 0.0014839301584288478,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            }
+          }
+        ],
+        "connections": [
+          {
+            "from": 2,
+            "fromJack": "out",
+            "to": 7,
+            "toJack": "in"
+          },
+          {
+            "from": 0,
+            "fromJack": "out",
+            "to": 6,
+            "toJack": "on"
+          },
+          {
+            "from": 1,
+            "fromJack": "out",
+            "to": 6,
+            "toJack": "off"
+          },
+          {
+            "from": 6,
+            "fromJack": "out",
+            "to": 5,
+            "toJack": "in"
+          },
+          {
+            "from": 10,
+            "fromJack": "out",
+            "to": 9,
+            "toJack": "in"
+          },
+          {
+            "from": 9,
+            "fromJack": "out",
+            "to": 6,
+            "toJack": "amplitude"
+          },
+          {
+            "from": 7,
+            "fromJack": "out",
+            "to": 11,
+            "toJack": "inA"
+          },
+          {
+            "from": 11,
+            "fromJack": "out",
+            "to": 9,
+            "toJack": "delay"
+          }
+        ]
+      }
+    },
+    {
+      "id": 8,
+      "type": "music.input.keyNotes",
+      "name": "keyNotes",
+      "x": 784.9,
+      "y": 352,
+      "jacks": {
+        "amplitude": {
+          "v": 0.8,
+          "min": 0,
+          "max": 1,
+          "kickable": false
+        },
+        "offset": {
+          "v": 36,
+          "min": 0,
+          "max": 80,
+          "kickable": false,
+          "integer": true
+        }
+      },
+      "row1Keys": "12345678",
+      "row2Keys": "qwertyui",
+      "row3Keys": "asdfghjk",
+      "row4Keys": "zxcvbnm,"
+    },
+    {
+      "id": 9,
+      "type": "core.polyPatch",
+      "name": "chebyshevOrgan",
+      "x": 758.9,
+      "y": 194.9,
+      "jacks": {
+        "input": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "drive": {
+          "v": 0.43496325612068176,
+          "min": 0,
+          "max": 1,
+          "kickable": false
+        },
+        "release": {
+          "v": 2.2568187713623047,
+          "min": 0,
+          "max": 15,
+          "kickable": false
+        }
+      },
+      "maxVoices": 8,
+      "windowX": 205,
+      "windowY": 286.125,
+      "windowWidth": 889.875,
+      "windowHeight": 620,
+      "windowOpen": false,
+      "resourcePath": "instruments/chebyshevOrgan.json",
+      "patch": {
+        "modules": [
+          {
+            "id": 0,
+            "type": "core.input",
+            "name": "on",
+            "x": 50,
+            "y": 71,
+            "jacks": {
+              "on": {
+                "min": 0,
+                "max": 100,
+                "kickable": false
+              }
+            }
+          },
+          {
+            "id": 1,
+            "type": "core.input",
+            "name": "off",
+            "x": 50,
+            "y": 136,
+            "jacks": {
+              "off": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false
+              }
+            }
+          },
+          {
+            "id": 2,
+            "type": "core.input",
+            "name": "pitch",
+            "x": 50,
+            "y": 206,
+            "jacks": {
+              "pitch": {
+                "min": 0,
+                "max": 100,
+                "kickable": false
+              }
+            }
+          },
+          {
+            "id": 3,
+            "type": "core.input",
+            "name": "amplitude",
+            "x": 50,
+            "y": 276,
+            "jacks": {
+              "amplitude": {
+                "v": 0.5,
+                "min": 0,
+                "max": 1,
+                "kickable": false
+              }
+            }
+          },
+          {
+            "id": 4,
+            "type": "core.input",
+            "name": "pressure",
+            "x": 50,
+            "y": 346,
+            "jacks": {
+              "pressure": {
+                "min": 0,
+                "max": 100,
+                "kickable": false
+              }
+            }
+          },
+          {
+            "id": 5,
+            "type": "ksyn.output~",
+            "name": "output",
+            "x": 700,
+            "y": 199,
+            "jacks": {
+              "in": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 6,
+            "type": "ksyn.control.envDAHDSR",
+            "name": "ampEnv",
+            "x": 570.9,
+            "y": 95,
+            "jacks": {
+              "in": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "delay": {
+                "v": 0,
+                "min": 0,
+                "max": 2,
+                "kickable": false,
+                "add": false
+              },
+              "attack": {
+                "v": 0.009999999776482582,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "hold": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "decay": {
+                "v": 0.20000000298023224,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "sustain": {
+                "v": 0.5,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "release": {
+                "v": 2.2568187713623047,
+                "min": 0,
+                "max": 15,
+                "kickable": false,
+                "add": false
+              },
+              "amplitude": {
+                "v": 1,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            },
+            "autoDisableVoice": "YES"
+          },
+          {
+            "id": 7,
+            "type": "core.math.pitchToHz",
+            "name": "pitchToHz",
+            "x": 201.9,
+            "y": 181,
+            "jacks": {
+              "in": {
+                "v": 60,
+                "min": 0,
+                "max": 100,
+                "kickable": true
+              }
+            }
+          },
+          {
+            "id": 8,
+            "type": "ksyn.sources.chebyshevOsc",
+            "name": "chebyshevOsc",
+            "x": 411,
+            "y": 198.1,
+            "jacks": {
+              "frequency": {
+                "v": 440,
+                "min": 40,
+                "max": 8000,
+                "kickable": false,
+                "add": false
+              },
+              "drive": {
+                "v": 0.800000011920929,
+                "min": 0.10000000149011612,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "amplitude": {
+                "v": 0.5,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            },
+            "order": 11
+          },
+          {
+            "id": 9,
+            "type": "ksyn.control.envDAHDSR",
+            "name": "envDAHDSR",
+            "x": 187.9,
+            "y": 269,
+            "jacks": {
+              "in": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "delay": {
+                "v": 0,
+                "min": 0,
+                "max": 2,
+                "kickable": false,
+                "add": false
+              },
+              "attack": {
+                "v": 0.009999999776482582,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "hold": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "decay": {
+                "v": 0.20000000298023224,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "sustain": {
+                "v": 0.5,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "release": {
+                "v": 2.2568187713623047,
+                "min": 0,
+                "max": 15,
+                "kickable": false,
+                "add": false
+              },
+              "amplitude": {
+                "v": 0.43496325612068176,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            },
+            "autoDisableVoice": "NO"
+          },
+          {
+            "id": 10,
+            "type": "ksyn.math.+~",
+            "name": "+~",
+            "x": 330.9,
+            "y": 328,
+            "jacks": {
+              "inA": {
+                "v": 0,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              },
+              "inB": {
+                "v": 0.08103083819150925,
+                "min": 0,
+                "max": 1,
+                "kickable": false,
+                "add": false
+              }
+            }
+          },
+          {
+            "id": 11,
+            "type": "core.input.comment",
+            "name": "comment",
+            "x": 136.9,
+            "y": 7.9,
+            "text": "Use a Chebyshev Polynomial Waveshaper to give this voice some higher harmonics.",
+            "w": 410.875,
+            "h": 57
+          },
+          {
+            "id": 12,
+            "type": "core.input.comment",
+            "name": "comment",
+            "x": 421.9,
+            "y": 360,
+            "text": "Prevent drive from going to zero because that kills the audio.",
+            "w": 227.875,
+            "h": 75
+          },
+          {
+            "id": 13,
+            "type": "core.input",
+            "name": "drive",
+            "x": 51.9,
+            "y": 408,
+            "jacks": {
+              "drive": {
+                "v": 0.43496325612068176,
+                "min": 0,
+                "max": 1,
+                "kickable": false
+              }
+            }
+          },
+          {
+            "id": 14,
+            "type": "core.input",
+            "name": "release",
+            "x": 51.9,
+            "y": 464,
+            "jacks": {
+              "release": {
+                "v": 2.2568187713623047,
+                "min": 0,
+                "max": 15,
+                "kickable": false
+              }
+            }
+          }
+        ],
+        "connections": [
+          {
+            "from": 7,
+            "fromJack": "out",
+            "to": 8,
+            "toJack": "frequency"
+          },
+          {
+            "from": 2,
+            "fromJack": "out",
+            "to": 7,
+            "toJack": "in"
+          },
+          {
+            "from": 0,
+            "fromJack": "out",
+            "to": 6,
+            "toJack": "on"
+          },
+          {
+            "from": 1,
+            "fromJack": "out",
+            "to": 6,
+            "toJack": "off"
+          },
+          {
+            "from": 8,
+            "fromJack": "out",
+            "to": 6,
+            "toJack": "amplitude"
+          },
+          {
+            "from": 6,
+            "fromJack": "out",
+            "to": 5,
+            "toJack": "in"
+          },
+          {
+            "from": 3,
+            "fromJack": "out",
+            "to": 8,
+            "toJack": "amplitude"
+          },
+          {
+            "from": 0,
+            "fromJack": "out",
+            "to": 9,
+            "toJack": "on"
+          },
+          {
+            "from": 1,
+            "fromJack": "out",
+            "to": 9,
+            "toJack": "off"
+          },
+          {
+            "from": 9,
+            "fromJack": "out",
+            "to": 10,
+            "toJack": "inA"
+          },
+          {
+            "from": 10,
+            "fromJack": "out",
+            "to": 8,
+            "toJack": "drive"
+          },
+          {
+            "from": 13,
+            "fromJack": "out",
+            "to": 9,
+            "toJack": "amplitude"
+          },
+          {
+            "from": 14,
+            "fromJack": "out",
+            "to": 9,
+            "toJack": "release"
+          },
+          {
+            "from": 14,
+            "fromJack": "out",
+            "to": 6,
+            "toJack": "release"
+          }
+        ]
+      }
+    },
+    {
+      "id": 10,
+      "type": "music.midi.midiIn",
+      "name": "midiIn",
+      "x": 642,
+      "y": 79.9,
+      "device": "MIDI Port, Akai Professional",
+      "channelFilter": -1
+    }
+  ],
+  "connections": [
+    {
+      "from": 4,
+      "fromJack": "out",
+      "to": 5,
+      "toJack": "pitch"
+    },
+    {
+      "from": 0,
+      "fromJack": "kick",
+      "to": 6,
+      "toJack": "reset"
+    },
+    {
+      "from": 0,
+      "fromJack": "kick",
+      "to": 6,
+      "toJack": "start"
+    },
+    {
+      "from": 6,
+      "fromJack": "out",
+      "to": 3,
+      "toJack": "step"
+    },
+    {
+      "from": 7,
+      "fromJack": "output",
+      "to": 2,
+      "toJack": "in1"
+    },
+    {
+      "from": 3,
+      "fromJack": "out",
+      "to": 4,
+      "toJack": "in"
+    },
+    {
+      "from": 5,
+      "fromJack": "out",
+      "to": 9,
+      "toJack": "input"
+    },
+    {
+      "from": 8,
+      "fromJack": "out",
+      "to": 7,
+      "toJack": "input"
+    },
+    {
+      "from": 9,
+      "fromJack": "output",
+      "to": 7,
+      "toJack": "in"
+    },
+    {
+      "from": 10,
+      "fromJack": "out",
+      "to": 9,
+      "toJack": "input"
+    },
+    {
+      "from": 9,
+      "fromJack": "output",
+      "to": 2,
+      "toJack": "in0"
+    }
+  ],
+  "windowX": 4,
+  "windowY": 6.16162109375,
+  "windowWidth": 1286.08837890625,
+  "windowHeight": 732.7535400390625
+}

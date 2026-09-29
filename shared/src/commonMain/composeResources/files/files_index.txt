@@ -17,6 +17,7 @@ examples/midi_branch.json
 examples/mod8_knobs.json
 examples/patch.json
 examples/pianoRoll.json
+examples/polyDelay.json
 examples/poly_patch.json
 examples/polyrhythm.json
 examples/pulse_scope.json

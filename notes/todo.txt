@@ -7,16 +7,6 @@ Install the MIDI Add-on.
 BUG: deleting modules using BACKSPACE or DELETE key sometimes does not work. Edit menu Cut always works.
 Need repro steps.
 
-BUG: click edit button a Patch Track window, increase window size, close editor then reopen
-EXPECT: open with the new size
-ACTUAL: opens with the old small size
-
-BUG: when editing the name of a Patch Track, it is very hard to see the cursor.
-It is the same as the background color.
-
-BUG: the name on the Patch Track and the name in the patch window editor do not match!
-Should we make them agree or remove one of the name editors?
-
 Label wire outputs with order (1) (2)
 
 Add Granular synthesis.
@@ -29,6 +19,7 @@ A seq8 with numeric fields or knobs or horizontal faders that can be swept quick
 
 Move mixers to their own bundle.
 Add Mute and Solo buttons to the mixers.
+
 Maybe add a MixerSend and then have a separate mixer panel separate from the dataflow.
 That will be useful if we support a more DAW-like interface.,
 
