@@ -45,6 +45,8 @@ object KSynSourceExporter {
         // Filter and map unit generator modules
         val unitMap = mutableMapOf<UnitGeneratorModule, UnitInfo>()
         val usedVarNames = if (isPoly) mutableSetOf("pitch", "amplitude") else mutableSetOf()
+        val isSink = SourceExporter.findSinkInput(patch) != null
+        if (isSink) usedVarNames.add(SourceExporter.SINK_INPUT_VAR)
 
         // Find pitchToHz if it was PitchToFrequencyModule or a UnitGeneratorModule
         val p2fModules = patch.graphState.modules.filter {
@@ -136,7 +138,11 @@ object KSynSourceExporter {
         sb.appendLine(" * modify the Syntona patch and then re-export this source code.")
         sb.appendLine(" */")
 
-        val inheritance = if (isPoly) ": Circuit(), PitchedVoice" else ": Circuit()"
+        val inheritance = when {
+            isSink -> ": Circuit(), PitchedVoice, UnitSink"
+            isPoly -> ": Circuit(), PitchedVoice"
+            else -> ": Circuit()"
+        }
         sb.appendLine("class $className $inheritance {")
 
         // Member declarations
@@ -169,7 +175,8 @@ object KSynSourceExporter {
             exportedPortNames.add("amplitude")
         }
         for (info in customInputs) {
-            sb.appendLine("    val ${info.varName}: UnitInputPort")
+            val declaration = if (info.isSinkInput) "override var" else "val"
+            sb.appendLine("    $declaration ${info.varName}: UnitInputPort")
             exportedPortNames.add(info.varName)
         }
         if (!isPoly) {

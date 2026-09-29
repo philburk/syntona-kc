@@ -48,8 +48,25 @@ object SourceExporter {
         val portName: String,
         val targets: List<PortEndpoint>,
         val passThroughVarName: String?,
-        val defaultRange: Triple<Double, Double, Double>? = null
+        val defaultRange: Triple<Double, Double, Double>? = null,
+        /** True if this is the voice's main audio input, which implements UnitSink. */
+        val isSinkInput: Boolean = false
     )
+
+    /** Variable name used for the UnitSink input port of an exported voice. */
+    const val SINK_INPUT_VAR = "input"
+
+    private val SINK_INPUT_NAMES = setOf("in", "input")
+
+    /**
+     * Returns the input~ module named "in" or "input" in a PolyPatch, or null.
+     * The exported voice implements UnitSink using that input.
+     */
+    fun findSinkInput(patch: PatchModule): AudioInputModule? {
+        if (patch !is PolyPatchModule) return null
+        return patch.graphState.modules.filterIsInstance<AudioInputModule>()
+            .firstOrNull { it.name.trim().lowercase() in SINK_INPUT_NAMES }
+    }
 
     private val STANDARD_VOICE_INPUT_NAMES = setOf("on", "off", "pitch", "amplitude", "pressure")
 
@@ -71,10 +88,16 @@ object SourceExporter {
             }
         }
 
+        // The exporters reserve SINK_INPUT_VAR in usedVarNames up front when there is a sink input.
+        val sinkInput = findSinkInput(patch)
         val result = mutableListOf<CustomInputInfo>()
         for (module in filtered) {
-            val baseVar = sanitizeIdentifier(module.name)
-            val varName = makeUniqueVar(baseVar, usedVarNames)
+            val isSink = module === sinkInput
+            val varName = if (isSink) {
+                SINK_INPUT_VAR
+            } else {
+                makeUniqueVar(sanitizeIdentifier(module.name), usedVarNames)
+            }
             usedVarNames.add(varName)
 
             val outgoing = patch.graphState.connections.filter { it.output.module === module }
@@ -94,14 +117,15 @@ object SourceExporter {
                     module = module,
                     varName = varName,
                     // JSyn/KSyn convention: port names are capitalized, e.g. "Pitch".
-                    portName = module.name.replaceFirstChar { it.uppercaseChar() },
+                    portName = if (isSink) "Input" else module.name.replaceFirstChar { it.uppercaseChar() },
                     targets = targets,
                     passThroughVarName = passThroughVar,
                     defaultRange = when (module) {
                         is AudioInputModule -> if (module.hasValue) Triple(module.defaultMin, module.defaultValue, module.defaultMax) else null
                         is InputModule -> if (module.hasValue) Triple(module.defaultMin, module.defaultValue, module.defaultMax) else null
                         else -> null
-                    }
+                    },
+                    isSinkInput = isSink
                 )
             )
         }

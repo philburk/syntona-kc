@@ -51,6 +51,8 @@ object JSynSourceExporter {
 
         val unitMap = mutableMapOf<UnitGeneratorModule, UnitInfo>()
         val usedVarNames = if (isPoly) mutableSetOf("frequency", "amplitude") else mutableSetOf()
+        val isSink = SourceExporter.findSinkInput(patch) != null
+        if (isSink) usedVarNames.add(SourceExporter.SINK_INPUT_VAR)
 
         // Check if PitchToFrequency is present (either as PitchToFrequencyModule or UnitGeneratorModule)
         val p2fModules = patch.graphState.modules.filter {
@@ -131,7 +133,11 @@ object JSynSourceExporter {
         sb.appendLine(" * modify the Syntona patch and then re-export this source code.")
         sb.appendLine(" */")
 
-        val inheritance = if (isPoly) "extends Circuit implements UnitVoice" else "extends Circuit"
+        val inheritance = when {
+            isSink -> "extends Circuit implements UnitVoice, UnitSink"
+            isPoly -> "extends Circuit implements UnitVoice"
+            else -> "extends Circuit"
+        }
         sb.appendLine("public class $className $inheritance {")
 
         // Static envelope data definitions
@@ -622,6 +628,14 @@ object JSynSourceExporter {
             }
             sb.appendLine("    }")
             sb.appendLine()
+
+            if (isSink) {
+                sb.appendLine("    @Override")
+                sb.appendLine("    public UnitInputPort getInput() {")
+                sb.appendLine("        return ${SourceExporter.SINK_INPUT_VAR};")
+                sb.appendLine("    }")
+                sb.appendLine()
+            }
 
             sb.appendLine("    @Override")
             sb.appendLine("    public void usePreset(int presetIndex) {")

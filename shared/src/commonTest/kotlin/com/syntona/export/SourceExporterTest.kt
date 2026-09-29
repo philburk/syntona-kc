@@ -815,6 +815,36 @@ class SourceExporterTest {
     }
 
     @Test
+    fun testExportPolyPatchWithInputImplementsUnitSink() {
+        val polyPatch = PolyPatchModule("EffectVoice")
+        val filter1 = UnitGeneratorModule("filter1", com.softsynth.ksyn.unitgen.FilterLowPass())
+        val filter2 = UnitGeneratorModule("filter2", com.softsynth.ksyn.unitgen.FilterLowPass())
+        val inputMod = AudioInputModule().apply { name = "in" }
+        for (m in listOf(filter1, filter2, inputMod)) {
+            polyPatch.graphState.addModule(m, androidx.compose.ui.geometry.Offset.Zero)
+        }
+        polyPatch.graphState.connect(inputMod.output, filter1.inputs.first { it.name == "in" })
+        polyPatch.graphState.connect(inputMod.output, filter2.inputs.first { it.name == "in" })
+
+        val ksynCode = KSynSourceExporter.export(polyPatch, "EffectVoice")
+        assertTrue(ksynCode.contains("class EffectVoice : Circuit(), PitchedVoice, UnitSink {"), ksynCode)
+        assertTrue(ksynCode.contains("override var input: UnitInputPort"), ksynCode)
+        assertTrue(ksynCode.contains("input = inputPassThrough.input"), ksynCode)
+        assertTrue(ksynCode.contains("addPort(input, \"Input\")"), ksynCode)
+
+        val jsynCode = JSynSourceExporter.export(polyPatch, "EffectVoice")
+        assertTrue(jsynCode.contains("public class EffectVoice extends Circuit implements UnitVoice, UnitSink {"), jsynCode)
+        assertTrue(jsynCode.contains("public UnitInputPort input;"), jsynCode)
+        assertTrue(jsynCode.contains("addPort(input = inputPassThrough.input, \"Input\");"), jsynCode)
+        assertTrue(jsynCode.contains("public UnitInputPort getInput() {\n        return input;\n    }"), jsynCode)
+
+        // Without an "in" or "input" jack, the voice is not a UnitSink.
+        inputMod.name = "sidechain"
+        assertFalse(KSynSourceExporter.export(polyPatch, "EffectVoice").contains("UnitSink"))
+        assertFalse(JSynSourceExporter.export(polyPatch, "EffectVoice").contains("UnitSink"))
+    }
+
+    @Test
     fun testFindKSynOnlyUnits() {
         val polyPatch = PolyPatchModule("KSynOnlyVoice")
         polyPatch.graphState.addModule(UnitGeneratorModule("saw", SawtoothOscillatorBL()), androidx.compose.ui.geometry.Offset.Zero)
