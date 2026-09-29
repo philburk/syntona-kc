@@ -717,9 +717,16 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
 
     private fun findInputJackAt(offset: Offset): InputJack? {
         val draggingOutput = draggingWireByOutput
+        // The inflated margins of neighboring jacks overlap, so pick the jack nearest the
+        // pointer rather than the first one whose margin contains it. A jack the pointer is
+        // actually inside has distance zero; ties go to the nearest center.
         val hit = jackBounds.entries
             .filter { it.key is InputJack && (draggingOutput == null || canConnect(draggingOutput, it.key as InputJack)) }
-            .firstOrNull { it.value.inflate(8f).contains(offset) }
+            .filter { it.value.inflate(8f).contains(offset) }
+            .minWithOrNull(
+                compareBy<Map.Entry<Jack, Rect>> { distanceToRect(it.value, offset) }
+                    .thenBy { (it.value.center - offset).getDistance() }
+            )
             ?.key as? InputJack
         if (hit != null) return hit
 
@@ -728,5 +735,11 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
             .minByOrNull { (it.value - offset).getDistance() }
             ?.takeIf { (it.value - offset).getDistance() < 30f }
             ?.key as? InputJack
+    }
+
+    private fun distanceToRect(rect: Rect, point: Offset): Float {
+        val dx = maxOf(rect.left - point.x, 0f, point.x - rect.right)
+        val dy = maxOf(rect.top - point.y, 0f, point.y - rect.bottom)
+        return kotlin.math.sqrt(dx * dx + dy * dy)
     }
 }
