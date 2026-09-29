@@ -32,6 +32,19 @@ object JSynSourceExporter {
         val module: Module
     )
 
+    /** KSyn unit generators that have no equivalent in JSyn. Add new KSyn-only units here. */
+    private val KSYN_ONLY_UNITS = setOf("ChebyshevOscillator", "SchmittTrigger", "ScopeProbe")
+
+    /**
+     * Returns the class names of unit generators in [patch] that are only in KSyn,
+     * so the exported JSyn code will not compile.
+     */
+    fun findKSynOnlyUnits(patch: PatchModule): List<String> =
+        patch.graphState.modules.filterIsInstance<UnitGeneratorModule>()
+            .mapNotNull { it.unit::class.simpleName }
+            .filter { it in KSYN_ONLY_UNITS }
+            .distinct()
+
     fun export(patch: PatchModule, rawClassName: String, packageName: String = "com.jsyn.instruments"): String {
         val className = SourceExporter.sanitizeClassName(rawClassName)
         val isPoly = patch is PolyPatchModule

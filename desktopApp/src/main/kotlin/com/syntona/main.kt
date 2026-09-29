@@ -440,12 +440,11 @@ fun main() {
                     Menu("Export") {
                         Item("Source code for KSyn...", enabled = canExport) {
                             val target = state.activeGraphState?.parentPatch ?: return@Item
-                            val validation = com.syntona.export.SourceExporter.validatePatch(target)
-                            if (validation.unsupportedModules.isNotEmpty()) {
-                                val moduleNames = validation.unsupportedModules.map { it.name }.distinct().joinToString(", ")
+                            val warning = com.syntona.export.SourceExporter.exportWarningMessage(target, forJSyn = false)
+                            if (warning != null) {
                                 val response = javax.swing.JOptionPane.showConfirmDialog(
                                     null,
-                                    "Warning: This patch contains non-audio modules ($moduleNames) that cannot be exported as audio units.\nDo you want to proceed and omit them?",
+                                    warning,
                                     "Export Warning",
                                     javax.swing.JOptionPane.YES_NO_OPTION,
                                     javax.swing.JOptionPane.WARNING_MESSAGE
@@ -468,12 +467,11 @@ fun main() {
                         }
                         Item("Source code for JSyn...", enabled = canExport) {
                             val target = state.activeGraphState?.parentPatch ?: return@Item
-                            val validation = com.syntona.export.SourceExporter.validatePatch(target)
-                            if (validation.unsupportedModules.isNotEmpty()) {
-                                val moduleNames = validation.unsupportedModules.map { it.name }.distinct().joinToString(", ")
+                            val warning = com.syntona.export.SourceExporter.exportWarningMessage(target, forJSyn = true)
+                            if (warning != null) {
                                 val response = javax.swing.JOptionPane.showConfirmDialog(
                                     null,
-                                    "Warning: This patch contains non-audio modules ($moduleNames) that cannot be exported as audio units.\nDo you want to proceed and omit them?",
+                                    warning,
                                     "Export Warning",
                                     javax.swing.JOptionPane.YES_NO_OPTION,
                                     javax.swing.JOptionPane.WARNING_MESSAGE

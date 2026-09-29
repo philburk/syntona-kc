@@ -1105,10 +1105,9 @@ fun App(
                                                                        saveFileDirect(chosenPath, code)
                                                                    }
                                                                }
-                                                               val validation = com.syntona.export.SourceExporter.validatePatch(target)
-                                                               if (validation.unsupportedModules.isNotEmpty()) {
-                                                                   val names = validation.unsupportedModules.map { it.name }.distinct().joinToString(", ")
-                                                                   exportWarningMessage = "Warning: This patch contains non-audio modules ($names) that cannot be exported as audio units.\nDo you want to proceed and omit them?"
+                                                               val warning = com.syntona.export.SourceExporter.exportWarningMessage(target, forJSyn = false)
+                                                               if (warning != null) {
+                                                                   exportWarningMessage = warning
                                                                    onExportWarningProceed = onProceed
                                                                } else {
                                                                    onProceed()
@@ -1134,10 +1133,9 @@ fun App(
                                                                        saveFileDirect(chosenPath, code)
                                                                    }
                                                                }
-                                                               val validation = com.syntona.export.SourceExporter.validatePatch(target)
-                                                               if (validation.unsupportedModules.isNotEmpty()) {
-                                                                   val names = validation.unsupportedModules.map { it.name }.distinct().joinToString(", ")
-                                                                   exportWarningMessage = "Warning: This patch contains non-audio modules ($names) that cannot be exported as audio units.\nDo you want to proceed and omit them?"
+                                                               val warning = com.syntona.export.SourceExporter.exportWarningMessage(target, forJSyn = true)
+                                                               if (warning != null) {
+                                                                   exportWarningMessage = warning
                                                                    onExportWarningProceed = onProceed
                                                                } else {
                                                                    onProceed()

@@ -815,6 +815,21 @@ class SourceExporterTest {
     }
 
     @Test
+    fun testFindKSynOnlyUnits() {
+        val polyPatch = PolyPatchModule("KSynOnlyVoice")
+        polyPatch.graphState.addModule(UnitGeneratorModule("saw", SawtoothOscillatorBL()), androidx.compose.ui.geometry.Offset.Zero)
+        assertTrue(JSynSourceExporter.findKSynOnlyUnits(polyPatch).isEmpty())
+
+        polyPatch.graphState.addModule(ChebyshevOscModule(), androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(ChebyshevOscModule(), androidx.compose.ui.geometry.Offset.Zero)
+        assertEquals(listOf("ChebyshevOscillator"), JSynSourceExporter.findKSynOnlyUnits(polyPatch))
+
+        val jsynWarning = SourceExporter.exportWarningMessage(polyPatch, forJSyn = true)
+        assertTrue(jsynWarning?.contains("ChebyshevOscillator is not available in JSyn. It is only in KSyn.") == true, "$jsynWarning")
+        assertEquals(null, SourceExporter.exportWarningMessage(polyPatch, forJSyn = false))
+    }
+
+    @Test
     fun testExportStereoPolyPatch() {
         val polyPatch = PolyPatchModule("stereoVoice")
         polyPatch.initializeVoices(2, isStereo = true)

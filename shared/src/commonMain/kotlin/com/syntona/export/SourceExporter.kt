@@ -116,6 +116,26 @@ object SourceExporter {
     )
 
     /**
+     * Builds the warning shown before exporting [patch], or null if there is nothing to warn about.
+     * Used by both the in-window menu and the desktop menu bar.
+     */
+    fun exportWarningMessage(patch: PatchModule, forJSyn: Boolean): String? {
+        val warnings = mutableListOf<String>()
+        if (forJSyn) {
+            for (unitName in JSynSourceExporter.findKSynOnlyUnits(patch)) {
+                warnings.add("$unitName is not available in JSyn. It is only in KSyn.")
+            }
+        }
+        val unsupported = validatePatch(patch).unsupportedModules
+        if (unsupported.isNotEmpty()) {
+            val names = unsupported.map { it.name }.distinct().joinToString(", ")
+            warnings.add("This patch contains non-audio modules ($names) that cannot be exported as audio units. They will be omitted.")
+        }
+        if (warnings.isEmpty()) return null
+        return "Warning:\n" + warnings.joinToString("\n") + "\nDo you want to proceed?"
+    }
+
+    /**
      * Sanitizes a file stem or name into a valid Kotlin/Java class identifier (PascalCase).
      * e.g., "HeavenlyBell.kt" -> "HeavenlyBell", "my-synth_1" -> "MySynth1".
      */
