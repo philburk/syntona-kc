@@ -17,7 +17,7 @@ examples/midi_branch.json
 examples/mod8_knobs.json
 examples/patch.json
 examples/pianoRoll.json
-examples/polyDelay.json
+examples/poly_delay.json
 examples/poly_patch.json
 examples/polyrhythm.json
 examples/pulse_scope.json
@@ -28,6 +28,7 @@ examples/recorder.json
 examples/sampleReader.json
 examples/sampleWriter.json
 examples/saw_noise.json
+examples/seq_evolving.json
 examples/stepper.json
 examples/stereoPatch.json
 examples/timeline.json
