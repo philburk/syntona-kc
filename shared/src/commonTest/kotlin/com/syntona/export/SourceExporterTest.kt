@@ -864,6 +864,58 @@ class SourceExporterTest {
         assertEquals(null, SourceExporter.exportWarningMessage(polyPatch, forJSyn = false))
     }
 
+    /** Like patches/testShimmeringSaw.sntn: pitch and amplitude each drive two oscillators. */
+    @Test
+    fun testExportFansOutFrequencyAndAmplitude() {
+        val polyPatch = PolyPatchModule("ShimmeringSaw")
+        val g = polyPatch.graphState
+        val saw = UnitGeneratorModule("sawOscBL", SawtoothOscillatorBL())
+        val square = UnitGeneratorModule("squareOscBL", com.softsynth.ksyn.unitgen.SquareOscillatorBL())
+        val plus = UnitGeneratorModule("+~", com.softsynth.ksyn.unitgen.Add())
+        val p2f = com.syntona.dataflow.modules.PitchToFrequencyModule()
+        for (m in listOf(saw, square, plus, p2f)) g.addModule(m, androidx.compose.ui.geometry.Offset.Zero)
+        val pitchIn = g.modules.filterIsInstance<InputModule>().first { it.name == "pitch" }
+        val ampIn = g.modules.filterIsInstance<InputModule>().first { it.name == "amplitude" }
+        val outputMod = g.modules.filterIsInstance<AudioOutputModule>().first()
+
+        g.connect(pitchIn.output, p2f.input)
+        g.connect(p2f.output, saw.inputs.first { it.name == "frequency" })
+        g.connect(p2f.output, plus.inputs.first { it.name == "inA" })
+        g.connect(plus.outputs.first { it.name == "out" }, square.inputs.first { it.name == "frequency" })
+        g.connect(ampIn.output, saw.inputs.first { it.name == "amplitude" })
+        g.connect(ampIn.output, square.inputs.first { it.name == "amplitude" })
+        g.connect(saw.outputs.first { it.name == "out" }, outputMod.inputs.first { it.name == "in" })
+        g.connect(square.outputs.first { it.name == "out" }, outputMod.inputs.first { it.name == "in" })
+        ampIn.defaultMin = 0.0
+        ampIn.defaultMax = 1.0
+        ampIn.defaultValue = 1.0
+
+        val jsynCode = JSynSourceExporter.export(polyPatch, "ShimmeringSaw")
+        assertTrue(jsynCode.contains("private PassThrough frequencyPassThrough;"), jsynCode)
+        assertTrue(jsynCode.contains("private PassThrough amplitudePassThrough;"), jsynCode)
+        assertTrue(jsynCode.contains("add(frequencyPassThrough = new PassThrough());"), jsynCode)
+        assertTrue(jsynCode.contains("frequencyPassThrough.output.connect(sawOscBL.frequency);"), jsynCode)
+        assertTrue(jsynCode.contains("frequencyPassThrough.output.connect(plus.inputA);"), jsynCode)
+        assertTrue(jsynCode.contains("plus.output.connect(squareOscBL.frequency);"), jsynCode)
+        assertTrue(jsynCode.contains("amplitudePassThrough.output.connect(sawOscBL.amplitude);"), jsynCode)
+        assertTrue(jsynCode.contains("amplitudePassThrough.output.connect(squareOscBL.amplitude);"), jsynCode)
+        assertTrue(jsynCode.contains("addPort(frequency = frequencyPassThrough.input, \"Frequency\");"), jsynCode)
+        assertTrue(jsynCode.contains("addPort(amplitude = amplitudePassThrough.input, \"Amplitude\");"), jsynCode)
+        assertTrue(jsynCode.contains("frequency.setup(40.0, 440.0, 8000.0);"), jsynCode)
+        assertTrue(jsynCode.contains("amplitude.setup(0.0, 1.0, 1.0);"), jsynCode)
+        assertFalse(jsynCode.contains("pitchToHz"), "JSyn voices take frequency directly:\n$jsynCode")
+
+        val ksynCode = KSynSourceExporter.export(polyPatch, "ShimmeringSaw")
+        assertTrue(ksynCode.contains("pitch = pitchToHz.input"), ksynCode)
+        assertTrue(ksynCode.contains("pitchToHz.output.connect(sawOscBL.frequency)"), ksynCode)
+        assertTrue(ksynCode.contains("pitchToHz.output.connect(plus.inputA)"), ksynCode)
+        assertTrue(ksynCode.contains("private val amplitudePassThrough = PassThrough()"), ksynCode)
+        assertTrue(ksynCode.contains("amplitudePassThrough.output.connect(sawOscBL.amplitude)"), ksynCode)
+        assertTrue(ksynCode.contains("amplitudePassThrough.output.connect(squareOscBL.amplitude)"), ksynCode)
+        assertTrue(ksynCode.contains("amplitude = amplitudePassThrough.input"), ksynCode)
+        assertTrue(ksynCode.contains("amplitude.setup(0.0, 1.0, 1.0)"), ksynCode)
+    }
+
     @Test
     fun testFindKSynOnlyUnits() {
         val polyPatch = PolyPatchModule("KSynOnlyVoice")

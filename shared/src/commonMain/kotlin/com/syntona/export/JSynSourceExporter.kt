@@ -109,6 +109,32 @@ object JSynSourceExporter {
             resolveTarget = { mod, jack -> resolveInputEndpoint(mod, jack, unitMap, envSegMap) }
         )
 
+        // A JSyn voice takes frequency directly, so its frequency port drives whatever the
+        // PitchToFrequency modules drove in the patch. Frequency and amplitude may each fan out
+        // to several units through a PassThrough.
+        val allConnections = patch.graphState.connections
+        val ampInputMod = voiceInputs["amplitude"]
+        val frequencyFanOut = if (isPoly) {
+            val fromP2f = allConnections.filter { it.output.module in p2fModules }
+            val pitchInputMod = voiceInputs["pitch"]
+            val freqConns = fromP2f.ifEmpty { allConnections.filter { it.output.module === pitchInputMod } }
+            SourceExporter.resolveVoicePortFanOut(freqConns, "frequency", usedVarNames) { mod, jack ->
+                resolveInputEndpoint(mod, jack, unitMap, envSegMap)
+            }
+        } else null
+        val amplitudeFanOut = if (isPoly) {
+            val ampConns = allConnections.filter { it.output.module === ampInputMod }
+            val ampRange = ampInputMod?.takeIf { it.hasValue }?.let { Triple(it.defaultMin, it.defaultValue, it.defaultMax) }
+            SourceExporter.resolveVoicePortFanOut(ampConns, "amplitude", usedVarNames, ampRange) { mod, jack ->
+                resolveInputEndpoint(mod, jack, unitMap, envSegMap)
+            }
+        } else null
+        // Paired with the port variable each one feeds.
+        val voiceFanOuts = listOfNotNull(
+            frequencyFanOut?.let { "frequency" to it },
+            amplitudeFanOut?.let { "amplitude" to it }
+        )
+
         val sb = StringBuilder()
 
         // Package and imports
@@ -175,6 +201,11 @@ object JSynSourceExporter {
                 sb.appendLine("    private PassThrough ${info.passThroughVarName};")
             }
         }
+        for ((_, fanOut) in voiceFanOuts) {
+            if (fanOut.passThroughVarName != null) {
+                sb.appendLine("    private PassThrough ${fanOut.passThroughVarName};")
+            }
+        }
         if (isStereoPatch) {
             sb.appendLine("    private TwoInDualOut twoInDualOut;")
         }
@@ -215,6 +246,11 @@ object JSynSourceExporter {
                 sb.appendLine("        add(${info.passThroughVarName} = new PassThrough());")
             }
         }
+        for ((_, fanOut) in voiceFanOuts) {
+            if (fanOut.passThroughVarName != null) {
+                sb.appendLine("        add(${fanOut.passThroughVarName} = new PassThrough());")
+            }
+        }
         if (isStereoPatch) {
             sb.appendLine("        add(twoInDualOut = new TwoInDualOut());")
         }
@@ -225,47 +261,14 @@ object JSynSourceExporter {
         }
         val mainAmpEnv = SourceExporter.findMainAmpEnvelope(patch, unitMap, { it.className }, { it.varName }, envSegUnitInfos)
 
-        // Find which oscillator frequency was fed by pitch/p2f in Syntona
-        val connections = patch.graphState.connections
-        var frequencyTarget: String? = null
-        if (isPoly) {
-            // Check connections from pitch input or from p2f to an oscillator
-            for (p2fMod in p2fModules) {
-                val fromP2f = connections.filter { it.output.module === p2fMod }
-                for (c in fromP2f) {
-                    val destMod = c.input.module
-                    if (destMod is UnitGeneratorModule && unitMap.containsKey(destMod)) {
-                        val destInfo = unitMap[destMod]!!
-                        val (portName, partIndex) = SourceExporter.resolveJackPortName(c.input)
-                        frequencyTarget = if (partIndex == 0) "${destInfo.varName}.$portName" else "${destInfo.varName}.${portName}.getPart($partIndex)"
-                        break
-                    }
-                }
-                if (frequencyTarget != null) break
-            }
-            // If not found via p2f, check if pitch input directly connected to something
-            if (frequencyTarget == null) {
-                val pitchInputMod = voiceInputs["pitch"]
-                if (pitchInputMod != null) {
-                    val fromPitch = connections.filter { it.output.module === pitchInputMod }
-                    for (c in fromPitch) {
-                        val destMod = c.input.module
-                        if (destMod is UnitGeneratorModule && unitMap.containsKey(destMod)) {
-                            val destInfo = unitMap[destMod]!!
-                            val (portName, partIndex) = SourceExporter.resolveJackPortName(c.input)
-                            frequencyTarget = if (partIndex == 0) "${destInfo.varName}.$portName" else "${destInfo.varName}.${portName}.getPart($partIndex)"
-                            break
-                        }
-                    }
-                }
-            }
-            // Fallback: first oscillator's frequency
-            if (frequencyTarget == null) {
-                val firstOsc = unitMap.values.firstOrNull { it.className.contains("Oscillator") }
-                if (firstOsc != null) {
-                    frequencyTarget = "${firstOsc.varName}.frequency"
-                }
-            }
+        val connections = allConnections
+        val firstOsc = unitMap.values.firstOrNull { it.className.contains("Oscillator") }
+        // Source for the frequency port: a PassThrough, the single unit port it drives,
+        // or else the first oscillator's frequency.
+        val frequencyTarget = frequencyFanOut?.let { fanOut ->
+            fanOut.passThroughVarName?.let { "$it.input" }
+                ?: fanOut.targets.firstOrNull()?.let { jsynAccessor(it) }
+                ?: firstOsc?.let { "${it.varName}.frequency" }
         }
 
         // Wiring connections
@@ -295,13 +298,15 @@ object JSynSourceExporter {
                 }
             }
         }
-        for (info in customInputs) {
-            if (info.passThroughVarName != null) {
-                for (target in info.targets) {
+        val passThroughWiring = customInputs.map { it.passThroughVarName to it.targets } +
+            voiceFanOuts.map { (_, fanOut) -> fanOut.passThroughVarName to fanOut.targets }
+        for ((passThroughVarName, targets) in passThroughWiring) {
+            if (passThroughVarName != null) {
+                for (target in targets) {
                     if (target.partIndex == 0) {
-                        sb.appendLine("        ${info.passThroughVarName}.output.connect(${target.varName}.${target.portName});")
+                        sb.appendLine("        $passThroughVarName.output.connect(${target.varName}.${target.portName});")
                     } else {
-                        sb.appendLine("        ${info.passThroughVarName}.output.connect(0, ${target.varName}.${target.portName}, ${target.partIndex});")
+                        sb.appendLine("        $passThroughVarName.output.connect(0, ${target.varName}.${target.portName}, ${target.partIndex});")
                     }
                 }
             }
@@ -335,16 +340,10 @@ object JSynSourceExporter {
 
         // Expose ports
         if (isPoly) {
-            val ampInputMod = voiceInputs["amplitude"]
-            val outgoingFromAmp = if (ampInputMod != null) connections.filter { it.output.module === ampInputMod } else emptyList()
-            val ampTarget = outgoingFromAmp.firstOrNull()?.let { resolveInputEndpoint(it.input.module, it.input, unitMap, envSegMap) }
-
-            val amplTarget = if (ampTarget != null) {
-                if (ampTarget.partIndex == 0) "${ampTarget.varName}.${ampTarget.portName}" else "${ampTarget.varName}.${ampTarget.portName}.getPart(${ampTarget.partIndex})"
-            } else {
-                val firstOsc = unitMap.values.firstOrNull { it.className.contains("Oscillator") }
-                if (firstOsc != null) "${firstOsc.varName}.amplitude" else if (mainAmpEnv != null) "${mainAmpEnv.varName}.amplitude" else null
-            }
+            val amplTarget = amplitudeFanOut?.passThroughVarName?.let { "$it.input" }
+                ?: amplitudeFanOut?.targets?.firstOrNull()?.let { jsynAccessor(it) }
+                ?: firstOsc?.let { "${it.varName}.amplitude" }
+                ?: mainAmpEnv?.let { "${it.varName}.amplitude" }
 
             if (amplTarget != null) {
                 sb.appendLine("        addPort(amplitude = $amplTarget, \"Amplitude\");")
@@ -462,6 +461,11 @@ object JSynSourceExporter {
         for (info in customInputs) {
             val (min, value, max) = info.defaultRange ?: continue
             sb.appendLine("        ${info.varName}.setup(${SourceExporter.formatDouble(min)}, ${SourceExporter.formatDouble(value)}, ${SourceExporter.formatDouble(max)});")
+        }
+        // A PassThrough input has no range of its own, so give it one.
+        for ((portVar, fanOut) in voiceFanOuts) {
+            val (min, value, max) = fanOut.range ?: continue
+            sb.appendLine("        $portVar.setup(${SourceExporter.formatDouble(min)}, ${SourceExporter.formatDouble(value)}, ${SourceExporter.formatDouble(max)});")
         }
         sb.appendLine()
 
@@ -623,7 +627,6 @@ object JSynSourceExporter {
                 } else if (mainAmpEnv != null) {
                     sb.appendLine("        return ${mainAmpEnv.varName}.output;")
                 } else {
-                    val firstOsc = unitMap.values.firstOrNull { it.className.contains("Oscillator") }
                     if (firstOsc != null) {
                         sb.appendLine("        return ${firstOsc.varName}.output;")
                     } else {
@@ -683,6 +686,10 @@ object JSynSourceExporter {
         sb.appendLine("}")
         return sb.toString()
     }
+
+    private fun jsynAccessor(target: SourceExporter.PortEndpoint): String =
+        if (target.partIndex == 0) "${target.varName}.${target.portName}"
+        else "${target.varName}.${target.portName}.getPart(${target.partIndex})"
 
     private fun resolveOutputEndpoint(
         module: Module,

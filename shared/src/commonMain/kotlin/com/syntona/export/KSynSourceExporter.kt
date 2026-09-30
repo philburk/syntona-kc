@@ -112,6 +112,17 @@ object KSynSourceExporter {
             resolveTarget = { mod, jack -> resolveInputEndpoint(mod, jack, unitMap, p2fVarMap, envSegMap) }
         )
 
+        // The amplitude port may fan out to several units through a PassThrough.
+        val ampInputMod = voiceInputs["amplitude"]
+        val amplitudeFanOut = if (isPoly) {
+            val ampConns = patch.graphState.connections.filter { it.output.module === ampInputMod }
+            val ampRange = ampInputMod?.takeIf { it.hasValue }?.let { Triple(it.defaultMin, it.defaultValue, it.defaultMax) }
+            SourceExporter.resolveVoicePortFanOut(ampConns, "amplitude", usedVarNames, ampRange) { mod, jack ->
+                resolveInputEndpoint(mod, jack, unitMap, p2fVarMap, envSegMap)
+            }
+        } else null
+        val ampPassThrough = amplitudeFanOut?.passThroughVarName
+
         val sb = StringBuilder()
 
         // Package and imports
@@ -166,6 +177,9 @@ object KSynSourceExporter {
                 sb.appendLine("    private val ${info.passThroughVarName} = PassThrough()")
             }
         }
+        if (ampPassThrough != null) {
+            sb.appendLine("    private val $ampPassThrough = PassThrough()")
+        }
         if (isStereoPatch) {
             sb.appendLine("    private val twoInDualOut = TwoInDualOut()")
         }
@@ -213,6 +227,9 @@ object KSynSourceExporter {
                 sb.appendLine("        add(${info.passThroughVarName})")
             }
         }
+        if (ampPassThrough != null) {
+            sb.appendLine("        add($ampPassThrough)")
+        }
         if (isStereoPatch) {
             sb.appendLine("        add(twoInDualOut)")
         }
@@ -247,13 +264,15 @@ object KSynSourceExporter {
                 }
             }
         }
-        for (info in customInputs) {
-            if (info.passThroughVarName != null) {
-                for (target in info.targets) {
+        val passThroughWiring = customInputs.map { it.passThroughVarName to it.targets } +
+            listOfNotNull(amplitudeFanOut?.let { it.passThroughVarName to it.targets })
+        for ((passThroughVarName, targets) in passThroughWiring) {
+            if (passThroughVarName != null) {
+                for (target in targets) {
                     if (target.partIndex == 0) {
-                        sb.appendLine("        ${info.passThroughVarName}.output.connect(${target.varName}.${target.portName})")
+                        sb.appendLine("        $passThroughVarName.output.connect(${target.varName}.${target.portName})")
                     } else {
-                        sb.appendLine("        ${info.passThroughVarName}.output.connect(0, ${target.varName}.${target.portName}, ${target.partIndex})")
+                        sb.appendLine("        $passThroughVarName.output.connect(0, ${target.varName}.${target.portName}, ${target.partIndex})")
                     }
                 }
             }
@@ -306,11 +325,11 @@ object KSynSourceExporter {
             sb.appendLine()
 
             // Setup amplitude port
-            val ampInputMod = voiceInputs["amplitude"]
-            val outgoingFromAmp = if (ampInputMod != null) connections.filter { it.output.module === ampInputMod } else emptyList()
-            val ampTarget = outgoingFromAmp.firstOrNull()?.let { resolveInputEndpoint(it.input.module, it.input, unitMap, p2fVarMap, envSegMap) }
+            val ampTarget = amplitudeFanOut?.targets?.firstOrNull()
 
-            if (ampTarget != null) {
+            if (ampPassThrough != null) {
+                sb.appendLine("        amplitude = $ampPassThrough.input")
+            } else if (ampTarget != null) {
                 val accessor = if (ampTarget.partIndex == 0) "${ampTarget.varName}.${ampTarget.portName}" else "${ampTarget.varName}.${ampTarget.portName}[${ampTarget.partIndex}]"
                 sb.appendLine("        amplitude = $accessor")
             } else {
@@ -438,6 +457,10 @@ object KSynSourceExporter {
         for (info in customInputs) {
             val (min, value, max) = info.defaultRange ?: continue
             sb.appendLine("        ${info.varName}.setup(${SourceExporter.formatDouble(min)}, ${SourceExporter.formatDouble(value)}, ${SourceExporter.formatDouble(max)})")
+        }
+        // A PassThrough input has no range of its own, so give it one.
+        amplitudeFanOut?.range?.let { (min, value, max) ->
+            sb.appendLine("        amplitude.setup(${SourceExporter.formatDouble(min)}, ${SourceExporter.formatDouble(value)}, ${SourceExporter.formatDouble(max)})")
         }
         sb.appendLine()
 

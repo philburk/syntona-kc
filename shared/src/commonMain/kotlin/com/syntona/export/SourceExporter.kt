@@ -4,6 +4,7 @@ import com.softsynth.ksyn.data.SegmentedEnvelope
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.AudioOutputJack
 import com.syntona.dataflow.model.AutoDisableVoiceMode
+import com.syntona.dataflow.editor.GraphState.UIConnection
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.model.OutputJack
@@ -53,6 +54,42 @@ object SourceExporter {
         /** True if this is the voice's main audio input, which implements UnitSink. */
         val isSinkInput: Boolean = false
     )
+
+    /**
+     * A standard voice port, like frequency or amplitude, and the unit ports it drives.
+     * When it drives more than one, [passThroughVarName] names a PassThrough that fans it out,
+     * and [range] is the (min, value, max) to give the PassThrough input.
+     */
+    data class VoicePortFanOut(
+        val targets: List<PortEndpoint>,
+        val passThroughVarName: String?,
+        val range: Triple<Double, Double, Double>?
+    )
+
+    /**
+     * Resolves the unit ports driven by [connections], and allocates a PassThrough variable
+     * named after [baseVarName] if there is more than one. The range comes from [defaultRange]
+     * or else from the first target jack.
+     */
+    fun resolveVoicePortFanOut(
+        connections: List<UIConnection>,
+        baseVarName: String,
+        usedVarNames: MutableSet<String>,
+        defaultRange: Triple<Double, Double, Double>? = null,
+        resolveTarget: (Module, InputJack) -> PortEndpoint?
+    ): VoicePortFanOut {
+        val resolved = connections.mapNotNull { conn ->
+            resolveTarget(conn.input.module, conn.input)?.let { it to conn.input }
+        }.distinctBy { (target, _) -> "${target.varName}.${target.portName}[${target.partIndex}]" }
+        if (resolved.size <= 1) {
+            return VoicePortFanOut(resolved.map { it.first }, null, null)
+        }
+        val passThroughVar = makeUniqueVar("${baseVarName}PassThrough", usedVarNames)
+        usedVarNames.add(passThroughVar)
+        val firstJack = resolved.first().second
+        val range = defaultRange ?: Triple(firstJack.min, firstJack.getValue(), firstJack.max)
+        return VoicePortFanOut(resolved.map { it.first }, passThroughVar, range)
+    }
 
     /** Variable name used for the UnitSink input port of an exported voice. */
     const val SINK_INPUT_VAR = "input"
