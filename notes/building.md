@@ -11,3 +11,12 @@
 1. test the app at https://softsynth.com/syntona/test/
 1. if it works, deploy to the "beta" folder
 1. if the beta seems OK for a few days then copy contents to the app folder
+
+## How to build an Installable Desktop App with a DMG file
+
+This should only be done by Phil Burk or another team member.
+
+1. Enter:     ./gradlew :desktopApp:packageDmg
+2. Wait for a few minutes while Apple notarizes the DMG file.
+3. Look for DMG file in "syntona-kc/desktopApp/build/compose/binaries/main/dmg/".
+4. Create a new tagged release on GitHub and attach the DMG file.
