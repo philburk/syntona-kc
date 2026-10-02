@@ -1360,6 +1360,13 @@ fun App(
                                                  }
                                              )
                                              CompactDropdownMenuItem(
+                                                 text = { Text("Source Code (GitHub)...") },
+                                                 onClick = {
+                                                     helpExpanded = false
+                                                     openUrlInBrowser("https://github.com/philburk/syntona-kc")
+                                                 }
+                                             )
+                                             CompactDropdownMenuItem(
                                                  text = { Text("About Syntona...") },
                                                  onClick = {
                                                      helpExpanded = false

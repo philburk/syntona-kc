@@ -1,4 +1,6 @@
-This is a Kotlin Multiplatform project targeting Android, Web, Desktop (JVM).
+# Syntona
+
+Syntona is an interactive modular synthesizer application built with Kotlin Multiplatform and Compose Multiplatform, targeting Desktop (JVM), Web (WASM/JS), and Android.
 
 * [/shared](./shared/src) is for code that will be shared across your Compose Multiplatform applications.
   It contains several subfolders:
@@ -19,7 +21,6 @@ Use the run configurations provided by the run widget in your IDE's toolbar. You
   - Standard run: `./gradlew :desktopApp:run`
 - Web app:
   - Wasm target (faster, modern browsers): `./gradlew :webApp:wasmJsBrowserDevelopmentRun`
-  - JS target (slower, supports older browsers): `./gradlew :webApp:jsBrowserDevelopmentRun`
 
 ### Running tests
 
@@ -39,3 +40,11 @@ Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-mu
 
 We would appreciate your feedback on Compose/Web and Kotlin/Wasm in the public Slack channel [#compose-web](https://slack-chats.kotlinlang.org/c/compose-web).
 If you face any issues, please report them on [YouTrack](https://youtrack.jetbrains.com/newIssue?project=CMP).
+
+---
+
+## License and Source Code
+
+* **License:** Syntona is free software released under the terms of the [GNU Affero General Public License v3.0 (AGPLv3)](./LICENSE).
+* **Source Code:** [https://github.com/philburk/syntona-kc](https://github.com/philburk/syntona-kc)
+* **Libraries:** Core audio engine libraries ([KSyn](https://github.com/philburk/ksyn) and JSyn) are licensed separately under the Apache License, Version 2.0.

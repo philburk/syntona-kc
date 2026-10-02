@@ -57,7 +57,7 @@ fun AboutDialog(onDismiss: () -> Unit) {
         },
         text = {
             Column(
-                modifier = Modifier.width(360.dp).padding(vertical = 4.dp),
+                modifier = Modifier.width(380.dp).padding(vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 Text(
@@ -83,9 +83,39 @@ fun AboutDialog(onDismiss: () -> Unit) {
                         }
                     )
                 }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "Source Code: ",
+                        fontSize = 14.sp
+                    )
+                    Text(
+                        text = "github.com/philburk/syntona-kc",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        textDecoration = TextDecoration.Underline,
+                        modifier = Modifier.clickable {
+                            openUrlInBrowser("https://github.com/philburk/syntona-kc")
+                        }
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "License: ",
+                        fontSize = 14.sp
+                    )
+                    Text(
+                        text = "GNU AGPLv3",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        textDecoration = TextDecoration.Underline,
+                        modifier = Modifier.clickable {
+                            openUrlInBrowser("https://www.gnu.org/licenses/agpl-3.0.html")
+                        }
+                    )
+                }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Copyright (C) 2026",
+                    text = "Copyright (C) 2026 Phil Burk",
                     fontSize = 13.sp,
                     color = Color.Gray
                 )

@@ -560,6 +560,9 @@ fun main() {
                     Item("Discuss Syntona on Discord...") {
                         com.syntona.openUrlInBrowser("https://discord.com/channels/1532908817677942846/1532924422321864855")
                     }
+                    Item("Source Code (GitHub)...") {
+                        com.syntona.openUrlInBrowser("https://github.com/philburk/syntona-kc")
+                    }
                     Item("About Syntona...") {
                         com.syntona.ui.AboutDialogState.open()
                     }
