@@ -1,50 +1,78 @@
 # Syntona
 
-Syntona is an interactive modular synthesizer application built with Kotlin Multiplatform and Compose Multiplatform, targeting Desktop (JVM), Web (WASM/JS), and Android.
+Syntona is an interactive modular synthesizer application built with Kotlin Multiplatform and Compose Multiplatform, targeting Desktop (JVM), Web (WASM), and Android.
 
-* [/shared](./shared/src) is for code that will be shared across your Compose Multiplatform applications.
-  It contains several subfolders:
-  - [commonMain](./shared/src/commonMain/kotlin) is for code that’s common for all targets.
-  - Other folders are for Kotlin code that will be compiled for only the platform indicated in the folder name.
-    For example, if you want to use Apple’s CoreCrypto for the iOS part of your Kotlin app,
-    the [iosMain](./shared/src/iosMain/kotlin) folder would be the right place for such calls.
-    Similarly, if you want to edit the Desktop (JVM) specific part, the [jvmMain](./shared/src/jvmMain/kotlin)
-    folder is the appropriate location.
+## Prerequisites
 
-### Running the apps
+* **JDK 17** or higher
+* Android SDK (only needed if building `:androidApp`)
 
-Use the run configurations provided by the run widget in your IDE's toolbar. You can also use these commands and options:
+## Project Structure
 
-- Android app: `./gradlew :androidApp:assembleDebug`
-- Desktop app:
-  - Hot reload: `./gradlew :desktopApp:hotRun --auto`
-  - Standard run: `./gradlew :desktopApp:run`
-- Web app:
-  - Wasm target (faster, modern browsers): `./gradlew :webApp:wasmJsBrowserDevelopmentRun`
+* `/shared` — Shared multiplatform code (UI, dataflow graphs, audio graph logic):
+  * `commonMain` — Multiplatform logic shared across all targets
+  * `audioMain` — Audio streaming and bridge logic shared across desktop, web, and android
+  * `jvmMain`, `wasmJsMain`, `androidMain` — Platform-specific implementations
+* `/desktopApp` — Desktop JVM entry point and macOS/Windows/Linux packaging
+* `/webApp` — WebAssembly (Wasm) browser application
+* `/androidApp` — Android application wrapper
 
-### Running tests
+## Running the Apps
 
-Use the run button in your IDE's editor gutter, or run tests using Gradle tasks:
+### Desktop
+* Run desktop app:
+  ```bash
+  ./gradlew :desktopApp:run
+  ```
+* Run with Compose Hot Reload:
+  ```bash
+  ./gradlew :desktopApp:hotRun
+  ```
 
-- Android tests: `./gradlew :shared:testAndroidHostTest`
-- Desktop tests: `./gradlew :shared:jvmTest`
-- Web tests:
-  - Wasm target: `./gradlew :shared:wasmJsTest`
-  - JS target: `./gradlew :shared:jsTest`
+### Web (Wasm)
+* Run local development server:
+  ```bash
+  ./gradlew :webApp:wasmJsBrowserDevelopmentRun
+  ```
+* Build production web distribution:
+  ```bash
+  ./gradlew :webApp:wasmJsBrowserDistribution
+  ```
 
----
+### Android
+* Build debug APK:
+  ```bash
+  ./gradlew :androidApp:assembleDebug
+  ```
 
-Learn more about [Kotlin Multiplatform](https://www.jetbrains.com/help/kotlin-multiplatform-dev/get-started.html),
-[Compose Multiplatform](https://github.com/JetBrains/compose-multiplatform/#compose-multiplatform),
-[Kotlin/Wasm](https://kotl.in/wasm/)…
+## Building Desktop Packages
 
-We would appreciate your feedback on Compose/Web and Kotlin/Wasm in the public Slack channel [#compose-web](https://slack-chats.kotlinlang.org/c/compose-web).
-If you face any issues, please report them on [YouTrack](https://youtrack.jetbrains.com/newIssue?project=CMP).
+* Build macOS DMG installer:
+  ```bash
+  ./gradlew :desktopApp:packageDmg
+  ```
+* Build unpacked local app:
+  ```bash
+  ./gradlew :desktopApp:createDistributable
+  ```
+
+## Running Tests
+
+* Run main test suite (JVM):
+  ```bash
+  ./gradlew :shared:jvmTest
+  ```
+
+## Community & Feedback
+
+* **Website:** [softsynth.com/syntona](https://softsynth.com/syntona)
+* **Discord:** Join the discussion on [Discord](https://discord.gg/Q5tAD5bqw)
+* **Issues:** Report bugs or submit feature requests on [GitHub Issues](https://github.com/philburk/syntona-kc/issues)
 
 ---
 
 ## License and Source Code
 
-* **License:** Syntona is free software released under the terms of the [GNU Affero General Public License v3.0 (AGPLv3)](./LICENSE).
+* **Application License:** Syntona is free software released under the terms of the [GNU Affero General Public License v3.0 (AGPLv3)](./LICENSE).
 * **Source Code:** [https://github.com/philburk/syntona-kc](https://github.com/philburk/syntona-kc)
 * **Libraries:** Core audio engine libraries ([KSyn](https://github.com/philburk/ksyn) and JSyn) are licensed separately under the Apache License, Version 2.0.
