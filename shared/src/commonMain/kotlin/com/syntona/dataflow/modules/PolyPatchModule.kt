@@ -5,6 +5,7 @@ import com.softsynth.ksyn.ports.UnitOutputPort
 import com.softsynth.ksyn.shared.time.TimeStamp
 import com.softsynth.ksyn.unitgen.PassThrough
 import com.softsynth.ksyn.unitgen.UnitGate
+import com.softsynth.ksyn.unitgen.UnitGenerator
 import com.softsynth.ksyn.voices.PitchedVoice
 import com.softsynth.ksyn.voices.PolyphonicInstrument
 import com.syntona.core.audio.SynthKSyn
@@ -364,19 +365,31 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
         }
     }
 
+    /**
+     * The KSyn units a voice module runs. They must live in the voice's circuit, which is what
+     * the instrument generates; a unit left outside it never runs, so its output stays silent.
+     * Listed in signal order, since a circuit runs its units in the order they were added.
+     */
+    private fun voiceUnitsOf(module: Module): List<UnitGenerator> = when (module) {
+        is UnitGeneratorModule -> listOf(module.unit)
+        is EnvSegModule -> listOf(module.unit)
+        // The rate multiplier feeds the reader's rate port, so it runs first.
+        is SamplePlayerModule -> listOf(module.rateMultiplier, module.unit)
+        is SampleReaderModule -> listOf(module.rateMultiplier, module.unit)
+        is SampleWriterModule -> listOf(module.unit)
+        is AudioOutputModule -> listOf(module.passThrough)
+        is AudioOutput2Module -> listOf(module.twoInDualOut)
+        is AudioInputModule -> listOf(module.passThrough)
+        is GrabAudioModule -> listOf(module.unit)
+        else -> emptyList()
+    }
+
     fun clearVoices() {
         for (voice in voices) {
             voice.templateToVoiceMap.clear()
             voice.voiceToTemplateMap.clear()
             for (m in voice.graphState.modules) {
-                when (m) {
-                    is UnitGeneratorModule -> voice.removeVoiceUnit(m.unit)
-                    is EnvSegModule -> voice.removeVoiceUnit(m.unit)
-                    is AudioOutputModule -> voice.removeVoiceUnit(m.passThrough)
-                    is AudioOutput2Module -> voice.removeVoiceUnit(m.twoInDualOut)
-                    is AudioInputModule -> voice.removeVoiceUnit(m.passThrough)
-                    is GrabAudioModule -> voice.removeVoiceUnit(m.unit)
-                }
+                voiceUnitsOf(m).forEach { voice.removeVoiceUnit(it) }
             }
             voice.graphState.removeModulesDirectly(voice.graphState.modules.toList())
             voice.graphState.connections.clear()
@@ -495,14 +508,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
             }
 
             // Register voice units in voice.voiceCircuit
-            when (voiceModule) {
-                is UnitGeneratorModule -> voice.addVoiceUnit(voiceModule.unit)
-                is EnvSegModule -> voice.addVoiceUnit(voiceModule.unit)
-                is AudioOutputModule -> voice.addVoiceUnit(voiceModule.passThrough)
-                is AudioOutput2Module -> voice.addVoiceUnit(voiceModule.twoInDualOut)
-                is AudioInputModule -> voice.addVoiceUnit(voiceModule.passThrough)
-                is GrabAudioModule -> voice.addVoiceUnit(voiceModule.unit)
-            }
+            voiceUnitsOf(voiceModule).forEach { voice.addVoiceUnit(it) }
         }
 
         if (module is AudioOutputModule && module.name != "output") {
@@ -666,14 +672,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                 }
             }
 
-            when (voiceModule) {
-                is UnitGeneratorModule -> voice.removeVoiceUnit(voiceModule.unit)
-                is EnvSegModule -> voice.removeVoiceUnit(voiceModule.unit)
-                is AudioOutputModule -> voice.removeVoiceUnit(voiceModule.passThrough)
-                is AudioOutput2Module -> voice.removeVoiceUnit(voiceModule.twoInDualOut)
-                is AudioInputModule -> voice.removeVoiceUnit(voiceModule.passThrough)
-                is GrabAudioModule -> voice.removeVoiceUnit(voiceModule.unit)
-            }
+            voiceUnitsOf(voiceModule).forEach { voice.removeVoiceUnit(it) }
 
             voice.graphState.removeModulesDirectly(listOf(voiceModule))
         }
@@ -793,6 +792,10 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                     name = templateModule.name
                     sample = templateModule.sample // Share by reference!
                     filePath = templateModule.filePath
+                    // The constructor already sent its empty default sample, and the data
+                    // output hands its last sample to each reader it connects to. Send the
+                    // real one so the voice's readers get it instead of silence.
+                    sendSample()
                 }
             }
             is SamplePlayerModule -> {
@@ -895,6 +898,20 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
         for (voice in voices) {
             val voiceMod = voice.templateToVoiceMap[templateMod] as? EnvSegModule ?: continue
             voiceMod.envelope = newEnvelope
+        }
+    }
+
+    /** Gives every voice a sample newly loaded into the template's sample or samplePlayer. */
+    fun syncSample(templateMod: Module, sample: com.softsynth.ksyn.data.FloatSample) {
+        if (!isInitialized) return
+        for (voice in voices) {
+            when (val voiceMod = voice.templateToVoiceMap[templateMod]) {
+                is FloatSampleModule -> {
+                    voiceMod.sample = sample
+                    voiceMod.sendSample()
+                }
+                is SamplePlayerModule -> voiceMod.sample = sample
+            }
         }
     }
 

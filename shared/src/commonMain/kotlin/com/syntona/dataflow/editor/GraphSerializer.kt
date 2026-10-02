@@ -1023,24 +1023,35 @@ object GraphSerializer {
                 }
             }
 
+            // A module whose audio file cannot be read keeps a silent buffer while still showing
+            // the file name, so say so rather than leaving the user with unexplained silence.
+            fun reportUnloadedAudio(loaded: Boolean, path: String, resolved: String) {
+                if (!loaded) {
+                    problems.add(
+                        "${module.type} '${module.name}': could not load audio file \"$path\" " +
+                            "(looked for $resolved). It will play silence."
+                    )
+                }
+            }
+
             if (module is FloatSampleModule) {
                 (obj?.map?.get("filePath") as? JsonValue.Str)?.value?.let { path ->
                     val resolved = resolvePath(path, effectiveBasePath)
-                    module.loadWavFile(resolved)
+                    reportUnloadedAudio(module.loadWavFile(resolved), path, resolved)
                 }
             }
 
             if (module is SamplePlayerModule) {
                 (obj?.map?.get("filePath") as? JsonValue.Str)?.value?.let { path ->
                     val resolved = resolvePath(path, effectiveBasePath)
-                    module.loadWavFile(resolved)
+                    reportUnloadedAudio(module.loadWavFile(resolved), path, resolved)
                 }
             }
 
             if (module is RecorderModule) {
                 (obj?.map?.get("filePath") as? JsonValue.Str)?.value?.let { path ->
                     val resolved = resolvePath(path, effectiveBasePath)
-                    module.loadWavFile(resolved)
+                    reportUnloadedAudio(module.loadWavFile(resolved), path, resolved)
                 }
             }
 

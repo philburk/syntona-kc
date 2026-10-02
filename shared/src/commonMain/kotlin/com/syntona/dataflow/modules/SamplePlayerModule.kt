@@ -27,7 +27,19 @@ class SamplePlayerModule : Module("samplePlayer") {
     val unit = VariableRateMonoReader()
     val rateMultiplier = Multiply()
 
-    var sample: FloatSample by mutableStateOf(createSample())
+    private var _sample by mutableStateOf(createSample())
+
+    /**
+     * The sample to play. Also sets the playback rate to the sample's own frame rate, so it plays
+     * at the right pitch. In a polyPatch, setting this on the template updates every voice.
+     */
+    var sample: FloatSample
+        get() = _sample
+        set(value) {
+            _sample = value
+            rateMultiplier.inputB.set(value.frameRate.toFloat())
+            (parentPatch as? PolyPatchModule)?.syncSample(this, value)
+        }
     var filePath: String? by mutableStateOf(null)
     val fileName: String?
         get() = filePath?.substringAfterLast('/')?.substringAfterLast('\\')?.takeIf { it.isNotBlank() }
@@ -102,9 +114,7 @@ class SamplePlayerModule : Module("samplePlayer") {
 
     fun loadWav(bytes: ByteArray, path: String? = null): Boolean {
         return try {
-            val loaded = SampleLoader.loadFloatSample(bytes).toMono()
-            sample = loaded
-            rateMultiplier.inputB.set(loaded.frameRate.toFloat())
+            sample = SampleLoader.loadFloatSample(bytes).toMono()
             if (path != null) filePath = path
             true
         } catch (e: Exception) {

@@ -1442,6 +1442,77 @@ class PolyPatchModuleTest {
         }
     }
 
+    /** A one-second sample of constant 0.5, unlike the silent default buffer. */
+    private fun testSample() = com.softsynth.ksyn.data.FloatSample(44100).apply {
+        frameRate = 44100.0
+        write(0, FloatArray(44100) { 0.5f }, 0, 44100)
+    }
+
+    @Test
+    fun testSampleModuleUnitsRunInTheVoiceCircuit() {
+        // A voice only generates units in its circuit; any other unit is silent.
+        val polyPatch = PolyPatchModule()
+        polyPatch.initializeVoices(2)
+        val player = SamplePlayerModule()
+        val reader = SampleReaderModule()
+        val writer = SampleWriterModule()
+        listOf(player, reader, writer).forEach {
+            polyPatch.graphState.addModule(it, androidx.compose.ui.geometry.Offset.Zero)
+        }
+
+        for (voice in polyPatch.voices) {
+            val voicePlayer = assertIs<SamplePlayerModule>(voice.templateToVoiceMap[player])
+            val voiceReader = assertIs<SampleReaderModule>(voice.templateToVoiceMap[reader])
+            val voiceWriter = assertIs<SampleWriterModule>(voice.templateToVoiceMap[writer])
+            for (unit in listOf(
+                voicePlayer.unit, voicePlayer.rateMultiplier,
+                voiceReader.unit, voiceReader.rateMultiplier,
+                voiceWriter.unit
+            )) {
+                assertSame(voice.voiceCircuit, unit.circuit, "${unit::class.simpleName} is not in the voice circuit")
+            }
+        }
+    }
+
+    @Test
+    fun testVoiceSampleReadersGetTheRealSample() {
+        val polyPatch = PolyPatchModule()
+        polyPatch.initializeVoices(2)
+        val sample = FloatSampleModule()
+        sample.sample = testSample()
+        val reader = SampleReaderModule()
+        polyPatch.graphState.addModule(sample, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(reader, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.connect(sample.dataOutput, reader.dataInput)
+
+        fun voiceReaderData() = polyPatch.voices.map {
+            assertIs<SampleReaderModule>(it.templateToVoiceMap[reader]).dataInput.currentData
+        }
+        // Each voice's sample module used to hand its reader the silent default buffer.
+        voiceReaderData().forEach { assertSame(sample.sample, it) }
+
+        // Loading another sample later reaches the voices too.
+        val replacement = testSample()
+        sample.sample = replacement
+        sample.sendSample()
+        voiceReaderData().forEach { assertSame(replacement, it) }
+    }
+
+    @Test
+    fun testVoiceSamplePlayersFollowTheTemplateSample() {
+        val polyPatch = PolyPatchModule()
+        polyPatch.initializeVoices(2)
+        val player = SamplePlayerModule()
+        player.sample = testSample()
+        polyPatch.graphState.addModule(player, androidx.compose.ui.geometry.Offset.Zero)
+
+        val replacement = testSample()
+        player.sample = replacement
+        for (voice in polyPatch.voices) {
+            assertSame(replacement, assertIs<SamplePlayerModule>(voice.templateToVoiceMap[player]).sample)
+        }
+    }
+
     @Test
     fun testDelayInVoicesHasABuffer() = kotlinx.coroutines.runBlocking {
         // Voices are rebuilt from ModuleRegistry.ksynFactories, not copied from the template, so

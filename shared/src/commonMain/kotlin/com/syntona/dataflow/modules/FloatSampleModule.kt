@@ -22,7 +22,15 @@ import com.syntona.dataflow.model.OutputJack
  * In a polyPatch, the underlying sample is shared among all voices.
  */
 class FloatSampleModule : Module("sample") {
-    var sample: FloatSample by mutableStateOf(createSample())
+    private var _sample by mutableStateOf(createSample())
+
+    /** In a polyPatch, setting this on the template also gives the new sample to every voice. */
+    var sample: FloatSample
+        get() = _sample
+        set(value) {
+            _sample = value
+            (parentPatch as? PolyPatchModule)?.syncSample(this, value)
+        }
     var filePath: String? by mutableStateOf(null)
     val fileName: String?
         get() = filePath?.substringAfterLast('/')?.substringAfterLast('\\')?.takeIf { it.isNotBlank() }
