@@ -361,6 +361,12 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                             drag(down.id) { change ->
                                 change.consume()
                                 if (!wasDragged) {
+                                    // Take keyboard focus and become the active window, as a
+                                    // click does. Otherwise DELETE after a rectangle selection
+                                    // goes to whichever window had focus before, and deletes
+                                    // that window's selection instead of this one.
+                                    focusRequester.requestFocus()
+                                    mdiState.activeGraphState = state
                                     state.selectionRectStart = down.position
                                     wasDragged = true
                                 }

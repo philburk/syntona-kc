@@ -270,9 +270,17 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
     var selectionRectStart by mutableStateOf<Offset?>(null)
     var selectionRectEnd by mutableStateOf<Offset?>(null)
 
+    /**
+     * Called whenever something in this graph becomes selected. The window manager uses it to
+     * clear the selection in every other window, so that only one window ever has a selection
+     * and DELETE or copy cannot act on modules in a window the user is not looking at.
+     */
+    var onSelectionMade: (() -> Unit)? = null
+
     fun selectTrackSection(module: TimelineModule, track: TimelineTrack, section: TrackSection) {
         selectedModules.clear()
         selectedSectionInfo = Triple(module, track, section)
+        onSelectionMade?.invoke()
     }
 
     fun clearSectionSelection() {
@@ -284,6 +292,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
         if (!selectedModules.contains(module)) {
             selectedModules.add(module)
         }
+        onSelectionMade?.invoke()
     }
 
     fun deselectModule(module: Module) {

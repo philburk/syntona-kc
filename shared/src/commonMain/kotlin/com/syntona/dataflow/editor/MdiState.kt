@@ -197,6 +197,23 @@ class MdiState {
         }
         window.graphState?.addModuleRemovedListener(::onModuleRemovedFromGraph)
         (window.id as? Module)?.parentPatch?.graphState?.addModuleRemovedListener(::onModuleRemovedFromGraph)
+        window.graphState?.let { graph -> graph.onSelectionMade = { clearSelectionsExcept(graph) } }
+    }
+
+    /**
+     * Only one window may have a selection at a time. Otherwise a module left selected in a window
+     * behind the one being used, such as a patch whose own window was opened by double-clicking it,
+     * could be deleted or copied by mistake.
+     */
+    fun clearSelectionsExcept(graphState: GraphState) {
+        for (window in windows) {
+            val other = window.graphState ?: continue
+            if (other !== graphState &&
+                (other.selectedModules.isNotEmpty() || other.selectedSectionInfo != null)
+            ) {
+                other.clearSelection()
+            }
+        }
     }
 
     fun closeWindowsForModules(deletedModules: Collection<Module>) {
