@@ -25,6 +25,7 @@ examples/recSeq.json
 examples/recSeqMidi.json
 examples/record_latency.json
 examples/recorder.json
+examples/sampleHold.json
 examples/sampleReader.json
 examples/sampleWriter.json
 examples/saw_noise.json
