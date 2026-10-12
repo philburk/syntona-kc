@@ -1,6 +1,9 @@
 package com.syntona.dataflow.modules
 
 import com.syntona.dataflow.model.AutoDisableVoiceMode
+import com.syntona.dataflow.model.AutoDisableVoiceModule
+import com.syntona.dataflow.model.defaultAutoDisableVoiceMode
+import com.softsynth.ksyn.unitgen.SupportsAutoDisable
 import com.softsynth.ksyn.ports.UnitInputPort
 import com.softsynth.ksyn.ports.UnitOutputPort
 import com.softsynth.ksyn.ports.UnitDataQueuePort
@@ -20,15 +23,15 @@ import com.syntona.dataflow.model.Module
  *
  * The underlying [unit] must still be added to a KSyn synthesizer and started separately.
  */
-open class UnitGeneratorModule(name: String, val unit: UnitGenerator) : Module(name) {
+open class UnitGeneratorModule(name: String, val unit: UnitGenerator) : Module(name), AutoDisableVoiceModule {
     override val isAllowedInPolyPatch: Boolean
         get() = unit !is com.softsynth.ksyn.unitgen.LineIn && unit !is com.softsynth.ksyn.unitgen.LineOut
 
-    val isEnvelope: Boolean
-        get() = unit is com.softsynth.ksyn.unitgen.UnitGate
+    override val autoDisableUnit: SupportsAutoDisable?
+        get() = unit as? SupportsAutoDisable
 
-    // This is set to Auto for non-envelopes so that no preference is saved in the JSON.
-    var autoDisableVoice: AutoDisableVoiceMode = if (isEnvelope) AutoDisableVoiceMode.NO else AutoDisableVoiceMode.AUTO
+    // Auto for units that cannot switch a voice off, so that no preference is saved in the JSON.
+    override var autoDisableVoice: AutoDisableVoiceMode = defaultAutoDisableVoiceMode(unit)
 
     val onJack: com.syntona.dataflow.model.CommandJack?
     val offJack: com.syntona.dataflow.model.CommandJack?

@@ -4,6 +4,7 @@ import com.softsynth.ksyn.data.SegmentedEnvelope
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.AudioOutputJack
 import com.syntona.dataflow.model.AutoDisableVoiceMode
+import com.syntona.dataflow.model.autoDisableVoiceMode
 import com.syntona.dataflow.editor.GraphState.UIConnection
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Module
@@ -509,28 +510,26 @@ object SourceExporter {
         val autoDisableMode: AutoDisableVoiceMode = AutoDisableVoiceMode.AUTO
     )
 
+    /** The modules that can be a patch's main amplitude envelope: envelopes and envSeg. */
+    fun isEnvelopeModule(module: Module): Boolean = module is EnvSegModule ||
+        (module is UnitGeneratorModule && (
+            module.unit is com.softsynth.ksyn.unitgen.EnvelopeDAHDSR ||
+                module.unit is com.softsynth.ksyn.unitgen.EnvelopeAttackDecay ||
+                module.unit is com.softsynth.ksyn.unitgen.VariableRateMonoReader
+            ))
+
     /**
-     * Identifies the primary amplitude envelope in a patch.
-     * Traces backwards from AudioOutputModule to find the envelope most closely connected
+     * Identifies the primary amplitude envelope in a patch, or the module that should switch a
+     * voice off, depending on which [candidates] are passed.
+     * Traces backwards from AudioOutputModule to find the candidate most closely connected
      * to the audio output path (explicit YES setting, amplitude port connection, "amp" naming, or closest distance).
      */
     fun <T> findMainAmpEnvelope(
         patch: PatchModule,
-        unitMap: Map<UnitGeneratorModule, T>,
-        getClassName: (T) -> String,
-        getVarName: (T) -> String,
-        envSegMap: Map<EnvSegModule, T> = emptyMap()
+        candidates: Map<out Module, T>,
+        getVarName: (T) -> String
     ): T? {
-        val envelopeEntries = mutableMapOf<Module, T>()
-        for ((mod, info) in unitMap) {
-            val cls = getClassName(info)
-            if (cls == "EnvelopeDAHDSR" || cls == "EnvelopeAttackDecay" || cls == "VariableRateMonoReader") {
-                envelopeEntries[mod] = info
-            }
-        }
-        for ((mod, info) in envSegMap) {
-            envelopeEntries[mod] = info
-        }
+        val envelopeEntries: Map<Module, T> = candidates.toMap()
 
         if (envelopeEntries.isEmpty()) return null
 
@@ -582,11 +581,7 @@ object SourceExporter {
             val dist = envelopeDistances[mod] ?: Int.MAX_VALUE
             val toAmpPort = connectsToAmpPort.contains(mod)
             val nameHasAmp = getVarName(info).contains("amp", ignoreCase = true)
-            val mode = when (mod) {
-                is UnitGeneratorModule -> mod.autoDisableVoice
-                is EnvSegModule -> mod.autoDisableVoice
-                else -> AutoDisableVoiceMode.AUTO
-            }
+            val mode = mod.autoDisableVoiceMode ?: AutoDisableVoiceMode.AUTO
             EnvelopeCandidate(mod, info, dist, toAmpPort, nameHasAmp, mode)
         }
 

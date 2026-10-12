@@ -263,6 +263,11 @@ object ModuleRegistry {
         "roomReverb" to "room reverberation effect",
 
         // ==========================================
+        // KSyn -> Effects
+        // ==========================================
+        "stringRes" to "resonating string using Karplus-Strong algorithm",
+
+        // ==========================================
         // KSyn -> View
         // ==========================================
         "scope" to "oscilloscope for visual waveform display",
@@ -504,6 +509,9 @@ object ModuleRegistry {
         addKSynModule(effects, "pan", ::Pan)
         addKSynModule(effects, "plateReverb", ::PlateReverb)
         addKSynModule(effects, "roomReverb", ::RoomReverb)
+
+        val models = getOrCreateBundle(ksyn, "models")
+        addKSynModule(models, "stringRes", ::VariableStringResonator)
 
         val ksynView = getOrCreateBundle(ksyn, "view")
         ksynView.modules.add(ModuleEntry("scope") { ScopeModule() })

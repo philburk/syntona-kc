@@ -5,6 +5,7 @@ import com.syntona.dataflow.editor.FileState
 import androidx.compose.ui.geometry.Offset
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.AutoDisableVoiceMode
+import com.syntona.dataflow.model.autoDisableVoiceMode
 import com.syntona.dataflow.model.CommandJack
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
@@ -501,11 +502,8 @@ object GraphSerializer {
                 append(",\"releaseBegin\":${env.releaseBegin}")
                 append(",\"releaseEnd\":${env.releaseEnd}")
             }
-            if (module is UnitGeneratorModule && module.autoDisableVoice != AutoDisableVoiceMode.AUTO) {
-                append(",\"autoDisableVoice\":\"${module.autoDisableVoice.name}\"")
-            }
-            if (module is EnvSegModule && module.autoDisableVoice != AutoDisableVoiceMode.AUTO) {
-                append(",\"autoDisableVoice\":\"${module.autoDisableVoice.name}\"")
+            module.autoDisableVoiceMode?.takeIf { it != AutoDisableVoiceMode.AUTO }?.let { mode ->
+                append(",\"autoDisableVoice\":\"${mode.name}\"")
             }
             if (module is PolyPatchModule) {
                 append(",\"maxVoices\":${module.maxVoices}")
@@ -1096,10 +1094,7 @@ object GraphSerializer {
                 } catch (_: Exception) {
                     null
                 }
-                if (mode != null) {
-                    if (module is UnitGeneratorModule) module.autoDisableVoice = mode
-                    if (module is EnvSegModule) module.autoDisableVoice = mode
-                }
+                module.autoDisableVoiceMode = mode
             }
 
             // x/y are stored as dp; store directly in GraphState

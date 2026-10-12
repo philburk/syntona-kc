@@ -23,9 +23,13 @@ import com.syntona.dataflow.model.Module
  * Supports on/off/stop triggering, looping toggle, and variable-rate playback.
  * In a polyPatch, the underlying [FloatSample] is shared across all voice instances.
  */
-class SamplePlayerModule : Module("samplePlayer") {
+class SamplePlayerModule : Module("samplePlayer"), com.syntona.dataflow.model.AutoDisableVoiceModule {
     val unit = VariableRateMonoReader()
     val rateMultiplier = Multiply()
+
+    override val autoDisableUnit get() = unit
+
+    override var autoDisableVoice = com.syntona.dataflow.model.defaultAutoDisableVoiceMode(unit)
 
     private var _sample by mutableStateOf(createSample())
 

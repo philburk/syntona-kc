@@ -4,7 +4,6 @@ import com.softsynth.ksyn.ports.UnitInputPort
 import com.softsynth.ksyn.ports.UnitOutputPort
 import com.softsynth.ksyn.shared.time.TimeStamp
 import com.softsynth.ksyn.unitgen.PassThrough
-import com.softsynth.ksyn.unitgen.UnitGate
 import com.softsynth.ksyn.unitgen.UnitGenerator
 import com.softsynth.ksyn.voices.PitchedVoice
 import com.softsynth.ksyn.voices.PolyphonicInstrument
@@ -784,7 +783,6 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                     name = templateModule.name
                     envelope = templateModule.envelope // Share by reference!
                     isLooping = templateModule.isLooping
-                    autoDisableVoice = templateModule.autoDisableVoice
                 }
             }
             is FloatSampleModule -> {
@@ -847,7 +845,6 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                 ChebyshevOscModule().apply {
                     name = templateModule.name
                     order = templateModule.order
-                    autoDisableVoice = templateModule.autoDisableVoice
                 }
             }
             is UnitGeneratorModule -> {
@@ -855,17 +852,13 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                 val factory = ModuleRegistry.ksynFactories[templateModule.type]
                     ?: ModuleRegistry.ksynFactories[resolvedType]
                     ?: ModuleRegistry.ksynClassFactories[templateModule.unit::class]
-                val mod = if (factory != null) {
+                if (factory != null) {
                     UnitGeneratorModule(templateModule.type, factory()).apply {
                         name = templateModule.name
                     }
                 } else {
                     ModuleRegistry.findCreator(templateModule.type)?.invoke() ?: templateModule
                 }
-                if (mod is UnitGeneratorModule) {
-                    mod.autoDisableVoice = templateModule.autoDisableVoice
-                }
-                mod
             }
             is GrabAudioModule -> {
                 GrabAudioModule().apply { name = templateModule.name }
@@ -874,6 +867,9 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                 ModuleRegistry.findCreator(templateModule.type)?.invoke() ?: templateModule
             }
         }
+
+        // Every module that can switch its voice off keeps the template's choice.
+        voiceModule.autoDisableVoiceMode = templateModule.autoDisableVoiceMode
 
         // Copy input jack properties and values
         for (templateJack in templateModule.inputs) {
@@ -972,62 +968,38 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
     }
 
     fun syncAutoDisableVoice(templateModule: Module, mode: com.syntona.dataflow.model.AutoDisableVoiceMode) {
-        if (templateModule is UnitGeneratorModule) {
-            templateModule.autoDisableVoice = mode
-        } else if (templateModule is EnvSegModule) {
-            templateModule.autoDisableVoice = mode
-        }
+        templateModule.autoDisableVoiceMode = mode
         if (!isInitialized) return
         for (voice in voices) {
-            val voiceMod = voice.templateToVoiceMap[templateModule]
-            if (voiceMod is UnitGeneratorModule) {
-                voiceMod.autoDisableVoice = mode
-            } else if (voiceMod is EnvSegModule) {
-                voiceMod.autoDisableVoice = mode
-            }
+            voice.templateToVoiceMap[templateModule]?.autoDisableVoiceMode = mode
         }
         updateAutoDisableBindings()
     }
 
+    /**
+     * Chooses which module, if any, switches each voice off when it finishes, and binds its unit
+     * to the voice circuit. Any module whose unit implements SupportsAutoDisable can be chosen.
+     */
     fun updateAutoDisableBindings() {
         if (!isInitialized) return
 
-        val unitMap: Map<UnitGeneratorModule, Module> = graphState.modules.filterIsInstance<UnitGeneratorModule>().associateWith { it }
-        val envSegMap: Map<EnvSegModule, Module> = graphState.modules.filterIsInstance<EnvSegModule>().associateWith { it }
-
-        val mainEnvModule = SourceExporter.findMainAmpEnvelope(
+        val candidates: Map<Module, Module> =
+            graphState.modules.filter { it.supportsAutoDisableVoice }.associateWith { it }
+        val mainModule = SourceExporter.findMainAmpEnvelope(
             patch = this,
-            unitMap = unitMap,
-            getClassName = { mod ->
-                when (mod) {
-                    is UnitGeneratorModule -> mod.unit::class.simpleName ?: ""
-                    is EnvSegModule -> "VariableRateMonoReader"
-                    else -> ""
-                }
-            },
-            getVarName = { it.name },
-            envSegMap = envSegMap
+            candidates = candidates,
+            getVarName = { it.name }
         )
 
         for (voice in voices) {
-            // First, clear autoDisable on all voice envelopes so stale bindings don't linger
+            // First turn it off everywhere, so that a module that is no longer chosen lets go.
             for (m in voice.graphState.modules) {
-                if (m is UnitGeneratorModule && m.unit is UnitGate) {
-                    m.unit.input.setAutoDisableEnabled(false)
-                } else if (m is EnvSegModule) {
-                    m.setAutoDisableEnabled(false)
-                }
+                m.autoDisableUnit?.setAutoDisableEnabled(false)
             }
 
-            if (mainEnvModule != null) {
-                val voiceEnvModule = voice.templateToVoiceMap[mainEnvModule]
-                if (voiceEnvModule is UnitGeneratorModule && voiceEnvModule.unit is UnitGate) {
-                    voiceEnvModule.unit.setupAutoDisable(voice.voiceCircuit)
-                } else if (voiceEnvModule is EnvSegModule) {
-                    voiceEnvModule.setupAutoDisable(voice.voiceCircuit)
-                } else {
-                    voice.voiceCircuit.isEnabled = true
-                }
+            val voiceUnit = mainModule?.let { voice.templateToVoiceMap[it] }?.autoDisableUnit
+            if (voiceUnit != null) {
+                voiceUnit.setupAutoDisable(voice.voiceCircuit)
             } else {
                 voice.voiceCircuit.isEnabled = true
             }

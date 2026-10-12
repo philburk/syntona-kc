@@ -28,6 +28,8 @@ import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.CommandJack
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.AutoDisableVoiceMode
+import com.syntona.dataflow.model.autoDisableVoiceMode
+import com.syntona.dataflow.model.supportsAutoDisableVoice
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.modules.AudioInputModule
@@ -132,9 +134,9 @@ fun ModuleEditor(module: Module, onDismiss: () -> Unit, modifier: Modifier = Mod
                     borderColor = BORDER_COLOR
                 )
 
-                if ((module is UnitGeneratorModule && module.isEnvelope) || module is EnvSegModule) {
+                if (module.supportsAutoDisableVoice) {
                     androidx.compose.material3.HorizontalDivider(color = BORDER_COLOR, thickness = 1.dp)
-                    EnvelopeAutoDisableVoiceEditor(module)
+                    AutoDisableVoiceEditor(module)
                 }
 
                 androidx.compose.material3.HorizontalDivider(color = BORDER_COLOR, thickness = 1.dp)
@@ -783,17 +785,23 @@ private fun MidiOutModuleEditor(module: MidiOutModule) {
     }
 }
 
+/**
+ * Lets the user choose whether a module switches its polyPatch voice off when it finishes.
+ * Shown for any module whose KSyn unit implements SupportsAutoDisable.
+ */
 @Composable
-internal fun EnvelopeAutoDisableVoiceEditor(
+internal fun AutoDisableVoiceEditor(
     module: Module,
     textColor: Color = LABEL_COLOR
 ) {
-    val currentMode = when (module) {
-        is UnitGeneratorModule -> module.autoDisableVoice
-        is EnvSegModule -> module.autoDisableVoice
-        else -> AutoDisableVoiceMode.NO
+    var selectedMode by remember(module) { mutableStateOf(module.autoDisableVoiceMode ?: AutoDisableVoiceMode.NO) }
+
+    fun select(mode: AutoDisableVoiceMode) {
+        selectedMode = mode
+        module.autoDisableVoiceMode = mode
+        (module.parentPatch as? PolyPatchModule)?.syncAutoDisableVoice(module, mode)
+        FileState.markDirty()
     }
-    var selectedMode by remember(module) { mutableStateOf(currentMode) }
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -801,7 +809,7 @@ internal fun EnvelopeAutoDisableVoiceEditor(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp)
     ) {
         Text(
-            "Disable Voice When This Envelope is Done:",
+            "Disable Voice When This Module is Done:",
             fontSize = 12.sp,
             color = textColor,
             fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
@@ -815,28 +823,12 @@ internal fun EnvelopeAutoDisableVoiceEditor(
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(2.dp),
-                modifier = Modifier.clickable {
-                    selectedMode = mode
-                    when (module) {
-                        is UnitGeneratorModule -> module.autoDisableVoice = mode
-                        is EnvSegModule -> module.autoDisableVoice = mode
-                    }
-                    (module.parentPatch as? PolyPatchModule)?.syncAutoDisableVoice(module, mode)
-                    FileState.markDirty()
-                }
+                modifier = Modifier.clickable { select(mode) }
             ) {
                 CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
                     RadioButton(
                         selected = (selectedMode == mode),
-                        onClick = {
-                            selectedMode = mode
-                            when (module) {
-                                is UnitGeneratorModule -> module.autoDisableVoice = mode
-                                is EnvSegModule -> module.autoDisableVoice = mode
-                            }
-                            (module.parentPatch as? PolyPatchModule)?.syncAutoDisableVoice(module, mode)
-                            FileState.markDirty()
-                        },
+                        onClick = { select(mode) },
                         modifier = Modifier.size(20.dp)
                     )
                 }

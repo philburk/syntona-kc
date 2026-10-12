@@ -5,6 +5,8 @@ import com.softsynth.ksyn.unitgen.EnvelopeDAHDSR
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.AudioOutputJack
 import com.syntona.dataflow.model.AutoDisableVoiceMode
+import com.syntona.dataflow.model.supportsAutoDisableVoice
+import com.syntona.dataflow.model.autoDisableVoiceMode
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.model.OutputJack
@@ -259,7 +261,10 @@ object JSynSourceExporter {
         val envelopes = unitMap.values.filter {
             it.className == "EnvelopeDAHDSR" || it.className == "EnvelopeAttackDecay"
         }
-        val mainAmpEnv = SourceExporter.findMainAmpEnvelope(patch, unitMap, { it.className }, { it.varName }, envSegUnitInfos)
+        val exportedModules = buildMap<Module, UnitInfo> { putAll(unitMap); putAll(envSegUnitInfos) }
+        val mainAmpEnv = SourceExporter.findMainAmpEnvelope(
+            patch, exportedModules.filterKeys { SourceExporter.isEnvelopeModule(it) }, { it.varName }
+        )
 
         val connections = allConnections
         val firstOsc = unitMap.values.firstOrNull { it.className.contains("Oscillator") }
@@ -470,26 +475,22 @@ object JSynSourceExporter {
         sb.appendLine()
 
         // Auto disable
-        val autoDisableEnv = if (mainAmpEnv != null && (mainAmpEnv.className == "EnvelopeDAHDSR" || mainAmpEnv.className == "EnvelopeAttackDecay")) {
-            mainAmpEnv
-        } else {
-            val explicitYesExists = patch.graphState.modules.any {
-                (it is EnvSegModule && it.autoDisableVoice == AutoDisableVoiceMode.YES) ||
-                (it is UnitGeneratorModule && it.autoDisableVoice == AutoDisableVoiceMode.YES)
-            }
-            if (explicitYesExists) {
-                null
-            } else {
-                SourceExporter.findMainAmpEnvelope(
-                    patch = patch,
-                    unitMap = unitMap,
-                    getClassName = { it.className },
-                    getVarName = { it.varName }
-                )
-            }
+        // Chosen the same way a polyPatch chooses at run time. JSyn only offers setupAutoDisable()
+        // on its envelopes, so if the choice is something else, fall back to the best envelope,
+        // unless the user picked that module explicitly.
+        fun isJSynCapable(info: UnitInfo) =
+            info.className == "EnvelopeDAHDSR" || info.className == "EnvelopeAttackDecay"
+        val autoDisableCandidates = exportedModules.filterKeys { it.supportsAutoDisableVoice }
+        val chosen = SourceExporter.findMainAmpEnvelope(patch, autoDisableCandidates, { it.varName })
+        val autoDisableEnv = when {
+            chosen == null || isJSynCapable(chosen) -> chosen
+            autoDisableCandidates.keys.any { it.autoDisableVoiceMode == AutoDisableVoiceMode.YES } -> null
+            else -> SourceExporter.findMainAmpEnvelope(
+                patch, autoDisableCandidates.filterValues { isJSynCapable(it) }, { it.varName }
+            )
         }
 
-        if (autoDisableEnv != null && (autoDisableEnv.className == "EnvelopeDAHDSR" || autoDisableEnv.className == "EnvelopeAttackDecay")) {
+        if (autoDisableEnv != null) {
             sb.appendLine("        // Turn off circuit when envelope completes to save CPU")
             sb.appendLine("        ${autoDisableEnv.varName}.setupAutoDisable(this);")
             sb.appendLine()

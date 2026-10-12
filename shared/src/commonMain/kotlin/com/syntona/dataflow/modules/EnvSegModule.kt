@@ -6,7 +6,6 @@ import androidx.compose.runtime.setValue
 import com.softsynth.ksyn.data.SegmentedEnvelope
 import com.softsynth.ksyn.ports.QueueDataEvent
 import com.softsynth.ksyn.ports.UnitDataQueueCallback
-import com.softsynth.ksyn.unitgen.UnitGenerator
 import com.softsynth.ksyn.unitgen.VariableRateMonoReader
 import com.syntona.core.audio.SynthKSyn
 import com.syntona.dataflow.model.AudioInputJack
@@ -24,18 +23,12 @@ import com.syntona.dataflow.model.Module
  * Supports triggering via [onIn] / [offIn], looping control via [loopInput],
  * rate scaling via [speed], and level control via [amplitude].
  */
-class EnvSegModule : Module("envSeg") {
+class EnvSegModule : Module("envSeg"), com.syntona.dataflow.model.AutoDisableVoiceModule {
     val unit = VariableRateMonoReader()
 
-    var autoDisableVoice: com.syntona.dataflow.model.AutoDisableVoiceMode = com.syntona.dataflow.model.AutoDisableVoiceMode.NO
+    override val autoDisableUnit get() = unit
 
-    fun setupAutoDisable(target: UnitGenerator) {
-        unit.setupAutoDisable(target)
-    }
-
-    fun setAutoDisableEnabled(enabled: Boolean) {
-        unit.setAutoDisableEnabled(enabled)
-    }
+    override var autoDisableVoice = com.syntona.dataflow.model.defaultAutoDisableVoiceMode(unit)
 
     private var _envelope by mutableStateOf(
         SegmentedEnvelope(

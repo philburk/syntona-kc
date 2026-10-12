@@ -3424,7 +3424,7 @@ fun EnvSegModuleNode(module: EnvSegModule, state: GraphState) {
                                         onNameChanged = { windowInfo?.title = it }
                                     )
 
-                                    EnvelopeAutoDisableVoiceEditor(module, textColor = Color.LightGray)
+                                    AutoDisableVoiceEditor(module, textColor = Color.LightGray)
 
                                     androidx.compose.material3.HorizontalDivider(color = Color.Gray, thickness = 1.dp)
 

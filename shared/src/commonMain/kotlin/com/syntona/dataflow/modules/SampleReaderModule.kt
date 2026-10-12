@@ -19,9 +19,13 @@ import com.syntona.dataflow.model.Module
  * Plays a slice or loop of a connected sample buffer ([FloatSampleModule] or [RecorderModule]).
  * Supports normalized offset and length for granular synthesis or beat chopping.
  */
-class SampleReaderModule : Module("sampleReader") {
+class SampleReaderModule : Module("sampleReader"), com.syntona.dataflow.model.AutoDisableVoiceModule {
     val unit = VariableRateMonoReader()
     val rateMultiplier = Multiply()
+
+    override val autoDisableUnit get() = unit
+
+    override var autoDisableVoice = com.syntona.dataflow.model.defaultAutoDisableVoiceMode(unit)
 
     var isLooping: Boolean
         get() = loopInput.isChecked

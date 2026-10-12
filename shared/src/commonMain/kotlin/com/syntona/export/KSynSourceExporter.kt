@@ -8,6 +8,7 @@ import com.softsynth.ksyn.unitgen.*
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.AudioOutputJack
 import com.syntona.dataflow.model.AutoDisableVoiceMode
+import com.syntona.dataflow.model.supportsAutoDisableVoice
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.model.OutputJack
 import com.syntona.dataflow.model.InputJack
@@ -239,7 +240,10 @@ object KSynSourceExporter {
         val envelopes = unitMap.values.filter {
             it.className == "EnvelopeDAHDSR" || it.className == "EnvelopeAttackDecay"
         }
-        val mainAmpEnv = SourceExporter.findMainAmpEnvelope(patch, unitMap, { it.className }, { it.varName }, envSegUnitInfos)
+        val exportedModules = buildMap<Module, UnitInfo> { putAll(unitMap); putAll(envSegUnitInfos) }
+        val mainAmpEnv = SourceExporter.findMainAmpEnvelope(
+            patch, exportedModules.filterKeys { SourceExporter.isEnvelopeModule(it) }, { it.varName }
+        )
 
         // Wiring connections
         sb.appendLine("        // Wire connections")
@@ -465,26 +469,13 @@ object KSynSourceExporter {
         sb.appendLine()
 
         // Auto disable
-        val autoDisableEnv = if (mainAmpEnv != null && (mainAmpEnv.className == "EnvelopeDAHDSR" || mainAmpEnv.className == "EnvelopeAttackDecay" || mainAmpEnv.className == "VariableRateMonoReader")) {
-            mainAmpEnv
-        } else {
-            val explicitYesExists = patch.graphState.modules.any {
-                (it is EnvSegModule && it.autoDisableVoice == AutoDisableVoiceMode.YES) ||
-                (it is UnitGeneratorModule && it.autoDisableVoice == AutoDisableVoiceMode.YES)
-            }
-            if (explicitYesExists) {
-                null
-            } else {
-                SourceExporter.findMainAmpEnvelope(
-                    patch = patch,
-                    unitMap = unitMap,
-                    getClassName = { it.className },
-                    getVarName = { it.varName }
-                )
-            }
-        }
+        // Chosen the same way a polyPatch chooses at run time: from every exported module whose
+        // unit can switch the voice off.
+        val autoDisableEnv = SourceExporter.findMainAmpEnvelope(
+            patch, exportedModules.filterKeys { it.supportsAutoDisableVoice }, { it.varName }
+        )
 
-        if (autoDisableEnv != null && (autoDisableEnv.className == "EnvelopeDAHDSR" || autoDisableEnv.className == "EnvelopeAttackDecay" || autoDisableEnv.className == "VariableRateMonoReader")) {
+        if (autoDisableEnv != null) {
             sb.appendLine("        // Turn off circuit when envelope completes to save CPU")
             sb.appendLine("        ${autoDisableEnv.varName}.setupAutoDisable(this)")
             sb.appendLine()
