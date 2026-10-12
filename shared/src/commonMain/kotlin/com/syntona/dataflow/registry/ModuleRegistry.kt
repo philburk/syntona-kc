@@ -246,6 +246,7 @@ object ModuleRegistry {
         "bandStop" to "second-order notch / band-stop filter",
         "highPass" to "second-order resonant high-pass filter",
         "allPass" to "all-pass filter for phase shifting and dispersion",
+        "comb" to "feedback comb filter that resonates at a frequency and its harmonics",
         "lowShelf" to "low-shelf equalizer filter",
         "highShelf" to "high-shelf equalizer filter",
         "peakingEQ" to "parametric peaking equalizer filter",
@@ -492,6 +493,7 @@ object ModuleRegistry {
         addKSynModule(filters, "bandStop", ::FilterBandStop)
         addKSynModule(filters, "highPass", ::FilterHighPass)
         addKSynModule(filters, "allPass", ::FilterAllPass)
+        addKSynModule(filters, "comb", ::FilterComb)
         addKSynModule(filters, "lowShelf", ::FilterLowShelf)
         addKSynModule(filters, "highShelf", ::FilterHighShelf)
         addKSynModule(filters, "peakingEQ", ::FilterPeakingEQ)

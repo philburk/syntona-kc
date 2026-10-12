@@ -39,7 +39,7 @@ class AutoDisableVoiceTest {
 
     private fun create(type: String): Module = assertNotNull(ModuleRegistry.findCreator(type), type).invoke()
 
-    private val supporting = listOf("envDAHDSR", "envAD", "envSeg", "stringRes", "samplePlayer", "sampleReader")
+    private val supporting = listOf("envDAHDSR", "envAD", "envSeg", "stringRes", "comb", "samplePlayer", "sampleReader")
     private val notSupporting = listOf("sineOsc", "lowPass", "sample", "sampleWriter", "clock")
 
     @Test
