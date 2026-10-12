@@ -52,6 +52,7 @@ private val HEADER_COLOR = Color(0xFFCC6666)
 private val PANEL_COLOR = Color(0xFFF0F0F0)
 private val BORDER_COLOR = Color(0xFFAAAAAA)
 private val LABEL_COLOR = Color(0xFF444444)
+private const val MIN_MAX_EPSILON = 0.01
 
 @Composable
 fun ModuleNameEditor(
@@ -240,8 +241,8 @@ internal fun JackEditorRow(
                     onCommit = { newMin ->
                         val finalMin = if (jack.isInteger) kotlin.math.round(newMin) else newMin
                         jack.min = finalMin
-                        if (jack.max < finalMin + 1.0) {
-                            jack.max = finalMin + 1.0
+                        if (jack.max < finalMin + MIN_MAX_EPSILON) {
+                            jack.max = finalMin + MIN_MAX_EPSILON
                         }
                         val clamped = jack.getValue().coerceIn(jack.min, jack.max)
                         if (jack.getValue() != clamped) {
@@ -272,8 +273,8 @@ internal fun JackEditorRow(
                     onCommit = { newMax ->
                         val finalMax = if (jack.isInteger) kotlin.math.round(newMax) else newMax
                         jack.max = finalMax
-                        if (jack.min > finalMax - 1.0) {
-                            jack.min = finalMax - 1.0
+                        if (jack.min > finalMax - MIN_MAX_EPSILON) {
+                            jack.min = finalMax - MIN_MAX_EPSILON
                         }
                         val clamped = jack.getValue().coerceIn(jack.min, jack.max)
                         if (jack.getValue() != clamped) {
