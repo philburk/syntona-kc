@@ -23,6 +23,7 @@ fun VerticalSlider(
     onValueChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
     valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
+    isExponential: Boolean = false,
     trackColor: Color = Color.Gray,
     fillColor: Color = Color(0xFF4FC3F7),
     thumbColor: Color = Color.White
@@ -30,13 +31,20 @@ fun VerticalSlider(
     var heightPx by remember { mutableStateOf(0f) }
 
     val latestRange by rememberUpdatedState(valueRange)
+    val latestIsExponential by rememberUpdatedState(isExponential)
     val latestOnValueChange by rememberUpdatedState(onValueChange)
 
     fun yToValue(y: Float): Float {
         if (heightPx == 0f) return value
-        val fraction = 1f - (y / heightPx).coerceIn(0f, 1f)
-        return (latestRange.start + fraction * (latestRange.endInclusive - latestRange.start))
-            .coerceIn(latestRange.start, latestRange.endInclusive)
+        val fraction = (1f - (y / heightPx)).coerceIn(0f, 1f).toDouble()
+        val rStart = latestRange.start.toDouble()
+        val rEnd = latestRange.endInclusive.toDouble()
+        return com.syntona.dataflow.model.ExponentialTaper.fractionToValue(
+            fraction,
+            rStart,
+            rEnd,
+            latestIsExponential
+        ).toFloat()
     }
 
     Canvas(
@@ -56,8 +64,12 @@ fun VerticalSlider(
         val thumbRadius = 12.dp.toPx()
         val trackWidth = 6.dp.toPx()
         val usableHeight = size.height - 2 * thumbRadius
-        val fraction = ((value - valueRange.start) / (valueRange.endInclusive - valueRange.start))
-            .coerceIn(0f, 1f)
+        val fraction = com.syntona.dataflow.model.ExponentialTaper.valueToFraction(
+            value.toDouble(),
+            valueRange.start.toDouble(),
+            valueRange.endInclusive.toDouble(),
+            isExponential
+        ).toFloat().coerceIn(0f, 1f)
         val thumbY = (1f - fraction) * usableHeight + thumbRadius
         val cx = size.width / 2
 

@@ -21,6 +21,9 @@ sealed class Jack {
     /** Whether this jack treats values as discrete integers. */
     abstract var isInteger: Boolean
 
+    /** Whether this jack treats values with an exponential taper. */
+    abstract var isExponential: Boolean
+
     /** Whether this jack represents a displayable numeric scalar value. */
     open val isDisplayableValue: Boolean get() = true
 
@@ -31,16 +34,54 @@ sealed class Jack {
     open val isModuleEditorVisible: Boolean get() = false
 }
 
+private val DEFAULT_EXPONENTIAL_NAMES = setOf(
+    "frequency",
+    "amplitude",
+    "rate",
+    "ratehz",
+    "speed",
+    "attack",
+    "decay",
+    "release",
+    "hold",
+    "duration",
+    "durationms",
+    "halflife",
+    "delay",
+    "delayms",
+    "predelaymillis",
+    "predelayms",
+    "cutoff",
+    "time",
+    "timems"
+)
+
+/**
+ * Returns true if jacks with [name] should default to an exponential taper.
+ * By default, jacks with perceptual frequency, loudness, rate, and time parameters
+ * (e.g. "frequency", "amplitude", "rate", "rateHz", "speed", "attack", "decay", "release",
+ * "hold", "duration", "durationMs", "halfLife", "delay", "delayMs", "cutoff", "time")
+ * use an exponential taper.
+ */
+fun isDefaultExponentialName(name: String): Boolean {
+    val clean = name.trim().lowercase().trimEnd { it.isDigit() || it == '_' }
+    if (DEFAULT_EXPONENTIAL_NAMES.contains(clean)) return true
+    val noUnderscores = clean.replace("_", "")
+    return DEFAULT_EXPONENTIAL_NAMES.contains(noUnderscores)
+}
+
 /**
  * An input port that can receive messages.
  * @property isKickable If true, receiving a message on this jack triggers [Module.execute].
  * @property isInteger If true, values on this jack are treated as discrete integers.
+ * @property isExponential If true, values on this jack follow an exponential taper.
  */
 open class InputJack(
     name: String,
     override val module: Module,
     isKickable: Boolean = false,
-    isInteger: Boolean = false
+    isInteger: Boolean = false,
+    isExponential: Boolean = isDefaultExponentialName(name)
 ) : Jack() {
     override val isValueDraggable: Boolean get() = true
     override val isModuleEditorVisible: Boolean get() = true
@@ -61,6 +102,15 @@ open class InputJack(
             _isInteger = value
             val polyPatch = module.parentPatch as? com.syntona.dataflow.modules.PolyPatchModule
             polyPatch?.syncInputJackInteger(this, value)
+        }
+
+    private var _isExponential by mutableStateOf(isExponential)
+    override var isExponential: Boolean
+        get() = _isExponential
+        set(value) {
+            _isExponential = value
+            val polyPatch = module.parentPatch as? com.syntona.dataflow.modules.PolyPatchModule
+            polyPatch?.syncInputJackExponential(this, value)
         }
 
     var isKicked = false
@@ -203,10 +253,12 @@ open class BooleanInputJack(
 open class OutputJack(
     name: String,
     override val module: Module,
-    isInteger: Boolean = false
+    isInteger: Boolean = false,
+    isExponential: Boolean = isDefaultExponentialName(name)
 ) : Jack() {
     override var name by mutableStateOf(name)
     override var isInteger by mutableStateOf(isInteger)
+    override var isExponential by mutableStateOf(isExponential)
     private val connections = mutableListOf<InputJack>()
 
     private var lastSentValue: Double by mutableStateOf(0.0)

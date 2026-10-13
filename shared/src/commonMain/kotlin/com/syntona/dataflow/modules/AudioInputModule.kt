@@ -9,6 +9,7 @@ import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.AudioOutputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
+import com.syntona.dataflow.model.isDefaultExponentialName
 
 /**
  * Places an audio input port on the parent [PatchModule].
@@ -28,6 +29,11 @@ class AudioInputModule : Module("input~") {
         set(value) {
             _name = value
             patchJack?.name = value
+            if (!isExponentialExplicitlySet) {
+                val exp = isDefaultExponentialName(value)
+                defaultIsExponential = exp
+                isExponentialExplicitlySet = false
+            }
             (patch as? PolyPatchModule)?.onAudioInputNameChanged(this, value)
         }
 
@@ -43,6 +49,14 @@ class AudioInputModule : Module("input~") {
                 }
                 value.isKickable = defaultIsKickable
                 value.isValueAdded = defaultAdd
+                value.isInteger = defaultIsInteger
+                if (isExponentialExplicitlySet) {
+                    value.isExponential = defaultIsExponential
+                } else {
+                    value.isExponential = isDefaultExponentialName(name)
+                    defaultIsExponential = value.isExponential
+                    isExponentialExplicitlySet = false
+                }
             }
         }
 
@@ -72,6 +86,18 @@ class AudioInputModule : Module("input~") {
         set(value) {
             field = value
             patchJack?.isValueAdded = value
+        }
+    var defaultIsInteger: Boolean = false
+        set(value) {
+            field = value
+            patchJack?.isInteger = value
+        }
+    private var isExponentialExplicitlySet = false
+    var defaultIsExponential: Boolean = isDefaultExponentialName(name)
+        set(value) {
+            field = value
+            isExponentialExplicitlySet = true
+            patchJack?.isExponential = value
         }
 
     init {

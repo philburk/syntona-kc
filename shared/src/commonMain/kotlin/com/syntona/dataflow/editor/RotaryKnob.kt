@@ -35,6 +35,7 @@ fun RotaryKnob(
     onValueChange: (Float) -> Unit,
     modifier: Modifier = Modifier,
     valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
+    isExponential: Boolean = false,
     trackColor: Color = Color(0xFF3A3A3A),
     arcColor: Color = Color(0xFFE6A820),
     knobBodyColor: Color = Color(0xFF808080),
@@ -45,6 +46,7 @@ fun RotaryKnob(
     // value without restarting the gesture handler on every recomposition.
     val latestValue by rememberUpdatedState(value)
     val latestRange by rememberUpdatedState(valueRange)
+    val latestIsExponential by rememberUpdatedState(isExponential)
     val latestOnValueChange by rememberUpdatedState(onValueChange)
 
     Canvas(
@@ -60,18 +62,33 @@ fun RotaryKnob(
                     // Apply current sensitivity to this frame's delta.y only (incremental).
                     // Using total accumY would retroactively re-scale all past Y movement
                     // whenever X changes, causing value jumps when dragging horizontally.
-                    val range = (latestRange.endInclusive - latestRange.start).toDouble()
-                    val sensitivity = range / 400.0 * 10.0.pow(-accumX / 200.0)
-                    currentValue = (currentValue - delta.y.toDouble() * sensitivity)
-                        .coerceIn(latestRange.start.toDouble(), latestRange.endInclusive.toDouble())
-                        .toFloat()
+                    val rStart = latestRange.start.toDouble()
+                    val rEnd = latestRange.endInclusive.toDouble()
+                    val currentFrac = com.syntona.dataflow.model.ExponentialTaper.valueToFraction(
+                        currentValue.toDouble(),
+                        rStart,
+                        rEnd,
+                        latestIsExponential
+                    )
+                    val deltaFrac = -delta.y.toDouble() / 400.0 * 10.0.pow(-accumX / 200.0)
+                    val newFrac = (currentFrac + deltaFrac).coerceIn(0.0, 1.0)
+                    currentValue = com.syntona.dataflow.model.ExponentialTaper.fractionToValue(
+                        newFrac,
+                        rStart,
+                        rEnd,
+                        latestIsExponential
+                    ).toFloat()
                     latestOnValueChange(currentValue)
                 }
             }
         }
     ) {
-        val fraction = ((value - valueRange.start) / (valueRange.endInclusive - valueRange.start))
-            .coerceIn(0f, 1f)
+        val fraction = com.syntona.dataflow.model.ExponentialTaper.valueToFraction(
+            value.toDouble(),
+            valueRange.start.toDouble(),
+            valueRange.endInclusive.toDouble(),
+            isExponential
+        ).toFloat().coerceIn(0f, 1f)
 
         val cx = size.width / 2f
         val cy = size.height / 2f

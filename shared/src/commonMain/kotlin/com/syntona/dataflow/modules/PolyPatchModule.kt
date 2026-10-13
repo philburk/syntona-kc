@@ -463,6 +463,16 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
         }
     }
 
+    fun syncInputJackExponential(jack: InputJack, value: Boolean) {
+        if (!isInitialized) return
+        val visibleModule = jack.module
+        for (voice in voices) {
+            val voiceMod = voice.templateToVoiceMap[visibleModule] ?: continue
+            val voiceJack = findMatchingInputJack(voiceMod, jack) ?: continue
+            voiceJack.isExponential = value
+        }
+    }
+
     private fun syncModuleAdded(module: Module) {
         if (!isInitialized) return
         for (voice in voices) {

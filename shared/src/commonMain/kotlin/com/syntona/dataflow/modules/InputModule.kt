@@ -6,6 +6,7 @@ import androidx.compose.runtime.setValue
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
+import com.syntona.dataflow.model.isDefaultExponentialName
 
 open class InputModule : Module("input") {
     val output = addOutput("out")
@@ -16,6 +17,11 @@ open class InputModule : Module("input") {
         set(value) {
             _name = value
             patchJack?.name = value
+            if (!isExponentialExplicitlySet) {
+                val exp = isDefaultExponentialName(value)
+                defaultIsExponential = exp
+                isExponentialExplicitlySet = false
+            }
         }
 
     // Set by the parent PatchModule when this module is added to its graphState
@@ -31,6 +37,13 @@ open class InputModule : Module("input") {
                 }
                 value.isKickable = defaultIsKickable
                 value.isInteger = defaultIsInteger
+                if (isExponentialExplicitlySet) {
+                    value.isExponential = defaultIsExponential
+                } else {
+                    value.isExponential = isDefaultExponentialName(name)
+                    defaultIsExponential = value.isExponential
+                    isExponentialExplicitlySet = false
+                }
             }
         }
 
@@ -60,6 +73,13 @@ open class InputModule : Module("input") {
         set(value) {
             field = value
             patchJack?.isInteger = value
+        }
+    private var isExponentialExplicitlySet = false
+    var defaultIsExponential: Boolean = isDefaultExponentialName(name)
+        set(value) {
+            field = value
+            isExponentialExplicitlySet = true
+            patchJack?.isExponential = value
         }
 
     fun receive(msg: Message) {

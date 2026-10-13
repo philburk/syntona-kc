@@ -2053,16 +2053,27 @@ fun JackView(
                                 val inputJack = jack as InputJack
                                 valueDragAccumX += dragAmount.x
                                 val range = inputJack.max - inputJack.min
-                                val baseSensitivity = if (inputJack.isInteger) {
-                                    maxOf(range / 400.0, 1.0 / 20.0)
-                                } else {
-                                    range / 400.0
-                                }
-                                val sensitivity = baseSensitivity * 10.0.pow(-valueDragAccumX / 200.0)
                                 val low = minOf(inputJack.min, inputJack.max)
                                 val high = maxOf(inputJack.min, inputJack.max)
-                                valueDragRawValue = (valueDragRawValue - dragAmount.y * sensitivity)
-                                    .coerceIn(low, high)
+                                val currentFrac = com.syntona.dataflow.model.ExponentialTaper.valueToFraction(
+                                    valueDragRawValue,
+                                    inputJack.min,
+                                    inputJack.max,
+                                    inputJack.isExponential
+                                )
+                                val baseDeltaFrac = if (inputJack.isInteger && range > 0.0) {
+                                    maxOf(1.0 / 400.0, (1.0 / 20.0) / range)
+                                } else {
+                                    1.0 / 400.0
+                                }
+                                val deltaFrac = -dragAmount.y * baseDeltaFrac * 10.0.pow(-valueDragAccumX / 200.0)
+                                val newFrac = (currentFrac + deltaFrac).coerceIn(0.0, 1.0)
+                                valueDragRawValue = com.syntona.dataflow.model.ExponentialTaper.fractionToValue(
+                                    newFrac,
+                                    inputJack.min,
+                                    inputJack.max,
+                                    inputJack.isExponential
+                                ).coerceIn(low, high)
                                 val newValue = if (inputJack.isInteger) {
                                     kotlin.math.round(valueDragRawValue).coerceIn(low, high)
                                 } else {
@@ -2523,6 +2534,7 @@ fun FaderModuleNode(module: FaderModule, state: GraphState) {
                         state.markChanged()
                     },
                     valueRange = module.valueIn.min.toFloat()..module.valueIn.max.toFloat(),
+                    isExponential = module.valueIn.isExponential,
                     modifier = Modifier.weight(1f).fillMaxHeight()
                 )
                 Column(
@@ -2905,6 +2917,7 @@ fun KnobModuleNode(module: KnobModule, state: GraphState) {
                         state.markChanged()
                     },
                     valueRange = module.valueIn.min.toFloat()..module.valueIn.max.toFloat(),
+                    isExponential = module.valueIn.isExponential,
                     modifier = Modifier.weight(1f).fillMaxHeight()
                 )
                 Column(

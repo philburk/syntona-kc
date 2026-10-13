@@ -10,6 +10,7 @@ import com.syntona.dataflow.model.CommandJack
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
+import com.syntona.dataflow.model.isDefaultExponentialName
 import com.syntona.dataflow.modules.CommentModule
 import com.syntona.dataflow.modules.KeyboardModule
 import com.syntona.dataflow.modules.ScopeModule
@@ -267,6 +268,7 @@ object GraphSerializer {
                 val max = module.patchJack?.max ?: module.defaultMax
                 val kickable = module.patchJack?.isKickable ?: module.defaultIsKickable
                 val integer = module.patchJack?.isInteger ?: module.defaultIsInteger
+                val exponential = module.patchJack?.isExponential ?: module.defaultIsExponential
                 val fields = mutableListOf<String>()
                 val holdsValue = module.hasValue || (module.patchJack != null && module.patchJack?.lastMessage is Message.FloatValue)
                 if (holdsValue) {
@@ -277,6 +279,11 @@ object GraphSerializer {
                 fields.add("\"max\":$max")
                 fields.add("\"kickable\":$kickable")
                 if (integer) fields.add("\"integer\":true")
+                if (exponential) {
+                    fields.add("\"exponential\":true")
+                } else if (isDefaultExponentialName(jackName)) {
+                    fields.add("\"exponential\":false")
+                }
                 append(",\"jacks\":{\"${jackName.jsonEscape}\":{")
                 append(fields.joinToString(","))
                 append("}}")
@@ -286,6 +293,8 @@ object GraphSerializer {
                 val max = module.patchJack?.max ?: module.defaultMax
                 val kickable = module.patchJack?.isKickable ?: module.defaultIsKickable
                 val add = module.patchJack?.isValueAdded ?: module.defaultAdd
+                val integer = module.patchJack?.isInteger ?: module.defaultIsInteger
+                val exponential = module.patchJack?.isExponential ?: module.defaultIsExponential
                 val fields = mutableListOf<String>()
                 val holdsValue = module.hasValue || (module.patchJack != null && module.patchJack?.lastMessage is Message.FloatValue)
                 if (holdsValue) {
@@ -296,6 +305,12 @@ object GraphSerializer {
                 fields.add("\"max\":$max")
                 fields.add("\"kickable\":$kickable")
                 fields.add("\"add\":$add")
+                if (integer) fields.add("\"integer\":true")
+                if (exponential) {
+                    fields.add("\"exponential\":true")
+                } else if (isDefaultExponentialName(jackName)) {
+                    fields.add("\"exponential\":false")
+                }
                 append(",\"jacks\":{\"${jackName.jsonEscape}\":{")
                 append(fields.joinToString(","))
                 append("}}")
@@ -320,6 +335,11 @@ object GraphSerializer {
                         fields.add("\"max\":${jack.max}")
                         fields.add("\"kickable\":${jack.isKickable}")
                         if (jack.isInteger) fields.add("\"integer\":true")
+                        if (jack.isExponential) {
+                            fields.add("\"exponential\":true")
+                        } else if (isDefaultExponentialName(jack.name)) {
+                            fields.add("\"exponential\":false")
+                        }
                         if (jack is AudioInputJack) fields.add("\"add\":${jack.isValueAdded}")
                         append(fields.joinToString(","))
                         append("}")
@@ -1129,6 +1149,10 @@ object GraphSerializer {
                                 module.defaultIsInteger = it
                                 module.patchJack?.isInteger = it
                             }
+                            (jackValue.map["exponential"] as? JsonValue.Bool)?.value?.let {
+                                module.defaultIsExponential = it
+                                module.patchJack?.isExponential = it
+                            }
                         }
                         else -> {}
                     }
@@ -1162,6 +1186,14 @@ object GraphSerializer {
                             (jackValue.map["add"] as? JsonValue.Bool)?.value?.let {
                                 module.defaultAdd = it
                                 module.patchJack?.isValueAdded = it
+                            }
+                            (jackValue.map["integer"] as? JsonValue.Bool)?.value?.let {
+                                module.defaultIsInteger = it
+                                module.patchJack?.isInteger = it
+                            }
+                            (jackValue.map["exponential"] as? JsonValue.Bool)?.value?.let {
+                                module.defaultIsExponential = it
+                                module.patchJack?.isExponential = it
                             }
                         }
                         else -> {}
@@ -1201,6 +1233,7 @@ object GraphSerializer {
                         (jackValue.map["v"] as? JsonValue.Num)?.value?.let { inputJack.setValue(it) }
                         (jackValue.map["kickable"] as? JsonValue.Bool)?.value?.let { inputJack.isKickable = it }
                         (jackValue.map["integer"] as? JsonValue.Bool)?.value?.let { inputJack.isInteger = it }
+                        (jackValue.map["exponential"] as? JsonValue.Bool)?.value?.let { inputJack.isExponential = it }
                         if (inputJack is AudioInputJack) {
                             (jackValue.map["add"] as? JsonValue.Bool)?.value?.let { inputJack.isValueAdded = it }
                         }

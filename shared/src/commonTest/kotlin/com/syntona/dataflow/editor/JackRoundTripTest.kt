@@ -237,6 +237,41 @@ class JackRoundTripTest {
     }
 
     @Test
+    fun jackExponentialSurvivesRoundTrip() {
+        val knob = KnobModule()
+        val jack = knob.inputs.first { it.name == "in" }
+        assertEquals(false, jack.isExponential)
+        jack.isExponential = true
+
+        val back = roundTrip(knob)
+        assertEquals(true, back.inputs.first { it.name == "in" }.isExponential)
+    }
+
+    @Test
+    fun omittedExponentialKeepsModuleDefault() {
+        val state = GraphState()
+        val jsonWithoutExp = """
+            {
+              "version": "${com.syntona.SyntonaVersion}",
+              "modules": [
+                {
+                  "type": "core.input.knob",
+                  "name": "knob",
+                  "jacks": {
+                    "in": { "v": 0.5, "min": 0.0, "max": 1.0, "kickable": false }
+                  }
+                }
+              ],
+              "connections": []
+            }
+        """.trimIndent()
+
+        GraphSerializer.deserialize(state, jsonWithoutExp)
+        val loadedKnob = state.modules.first { it is KnobModule } as KnobModule
+        assertEquals(false, loadedKnob.inputs.first { it.name == "in" }.isExponential)
+    }
+
+    @Test
     fun autoDisableVoiceSurvivesSaveAndLoad() {
         val dahdsr = com.syntona.dataflow.modules.UnitGeneratorModule("envDAHDSR", com.softsynth.ksyn.unitgen.EnvelopeDAHDSR())
         dahdsr.autoDisableVoice = com.syntona.dataflow.model.AutoDisableVoiceMode.YES

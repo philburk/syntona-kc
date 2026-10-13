@@ -583,12 +583,17 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
                     val target = nonCommand.first().input
                     m.valueIn.min = target.min
                     m.valueIn.max = target.max
+                    m.valueIn.isInteger = target.isInteger
+                    m.valueIn.isExponential = target.isExponential
+                    m.name = target.name
                     val low = minOf(target.min, target.max)
                     val high = maxOf(target.min, target.max)
                     m.setValue(target.getValue().coerceIn(low, high))
                 } else if (nonCommand.size > 1) {
                     m.valueIn.min = nonCommand.minOf { it.input.min }
                     m.valueIn.max = nonCommand.maxOf { it.input.max }
+                    m.valueIn.isInteger = nonCommand.all { it.input.isInteger }
+                    m.valueIn.isExponential = nonCommand.all { it.input.isExponential }
                 }
             }
             is KnobModule -> {
@@ -597,12 +602,17 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
                     val target = nonCommand.first().input
                     m.valueIn.min = target.min
                     m.valueIn.max = target.max
+                    m.valueIn.isInteger = target.isInteger
+                    m.valueIn.isExponential = target.isExponential
+                    m.name = target.name
                     val low = minOf(target.min, target.max)
                     val high = maxOf(target.min, target.max)
                     m.setValue(target.getValue().coerceIn(low, high))
                 } else if (nonCommand.size > 1) {
                     m.valueIn.min = nonCommand.minOf { it.input.min }
                     m.valueIn.max = nonCommand.maxOf { it.input.max }
+                    m.valueIn.isInteger = nonCommand.all { it.input.isInteger }
+                    m.valueIn.isExponential = nonCommand.all { it.input.isExponential }
                 }
             }
             is InputModule -> {
@@ -612,6 +622,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
                     m.defaultMin = target.min
                     m.defaultMax = target.max
                     m.defaultIsInteger = target.isInteger
+                    m.defaultIsExponential = target.isExponential
                     val low = minOf(target.min, target.max)
                     val high = maxOf(target.min, target.max)
                     m.defaultValue = target.getValue().coerceIn(low, high)
@@ -619,6 +630,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
                     m.defaultMin = nonCommand.minOf { it.input.min }
                     m.defaultMax = nonCommand.maxOf { it.input.max }
                     m.defaultIsInteger = nonCommand.all { it.input.isInteger }
+                    m.defaultIsExponential = nonCommand.all { it.input.isExponential }
                 }
             }
             is AudioInputModule -> {
@@ -627,12 +639,16 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
                     val target = nonCommand.first().input
                     m.defaultMin = target.min
                     m.defaultMax = target.max
+                    m.defaultIsInteger = target.isInteger
+                    m.defaultIsExponential = target.isExponential
                     val low = minOf(target.min, target.max)
                     val high = maxOf(target.min, target.max)
                     m.defaultValue = target.getValue().coerceIn(low, high)
                 } else if (nonCommand.size > 1) {
                     m.defaultMin = nonCommand.minOf { it.input.min }
                     m.defaultMax = nonCommand.maxOf { it.input.max }
+                    m.defaultIsInteger = nonCommand.all { it.input.isInteger }
+                    m.defaultIsExponential = nonCommand.all { it.input.isExponential }
                 }
             }
             else -> return

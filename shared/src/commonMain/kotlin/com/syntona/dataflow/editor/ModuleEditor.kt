@@ -315,6 +315,18 @@ internal fun JackEditorRow(
                         },
                         textColor = textColor
                     )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    var isExponential by remember(jack) { mutableStateOf(jack.isExponential) }
+                    JackFlagCheckbox(
+                        label = "Exp?",
+                        checked = isExponential,
+                        onCheckedChange = {
+                            isExponential = it
+                            jack.isExponential = it
+                            FileState.markDirty()
+                        },
+                        textColor = textColor
+                    )
                 }
 
                 if (jack is AudioInputJack) {
@@ -330,6 +342,35 @@ internal fun JackEditorRow(
                         },
                         textColor = textColor
                     )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    var isInteger by remember(jack) { mutableStateOf(jack.isInteger) }
+                    JackFlagCheckbox(
+                        label = "Int?",
+                        checked = isInteger,
+                        onCheckedChange = {
+                            isInteger = it
+                            jack.isInteger = it
+                            if (it) {
+                                val rounded = kotlin.math.round(jack.getValue())
+                                jack.setValue(rounded)
+                                currentValue = rounded
+                            }
+                            FileState.markDirty()
+                        },
+                        textColor = textColor
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    var isExponential by remember(jack) { mutableStateOf(jack.isExponential) }
+                    JackFlagCheckbox(
+                        label = "Exp?",
+                        checked = isExponential,
+                        onCheckedChange = {
+                            isExponential = it
+                            jack.isExponential = it
+                            FileState.markDirty()
+                        },
+                        textColor = textColor
+                    )
                 }
             }
 
@@ -338,11 +379,21 @@ internal fun JackEditorRow(
             val interactionSource = remember { MutableInteractionSource() }
             CompositionLocalProvider(LocalMinimumInteractiveComponentSize provides Dp.Unspecified) {
                 Slider(
-                    value = if (range > 0.0) {
-                        ((currentValue - jack.min) / range).toFloat().coerceIn(0f, 1f)
+                    value = if (range != 0.0) {
+                        com.syntona.dataflow.model.ExponentialTaper.valueToFraction(
+                            currentValue,
+                            jack.min,
+                            jack.max,
+                            jack.isExponential
+                        ).toFloat().coerceIn(0f, 1f)
                     } else 0f,
                     onValueChange = { fraction ->
-                        val raw = jack.min + fraction * range
+                        val raw = com.syntona.dataflow.model.ExponentialTaper.fractionToValue(
+                            fraction.toDouble(),
+                            jack.min,
+                            jack.max,
+                            jack.isExponential
+                        )
                         val newValue = if (jack.isInteger) kotlin.math.round(raw) else raw
                         currentValue = newValue
                         jack.setValue(newValue)

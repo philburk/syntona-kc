@@ -16,8 +16,9 @@ class AudioInputJack(
     name: String,
     module: Module,
     val unitInputPort: UnitInputPort,
-    val partIndex: Int = 0
-) : InputJack(name, module) {
+    val partIndex: Int = 0,
+    isExponential: Boolean = isDefaultExponentialName(name)
+) : InputJack(name, module, isExponential = isExponential) {
 
     override var min: Double
         get() = unitInputPort.minimum.toDouble()
@@ -69,8 +70,9 @@ class AudioOutputJack(
     name: String,
     module: Module,
     val unitOutputPort: UnitOutputPort,
-    val partIndex: Int = 0
-) : OutputJack(name, module) {
+    val partIndex: Int = 0,
+    isExponential: Boolean = isDefaultExponentialName(name)
+) : OutputJack(name, module, isExponential = isExponential) {
 
     override fun getValue(): Double = unitOutputPort.value.toDouble()
 

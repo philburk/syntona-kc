@@ -52,8 +52,13 @@ abstract class Module(val type: String) {
 
     private val processingMessages = mutableSetOf<Message>()
     private var safe = true
-    protected fun addInput(name: String, isKickable: Boolean = false, isInteger: Boolean = false): InputJack {
-        val jack = InputJack(name, this, isKickable, isInteger)
+    protected fun addInput(
+        name: String,
+        isKickable: Boolean = false,
+        isInteger: Boolean = false,
+        isExponential: Boolean = isDefaultExponentialName(name)
+    ): InputJack {
+        val jack = InputJack(name, this, isKickable, isInteger, isExponential)
         _inputs.add(jack)
         return jack
     }
@@ -81,8 +86,12 @@ abstract class Module(val type: String) {
         return jack
     }
 
-    protected fun addOutput(name: String, isInteger: Boolean = false): OutputJack {
-        val jack = OutputJack(name, this, isInteger)
+    protected fun addOutput(
+        name: String,
+        isInteger: Boolean = false,
+        isExponential: Boolean = isDefaultExponentialName(name)
+    ): OutputJack {
+        val jack = OutputJack(name, this, isInteger, isExponential)
         _outputs.add(jack)
         return jack
     }
@@ -107,14 +116,24 @@ abstract class Module(val type: String) {
         return jack
     }
 
-    protected fun addAudioInput(name: String, port: com.softsynth.ksyn.ports.UnitInputPort, partIndex: Int = 0): AudioInputJack {
-        val jack = AudioInputJack(name, this, port, partIndex)
+    protected fun addAudioInput(
+        name: String,
+        port: com.softsynth.ksyn.ports.UnitInputPort,
+        partIndex: Int = 0,
+        isExponential: Boolean = isDefaultExponentialName(name)
+    ): AudioInputJack {
+        val jack = AudioInputJack(name, this, port, partIndex, isExponential)
         _inputs.add(jack)
         return jack
     }
 
-    protected fun addAudioOutput(name: String, port: com.softsynth.ksyn.ports.UnitOutputPort, partIndex: Int = 0): AudioOutputJack {
-        val jack = AudioOutputJack(name, this, port, partIndex)
+    protected fun addAudioOutput(
+        name: String,
+        port: com.softsynth.ksyn.ports.UnitOutputPort,
+        partIndex: Int = 0,
+        isExponential: Boolean = isDefaultExponentialName(name)
+    ): AudioOutputJack {
+        val jack = AudioOutputJack(name, this, port, partIndex, isExponential)
         _outputs.add(jack)
         return jack
     }

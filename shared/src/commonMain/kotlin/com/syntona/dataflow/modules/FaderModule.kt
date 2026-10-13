@@ -17,10 +17,19 @@ class FaderModule : Module("fader") {
     }
     val output = addOutput("out")
 
+    var isExponential: Boolean
+        get() = valueIn.isExponential
+        set(value) { valueIn.isExponential = value }
+
+    var isInteger: Boolean
+        get() = valueIn.isInteger
+        set(value) { valueIn.isInteger = value }
+
     var value by mutableStateOf(0.0)
 
     fun setValue(newValue: Double, time: ScoreTime = ScoreClock.now()) {
-        value = newValue.coerceIn(valueIn.min, valueIn.max)
+        val rounded = if (valueIn.isInteger) kotlin.math.round(newValue) else newValue
+        value = rounded.coerceIn(valueIn.min, valueIn.max)
         output.send(Message.FloatValue(time, value))
     }
 

@@ -212,4 +212,176 @@ class JackInheritanceTest {
         assertEquals(true, inMod.defaultIsInteger)
         assertEquals(true, inMod.patchJack?.isInteger)
     }
+
+    @Test
+    fun testKnobInheritsIntExpAndNameOnFirstConnection() {
+        val rootGraph = GraphState()
+        val knob = KnobModule()
+        assertEquals("knob", knob.name)
+        rootGraph.addModule(knob, Offset.Zero)
+
+        val osc = UnitGeneratorModule("sineOsc", SineOscillator())
+        rootGraph.addModule(osc, Offset.Zero)
+
+        val freqJack = osc.inputs.find { it.name == "frequency" }!!
+        assertEquals(true, freqJack.isExponential, "frequency jack should default to exponential")
+        freqJack.isInteger = true
+
+        val outJack = knob.outputs.find { it.name == "out" }!!
+        rootGraph.connect(outJack, freqJack)
+
+        assertEquals("frequency", knob.name)
+        assertEquals(true, knob.valueIn.isInteger)
+        assertEquals(true, knob.isInteger)
+        assertEquals(true, knob.valueIn.isExponential)
+        assertEquals(true, knob.isExponential)
+    }
+
+    @Test
+    fun testFaderInheritsIntExpAndNameOnFirstConnection() {
+        val rootGraph = GraphState()
+        val fader = FaderModule()
+        assertEquals("fader", fader.name)
+        rootGraph.addModule(fader, Offset.Zero)
+
+        val osc = UnitGeneratorModule("sineOsc", SineOscillator())
+        rootGraph.addModule(osc, Offset.Zero)
+
+        val ampJack = osc.inputs.find { it.name == "amplitude" }!!
+        assertEquals(true, ampJack.isExponential, "amplitude jack should default to exponential")
+        ampJack.isInteger = false
+
+        val outJack = fader.outputs.find { it.name == "out" }!!
+        rootGraph.connect(outJack, ampJack)
+
+        assertEquals("amplitude", fader.name)
+        assertEquals(false, fader.valueIn.isInteger)
+        assertEquals(true, fader.valueIn.isExponential)
+        assertEquals(true, fader.isExponential)
+    }
+
+    @Test
+    fun testKnobPreservesNameOnSecondConnection() {
+        val rootGraph = GraphState()
+        val knob = KnobModule()
+        rootGraph.addModule(knob, Offset.Zero)
+
+        val osc = UnitGeneratorModule("sineOsc", SineOscillator())
+        rootGraph.addModule(osc, Offset.Zero)
+        val clock = ClockModule()
+        rootGraph.addModule(clock, Offset.Zero)
+
+        val outJack = knob.outputs.find { it.name == "out" }!!
+        val freqJack = osc.inputs.find { it.name == "frequency" }!!
+        val rateJack = clock.inputs.find { it.name == "rateHz" }!!
+
+        rootGraph.connect(outJack, freqJack)
+        assertEquals("frequency", knob.name)
+
+        rootGraph.connect(outJack, rateJack)
+        assertEquals("frequency", knob.name)
+    }
+
+    @Test
+    fun testInputModuleInheritsExponentialOnConnection() {
+        val patch = PatchModule("testPatch")
+        val inMod = InputModule()
+        patch.graphState.addModule(inMod, Offset.Zero)
+
+        val osc = UnitGeneratorModule("sineOsc", SineOscillator())
+        patch.graphState.addModule(osc, Offset.Zero)
+        val freqJack = osc.inputs.find { it.name == "frequency" }!!
+        assertEquals(true, freqJack.isExponential)
+
+        assertEquals(false, inMod.defaultIsExponential)
+        assertEquals(false, inMod.patchJack?.isExponential)
+
+        patch.graphState.connect(inMod.output, freqJack)
+
+        assertEquals(true, inMod.defaultIsExponential)
+        assertEquals(true, inMod.patchJack?.isExponential)
+    }
+
+    @Test
+    fun testJackDefaultExponentialNames() {
+        val osc = UnitGeneratorModule("sineOsc", SineOscillator())
+        val freqJack = osc.inputs.find { it.name == "frequency" }!!
+        val ampJack = osc.inputs.find { it.name == "amplitude" }!!
+        assertEquals(true, freqJack.isExponential)
+        assertEquals(true, ampJack.isExponential)
+
+        val clock = ClockModule()
+        val rateJack = clock.inputs.find { it.name == "rateHz" }!!
+        assertEquals(true, rateJack.isExponential, "rateHz should default to exponential")
+
+        val addTime = com.syntona.dataflow.modules.AddTimeModule()
+        assertEquals(true, addTime.delayMs.isExponential, "delayMs should default to exponential")
+
+        val beatClock = com.syntona.dataflow.modules.BeatClockModule()
+        assertEquals(false, beatClock.tempo.isExponential, "tempo should default to linear")
+
+        val packNote = com.syntona.dataflow.modules.PackNoteModule()
+        assertEquals(false, packNote.pitchIn.isExponential, "pitch should default to linear")
+        assertEquals(true, packNote.durationIn.isExponential, "duration should default to exponential")
+    }
+
+    @Test
+    fun testGraphSerializationPreservesExponentialOverride() {
+        val patch = PatchModule("testPatch")
+        val osc = UnitGeneratorModule("sineOsc", SineOscillator())
+        patch.graphState.addModule(osc, Offset.Zero)
+        val freqJack = osc.inputs.find { it.name == "frequency" }!!
+        assertEquals(true, freqJack.isExponential)
+
+        // User explicitly toggles frequency to linear
+        freqJack.isExponential = false
+
+        val json = GraphSerializer.serialize(patch.graphState, listOf(osc))
+        // Verify exponential:false is recorded for the override
+        kotlin.test.assertTrue(json.contains("\"exponential\": false") || json.contains("\"exponential\":false"), "JSON should record override: $json")
+
+        val newPatch = PatchModule("loadedPatch")
+        GraphSerializer.deserialize(newPatch.graphState, json)
+        val loadedOsc = newPatch.graphState.modules.first { it.name == "sineOsc" }
+        val loadedFreqJack = loadedOsc.inputs.first { it.name == "frequency" }
+        assertEquals(false, loadedFreqJack.isExponential, "Overridden false must be preserved on deserialization")
+    }
+
+    @Test
+    fun testEnvelopeAndRateJacksDefaultToExponential() {
+        val env = UnitGeneratorModule("env", com.softsynth.ksyn.unitgen.EnvelopeDAHDSR())
+        val attack = env.inputs.first { it.name == "attack" }
+        val decay = env.inputs.first { it.name == "decay" }
+        val release = env.inputs.first { it.name == "release" }
+        val hold = env.inputs.first { it.name == "hold" }
+        val delay = env.inputs.first { it.name == "delay" }
+        val sustain = env.inputs.first { it.name == "sustain" }
+
+        assertEquals(true, attack.isExponential, "attack should be exponential")
+        assertEquals(true, decay.isExponential, "decay should be exponential")
+        assertEquals(true, release.isExponential, "release should be exponential")
+        assertEquals(true, hold.isExponential, "hold should be exponential")
+        assertEquals(true, delay.isExponential, "delay should be exponential")
+        // sustain is level/amplitude ratio (0.0 to 1.0)
+        assertEquals(false, sustain.isExponential, "sustain is level, should default linear")
+    }
+
+    @Test
+    fun testKnobInheritsRateHzExpAndName() {
+        val rootGraph = GraphState()
+        val knob = KnobModule()
+        rootGraph.addModule(knob, Offset.Zero)
+
+        val clock = ClockModule()
+        rootGraph.addModule(clock, Offset.Zero)
+
+        val outJack = knob.outputs.find { it.name == "out" }!!
+        val rateJack = clock.inputs.find { it.name == "rateHz" }!!
+
+        rootGraph.connect(outJack, rateJack)
+
+        assertEquals("rateHz", knob.name)
+        assertEquals(true, knob.valueIn.isExponential)
+        assertEquals(true, knob.isExponential)
+    }
 }
