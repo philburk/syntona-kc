@@ -37,7 +37,7 @@ open class DataFlowEngine(private val scope: CoroutineScope) {
     fun clearHistory() {
         post(object : SyntonaCommand {
             override val isUndoable = false
-            override fun execute() { undoStack.clear(); redoStack.clear() }
+            override fun execute() { discardAll(undoStack); discardAll(redoStack) }
             override fun undo() {}
         })
     }
@@ -98,7 +98,16 @@ open class DataFlowEngine(private val scope: CoroutineScope) {
         if (!runGuarded("command ${cmd::class.simpleName}") { cmd.execute() }) return
         if (cmd.isUndoable) {
             undoStack.addLast(cmd)
-            redoStack.clear()
+            discardAll(redoStack)
+        }
+    }
+
+    /** Empties [stack], letting each command release what it kept for undo. */
+    private fun discardAll(stack: ArrayDeque<SyntonaCommand>) {
+        val commands = stack.toList()
+        stack.clear()
+        for (cmd in commands) {
+            runGuarded("discard ${cmd::class.simpleName}") { cmd.discard() }
         }
     }
 

@@ -338,7 +338,21 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
 
     fun clearAllModules(tearDown: Boolean = true) {
         removeModulesDirectly(modules.toList(), tearDown)
+        if (tearDown) tearDownDetachedModules() else detachedModules.clear()
         resetScroll()
+    }
+
+    /**
+     * Modules deleted from this graph that are kept running so undo can bring them back.
+     * They are torn down once the delete can no longer be undone, or with the graph itself.
+     */
+    internal val detachedModules = mutableListOf<Module>()
+
+    /** Tears down [modules] if they are still detached, and forgets them. */
+    internal fun tearDownDetachedModules(modules: List<Module> = detachedModules.toList()) {
+        for (module in modules) {
+            if (detachedModules.remove(module)) module.teardown()
+        }
     }
 
     fun replaceModule(oldModule: Module, newModule: Module) {

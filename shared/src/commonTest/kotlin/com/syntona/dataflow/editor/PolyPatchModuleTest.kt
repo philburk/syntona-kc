@@ -395,6 +395,39 @@ class PolyPatchModuleTest {
         engine.generateNextBuffer()
     }
 
+    /** Like playGrainFarm.sntn: delete a polyPatch, undo, then play a note. */
+    @Test
+    fun testPolyPatchStillSoundsAfterUndoDelete() = kotlinx.coroutines.runBlocking {
+        val root = GraphState()
+        val polyPatch = PolyPatchModule()
+        root.addModule(polyPatch, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.initializeVoices(1)
+        val sine = UnitGeneratorModule("sineOsc", SineOscillator())
+        polyPatch.graphState.addModule(sine, androidx.compose.ui.geometry.Offset.Zero)
+        val outputModule = polyPatch.graphState.modules.first { it.name == "output" }
+        polyPatch.graphState.connect(sine.outputs.first { it.name == "out" }, outputModule.inputs.first { it.name == "in" })
+
+        val delete = DeleteModulesCommand(root, listOf(polyPatch), mapOf(polyPatch to androidx.compose.ui.geometry.Offset.Zero), emptyList())
+        delete.execute()
+        assertFalse(root.modules.contains(polyPatch))
+        delete.undo()
+        assertTrue(root.modules.contains(polyPatch))
+
+        val instrument = assertNotNull(polyPatch.polyphonicInstrument, "undo must restore a working instrument")
+        val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
+        polyPatch.voiceInputJack.receive(
+            Message.VoiceMessage(com.syntona.core.model.ScoreTime.Zero, Message.VoiceOpcode.NOTE_ON, tag = 1, value = 69.0, extra = 1.0)
+        )
+        engine.generateNextBuffer()
+        instrument.getOutputPort().unitGenerator?.pullData(engine.frameCount)
+        assertTrue(instrument.getOutputPort().getValues().any { it != 0.0f }, "polyPatch should sound after undoing its deletion")
+
+        // Once the delete can no longer be undone, the polyPatch is torn down.
+        delete.execute()
+        delete.discard()
+        assertEquals(null, polyPatch.polyphonicInstrument)
+    }
+
     @Test
     fun testOnOffDirectToEnvelopeOnOffJacks() = kotlinx.coroutines.runBlocking {
         val polyPatch = PolyPatchModule()

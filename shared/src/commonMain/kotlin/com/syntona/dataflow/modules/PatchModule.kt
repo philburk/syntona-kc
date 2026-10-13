@@ -307,6 +307,7 @@ open class PatchModule(name: String = "patch", type: String = "patch") : Module(
 
     override fun teardown() {
         graphState.modules.forEach { it.teardown() }
+        graphState.tearDownDetachedModules()
         super.teardown()
     }
 }
