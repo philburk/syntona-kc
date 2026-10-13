@@ -417,13 +417,13 @@ object JSynSourceExporter {
             sb.appendLine()
         }
 
-        // A delay line outputs silence until it has a buffer. allocate() also resets the delay
-        // port's maximum, so it has to come before the port limits below.
-        val delayUnits = unitMap.filterKeys { it.unit is com.softsynth.ksyn.unitgen.InterpolatingDelay }.values
-        if (delayUnits.isNotEmpty()) {
-            sb.appendLine("        // Delay buffers")
-            for (info in delayUnits) {
-                sb.appendLine("        ${info.varName}.allocate(${com.syntona.dataflow.registry.ModuleRegistry.DELAY_BUFFER_FRAMES});")
+        // Delay lines and grain farms output silence until allocated. A delay's allocate() also
+        // resets its delay port's maximum, so this has to come before the port limits below.
+        val allocations = unitMap.mapNotNull { (module, info) -> SourceExporter.allocationFor(module)?.let { info to it } }
+        if (allocations.isNotEmpty()) {
+            sb.appendLine("        // Allocate memory")
+            for ((info, amount) in allocations) {
+                sb.appendLine("        ${info.varName}.allocate($amount);")
             }
             sb.appendLine()
         }

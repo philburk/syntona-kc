@@ -12,6 +12,9 @@ object ModuleRegistry {
     /** Size of every delay~ buffer: 2 seconds at 48 kHz. Exported source uses it too. */
     const val DELAY_BUFFER_FRAMES = 48000 * 2
 
+    /** Number of grains in every grainFarm. Exported source uses it too. */
+    const val GRAIN_FARM_GRAINS = 16
+
     val ksynFactories = mutableMapOf<String, () -> UnitGenerator>()
     val ksynClassFactories = mutableMapOf<kotlin.reflect.KClass<out UnitGenerator>, () -> UnitGenerator>()
 
@@ -195,6 +198,7 @@ object ModuleRegistry {
         "whiteNoise" to "white noise random audio generator",
         "redNoise" to "red / Brownian noise audio generator",
         "pinkNoise" to "pink noise 1/f audio generator",
+        "grainFarm" to "granular synthesis: a cloud of short sine wave grains",
 
         // ==========================================
         // KSyn -> Analysis
@@ -448,6 +452,12 @@ object ModuleRegistry {
         addKSynModule(sources, "whiteNoise", ::WhiteNoise)
         addKSynModule(sources, "redNoise", ::RedNoise)
         addKSynModule(sources, "pinkNoise", ::PinkNoise)
+        // A GrainFarm is silent until it has grains, so they are allocated in the one factory
+        // used by both the palette and polyPatch voices, as for delay~.
+        val grainFarmFactory = { GrainFarm().apply { allocate(GRAIN_FARM_GRAINS) } }
+        ksynFactories["grainFarm"] = grainFarmFactory
+        ksynClassFactories[GrainFarm::class] = grainFarmFactory
+        sources.modules.add(ModuleEntry("grainFarm") { UnitGeneratorModule("grainFarm", grainFarmFactory()) })
 
         val analysis = getOrCreateBundle(ksyn, "analysis")
         addKSynModule(analysis, "edgeDetector", ::EdgeDetector)

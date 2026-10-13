@@ -510,6 +510,16 @@ object SourceExporter {
         val autoDisableMode: AutoDisableVoiceMode = AutoDisableVoiceMode.AUTO
     )
 
+    /**
+     * The argument to allocate() for a unit that makes no sound until it has been allocated,
+     * matching what the Syntona module does, or null if the unit needs no allocation.
+     */
+    fun allocationFor(module: UnitGeneratorModule): Int? = when (module.unit) {
+        is com.softsynth.ksyn.unitgen.InterpolatingDelay -> com.syntona.dataflow.registry.ModuleRegistry.DELAY_BUFFER_FRAMES
+        is com.softsynth.ksyn.unitgen.GrainFarm -> com.syntona.dataflow.registry.ModuleRegistry.GRAIN_FARM_GRAINS
+        else -> null
+    }
+
     /** The modules that can be a patch's main amplitude envelope: envelopes and envSeg. */
     fun isEnvelopeModule(module: Module): Boolean = module is EnvSegModule ||
         (module is UnitGeneratorModule && (
