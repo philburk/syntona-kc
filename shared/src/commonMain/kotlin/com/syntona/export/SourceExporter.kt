@@ -43,6 +43,29 @@ object SourceExporter {
     }
 
     /**
+     * What feeds an audio output module. In Syntona, several connections into one output are
+     * added together. A unit output port can only be one unit's output, so when there is more
+     * than one source the exported circuit sums them in a PassThrough named [mixVarName].
+     */
+    data class OutputSources(val sources: List<PortEndpoint>, val mixVarName: String?)
+
+    fun resolveOutputSources(
+        patch: PatchModule,
+        outputModules: List<AudioOutputModule>,
+        usedVarNames: MutableSet<String>,
+        resolveSource: (Module, OutputJack) -> PortEndpoint?
+    ): Map<AudioOutputModule, OutputSources> = outputModules.associateWith { outputModule ->
+        val sources = patch.graphState.connections
+            .filter { it.input.module === outputModule }
+            .mapNotNull { resolveSource(it.output.module, it.output) }
+            .distinct()
+        val mixVarName = if (sources.size > 1) {
+            makeUniqueVar(sanitizeIdentifier(outputModule.name) + "Mix", usedVarNames).also { usedVarNames.add(it) }
+        } else null
+        OutputSources(sources, mixVarName)
+    }
+
+    /**
      * The endpoint for [inputJack] on a unit generator module. The command jacks Syntona adds
      * to envelopes (on, off, trigger) are not unit ports; they all act on the input gate.
      */

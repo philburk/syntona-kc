@@ -936,6 +936,39 @@ class SourceExporterTest {
         assertTrue(ksynCode.contains("amplitude.setup(0.0, 1.0, 1.0)"), ksynCode)
     }
 
+    /** Like debugChebyMorph3.sntn: two sources into one output must both be heard. */
+    @Test
+    fun testExportSumsSeveralSourcesIntoOutput() {
+        val polyPatch = PolyPatchModule("TwoSourceVoice")
+        val g = polyPatch.graphState
+        val saw = UnitGeneratorModule("sawOscBL", SawtoothOscillatorBL())
+        val noise = UnitGeneratorModule("redNoise", com.softsynth.ksyn.unitgen.RedNoise())
+        for (m in listOf(saw, noise)) g.addModule(m, androidx.compose.ui.geometry.Offset.Zero)
+        val outputMod = g.modules.filterIsInstance<AudioOutputModule>().first()
+        g.connect(noise.outputs.first { it.name == "out" }, outputMod.inputs.first { it.name == "in" })
+        g.connect(saw.outputs.first { it.name == "out" }, outputMod.inputs.first { it.name == "in" })
+
+        val jsynCode = JSynSourceExporter.export(polyPatch, "TwoSourceVoice")
+        assertTrue(jsynCode.contains("private PassThrough outputMix;"), jsynCode)
+        assertTrue(jsynCode.contains("add(outputMix = new PassThrough());"), jsynCode)
+        assertTrue(jsynCode.contains("redNoise.output.connect(outputMix.input);"), jsynCode)
+        assertTrue(jsynCode.contains("sawOscBL.output.connect(outputMix.input);"), jsynCode)
+        assertTrue(jsynCode.contains("return outputMix.output;"), jsynCode)
+
+        val ksynCode = KSynSourceExporter.export(polyPatch, "TwoSourceVoice")
+        assertTrue(ksynCode.contains("private val outputMix = PassThrough()"), ksynCode)
+        assertTrue(ksynCode.contains("add(outputMix)"), ksynCode)
+        assertTrue(ksynCode.contains("redNoise.output.connect(outputMix.input)"), ksynCode)
+        assertTrue(ksynCode.contains("sawOscBL.output.connect(outputMix.input)"), ksynCode)
+        assertTrue(ksynCode.contains("return outputMix.output"), ksynCode)
+
+        // A single source needs no mix.
+        g.disconnect(noise.outputs.first { it.name == "out" }, outputMod.inputs.first { it.name == "in" })
+        val singleCode = JSynSourceExporter.export(polyPatch, "TwoSourceVoice")
+        assertFalse(singleCode.contains("outputMix"), singleCode)
+        assertTrue(singleCode.contains("return sawOscBL.output;"), singleCode)
+    }
+
     @Test
     fun testFindKSynOnlyUnits() {
         val polyPatch = PolyPatchModule("KSynOnlyVoice")

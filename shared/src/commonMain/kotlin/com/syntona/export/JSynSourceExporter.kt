@@ -109,6 +109,17 @@ object JSynSourceExporter {
             resolveTarget = { mod, jack -> resolveInputEndpoint(mod, jack, unitMap, envSegMap) }
         )
 
+        val outputSources = SourceExporter.resolveOutputSources(patch, audioOutputs, usedVarNames) { mod, jack ->
+            resolveOutputEndpoint(mod, jack, unitMap, envSegMap)
+        }
+        val outputMixes = outputSources.values.filter { it.mixVarName != null }
+
+        /** The port an output module's signal comes from: its mix, its single source, or null. */
+        fun outputAccessor(outputModule: AudioOutputModule?): String? {
+            val sources = outputSources[outputModule] ?: return null
+            return sources.mixVarName?.let { "$it.output" } ?: sources.sources.firstOrNull()?.let { jsynAccessor(it) }
+        }
+
         // A JSyn voice takes frequency directly, so its frequency port drives whatever the
         // PitchToFrequency modules drove in the patch. Frequency and amplitude may each fan out
         // to several units through a PassThrough.
@@ -206,6 +217,9 @@ object JSynSourceExporter {
                 sb.appendLine("    private PassThrough ${fanOut.passThroughVarName};")
             }
         }
+        for (mix in outputMixes) {
+            sb.appendLine("    private PassThrough ${mix.mixVarName};")
+        }
         if (isStereoPatch) {
             sb.appendLine("    private TwoInDualOut twoInDualOut;")
         }
@@ -250,6 +264,9 @@ object JSynSourceExporter {
             if (fanOut.passThroughVarName != null) {
                 sb.appendLine("        add(${fanOut.passThroughVarName} = new PassThrough());")
             }
+        }
+        for (mix in outputMixes) {
+            sb.appendLine("        add(${mix.mixVarName} = new PassThrough());")
         }
         if (isStereoPatch) {
             sb.appendLine("        add(twoInDualOut = new TwoInDualOut());")
@@ -298,6 +315,16 @@ object JSynSourceExporter {
                     sb.appendLine("        ${source.varName}.${source.portName}.connect(${dest.varName}.${dest.portName});")
                 } else {
                     sb.appendLine("        ${source.varName}.${source.portName}.connect(${source.partIndex}, ${dest.varName}.${dest.portName}, ${dest.partIndex});")
+                }
+            }
+        }
+        // Several sources into one output are summed, as they are in Syntona.
+        for (mix in outputMixes) {
+            for (source in mix.sources) {
+                if (source.partIndex == 0) {
+                    sb.appendLine("        ${source.varName}.${source.portName}.connect(${mix.mixVarName}.input);")
+                } else {
+                    sb.appendLine("        ${source.varName}.${source.portName}.connect(${source.partIndex}, ${mix.mixVarName}.input, 0);")
                 }
             }
         }
@@ -389,10 +416,8 @@ object JSynSourceExporter {
             }
             for (outputMod in audioOutputs) {
                 val propName = SourceExporter.sanitizeIdentifier(outputMod.name)
-                val incoming = connections.filter { it.input.module === outputMod }
-                val source = incoming.firstOrNull()?.let { resolveOutputEndpoint(it.output.module, it.output, unitMap, envSegMap) }
-                if (source != null) {
-                    val accessor = if (source.partIndex == 0) "${source.varName}.${source.portName}" else "${source.varName}.${source.portName}.getPart(${source.partIndex})"
+                val accessor = outputAccessor(outputMod)
+                if (accessor != null) {
                     sb.appendLine("        $propName = $accessor;")
                 } else {
                     sb.appendLine("        $propName = new UnitOutputPort(\"${outputMod.name}\");")
@@ -610,17 +635,9 @@ object JSynSourceExporter {
             if (isStereoPatch) {
                 sb.appendLine("        return twoInDualOut.output;")
             } else {
-                val lastOutputMod = audioOutputs.firstOrNull()
-                val connToOutput = lastOutputMod?.let { outMod ->
-                    connections.firstOrNull { it.input.module === outMod }
-                }
-                val outEndpoint = if (connToOutput != null) {
-                    resolveOutputEndpoint(connToOutput.output.module, connToOutput.output, unitMap, envSegMap)
-                } else null
-
-                if (outEndpoint != null) {
-                    val accessor = if (outEndpoint.partIndex == 0) "${outEndpoint.varName}.${outEndpoint.portName}" else "${outEndpoint.varName}.${outEndpoint.portName}.getPart(${outEndpoint.partIndex})"
-                    sb.appendLine("        return $accessor;")
+                val outAccessor = outputAccessor(audioOutputs.firstOrNull())
+                if (outAccessor != null) {
+                    sb.appendLine("        return $outAccessor;")
                 } else if (mainAmpEnv != null) {
                     sb.appendLine("        return ${mainAmpEnv.varName}.output;")
                 } else {
