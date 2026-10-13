@@ -80,6 +80,8 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
         }
     }
 
+    override fun isReservedInputName(name: String): Boolean = isSpecialVoiceInput(name)
+
     private fun isSpecialVoiceInput(name: String): Boolean {
         val n = name.lowercase()
         if (n == "pitch" || n == "amplitude" || n == "pressure" || n == "pitchbend" || n == "gate" || n == "on" || n == "off") return true

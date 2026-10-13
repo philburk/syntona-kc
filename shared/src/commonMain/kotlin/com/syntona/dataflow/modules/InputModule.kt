@@ -16,6 +16,7 @@ open class InputModule : Module("input") {
         get() = _name
         set(value) {
             _name = value
+            hasAutoName = false
             patchJack?.name = value
             if (!isExponentialExplicitlySet) {
                 val exp = isDefaultExponentialName(value)
@@ -23,6 +24,10 @@ open class InputModule : Module("input") {
                 isExponentialExplicitlySet = false
             }
         }
+
+    // True while the name is the one the parent patch made up (in1, in2...), so the first
+    // connection may replace it with the name of the connected jack. Any rename clears it.
+    internal var hasAutoName = false
 
     // Set by the parent PatchModule when this module is added to its graphState
     internal var patch: PatchModule? = null

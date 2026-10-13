@@ -28,6 +28,7 @@ class AudioInputModule : Module("input~") {
         get() = _name
         set(value) {
             _name = value
+            hasAutoName = false
             patchJack?.name = value
             if (!isExponentialExplicitlySet) {
                 val exp = isDefaultExponentialName(value)
@@ -36,6 +37,10 @@ class AudioInputModule : Module("input~") {
             }
             (patch as? PolyPatchModule)?.onAudioInputNameChanged(this, value)
         }
+
+    // True while the name is the one the parent patch made up (aIn1, aIn2...), so the first
+    // connection may replace it with the name of the connected jack. Any rename clears it.
+    internal var hasAutoName = false
 
     internal var patch: PatchModule? = null
     var patchJack: AudioInputJack? = null

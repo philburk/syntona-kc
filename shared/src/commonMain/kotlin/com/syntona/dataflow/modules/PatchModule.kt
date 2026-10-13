@@ -133,16 +133,21 @@ open class PatchModule(name: String = "patch", type: String = "patch") : Module(
      */
     open fun canDeleteChildModule(module: Module): Boolean = module.isDeletable
 
+    /** Returns true if an input module named [name] would get a special meaning inside this patch. */
+    open fun isReservedInputName(name: String): Boolean = false
+
     protected open fun onChildModuleAdded(module: Module) {
         module.parentPatch = this
         when (module) {
             is InputModule -> {
-                val proposedName = if (module.name == "input") "in${inputLinks.size + 1}" else module.name
+                val isUnnamed = module.name == "input"
+                val proposedName = if (isUnnamed) "in${inputLinks.size + 1}" else module.name
                 val jack = addInput(proposedName)
                 inputLinks[jack] = module
                 module.patch = this
                 module.patchJack = jack
                 module.name = proposedName
+                module.hasAutoName = isUnnamed
             }
             is CommandModule -> {
                 val proposedName = if (module.name == "command") "cmd${commandLinks.size + 1}" else module.name
@@ -161,12 +166,14 @@ open class PatchModule(name: String = "patch", type: String = "patch") : Module(
                 module.name = proposedName
             }
             is AudioInputModule -> {
-                val proposedName = if (module.name == "input~" || module.name == "aInput") "aIn${audioInputLinks.size + 1}" else module.name
+                val isUnnamed = module.name == "input~" || module.name == "aInput"
+                val proposedName = if (isUnnamed) "aIn${audioInputLinks.size + 1}" else module.name
                 val jack = addAudioInput(proposedName, module.passThrough.input, 0)
                 audioInputLinks[jack] = module
                 module.patch = this
                 module.patchJack = jack
                 module.name = proposedName
+                module.hasAutoName = isUnnamed
             }
             is AudioOutputModule -> {
                 val proposedName = if (module.name == "output~" || module.name == "aOutput") "aOut${audioOutputLinks.size + 1}" else module.name

@@ -117,6 +117,45 @@ class JackInheritanceTest {
     }
 
     @Test
+    fun testInputModuleInheritsNameOfFirstConnectedJack() {
+        val patch = PatchModule("testPatch")
+        val inMod = InputModule()
+        patch.graphState.addModule(inMod, Offset.Zero)
+        val osc = UnitGeneratorModule("sineOsc", SineOscillator())
+        patch.graphState.addModule(osc, Offset.Zero)
+        assertEquals("in1", inMod.name)
+
+        patch.graphState.connect(inMod.output, osc.inputs.find { it.name == "frequency" }!!)
+        assertEquals("frequency", inMod.name)
+        assertEquals("frequency", inMod.patchJack?.name)
+
+        // Only the first connection names it
+        patch.graphState.connect(inMod.output, osc.inputs.find { it.name == "amplitude" }!!)
+        assertEquals("frequency", inMod.name)
+
+        // A second input fed to a jack of the same name gets a unique name
+        val inMod2 = InputModule()
+        patch.graphState.addModule(inMod2, Offset.Zero)
+        val osc2 = UnitGeneratorModule("sineOsc", SineOscillator())
+        patch.graphState.addModule(osc2, Offset.Zero)
+        patch.graphState.connect(inMod2.output, osc2.inputs.find { it.name == "frequency" }!!)
+        assertEquals("frequency2", inMod2.name)
+    }
+
+    @Test
+    fun testInputModuleKeepsNameTheUserGaveIt() {
+        val patch = PatchModule("testPatch")
+        val inMod = InputModule()
+        patch.graphState.addModule(inMod, Offset.Zero)
+        inMod.name = "cutoff"
+        val osc = UnitGeneratorModule("sineOsc", SineOscillator())
+        patch.graphState.addModule(osc, Offset.Zero)
+
+        patch.graphState.connect(inMod.output, osc.inputs.find { it.name == "frequency" }!!)
+        assertEquals("cutoff", inMod.name)
+    }
+
+    @Test
     fun testKnobConnectingToPatchInputJackInheritsInheritedValues() {
         val rootGraph = GraphState()
         val patch = PatchModule("filterPatch")
@@ -165,6 +204,23 @@ class JackInheritanceTest {
         assertEquals(40.0, patchJack.min)
         assertEquals(8000.0, patchJack.max)
         assertEquals(440.0, patchJack.getValue())
+    }
+
+    @Test
+    fun testAudioInputModuleInheritsNameOfFirstConnectedJack() {
+        val patch = PatchModule("audioPatch")
+        val aInMod = AudioInputModule()
+        patch.graphState.addModule(aInMod, Offset.Zero)
+        val osc = UnitGeneratorModule("sineOsc", SineOscillator())
+        patch.graphState.addModule(osc, Offset.Zero)
+        assertEquals("aIn1", aInMod.name)
+
+        patch.graphState.connect(aInMod.output, osc.inputs.find { it.name == "frequency" }!!)
+        assertEquals("frequency", aInMod.name)
+        assertEquals("frequency", aInMod.patchJack?.name)
+
+        patch.graphState.connect(aInMod.output, osc.inputs.find { it.name == "amplitude" }!!)
+        assertEquals("frequency", aInMod.name)
     }
 
     @Test

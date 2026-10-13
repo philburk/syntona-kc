@@ -573,8 +573,27 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
             connections.add(UIConnection(output, input))
         }
         syncRangeFromConnections(output)
+        inheritInputModuleName(output, input)
         notifyChanged()
         onConnectionAddedCallback?.invoke(output, input)
+    }
+
+    /** Names an input module that still has its made-up name after the first jack it feeds. */
+    private fun inheritInputModuleName(output: OutputJack, input: InputJack) {
+        if (isDeserializing) return
+        val m = output.module
+        val (patch, ownJack) = when {
+            m is InputModule && m.hasAutoName -> m.patch to m.patchJack
+            m is AudioInputModule && m.hasAutoName -> m.patch to m.patchJack
+            else -> return
+        }
+        if (patch == null) return
+        if (connections.count { it.output === output } != 1) return
+        val taken = patch.inputs.filter { it !== ownJack }.map { it.name }.toSet()
+        fun isFree(name: String) = name !in taken && !patch.isReservedInputName(name)
+        val name = (sequenceOf(input.name) + (2..99).asSequence().map { "${input.name}$it" })
+            .firstOrNull(::isFree) ?: return
+        m.name = name
     }
 
     fun disconnect(output: OutputJack, input: InputJack) {
