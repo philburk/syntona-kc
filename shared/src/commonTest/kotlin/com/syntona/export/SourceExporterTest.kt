@@ -395,6 +395,25 @@ class SourceExporterTest {
     }
 
     @Test
+    fun testExportTriggersAnAttackDecayEnvelopeThroughItsInputGate() {
+        // envAD's "trigger" jack is a command, not a port. It used to export as
+        // envAD.trigger.on(timeStamp), which does not compile.
+        val polyPatch = PolyPatchModule("PluckVoice")
+        val envMod = com.syntona.dataflow.registry.ModuleRegistry.findCreator("envAD")!!.invoke() as UnitGeneratorModule
+        polyPatch.graphState.addModule(envMod, androidx.compose.ui.geometry.Offset.Zero)
+        val onMod = polyPatch.graphState.modules.filterIsInstance<InputModule>().first { it.name == "on" }
+        polyPatch.graphState.connect(onMod.output, envMod.inputs.first { it.name == "trigger" })
+
+        val ksynCode = KSynSourceExporter.export(polyPatch, "PluckVoice")
+        assertTrue(ksynCode.contains("envAD.input.trigger(timeStamp)"), ksynCode)
+        assertFalse(ksynCode.contains("envAD.trigger."), ksynCode)
+
+        val jsynCode = JSynSourceExporter.export(polyPatch, "PluckVoice")
+        assertTrue(jsynCode.contains("envAD.input.trigger(timeStamp);"), jsynCode)
+        assertFalse(jsynCode.contains("envAD.trigger."), jsynCode)
+    }
+
+    @Test
     fun testAutoDisableSelectsClosestEnvelopeToOutput() {
         val polyPatch = PolyPatchModule("multiEnvVoice")
 

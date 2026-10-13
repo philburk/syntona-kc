@@ -31,8 +31,28 @@ object SourceExporter {
     data class PortEndpoint(
         val varName: String,
         val portName: String,
-        val partIndex: Int = 0
-    )
+        val partIndex: Int = 0,
+        /**
+         * True for an envelope's "trigger" command jack. It is not a port of its own: it stands
+         * for calling trigger() on the envelope's input gate, rather than on() or off().
+         */
+        val isTrigger: Boolean = false
+    ) {
+        /** The gate call for this endpoint: trigger() for a trigger jack, otherwise [onOrOff]. */
+        fun gateMethod(onOrOff: String): String = if (isTrigger) "trigger" else onOrOff
+    }
+
+    /**
+     * The endpoint for [inputJack] on a unit generator module. The command jacks Syntona adds
+     * to envelopes (on, off, trigger) are not unit ports; they all act on the input gate.
+     */
+    fun resolveUnitInputEndpoint(module: UnitGeneratorModule, inputJack: InputJack, varName: String): PortEndpoint {
+        if (inputJack === module.triggerJack) {
+            return PortEndpoint(varName, "input", 0, isTrigger = true)
+        }
+        val (portName, partIndex) = resolveJackPortName(inputJack)
+        return PortEndpoint(varName, portName, partIndex)
+    }
 
     data class EnvSegInfo(
         val readerVarName: String,

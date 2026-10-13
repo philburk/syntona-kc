@@ -512,7 +512,7 @@ object KSynSourceExporter {
                     hasOff = true
                 } else {
                     val accessor = if (target.partIndex == 0) "${target.varName}.${target.portName}" else "${target.varName}.${target.portName}[${target.partIndex}]"
-                    sb.appendLine("        $accessor.off(timeStamp)")
+                    sb.appendLine("        $accessor.${target.gateMethod("off")}(timeStamp)")
                     hasOff = true
                 }
             }
@@ -571,7 +571,7 @@ object KSynSourceExporter {
                     hasOn = true
                 } else {
                     val accessor = if (target.partIndex == 0) "${target.varName}.${target.portName}" else "${target.varName}.${target.portName}[${target.partIndex}]"
-                    sb.appendLine("        $accessor.on(timeStamp)")
+                    sb.appendLine("        $accessor.${target.gateMethod("on")}(timeStamp)")
                     hasOn = true
                 }
             }
@@ -738,8 +738,7 @@ object KSynSourceExporter {
     ): SourceExporter.PortEndpoint? {
         if (module is UnitGeneratorModule) {
             val info = unitMap[module] ?: return null
-            val (portName, partIndex) = SourceExporter.resolveJackPortName(inputJack)
-            return SourceExporter.PortEndpoint(info.varName, portName, partIndex)
+            return SourceExporter.resolveUnitInputEndpoint(module, inputJack, info.varName)
         }
         if (module is PitchToFrequencyModule) {
             val varName = p2fVarMap[module] ?: return null
