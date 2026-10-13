@@ -4,9 +4,7 @@ import com.softsynth.ksyn.unitgen.EnvelopeAttackDecay
 import com.softsynth.ksyn.unitgen.EnvelopeDAHDSR
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.AudioOutputJack
-import com.syntona.dataflow.model.AutoDisableVoiceMode
 import com.syntona.dataflow.model.supportsAutoDisableVoice
-import com.syntona.dataflow.model.autoDisableVoiceMode
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.model.OutputJack
@@ -35,7 +33,7 @@ object JSynSourceExporter {
     )
 
     /** KSyn unit generators that have no equivalent in JSyn. Add new KSyn-only units here. */
-    private val KSYN_ONLY_UNITS = setOf("ChebyshevOscillator", "SchmittTrigger", "ScopeProbe")
+    private val KSYN_ONLY_UNITS = setOf("SchmittTrigger", "ScopeProbe")
 
     /**
      * Returns the class names of unit generators in [patch] that are only in KSyn,
@@ -462,6 +460,12 @@ object JSynSourceExporter {
             val maxAmp = SourceExporter.formatDouble(module.amplitude.max)
             sb.appendLine("        ${info.readerVarName}.amplitude.setup($minAmp, $valAmp, $maxAmp);")
         }
+        // Settings chosen from a menu rather than a jack, so the port loop above misses them.
+        for ((module, info) in unitMap) {
+            if (module is com.syntona.dataflow.modules.ChebyshevOscModule) {
+                sb.appendLine("        ${info.varName}.setOrder(${module.order});")
+            }
+        }
         // Custom input ports use the range of their input module.
         for (info in customInputs) {
             val (min, value, max) = info.defaultRange ?: continue
@@ -475,20 +479,12 @@ object JSynSourceExporter {
         sb.appendLine()
 
         // Auto disable
-        // Chosen the same way a polyPatch chooses at run time. JSyn only offers setupAutoDisable()
-        // on its envelopes, so if the choice is something else, fall back to the best envelope,
-        // unless the user picked that module explicitly.
-        fun isJSynCapable(info: UnitInfo) =
-            info.className == "EnvelopeDAHDSR" || info.className == "EnvelopeAttackDecay"
-        val autoDisableCandidates = exportedModules.filterKeys { it.supportsAutoDisableVoice }
-        val chosen = SourceExporter.findMainAmpEnvelope(patch, autoDisableCandidates, { it.varName })
-        val autoDisableEnv = when {
-            chosen == null || isJSynCapable(chosen) -> chosen
-            autoDisableCandidates.keys.any { it.autoDisableVoiceMode == AutoDisableVoiceMode.YES } -> null
-            else -> SourceExporter.findMainAmpEnvelope(
-                patch, autoDisableCandidates.filterValues { isJSynCapable(it) }, { it.varName }
-            )
-        }
+        // Chosen the same way a polyPatch chooses at run time, and as the KSyn export does.
+        // JSyn implements SupportsAutoDisable on the same units as KSyn: envelopes, data readers
+        // and comb filters, including the string resonators.
+        val autoDisableEnv = SourceExporter.findMainAmpEnvelope(
+            patch, exportedModules.filterKeys { it.supportsAutoDisableVoice }, { it.varName }
+        )
 
         if (autoDisableEnv != null) {
             sb.appendLine("        // Turn off circuit when envelope completes to save CPU")

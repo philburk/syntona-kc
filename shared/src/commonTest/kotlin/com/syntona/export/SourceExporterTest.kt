@@ -670,9 +670,10 @@ class SourceExporterTest {
         assertTrue(ksynCode.contains("ampEnv.setupAutoDisable(this)"), "KSyn must call setupAutoDisable on ampEnv in Auto mode:\n$ksynCode")
         assertFalse(ksynCode.contains("filterEnv.setupAutoDisable(this)"), "KSyn should not call setupAutoDisable on filterEnv when ampEnv is main amp env:\n$ksynCode")
 
-        // JSyn does not support setupAutoDisable on VariableRateMonoReader, so it falls back to filterEnv
+        // JSyn's VariableRateMonoReader supports setupAutoDisable too, so JSyn makes the same choice.
         val jsynCode = JSynSourceExporter.export(polyPatch, "EnvSegAndDAHDSRVoice")
-        assertTrue(jsynCode.contains("filterEnv.setupAutoDisable(this);"), "JSyn must fall back to filterEnv in Auto mode:\n$jsynCode")
+        assertTrue(jsynCode.contains("ampEnv.setupAutoDisable(this);"), "JSyn must call setupAutoDisable on ampEnv in Auto mode:\n$jsynCode")
+        assertFalse(jsynCode.contains("filterEnv.setupAutoDisable(this);"), "JSyn should not fall back to filterEnv:\n$jsynCode")
 
         // 2. If envSeg is set to NO, KSyn falls back to filterEnv
         envSeg.autoDisableVoice = com.syntona.dataflow.model.AutoDisableVoiceMode.NO
@@ -922,12 +923,22 @@ class SourceExporterTest {
         polyPatch.graphState.addModule(UnitGeneratorModule("saw", SawtoothOscillatorBL()), androidx.compose.ui.geometry.Offset.Zero)
         assertTrue(JSynSourceExporter.findKSynOnlyUnits(polyPatch).isEmpty())
 
+        // These have been ported to JSyn, so they export without a warning.
         polyPatch.graphState.addModule(ChebyshevOscModule(), androidx.compose.ui.geometry.Offset.Zero)
-        polyPatch.graphState.addModule(ChebyshevOscModule(), androidx.compose.ui.geometry.Offset.Zero)
-        assertEquals(listOf("ChebyshevOscillator"), JSynSourceExporter.findKSynOnlyUnits(polyPatch))
+        for (type in listOf("stringRes", "comb")) {
+            polyPatch.graphState.addModule(
+                com.syntona.dataflow.registry.ModuleRegistry.findCreator(type)!!.invoke(),
+                androidx.compose.ui.geometry.Offset.Zero
+            )
+        }
+        assertTrue(JSynSourceExporter.findKSynOnlyUnits(polyPatch).isEmpty(), "${JSynSourceExporter.findKSynOnlyUnits(polyPatch)}")
+
+        polyPatch.graphState.addModule(UnitGeneratorModule("schmitt", com.softsynth.ksyn.unitgen.SchmittTrigger()), androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(UnitGeneratorModule("schmitt2", com.softsynth.ksyn.unitgen.SchmittTrigger()), androidx.compose.ui.geometry.Offset.Zero)
+        assertEquals(listOf("SchmittTrigger"), JSynSourceExporter.findKSynOnlyUnits(polyPatch))
 
         val jsynWarning = SourceExporter.exportWarningMessage(polyPatch, forJSyn = true)
-        assertTrue(jsynWarning?.contains("ChebyshevOscillator is not available in JSyn. It is only in KSyn.") == true, "$jsynWarning")
+        assertTrue(jsynWarning?.contains("SchmittTrigger is not available in JSyn. It is only in KSyn.") == true, "$jsynWarning")
         assertEquals(null, SourceExporter.exportWarningMessage(polyPatch, forJSyn = false))
     }
 
@@ -1006,6 +1017,29 @@ class SourceExporterTest {
         assertTrue(code.contains("private val chebyshevOsc = ChebyshevOscillator()"), code)
         assertTrue(code.contains("chebyshevOsc.order = 5"), code)
         assertTrue(code.contains("chebyshevOsc.drive.setup("), code)
+    }
+
+    @Test
+    fun testJSynExportOfChebyshevAndStringResonator() {
+        // Both have been ported to JSyn, so a polyPatch with them exports without a warning,
+        // keeps the Chebyshev order, and can switch the voice off from the string.
+        val polyPatch = PolyPatchModule("ChebyString")
+        val cheby = ChebyshevOscModule()
+        cheby.order = 7
+        val string = com.syntona.dataflow.registry.ModuleRegistry.findCreator("stringRes")!!.invoke() as UnitGeneratorModule
+        string.autoDisableVoice = AutoDisableVoiceMode.YES
+        polyPatch.graphState.addModule(cheby, androidx.compose.ui.geometry.Offset.Zero)
+        polyPatch.graphState.addModule(string, androidx.compose.ui.geometry.Offset.Zero)
+        val output = polyPatch.graphState.modules.filterIsInstance<AudioOutputModule>().first()
+        polyPatch.graphState.connect(cheby.outputs.first { it.name == "out" }, string.inputs.first { it.name == "in" })
+        polyPatch.graphState.connect(string.outputs.first { it.name == "out" }, output.inputs.first { it.name == "in" })
+
+        assertEquals(null, SourceExporter.exportWarningMessage(polyPatch, forJSyn = true))
+        val code = JSynSourceExporter.export(polyPatch, "ChebyString")
+        assertTrue(code.contains("private ChebyshevOscillator chebyshevOsc"), code)
+        assertTrue(code.contains("private VariableStringResonator stringRes"), code)
+        assertTrue(code.contains("chebyshevOsc.setOrder(7);"), code)
+        assertTrue(code.contains("stringRes.setupAutoDisable(this);"), code)
     }
 
     @Test
