@@ -162,6 +162,7 @@ class InstrumentRegistryTest {
     fun testMinimalSawStartsOff() = runBlocking {
         val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
         if (!engine.isRunning) engine.start()
+        val rootGraph = com.syntona.dataflow.editor.GraphState()
         try {
             InstrumentRegistry.loadInstrumentsIndex()
             val music = ModuleRegistry.root.subBundles.find { it.name == "music" }!!
@@ -182,7 +183,6 @@ class InstrumentRegistryTest {
 
             engine.generateNextBuffer()
 
-            val rootGraph = com.syntona.dataflow.editor.GraphState()
             rootGraph.addModule(minimalSaw, androidx.compose.ui.geometry.Offset.Zero)
 
             val lineOut = UnitGeneratorModule("lineOut", com.softsynth.ksyn.unitgen.LineOut())
@@ -212,6 +212,8 @@ class InstrumentRegistryTest {
             val noteOnOut = minimalSaw.polyphonicInstrument!!.getOutputPort().get(0)
             assertTrue(kotlin.math.abs(noteOnOut) > 0.01f || kotlin.math.abs(dahdsrUnit.output.get(0)) > 0.01f, "minimalSaw should make sound after noteOn")
         } finally {
+            // Stop the LineOut so it does not render in later tests.
+            rootGraph.clearAllModules()
             if (engine.isRunning) engine.stop()
         }
     }

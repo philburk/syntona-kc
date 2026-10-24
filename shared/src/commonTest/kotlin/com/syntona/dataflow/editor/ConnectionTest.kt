@@ -88,9 +88,8 @@ class ConnectionTest {
         sample.dataOutput.send(
             Message.SequentialDataMessage(ScoreClock.now(), sample.sample)
         )
-        // Scheduled commands run before any unit renders. Other tests can leave a LineOut in the
-        // shared synth that fails to render, so ignore rendering errors; only the queue matters.
-        runCatching { (SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine).generateNextBuffer() }
+        (SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine).generateNextBuffer()
         assertTrue(reader.dataQueue.hasMore(), "data should be queued on the unit's port")
+        module.teardown()
     }
 }

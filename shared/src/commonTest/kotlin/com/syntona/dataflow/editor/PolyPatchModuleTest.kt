@@ -1336,6 +1336,15 @@ class PolyPatchModuleTest {
     @Test
     fun testLoadStereoPatchExample() = kotlinx.coroutines.runBlocking {
         val rootGraph = GraphState()
+        try {
+            checkStereoPatchExample(rootGraph)
+        } finally {
+            // Stop the patch's LineOut so it does not render in later tests.
+            rootGraph.clearAllModules()
+        }
+    }
+
+    private suspend fun checkStereoPatchExample(rootGraph: GraphState) {
         val resourceFile = listOf(
             java.io.File("src/commonMain/composeResources/files/examples/stereoPatch.json"),
             java.io.File("shared/src/commonMain/composeResources/files/examples/stereoPatch.json"),

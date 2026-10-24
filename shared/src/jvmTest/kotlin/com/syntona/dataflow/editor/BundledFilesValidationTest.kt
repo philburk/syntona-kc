@@ -23,12 +23,17 @@ class BundledFilesValidationTest {
             val json = file.readText()
             val graphState = GraphState()
             val problems = mutableListOf<String>()
-            val modules = GraphSerializer.deserialize(graphState, json, problems = problems)
-            assertTrue(
-                problems.isEmpty(),
-                "File ${file.name} had deserialization problems: ${problems.joinToString("; ")}"
-            )
-            assertTrue(modules.isNotEmpty(), "File ${file.name} loaded 0 modules")
+            try {
+                val modules = GraphSerializer.deserialize(graphState, json, problems = problems)
+                assertTrue(
+                    problems.isEmpty(),
+                    "File ${file.name} had deserialization problems: ${problems.joinToString("; ")}"
+                )
+                assertTrue(modules.isNotEmpty(), "File ${file.name} loaded 0 modules")
+            } finally {
+                // Stop units such as LineOut that would fail to render in the shared synth.
+                graphState.clearAllModules()
+            }
         }
     }
 
@@ -44,16 +49,20 @@ class BundledFilesValidationTest {
 
         val graphState = GraphState()
         val problems = mutableListOf<String>()
-        val modules = GraphSerializer.deserialize(graphState, file.readText(), problems = problems)
-        assertTrue(problems.isEmpty(), "Problems: ${problems.joinToString("; ")}")
+        try {
+            val modules = GraphSerializer.deserialize(graphState, file.readText(), problems = problems)
+            assertTrue(problems.isEmpty(), "Problems: ${problems.joinToString("; ")}")
 
-        val onLoadMod = modules.find { it is com.syntona.dataflow.modules.OnLoadModule }
-        assertTrue(onLoadMod != null, "Should have loaded an OnLoadModule")
-        kotlin.test.assertEquals("onLoad", onLoadMod.name, "Legacy 'loadKick' should have been renamed to 'onLoad'")
+            val onLoadMod = modules.find { it is com.syntona.dataflow.modules.OnLoadModule }
+            assertTrue(onLoadMod != null, "Should have loaded an OnLoadModule")
+            kotlin.test.assertEquals("onLoad", onLoadMod.name, "Legacy 'loadKick' should have been renamed to 'onLoad'")
 
-        val ckDivMod = modules.find { it is com.syntona.dataflow.modules.ClockDividerModule } as? com.syntona.dataflow.modules.ClockDividerModule
-        assertTrue(ckDivMod != null, "Should have loaded a ClockDividerModule")
-        kotlin.test.assertEquals("clockDiv", ckDivMod.name, "Legacy 'ckDiv' should have been renamed to 'clockDiv'")
-        kotlin.test.assertEquals(2.0, ckDivMod.divisor.getValue(), "Legacy jack 'N' value should be applied to 'divisor'")
+            val ckDivMod = modules.find { it is com.syntona.dataflow.modules.ClockDividerModule } as? com.syntona.dataflow.modules.ClockDividerModule
+            assertTrue(ckDivMod != null, "Should have loaded a ClockDividerModule")
+            kotlin.test.assertEquals("clockDiv", ckDivMod.name, "Legacy 'ckDiv' should have been renamed to 'clockDiv'")
+            kotlin.test.assertEquals(2.0, ckDivMod.divisor.getValue(), "Legacy jack 'N' value should be applied to 'divisor'")
+        } finally {
+            graphState.clearAllModules()
+        }
     }
 }
