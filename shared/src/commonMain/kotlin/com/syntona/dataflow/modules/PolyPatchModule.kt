@@ -852,11 +852,23 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                 ScaleModule(templateModule.name, templateModule.isEditable, templateModule.scaleDegrees.copyOf())
             }
             // Must come before UnitGeneratorModule, whose branch rebuilds a plain module from the
-            // unit factory and would silently drop the order chosen in the menu.
+            // unit factory and would silently drop the order chosen in the menu or the data jack.
             is ChebyshevOscModule -> {
                 ChebyshevOscModule().apply {
                     name = templateModule.name
                     order = templateModule.order
+                }
+            }
+            is SampleScrubberModule -> {
+                SampleScrubberModule().apply {
+                    name = templateModule.name
+                    sample = templateModule.sample
+                }
+            }
+            is SampleGrainsModule -> {
+                SampleGrainsModule().apply {
+                    name = templateModule.name
+                    sample = templateModule.sample
                 }
             }
             is UnitGeneratorModule -> {
@@ -909,16 +921,18 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
         }
     }
 
-    /** Gives every voice a sample newly loaded into the template's sample or samplePlayer. */
-    fun syncSample(templateMod: Module, sample: com.softsynth.ksyn.data.FloatSample) {
+    /** Gives every voice a sample newly loaded into the template's sample-based module. */
+    fun syncSample(templateMod: Module, sample: com.softsynth.ksyn.data.FloatSample?) {
         if (!isInitialized) return
         for (voice in voices) {
             when (val voiceMod = voice.templateToVoiceMap[templateMod]) {
-                is FloatSampleModule -> {
+                is FloatSampleModule -> if (sample != null) {
                     voiceMod.sample = sample
                     voiceMod.sendSample()
                 }
-                is SamplePlayerModule -> voiceMod.sample = sample
+                is SamplePlayerModule -> if (sample != null) voiceMod.sample = sample
+                is SampleScrubberModule -> voiceMod.sample = sample
+                is SampleGrainsModule -> voiceMod.sample = sample
             }
         }
     }

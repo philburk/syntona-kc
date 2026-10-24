@@ -56,7 +56,16 @@ open class UnitGeneratorModule(name: String, val unit: UnitGenerator) : Module(n
             offJack = null
             triggerJack = null
         }
-        for (port in unit.getPorts()) {
+        // Place data-queue and primary "Input" ports at the top of the module, even when a
+        // subclass (such as DelayGrains) registers "Input" after its superclass ports.
+        val orderedPorts = unit.getPorts().sortedBy { port ->
+            when {
+                port is UnitDataQueuePort -> 0
+                port is UnitInputPort && port.name.equals("Input", ignoreCase = true) -> 1
+                else -> 2
+            }
+        }
+        for (port in orderedPorts) {
             val rawName = port.name
             val baseName = when {
                 rawName.startsWith("input", ignoreCase = true) -> "in" + rawName.substring(5)

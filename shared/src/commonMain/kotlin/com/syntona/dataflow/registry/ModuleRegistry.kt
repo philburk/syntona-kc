@@ -12,7 +12,7 @@ object ModuleRegistry {
     /** Size of every delay~ buffer: 2 seconds at 48 kHz. Exported source uses it too. */
     const val DELAY_BUFFER_FRAMES = 48000 * 2
 
-    /** Number of grains in every grainFarm. Exported source uses it too. */
+    /** Number of grains in every sineGrains, sampleGrains and delayGrains. Exported source uses it too. */
     const val GRAIN_FARM_GRAINS = 16
 
     val ksynFactories = mutableMapOf<String, () -> UnitGenerator>()
@@ -198,7 +198,7 @@ object ModuleRegistry {
         "whiteNoise" to "white noise random audio generator",
         "redNoise" to "red / Brownian noise audio generator",
         "pinkNoise" to "pink noise 1/f audio generator",
-        "grainFarm" to "granular synthesis: a cloud of short sine wave grains",
+        "sineGrains" to "granular synthesis: a cloud of short sine wave grains",
 
         // ==========================================
         // KSyn -> Analysis
@@ -256,19 +256,20 @@ object ModuleRegistry {
         "peakingEQ" to "parametric peaking equalizer filter",
         "fourPole" to "four-pole 24dB/octave resonant low-pass filter",
         "stateVar" to "state-variable filter with simultaneous low, high, and band outputs",
-        "waveFolder" to "wave folder for rich harmonic distortion and folding",
 
         // ==========================================
         // KSyn -> Effects
         // ==========================================
         "phaseShifter" to "multi-stage phase shifter / phaser effect",
         "delay~" to "interpolating audio delay line",
+        "delayGrains" to "granular synthesis on a live audio delay line",
         "pan" to "stereo panning and balance control",
         "plateReverb" to "plate reverberation effect",
         "roomReverb" to "room reverberation effect",
+        "waveFolder" to "wave folder for rich harmonic distortion and folding",
 
         // ==========================================
-        // KSyn -> Effects
+        // KSyn -> Models
         // ==========================================
         "stringRes" to "resonating string using Karplus-Strong algorithm",
 
@@ -286,6 +287,8 @@ object ModuleRegistry {
         "sample" to "hold a loaded audio sample buffer in memory",
         "sampleReader" to "play a slice or loop from a shared sample buffer",
         "sampleWriter" to "write incoming audio into a shared sample buffer",
+        "sampleScrubber" to "scrub through a shared sample buffer with audio-rate modulation",
+        "sampleGrains" to "granular synthesis using a shared sample buffer",
         "recorder" to "record incoming audio to a buffer and play it back"
     )
 
@@ -452,12 +455,12 @@ object ModuleRegistry {
         addKSynModule(sources, "whiteNoise", ::WhiteNoise)
         addKSynModule(sources, "redNoise", ::RedNoise)
         addKSynModule(sources, "pinkNoise", ::PinkNoise)
-        // A GrainFarm is silent until it has grains, so they are allocated in the one factory
+        // A SineGrains is silent until it has grains, so they are allocated in the one factory
         // used by both the palette and polyPatch voices, as for delay~.
-        val grainFarmFactory = { GrainFarm().apply { allocate(GRAIN_FARM_GRAINS) } }
-        ksynFactories["grainFarm"] = grainFarmFactory
-        ksynClassFactories[GrainFarm::class] = grainFarmFactory
-        sources.modules.add(ModuleEntry("grainFarm") { UnitGeneratorModule("grainFarm", grainFarmFactory()) })
+        val sineGrainsFactory = { SineGrains().apply { allocate(GRAIN_FARM_GRAINS) } }
+        ksynFactories["sineGrains"] = sineGrainsFactory
+        ksynClassFactories[SineGrains::class] = sineGrainsFactory
+        sources.modules.add(ModuleEntry("sineGrains") { UnitGeneratorModule("sineGrains", sineGrainsFactory()) })
 
         val analysis = getOrCreateBundle(ksyn, "analysis")
         addKSynModule(analysis, "edgeDetector", ::EdgeDetector)
@@ -509,7 +512,6 @@ object ModuleRegistry {
         addKSynModule(filters, "peakingEQ", ::FilterPeakingEQ)
         addKSynModule(filters, "fourPole", ::FilterFourPoles)
         addKSynModule(filters, "stateVar", ::FilterStateVariable)
-        addKSynModule(filters, "waveFolder", ::WaveFolder)
 
         val effects = getOrCreateBundle(ksyn, "effects")
         addKSynModule(effects, "phaseShifter", ::PhaseShifter)
@@ -518,9 +520,16 @@ object ModuleRegistry {
         val delayFactory = { InterpolatingDelay().apply { allocate(DELAY_BUFFER_FRAMES) } }
         ksynFactories["delay~"] = delayFactory
         effects.modules.add(ModuleEntry("delay~") { UnitGeneratorModule("delay~", delayFactory()) })
+        val delayGrainsFactory = { DelayGrains().apply {
+            allocate(GRAIN_FARM_GRAINS)
+            allocateDelay(DELAY_BUFFER_FRAMES) } }
+        ksynFactories["delayGrains"] = delayGrainsFactory
+        ksynClassFactories[DelayGrains::class] = delayGrainsFactory
+        effects.modules.add(ModuleEntry("delayGrains") { UnitGeneratorModule("delayGrains", delayGrainsFactory()) })
         addKSynModule(effects, "pan", ::Pan)
         addKSynModule(effects, "plateReverb", ::PlateReverb)
         addKSynModule(effects, "roomReverb", ::RoomReverb)
+        addKSynModule(effects, "waveFolder", ::WaveFolder)
 
         val models = getOrCreateBundle(ksyn, "models")
         addKSynModule(models, "stringRes", ::VariableStringResonator)
@@ -535,6 +544,14 @@ object ModuleRegistry {
         sampling.modules.add(ModuleEntry("sample") { FloatSampleModule() })
         sampling.modules.add(ModuleEntry("sampleReader", "tutorials/07_audio_input/05_sampleReader.json") { SampleReaderModule() })
         sampling.modules.add(ModuleEntry("sampleWriter") { SampleWriterModule() })
+        val sampleScrubberFactory = { SampleScrubber() }
+        ksynFactories[SampleScrubberModule.TYPE_NAME] = sampleScrubberFactory
+        ksynClassFactories[SampleScrubber::class] = sampleScrubberFactory
+        sampling.modules.add(ModuleEntry(SampleScrubberModule.TYPE_NAME) { SampleScrubberModule() })
+        val sampleGrainsFactory = { SampleGrains().apply { allocate(GRAIN_FARM_GRAINS) } }
+        ksynFactories[SampleGrainsModule.TYPE_NAME] = sampleGrainsFactory
+        ksynClassFactories[SampleGrains::class] = sampleGrainsFactory
+        sampling.modules.add(ModuleEntry(SampleGrainsModule.TYPE_NAME) { SampleGrainsModule() })
         sampling.modules.add(ModuleEntry("recorder") { RecorderModule() })
 
         fun applyDescriptions(bundle: Bundle) {
@@ -637,6 +654,7 @@ object ModuleRegistry {
         "matchNote" -> "matchNoteOn"
         "matchNote4" -> "matchNoteOn4"
         "matchNote8" -> "matchNoteOn8"
+        "grainFarm" -> "sineGrains"
         else -> name
     }
 
@@ -646,6 +664,7 @@ object ModuleRegistry {
             rawTypeName.startsWith("music.voices.") -> rawTypeName.replace("music.voices.", "music.midi.")
             rawTypeName == "ksyn.data.envSeg" || rawTypeName == "ksyn.data.segEnv" -> "ksyn.control.envSeg"
             rawTypeName.startsWith("ksyn.data.") -> rawTypeName.replace("ksyn.data.", "ksyn.sampling.")
+            rawTypeName == "ksyn.filters.waveFolder" -> "ksyn.effects.waveFolder"
             else -> rawTypeName
         }
 

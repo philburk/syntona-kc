@@ -33,7 +33,9 @@ object JSynSourceExporter {
     )
 
     /** KSyn unit generators that have no equivalent in JSyn. Add new KSyn-only units here. */
-    private val KSYN_ONLY_UNITS = setOf("SchmittTrigger", "ScopeProbe")
+    private val KSYN_ONLY_UNITS = setOf(
+        "SchmittTrigger", "ScopeProbe", "SampleScrubber", "SineGrains", "SampleGrains", "DelayGrains"
+    )
 
     /**
      * Returns the class names of unit generators in [patch] that are only in KSyn,

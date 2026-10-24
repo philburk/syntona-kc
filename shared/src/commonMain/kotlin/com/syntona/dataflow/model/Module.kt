@@ -140,11 +140,12 @@ abstract class Module(val type: String) {
 
     protected fun addDataQueueInput(
         name: String,
-        port: com.softsynth.ksyn.ports.UnitDataQueuePort,
-        autoQueue: Boolean = true
+        port: com.softsynth.ksyn.ports.UnitDataQueuePort? = null,
+        autoQueue: Boolean = port != null,
+        index: Int = _inputs.size
     ): DataQueueInputJack {
         val jack = DataQueueInputJack(name, this, port, autoQueue)
-        _inputs.add(jack)
+        _inputs.add(index, jack)
         return jack
     }
 
