@@ -9,6 +9,7 @@ import com.softsynth.ksyn.ports.UnitOutputPort
 import com.softsynth.ksyn.ports.UnitDataQueuePort
 import com.softsynth.ksyn.unitgen.UnitGenerator
 import com.syntona.core.audio.SynthKSyn
+import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
 
@@ -18,7 +19,8 @@ import com.syntona.dataflow.model.Module
  * For each port on the unit:
  * - [UnitInputPort] becomes an [com.syntona.dataflow.model.AudioInputJack]
  * - [UnitOutputPort] becomes an [com.syntona.dataflow.model.AudioOutputJack]
- * - [UnitDataQueuePort] becomes an [com.syntona.dataflow.model.DataQueueInputJack]
+ * - [UnitDataQueuePort] becomes a [com.syntona.dataflow.model.SequentialDataInputJack]
+ *   whose data is queued on the port
  * Other port types are ignored.
  *
  * The underlying [unit] must still be added to a KSyn synthesizer and started separately.
@@ -36,6 +38,9 @@ open class UnitGeneratorModule(name: String, val unit: UnitGenerator) : Module(n
     val onJack: com.syntona.dataflow.model.CommandJack?
     val offJack: com.syntona.dataflow.model.CommandJack?
     val triggerJack: com.syntona.dataflow.model.CommandJack?
+
+    // Data that arrives on one of these jacks is queued on the unit's matching port.
+    private val dataQueuePorts = mutableMapOf<InputJack, UnitDataQueuePort>()
 
     init {
         SynthKSyn.synth.add(unit)
@@ -86,7 +91,7 @@ open class UnitGeneratorModule(name: String, val unit: UnitGenerator) : Module(n
                     }
                 }
                 is UnitDataQueuePort -> {
-                    addDataQueueInput(baseName, port)
+                    dataQueuePorts[addSequentialDataInput(baseName)] = port
                 }
                 else -> {}
             }
@@ -94,6 +99,15 @@ open class UnitGeneratorModule(name: String, val unit: UnitGenerator) : Module(n
         if (unit.isStartRequired) {
             unit.start()
         }
+    }
+
+    override fun onMessageReceived(jack: InputJack, msg: Message) {
+        val port = dataQueuePorts[jack]
+        if (port != null && msg is Message.SequentialDataMessage) {
+            val data = msg.data
+            port.queueImmediate(data, 0, data.numFrames, SynthKSyn.synth.createTimeStamp())
+        }
+        super.onMessageReceived(jack, msg)
     }
 
     override fun execute(triggerMessage: Message) {

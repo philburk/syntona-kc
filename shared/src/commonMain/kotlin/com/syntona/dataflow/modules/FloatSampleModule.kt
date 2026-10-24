@@ -11,7 +11,7 @@ import com.syntona.core.model.ScoreClock
 import com.syntona.core.model.ScoreTime
 import com.syntona.dataflow.editor.readBinaryFileDirect
 import com.syntona.dataflow.model.CommandJack
-import com.syntona.dataflow.model.DataQueueOutputJack
+import com.syntona.dataflow.model.SequentialDataOutputJack
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
@@ -36,7 +36,7 @@ class FloatSampleModule : Module("sample") {
         get() = filePath?.substringAfterLast('/')?.substringAfterLast('\\')?.takeIf { it.isNotBlank() }
 
     val sendIn: CommandJack = addCommandInput("send")
-    val dataOutput: DataQueueOutputJack = addDataQueueOutput("data")
+    val dataOutput: SequentialDataOutputJack = addSequentialDataOutput("data")
     val durationOutput: OutputJack = addOutput("durationMs")
 
     init {
@@ -51,7 +51,7 @@ class FloatSampleModule : Module("sample") {
     }
 
     fun sendSample() {
-        dataOutput.send(Message.DataQueueMessage(ScoreClock.now(), sample, Message.DataQueueOpcode.QUEUE))
+        dataOutput.send(Message.SequentialDataMessage(ScoreClock.now(), sample))
         val rate = if (sample.frameRate > 0.0) sample.frameRate else SynthKSyn.synth.frameRate.toDouble()
         val durationMs = if (rate > 0.0) (sample.numFrames * 1000.0 / rate) else 0.0
         durationOutput.send(Message.FloatValue(ScoreTime.Zero, durationMs))

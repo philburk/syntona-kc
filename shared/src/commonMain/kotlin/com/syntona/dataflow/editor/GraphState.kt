@@ -14,8 +14,8 @@ import com.syntona.dataflow.model.AdoptsRememberedDefaults
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.AudioOutputJack
 import com.syntona.dataflow.model.CommandJack
-import com.syntona.dataflow.model.DataQueueInputJack
-import com.syntona.dataflow.model.DataQueueOutputJack
+import com.syntona.dataflow.model.SequentialDataInputJack
+import com.syntona.dataflow.model.SequentialDataOutputJack
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Jack
 import com.syntona.dataflow.model.Module
@@ -542,19 +542,19 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
         // EXCEPT VoiceOutputJack which carries compound voice messages
         if (input is AudioInputJack && output is VoiceOutputJack) return false
 
-        // DataQueue: Strictly DataQueue to DataQueue
-        if (output is DataQueueOutputJack && input !is DataQueueInputJack) return false
-        if (input is DataQueueInputJack && output !is DataQueueOutputJack) return false
+        // SequentialData: Strictly SequentialData to SequentialData
+        if (output is SequentialDataOutputJack && input !is SequentialDataInputJack) return false
+        if (input is SequentialDataInputJack && output !is SequentialDataOutputJack) return false
 
-        // Universal input accepts any message (event or voice), but not Audio-rate or DataQueue
+        // Universal input accepts any message (event or voice), but not Audio-rate or SequentialData
         if (input is UniversalInputJack) {
-            return output !is AudioOutputJack && output !is DataQueueOutputJack
+            return output !is AudioOutputJack && output !is SequentialDataOutputJack
         }
 
         // Universal output can connect to Event input, Voice input, or Universal input,
-        // but not DataQueue or Audio
+        // but not SequentialData or Audio
         if (output is UniversalOutputJack) {
-            return input !is DataQueueInputJack && input !is AudioInputJack
+            return input !is SequentialDataInputJack && input !is AudioInputJack
         }
 
         // Voice output can ONLY connect to Voice input (or Universal input handled above)

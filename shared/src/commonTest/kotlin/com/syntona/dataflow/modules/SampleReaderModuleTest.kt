@@ -8,7 +8,7 @@ import com.syntona.dataflow.editor.GraphState
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.AudioOutputJack
 import com.syntona.dataflow.model.CommandJack
-import com.syntona.dataflow.model.DataQueueInputJack
+import com.syntona.dataflow.model.SequentialDataInputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.registry.ModuleRegistry
 import kotlin.test.Test
@@ -26,7 +26,7 @@ class SampleReaderModuleTest {
 
         assertEquals(9, module.inputs.size)
         assertEquals("data", module.inputs[0].name)
-        assertTrue(module.inputs[0] is DataQueueInputJack)
+        assertTrue(module.inputs[0] is SequentialDataInputJack)
         assertFalse(module.inputs[0].isValueDraggable)
         assertFalse(module.inputs[0].isDisplayableValue)
         assertFalse(module.inputs[0].isModuleEditorVisible)
@@ -63,7 +63,7 @@ class SampleReaderModuleTest {
         val readerModule = SampleReaderModule()
 
         // Give reader sample data
-        readerModule.dataInput.receive(Message.DataQueueMessage(ScoreClock.now(), sampleModule.sample, Message.DataQueueOpcode.QUEUE))
+        readerModule.dataInput.receive(Message.SequentialDataMessage(ScoreClock.now(), sampleModule.sample))
 
         // Set looping on
         readerModule.loopInput.setValue(1.0)
@@ -96,7 +96,7 @@ class SampleReaderModuleTest {
         val readerModule = SampleReaderModule()
 
         // Give reader sample data
-        readerModule.dataInput.receive(Message.DataQueueMessage(ScoreClock.now(), sampleModule.sample, Message.DataQueueOpcode.QUEUE))
+        readerModule.dataInput.receive(Message.SequentialDataMessage(ScoreClock.now(), sampleModule.sample))
 
         // Set looping on
         readerModule.loopInput.setValue(1.0)
@@ -245,7 +245,7 @@ class SampleReaderModuleTest {
             frameRate = 48000.0
             for (i in 0 until 100) writeSample(i, 0.75f)
         }
-        val msg = Message.DataQueueMessage(ScoreClock.now(), sample, Message.DataQueueOpcode.QUEUE)
+        val msg = Message.SequentialDataMessage(ScoreClock.now(), sample)
         readerModule.dataInput.receive(msg)
         readerModule.speed.setValue(1.0)
         readerModule.startIn.receive(Message.FloatValue(ScoreTime.Zero, 0.0))
@@ -278,7 +278,7 @@ class SampleReaderModuleTest {
                 writeSample(i * 2 + 1, 0.8f)
             }
         }
-        val msg = Message.DataQueueMessage(ScoreClock.now(), stereoSample, Message.DataQueueOpcode.QUEUE)
+        val msg = Message.SequentialDataMessage(ScoreClock.now(), stereoSample)
         readerModule.dataInput.receive(msg)
         readerModule.speed.setValue(1.0)
         readerModule.startIn.receive(Message.FloatValue(ScoreTime.Zero, 0.0))
@@ -307,7 +307,7 @@ class SampleReaderModuleTest {
             frameRate = 44100.0
             for (i in 0 until 44100) writeSample(i, 0.5f)
         }
-        readerModule.dataInput.receive(Message.DataQueueMessage(ScoreClock.now(), sample, Message.DataQueueOpcode.QUEUE))
+        readerModule.dataInput.receive(Message.SequentialDataMessage(ScoreClock.now(), sample))
 
         assertFalse(readerModule.isActive, "Should be inactive initially")
         assertEquals(0.0, readerModule.displayCursorSeconds, 0.001)

@@ -803,7 +803,7 @@ fun WireRenderer(state: GraphState) {
                 val wireColor = when (conn.output) {
                     is AudioOutputJack -> colors.wireAudio
                     is VoiceOutputJack -> colors.wireVoice
-                    is DataQueueOutputJack -> colors.wireDataQueue
+                    is SequentialDataOutputJack -> colors.wireSequentialData
                     is UniversalOutputJack -> colors.wireUniversal
                     else -> colors.wireDefault
                 }
@@ -869,7 +869,7 @@ fun WireRenderer(state: GraphState) {
                 val wireColor = when (draggingOutput) {
                     is AudioOutputJack -> colors.wireAudio
                     is VoiceOutputJack -> colors.wireVoice
-                    is DataQueueOutputJack -> colors.wireDataQueue
+                    is SequentialDataOutputJack -> colors.wireSequentialData
                     is UniversalOutputJack -> colors.wireUniversal
                     else -> colors.wireDragging
                 }
@@ -916,7 +916,7 @@ fun WireRenderer(state: GraphState) {
                 val wireColor = when (draggingInput) {
                     is AudioInputJack -> colors.wireAudio
                     is VoiceInputJack -> colors.wireVoice
-                    is DataQueueInputJack -> colors.wireDataQueue
+                    is SequentialDataInputJack -> colors.wireSequentialData
                     is UniversalInputJack -> colors.wireUniversal
                     else -> colors.wireDragging
                 }
@@ -1964,7 +1964,7 @@ fun JackView(
         jack.isHighlighted -> colors.jackBgHighlighted
         jack is AudioInputJack || jack is AudioOutputJack -> colors.jackBgAudio
         jack is VoiceInputJack || jack is VoiceOutputJack -> colors.jackBgVoice
-        jack is DataQueueInputJack || jack is DataQueueOutputJack -> colors.jackBgDataQueue
+        jack is SequentialDataInputJack || jack is SequentialDataOutputJack -> colors.jackBgSequentialData
         jack is UniversalInputJack || jack is UniversalOutputJack -> colors.jackBgUniversal
         else -> colors.jackBgDefault
     }
@@ -2403,7 +2403,7 @@ private fun JackMarker(jack: Jack, state: GraphState? = null, squareSize: Dp = 8
     val typeColor = when {
         jack is AudioInputJack || jack is AudioOutputJack -> colors.jackAudio
         jack is VoiceInputJack || jack is VoiceOutputJack -> colors.jackVoice
-        jack is DataQueueInputJack || jack is DataQueueOutputJack -> colors.jackDataQueue
+        jack is SequentialDataInputJack || jack is SequentialDataOutputJack -> colors.jackSequentialData
         isUniversal -> colors.jackUniversal
         else -> colors.jackDefault
     }

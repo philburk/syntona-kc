@@ -304,7 +304,7 @@ class VoiceOutputJack(name: String, module: Module) : OutputJack(name, module) {
 }
 
 /**
- * An input port that accepts any message type (e.g. VoiceMessage, FloatValue, DataQueueMessage).
+ * An input port that accepts any message type (e.g. VoiceMessage, FloatValue, SequentialDataMessage).
  */
 class UniversalInputJack(name: String, module: Module, isKickable: Boolean = false) : InputJack(name, module, isKickable) {
     override val isDisplayableValue: Boolean get() = false

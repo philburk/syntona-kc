@@ -8,9 +8,9 @@ import com.softsynth.ksyn.unitgen.SampleGrains
 import com.softsynth.ksyn.unitgen.SampleScrubber
 import com.softsynth.ksyn.unitgen.SineGrains
 import com.syntona.core.model.ScoreClock
-import com.syntona.dataflow.model.DataQueueInputJack
+import com.syntona.dataflow.model.SequentialDataInputJack
 import com.syntona.dataflow.model.Message
-import com.syntona.dataflow.model.Message.DataQueueMessage
+import com.syntona.dataflow.model.Message.SequentialDataMessage
 import com.syntona.dataflow.registry.ModuleRegistry
 import com.syntona.export.JSynSourceExporter
 import com.syntona.export.KSynSourceExporter
@@ -48,8 +48,8 @@ class GrainModulesTest {
         return peak
     }
 
-    private fun queueData(sample: FloatSample): DataQueueMessage =
-        DataQueueMessage(ScoreClock.now(), sample, Message.DataQueueOpcode.QUEUE)
+    private fun queueData(sample: FloatSample): SequentialDataMessage =
+        SequentialDataMessage(ScoreClock.now(), sample)
 
     private fun makeSineSample(numFrames: Int = 4096): FloatSample {
         val data = FloatArray(numFrames) { i ->
@@ -129,7 +129,7 @@ class GrainModulesTest {
         assertNotNull(ModuleRegistry.getDescription("sampleGrains"))
         val module = createSampleGrains()
         assertIs<SampleGrains>(module.unit)
-        assertIs<DataQueueInputJack>(module.inputs.first())
+        assertIs<SequentialDataInputJack>(module.inputs.first())
         assertEquals(
             listOf(
                 "data", "density", "rate", "rateRange", "duration", "durationRange",
@@ -156,7 +156,7 @@ class GrainModulesTest {
 
         for (voice in polyPatch.voices) {
             val voiceMod = assertIs<SampleGrainsModule>(voice.templateToVoiceMap[template])
-            assertIs<DataQueueInputJack>(voiceMod.inputs.first())
+            assertIs<SequentialDataInputJack>(voiceMod.inputs.first())
             assertEquals(sample, voiceMod.sample)
             assertTrue(peakOutput(voiceMod.grains) > 0.01f, "sampleGrains in a voice is silent")
         }
@@ -191,7 +191,7 @@ class GrainModulesTest {
 
         val module = createSampleScrubber()
         val scrubber = assertIs<SampleScrubber>(module.unit)
-        assertIs<DataQueueInputJack>(module.inputs.first())
+        assertIs<SequentialDataInputJack>(module.inputs.first())
         assertEquals(
             listOf("data", "in", "position", "time", "amplitude"),
             module.inputs.map { it.name }

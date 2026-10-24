@@ -1,5 +1,6 @@
 package com.syntona.dataflow.model
 
+import com.softsynth.ksyn.data.SequentialData
 import com.syntona.core.model.ScoreTime
 
 /**
@@ -24,17 +25,12 @@ sealed class Message {
         override fun toString(): String = value?.toString() ?: "null"
     }
 
-    enum class DataQueueOpcode {
-        QUEUE, QUEUE_ON, QUEUE_OFF, QUEUE_LOOP
-    }
-
-    /** A message carrying a data object and an opcode for a DataQueue. */
-    data class DataQueueMessage(
+    /** A message carrying a whole [SequentialData] object, such as a sample or a recording. */
+    data class SequentialDataMessage(
         override val time: ScoreTime,
-        val data: Any,
-        val opcode: DataQueueOpcode
+        val data: SequentialData
     ) : Message() {
-        override fun toString(): String = "$opcode data=$data"
+        override fun toString(): String = "data=$data"
     }
 
     /** Commands for [VoiceMessage], modeled after MIDI Channel Voice Messages. */

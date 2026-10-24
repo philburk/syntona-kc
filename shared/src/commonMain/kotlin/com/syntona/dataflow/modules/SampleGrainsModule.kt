@@ -3,7 +3,7 @@ package com.syntona.dataflow.modules
 import com.softsynth.ksyn.data.FloatSample
 import com.softsynth.ksyn.data.SequentialData
 import com.softsynth.ksyn.unitgen.SampleGrains
-import com.syntona.dataflow.model.DataQueueInputJack
+import com.syntona.dataflow.model.SequentialDataInputJack
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.toMonoFloatSample
@@ -19,7 +19,7 @@ class SampleGrainsModule : UnitGeneratorModule(
 ) {
     val grains: SampleGrains get() = unit as SampleGrains
 
-    val dataInput: DataQueueInputJack = addDataQueueInput("data", index = 0)
+    val dataInput: SequentialDataInputJack = addSequentialDataInput("data", index = 0)
 
     var sample: FloatSample?
         get() = grains.getSample()
@@ -32,7 +32,7 @@ class SampleGrainsModule : UnitGeneratorModule(
     override fun onMessageReceived(jack: InputJack, msg: Message) {
         super.onMessageReceived(jack, msg)
         if (jack === dataInput) {
-            val data = ((msg as? Message.DataQueueMessage)?.data as? SequentialData) ?: dataInput.currentData
+            val data = (msg as? Message.SequentialDataMessage)?.data ?: dataInput.currentData
             sample = data?.toMonoFloatSample()
         }
     }

@@ -10,7 +10,7 @@ import com.syntona.core.audio.SynthKSyn
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.AudioOutputJack
 import com.syntona.dataflow.model.CommandJack
-import com.syntona.dataflow.model.DataQueueInputJack
+import com.syntona.dataflow.model.SequentialDataInputJack
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
@@ -46,7 +46,7 @@ class SampleReaderModule : Module("sampleReader"), com.syntona.dataflow.model.Au
     val isActive: Boolean
         get() = unit.dataQueue.hasMore()
 
-    val dataInput: DataQueueInputJack
+    val dataInput: SequentialDataInputJack
     val startIn: CommandJack
     val stopIn: CommandJack
     val offset: InputJack
@@ -71,7 +71,7 @@ class SampleReaderModule : Module("sampleReader"), com.syntona.dataflow.model.Au
         rateMultiplier.inputB.set(SynthKSyn.synth.frameRate.toFloat())
         rateMultiplier.output.connect(unit.rate)
 
-        dataInput = addDataQueueInput("data", unit.dataQueue, autoQueue = false)
+        dataInput = addSequentialDataInput("data")
         startIn = addCommandInput("start")
         stopIn = addCommandInput("stop")
 
@@ -108,7 +108,7 @@ class SampleReaderModule : Module("sampleReader"), com.syntona.dataflow.model.Au
         super.onMessageReceived(jack, msg)
         when (jack) {
             dataInput -> {
-                val data = (msg as? Message.DataQueueMessage)?.data ?: dataInput.currentData
+                val data = (msg as? Message.SequentialDataMessage)?.data ?: dataInput.currentData
                 val sampleFrameRate = (data as? AudioSampleData)?.frameRate?.takeIf { it > 0.0 }
                     ?: (data as? com.syntona.util.SegmentedFloatArray)?.frameRate?.takeIf { it > 0.0 }
                     ?: SynthKSyn.synth.frameRate.toDouble()

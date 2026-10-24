@@ -16,7 +16,7 @@ import com.syntona.dataflow.engine.ScheduledEvent
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.AudioOutputJack
 import com.syntona.dataflow.model.CommandJack
-import com.syntona.dataflow.model.DataQueueOutputJack
+import com.syntona.dataflow.model.SequentialDataOutputJack
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
@@ -43,7 +43,7 @@ class RecorderModule : Module("recorder"), EngineAware {
     val pauseIn: CommandJack
     val rewindIn: CommandJack
     val output: AudioOutputJack
-    val dataOutput: DataQueueOutputJack
+    val dataOutput: SequentialDataOutputJack
 
     var filePath: String? by mutableStateOf(null)
     var isLoadedFromFile: Boolean by mutableStateOf(false)
@@ -80,7 +80,7 @@ class RecorderModule : Module("recorder"), EngineAware {
         pauseIn = addCommandInput("pause")
         rewindIn = addCommandInput("rewind")
         output = addAudioOutput("out", unit.output, 0)
-        dataOutput = addDataQueueOutput("data")
+        dataOutput = addSequentialDataOutput("data")
 
         // Fill the pool up front so the first record does not have to allocate.
         unit.replenish()
@@ -88,7 +88,7 @@ class RecorderModule : Module("recorder"), EngineAware {
     }
 
     fun sendData() {
-        dataOutput.send(Message.DataQueueMessage(ScoreClock.now(), unit.recording, Message.DataQueueOpcode.QUEUE))
+        dataOutput.send(Message.SequentialDataMessage(ScoreClock.now(), unit.recording))
     }
 
     override fun setEngine(engine: DataFlowEngine) {

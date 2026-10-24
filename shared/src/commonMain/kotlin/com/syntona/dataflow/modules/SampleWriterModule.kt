@@ -9,7 +9,7 @@ import com.syntona.core.audio.SynthKSyn
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.BooleanInputJack
 import com.syntona.dataflow.model.CommandJack
-import com.syntona.dataflow.model.DataQueueInputJack
+import com.syntona.dataflow.model.SequentialDataInputJack
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.IntegerInputJack
 import com.syntona.dataflow.model.Message
@@ -41,7 +41,7 @@ class SampleWriterModule : Module("sampleWriter") {
     val isActive: Boolean
         get() = unit.dataQueue.hasMore()
 
-    val dataInput: DataQueueInputJack
+    val dataInput: SequentialDataInputJack
     val startIn: CommandJack
     val stopIn: CommandJack
     val loopInput: BooleanInputJack
@@ -54,7 +54,7 @@ class SampleWriterModule : Module("sampleWriter") {
             unit.start()
         }
 
-        dataInput = addDataQueueInput("data", unit.dataQueue, autoQueue = false)
+        dataInput = addSequentialDataInput("data")
         startIn = addCommandInput("start")
         stopIn = addCommandInput("stop")
         loopInput = addBooleanInput("looping")

@@ -7,7 +7,7 @@ import com.syntona.core.model.ScoreTime
 import com.syntona.dataflow.editor.GraphState
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.CommandJack
-import com.syntona.dataflow.model.DataQueueInputJack
+import com.syntona.dataflow.model.SequentialDataInputJack
 import com.syntona.dataflow.model.IntegerInputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.registry.ModuleRegistry
@@ -26,7 +26,7 @@ class SampleWriterModuleTest {
 
         assertEquals(5, module.inputs.size)
         assertEquals("data", module.inputs[0].name)
-        assertTrue(module.inputs[0] is DataQueueInputJack)
+        assertTrue(module.inputs[0] is SequentialDataInputJack)
         assertFalse(module.inputs[0].isValueDraggable)
         assertFalse(module.inputs[0].isDisplayableValue)
         assertFalse(module.inputs[0].isModuleEditorVisible)
@@ -68,7 +68,7 @@ class SampleWriterModuleTest {
 
         // Connect sample.data -> writer.data
         writerModule.dataInput.receive(
-            Message.DataQueueMessage(ScoreClock.now(), sampleModule.sample, Message.DataQueueOpcode.QUEUE)
+            Message.SequentialDataMessage(ScoreClock.now(), sampleModule.sample)
         )
         assertEquals(sampleModule.sample, writerModule.dataInput.currentData)
 
@@ -97,7 +97,7 @@ class SampleWriterModuleTest {
         val writerModule = SampleWriterModule()
 
         writerModule.dataInput.receive(
-            Message.DataQueueMessage(ScoreClock.now(), sampleModule.sample, Message.DataQueueOpcode.QUEUE)
+            Message.SequentialDataMessage(ScoreClock.now(), sampleModule.sample)
         )
 
         // Enable looping
@@ -151,7 +151,7 @@ class SampleWriterModuleTest {
         val writerModule = SampleWriterModule()
 
         writerModule.dataInput.receive(
-            Message.DataQueueMessage(ScoreClock.now(), sampleModule.sample, Message.DataQueueOpcode.QUEUE)
+            Message.SequentialDataMessage(ScoreClock.now(), sampleModule.sample)
         )
 
         assertFalse(writerModule.isActive, "Should be inactive initially")

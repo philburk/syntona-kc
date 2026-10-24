@@ -3,20 +3,20 @@ package com.syntona.dataflow.modules
 import com.softsynth.ksyn.data.FloatSample
 import com.softsynth.ksyn.data.SequentialData
 import com.softsynth.ksyn.unitgen.SampleScrubber
-import com.syntona.dataflow.model.DataQueueInputJack
+import com.syntona.dataflow.model.SequentialDataInputJack
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.toMonoFloatSample
 
 /**
- * Wraps KSyn's [SampleScrubber] with a "data" [DataQueueInputJack] for setting the sample,
+ * Wraps KSyn's [SampleScrubber] with a "data" [SequentialDataInputJack] for setting the sample,
  * similar to [SampleReaderModule].
  */
 class SampleScrubberModule : UnitGeneratorModule(TYPE_NAME, SampleScrubber()) {
     val sampleScrubber: SampleScrubber
         get() = unit as SampleScrubber
 
-    val dataInput: DataQueueInputJack = addDataQueueInput("data", index = 0)
+    val dataInput: SequentialDataInputJack = addSequentialDataInput("data", index = 0)
 
     var sample: FloatSample?
         get() = sampleScrubber.getSample()
@@ -25,7 +25,7 @@ class SampleScrubberModule : UnitGeneratorModule(TYPE_NAME, SampleScrubber()) {
         }
 
     override fun onMessageReceived(jack: InputJack, msg: Message) {
-        if (jack === dataInput && msg is Message.DataQueueMessage) {
+        if (jack === dataInput && msg is Message.SequentialDataMessage) {
             val mono = (msg.data as? SequentialData)?.toMonoFloatSample()
             sample = mono
             (parentPatch as? PolyPatchModule)?.syncSample(this, mono)

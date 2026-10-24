@@ -37,6 +37,6 @@ private fun Message.withTime(newTime: ScoreTime): Message = when (this) {
     is Message.FloatValue -> copy(time = newTime)
     is Message.TextValue -> copy(time = newTime)
     is Message.ObjectValue -> copy(time = newTime)
-    is Message.DataQueueMessage -> copy(time = newTime)
+    is Message.SequentialDataMessage -> copy(time = newTime)
     is Message.VoiceMessage -> copy(time = newTime)
 }

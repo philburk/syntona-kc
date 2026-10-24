@@ -4,7 +4,7 @@ import com.syntona.core.model.ScoreTime
 import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.AudioOutputJack
 import com.syntona.dataflow.model.CommandJack
-import com.syntona.dataflow.model.DataQueueOutputJack
+import com.syntona.dataflow.model.SequentialDataOutputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.editor.GraphSerializer
 import com.syntona.dataflow.editor.GraphState
@@ -50,7 +50,7 @@ class RecorderModuleTest {
         assertEquals("out", module.outputs[0].name)
         assertTrue(module.outputs[0] is AudioOutputJack, "out should carry audio")
         assertEquals("data", module.outputs[1].name)
-        assertTrue(module.outputs[1] is DataQueueOutputJack, "data should carry DataQueue")
+        assertTrue(module.outputs[1] is SequentialDataOutputJack, "data should carry SequentialData")
     }
 
     @Test

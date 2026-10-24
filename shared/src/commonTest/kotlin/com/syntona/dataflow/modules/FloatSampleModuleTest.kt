@@ -3,7 +3,7 @@ package com.syntona.dataflow.modules
 import com.syntona.core.audio.SynthKSyn
 import com.syntona.core.model.ScoreTime
 import com.syntona.dataflow.model.CommandJack
-import com.syntona.dataflow.model.DataQueueOutputJack
+import com.syntona.dataflow.model.SequentialDataOutputJack
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
@@ -27,7 +27,7 @@ class FloatSampleModuleTest {
 
         assertEquals(2, module.outputs.size)
         assertEquals("data", module.outputs[0].name)
-        assertTrue(module.outputs[0] is DataQueueOutputJack)
+        assertTrue(module.outputs[0] is SequentialDataOutputJack)
         assertEquals("durationMs", module.outputs[1].name)
     }
 
@@ -49,12 +49,12 @@ class FloatSampleModuleTest {
     @Test
     fun testSendJackEmitsSampleReference() {
         val module = FloatSampleModule()
-        val received = mutableListOf<Message.DataQueueMessage>()
+        val received = mutableListOf<Message.SequentialDataMessage>()
 
         val collector = object : Module("collector") {
             val sink = addInput("sink")
             override fun onMessageReceived(jack: InputJack, msg: Message) {
-                if (msg is Message.DataQueueMessage) received.add(msg)
+                if (msg is Message.SequentialDataMessage) received.add(msg)
             }
             override fun execute(triggerMessage: Message) {}
         }
