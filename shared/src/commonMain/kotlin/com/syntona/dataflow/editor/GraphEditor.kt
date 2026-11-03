@@ -3533,6 +3533,27 @@ fun PianoRollModuleNode(module: PianoRollModule, state: GraphState) {
 }
 
 
+fun openHelpForType(
+    typeName: String,
+    mdiState: MdiState,
+    engine: com.syntona.dataflow.engine.DataFlowEngine?,
+    density: Float,
+    scope: kotlinx.coroutines.CoroutineScope
+) {
+    val helpPath = com.syntona.dataflow.registry.HelpRegistry.getHelpFilePath(typeName) ?: return
+    val currentEngine = engine ?: mdiState.activeGraphState?.engine ?: return
+    scope.launch {
+        try {
+            val bytes = com.syntona.SharedResources.readBytes("files/$helpPath")
+            val content = bytes.decodeToString()
+            val newDoc = com.syntona.openNewDocument(mdiState, currentEngine, density)
+            com.syntona.loadIntoDocument(mdiState, newDoc, helpPath, content, density)
+        } catch (e: Exception) {
+            println("Failed to load help file $helpPath: ${e.message}")
+        }
+    }
+}
+
 fun openHelpForModule(
     module: Module,
     mdiState: MdiState,
@@ -3545,18 +3566,7 @@ fun openHelpForModule(
         is com.syntona.dataflow.modules.PatchModule -> "patch"
         else -> module.type
     }
-    val helpPath = com.syntona.dataflow.registry.HelpRegistry.getHelpFilePath(type) ?: return
-    val currentEngine = engine ?: return
-    scope.launch {
-        try {
-            val bytes = com.syntona.SharedResources.readBytes("files/$helpPath")
-            val content = bytes.decodeToString()
-            val newDoc = com.syntona.openNewDocument(mdiState, currentEngine, density)
-            com.syntona.loadIntoDocument(mdiState, newDoc, helpPath, content, density)
-        } catch (e: Exception) {
-            println("Failed to load help file $helpPath: ${e.message}")
-        }
-    }
+    openHelpForType(type, mdiState, engine, density, scope)
 }
 
 @Composable

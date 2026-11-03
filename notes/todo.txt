@@ -1,17 +1,18 @@
 
 # ----------------------------------------------- TOP PRIORITY
 
+MAKE SOME MUSIC!
+
 On FireFox plug in MIDI hardware before running Syntona.
 Install the MIDI Add-on.
+Or just say "Works best on Chrome..."
 
 BUG: deleting modules using BACKSPACE or DELETE key sometimes does not work. Edit menu Cut always works.
 Need repro steps.
 
-Label wire outputs with order (1) (2)
+If I click on the (?) that indicates help available, then open the help page.
 
-Add Granular synthesis.
-
-Add Asset Manager that can Zip WAV files in a ZIP.
+Add more physical models.
 
 Seq8 should support feedback cycle.
 
@@ -40,8 +41,13 @@ Composing Tutorial
 TimeLine and BeatLine Tutorial
 * Add an Audio Track, drag copy, punch in
 
+Add drum grid modules, 4x8, 4x16, 8x16, cascadable for 8x32 and syncable for 16x16.
 
 # ----------------------------------------------- HIGH PRIORITY
+
+Add Asset Manager that can Zip WAV files in a ZIP.
+
+Label wire outputs with order (1) (2)
 
 Better mapping of velocity to amplitude. Different curves in MIDI Settings.
 

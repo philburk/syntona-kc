@@ -16,6 +16,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -104,6 +106,7 @@ fun BundleView(
 
     val mdiState = LocalMdiState.current
     val density = LocalDensity.current.density
+    val scope = rememberCoroutineScope()
     var expandedState by remember { mutableStateOf(level < 2) }
     val isFiltering = filterText.isNotBlank()
     val isExpanded = expandedState || isFiltering
@@ -192,7 +195,18 @@ fun BundleView(
                                     text = " (?)",
                                     fontSize = 11.sp,
                                     color = Color(0xFFFFCC00),
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                    modifier = Modifier
+                                        .pointerHoverIcon(PointerIcon.Hand)
+                                        .clickable {
+                                            openHelpForType(
+                                                module.name,
+                                                mdiState,
+                                                state.engine,
+                                                density,
+                                                scope
+                                            )
+                                        }
                                 )
                             }
                         }
