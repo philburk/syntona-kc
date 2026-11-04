@@ -7,10 +7,7 @@ On FireFox plug in MIDI hardware before running Syntona.
 Install the MIDI Add-on.
 Or just say "Works best on Chrome..."
 
-BUG: deleting modules using BACKSPACE or DELETE key sometimes does not work. Edit menu Cut always works.
-Need repro steps.
-
-If I click on the (?) that indicates help available, then open the help page.
+Release 0.8.1 with delayGrains, sampleScrubber, etc.
 
 Add more physical models.
 
@@ -18,7 +15,7 @@ Seq8 should support feedback cycle.
 
 Indicate whether an Audio port is in Add? mode.
 
-choose module and choose(4) in the f(x)
+Add choose module and choose(4) in the f(x). Int output, 0 to N-1.
 
 Add Gaussian distribution and histogram.
 
@@ -44,6 +41,9 @@ TimeLine and BeatLine Tutorial
 Add drum grid modules, 4x8, 4x16, 8x16, cascadable for 8x32 and syncable for 16x16.
 
 # ----------------------------------------------- HIGH PRIORITY
+
+BUG: deleting modules using BACKSPACE or DELETE key sometimes does not work. Edit menu Cut always works.
+Need repro steps.
 
 Add Asset Manager that can Zip WAV files in a ZIP.
 

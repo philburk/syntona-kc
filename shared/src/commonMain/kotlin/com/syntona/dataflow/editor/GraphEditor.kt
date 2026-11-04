@@ -123,6 +123,7 @@ import com.syntona.dataflow.modules.FloatSampleModule
 import com.syntona.dataflow.modules.SamplePlayerModule
 import com.syntona.dataflow.modules.InputModule
 import com.syntona.dataflow.modules.KnobModule
+import com.syntona.dataflow.modules.XyPadModule
 import com.syntona.dataflow.modules.OutputModule
 import com.syntona.dataflow.modules.PatchModule
 import com.syntona.dataflow.modules.PolyPatchModule
@@ -427,6 +428,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                             }
                             is FaderModule -> FaderModuleNode(module, state)
                             is KnobModule -> KnobModuleNode(module, state)
+                            is XyPadModule -> XyPadModuleNode(module, state)
                             is PatchModule -> PatchModuleNode(module, state)
                             is StepValueModule -> StepValueModuleNode(module, state)
                             is MixerModule -> MixerModuleNode(module, state)
@@ -2939,6 +2941,114 @@ fun KnobModuleNode(module: KnobModule, state: GraphState) {
                 },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 2.dp)
             )
+        }
+    }
+}
+
+@Composable
+fun XyPadModuleNode(module: XyPadModule, state: GraphState) {
+    val colors = LocalGraphColors.current
+    ResizableModuleBox(
+        module = module,
+        state = state,
+        headerColor = colors.headerKnob,
+        initialWidth = module.width.dp,
+        initialHeight = module.height.dp,
+        minWidth = 160.dp,
+        minHeight = 120.dp,
+        onResize = { w, h ->
+            module.width = w.value
+            module.height = h.value
+        }
+    ) { _, _ ->
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 4.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier.width(IntrinsicSize.Max).fillMaxHeight(),
+                    verticalArrangement = Arrangement.SpaceEvenly,
+                    horizontalAlignment = Alignment.Start
+                ) {
+                    module.inputs.forEach { JackView(it, state, isLeft = true) }
+                }
+                XyPadSurface(
+                    x = module.x.toFloat(),
+                    y = module.y.toFloat(),
+                    onValueChange = { newX, newY ->
+                        val e = state.engine
+                        if (e != null) {
+                            // Bottom jack (Y) first, then top jack (X):
+                            e.post(SetValueCommand(module.inY, newY.toDouble(), ScoreClock.now()))
+                            e.post(SetValueCommand(module.inX, newX.toDouble(), ScoreClock.now()))
+                        } else {
+                            module.setXY(newX.toDouble(), newY.toDouble())
+                        }
+                        state.markChanged()
+                    },
+                    onPress = {
+                        val e = state.engine
+                        val time = ScoreClock.now()
+                        val msg = Message.FloatValue(time, 1.0)
+                        if (e != null) {
+                            e.post(SendOutputCommand(module.on, msg))
+                        } else {
+                            module.press(time)
+                        }
+                    },
+                    onRelease = {
+                        val e = state.engine
+                        val time = ScoreClock.now()
+                        val msg = Message.FloatValue(time, 0.0)
+                        if (e != null) {
+                            e.post(SendOutputCommand(module.off, msg))
+                        } else {
+                            module.release(time)
+                        }
+                    },
+                    xRange = module.inX.min.toFloat()..module.inX.max.toFloat(),
+                    yRange = module.inY.min.toFloat()..module.inY.max.toFloat(),
+                    isExponentialX = module.inX.isExponential,
+                    isExponentialY = module.inY.isExponential,
+                    modifier = Modifier.weight(1f).fillMaxHeight().padding(horizontal = 4.dp)
+                )
+                Column(
+                    modifier = Modifier.width(IntrinsicSize.Max).fillMaxHeight(),
+                    verticalArrangement = Arrangement.SpaceEvenly,
+                    horizontalAlignment = Alignment.End
+                ) {
+                    module.outputs.forEach { JackView(it, state, isLeft = false) }
+                }
+            }
+
+            // Numeric readouts / direct entry for X and Y
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 6.dp, end = 20.dp, top = 2.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("X:", fontSize = 11.sp, color = Color.Gray, modifier = Modifier.padding(end = 2.dp))
+                NumberField(
+                    value = module.x,
+                    onCommit = { v ->
+                        val e = state.engine
+                        if (e != null) e.post(SetValueCommand(module.inX, v, ScoreClock.now()))
+                        else module.setX(v)
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Y:", fontSize = 11.sp, color = Color.Gray, modifier = Modifier.padding(end = 2.dp))
+                NumberField(
+                    value = module.y,
+                    onCommit = { v ->
+                        val e = state.engine
+                        if (e != null) e.post(SetValueCommand(module.inY, v, ScoreClock.now()))
+                        else module.setY(v)
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }

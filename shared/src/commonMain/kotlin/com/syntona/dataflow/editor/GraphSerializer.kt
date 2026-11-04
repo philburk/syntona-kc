@@ -38,6 +38,7 @@ import com.syntona.dataflow.modules.PianoRollNote
 import com.syntona.dataflow.modules.Ratio
 import com.syntona.dataflow.modules.KnobModule
 import com.syntona.dataflow.modules.FaderModule
+import com.syntona.dataflow.modules.XyPadModule
 import com.syntona.dataflow.modules.SequenceModule
 import com.syntona.dataflow.modules.StepValueModule
 import com.syntona.dataflow.modules.ModuloSelectModule
@@ -328,9 +329,15 @@ object GraphSerializer {
                         val holdsValue = jack.lastMessage is Message.FloatValue ||
                             jack is AudioInputJack ||
                             ((module is KnobModule || module is FaderModule) && jack.name == "in") ||
+                            (module is XyPadModule && (jack.name == "x" || jack.name == "y")) ||
                             (module is SequenceModule && jack.name.startsWith("in") &&
                                 jack.name.substring(2).toIntOrNull() != null)
-                        if (holdsValue) fields.add("\"v\":${jack.getValue()}")
+                        val v = if (module is XyPadModule) {
+                            if (jack.name == "x") module.x else module.y
+                        } else {
+                            jack.getValue()
+                        }
+                        if (holdsValue) fields.add("\"v\":$v")
                         fields.add("\"min\":${jack.min}")
                         fields.add("\"max\":${jack.max}")
                         fields.add("\"kickable\":${jack.isKickable}")
@@ -349,6 +356,9 @@ object GraphSerializer {
             }
             if (module is CommentModule) {
                 append(",\"text\":\"${module.text.jsonEscape}\"")
+                append(",\"w\":${module.width},\"h\":${module.height}")
+            }
+            if (module is XyPadModule) {
                 append(",\"w\":${module.width},\"h\":${module.height}")
             }
             if (module is EquationModule) {
@@ -764,6 +774,10 @@ object GraphSerializer {
             }
             if (module is CommentModule) {
                 (obj?.map?.get("text") as? JsonValue.Str)?.value?.let { module.text = it }
+                (obj?.map?.get("w") as? JsonValue.Num)?.value?.let { module.width = it.toFloat() }
+                (obj?.map?.get("h") as? JsonValue.Num)?.value?.let { module.height = it.toFloat() }
+            }
+            if (module is XyPadModule) {
                 (obj?.map?.get("w") as? JsonValue.Num)?.value?.let { module.width = it.toFloat() }
                 (obj?.map?.get("h") as? JsonValue.Num)?.value?.let { module.height = it.toFloat() }
             }

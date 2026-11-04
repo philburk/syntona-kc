@@ -110,6 +110,7 @@ object ModuleRegistry {
         "number" to "constant or editable numeric value",
         "fader" to "interactive vertical slider control",
         "knob" to "interactive rotary dial control",
+        "xyPad" to "interactive two-dimensional XY surface control",
         "kick" to "interactive pushbutton to send a trigger message",
         "onLoad" to "send a trigger message when patch is loaded",
         "comment" to "text label or note on the patch canvas",
@@ -368,6 +369,7 @@ object ModuleRegistry {
         input.modules.add(ModuleEntry("number") { NumberModule() })
         input.modules.add(ModuleEntry("fader") { FaderModule() })
         input.modules.add(ModuleEntry("knob") { KnobModule() })
+        input.modules.add(ModuleEntry("xyPad") { XyPadModule() })
         input.modules.add(ModuleEntry("kick") { KickModule() })
         input.modules.add(ModuleEntry("onLoad") { OnLoadModule() })
         input.modules.add(ModuleEntry("comment") { CommentModule() })

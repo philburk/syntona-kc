@@ -772,6 +772,15 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                     value = templateModule.value
                 }
             }
+            is XyPadModule -> {
+                XyPadModule().apply {
+                    name = templateModule.name
+                    x = templateModule.x
+                    y = templateModule.y
+                    width = templateModule.width
+                    height = templateModule.height
+                }
+            }
             is NumberModule -> {
                 NumberModule().apply {
                     name = templateModule.name

@@ -22,6 +22,7 @@ import com.syntona.dataflow.modules.PatchModule
 import com.syntona.dataflow.modules.PitchToFrequencyModule
 import com.syntona.dataflow.modules.PolyPatchModule
 import com.syntona.dataflow.modules.UnitGeneratorModule
+import com.syntona.dataflow.modules.XyPadModule
 
 /**
  * Common data structures and helpers for exporting Syntona patches to source code.
@@ -410,7 +411,7 @@ object SourceExporter {
 
         for (module in patch.graphState.modules) {
             when (module) {
-                is KnobModule, is FaderModule, is CommentModule -> {
+                is KnobModule, is FaderModule, is XyPadModule, is CommentModule -> {
                     ignored.add(module)
                 }
                 is UnitGeneratorModule, is AudioInputModule, is AudioOutputModule, is AudioOutput2Module, is PitchToFrequencyModule, is EnvSegModule -> {

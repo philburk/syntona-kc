@@ -19,6 +19,7 @@ import com.syntona.dataflow.modules.PatchModule
 import com.syntona.dataflow.modules.PitchToFrequencyModule
 import com.syntona.dataflow.modules.PolyPatchModule
 import com.syntona.dataflow.modules.UnitGeneratorModule
+import com.syntona.dataflow.modules.XyPadModule
 
 /**
  * Generates compile-ready Java source code for JSyn from a Syntona PatchModule or PolyPatchModule.
@@ -300,7 +301,7 @@ object JSynSourceExporter {
             val inMod = conn.input.module
 
             // Skip ignored modules
-            if (outMod is KnobModule || outMod is FaderModule || inMod is KnobModule || inMod is FaderModule) {
+            if (outMod is KnobModule || outMod is FaderModule || outMod is XyPadModule || inMod is KnobModule || inMod is FaderModule || inMod is XyPadModule) {
                 continue
             }
 

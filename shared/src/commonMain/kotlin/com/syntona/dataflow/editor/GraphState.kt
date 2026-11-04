@@ -28,6 +28,7 @@ import com.syntona.dataflow.modules.AudioInputModule
 import com.syntona.dataflow.modules.FaderModule
 import com.syntona.dataflow.modules.InputModule
 import com.syntona.dataflow.modules.KnobModule
+import com.syntona.dataflow.modules.XyPadModule
 import com.syntona.core.model.ScoreClock
 import com.syntona.dataflow.engine.SendOutputCommand
 import com.syntona.dataflow.model.Message
@@ -177,6 +178,11 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
                 is com.syntona.dataflow.modules.KnobModule -> m.value
                 is com.syntona.dataflow.modules.FaderModule -> m.value
                 is com.syntona.dataflow.modules.NumberModule -> m.value
+                is com.syntona.dataflow.modules.XyPadModule -> when (output) {
+                    m.outX -> m.x
+                    m.outY -> m.y
+                    else -> null
+                }
                 is com.syntona.dataflow.modules.InputModule -> if (m.hasValue) m.defaultValue else null
                 else -> if (output.getValue() != 0.0) output.getValue() else null
             }
@@ -646,6 +652,31 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
                     m.valueIn.max = nonCommand.maxOf { it.input.max }
                     m.valueIn.isInteger = nonCommand.all { it.input.isInteger }
                     m.valueIn.isExponential = nonCommand.all { it.input.isExponential }
+                }
+            }
+            is XyPadModule -> {
+                if (output === m.outX || output === m.outY) {
+                    val nonCommand = connected.filter { it.input !is CommandJack && !it.input.isKickable && it.input !is UniversalInputJack && it.input !is VoiceInputJack }
+                    val targetJack = if (output === m.outX) m.inX else m.inY
+                    if (nonCommand.size == 1) {
+                        val target = nonCommand.first().input
+                        targetJack.min = target.min
+                        targetJack.max = target.max
+                        targetJack.isInteger = target.isInteger
+                        targetJack.isExponential = target.isExponential
+                        val low = minOf(target.min, target.max)
+                        val high = maxOf(target.min, target.max)
+                        if (output === m.outX) {
+                            m.setX(target.getValue().coerceIn(low, high))
+                        } else {
+                            m.setY(target.getValue().coerceIn(low, high))
+                        }
+                    } else if (nonCommand.size > 1) {
+                        targetJack.min = nonCommand.minOf { it.input.min }
+                        targetJack.max = nonCommand.maxOf { it.input.max }
+                        targetJack.isInteger = nonCommand.all { it.input.isInteger }
+                        targetJack.isExponential = nonCommand.all { it.input.isExponential }
+                    }
                 }
             }
             is InputModule -> {
