@@ -17,10 +17,13 @@ import com.syntona.dataflow.model.Module
  */
 class NumberModule : Module("number") {
     val kick = addInput("kick", isKickable = true)
-    val valueIn = addInput("in")
-    val output = addOutput("out")
-
     var value by mutableStateOf(1.0)
+
+    val valueIn: InputJack = addCustomInput(object : InputJack("in", this) {
+        override fun getValue(): Double = value
+        override fun getDoubleValue(default: Double): Double = value
+    })
+    val output = addOutput("out")
 
     fun setValue(newValue: Double, time: ScoreTime = ScoreTime.Zero) {
         value = newValue

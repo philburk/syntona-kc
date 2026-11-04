@@ -216,6 +216,9 @@ internal fun JackEditorRow(
 ) {
     if (!jack.isModuleEditorVisible) return
     var currentValue by remember(jack) { mutableStateOf(jack.getValue()) }
+    LaunchedEffect(jack, jack.getValue()) {
+        currentValue = jack.getValue()
+    }
 
     // FieldSet-style box: border with a legend overlapping the top edge.
     // The outer Box has no top padding so the legend Text sits at y=0 and

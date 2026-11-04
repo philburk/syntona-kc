@@ -627,7 +627,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
                     m.name = target.name
                     val low = minOf(target.min, target.max)
                     val high = maxOf(target.min, target.max)
-                    m.setValue(target.getValue().coerceIn(low, high))
+                    m.valueIn.setValue(target.getValue().coerceIn(low, high))
                 } else if (nonCommand.size > 1) {
                     m.valueIn.min = nonCommand.minOf { it.input.min }
                     m.valueIn.max = nonCommand.maxOf { it.input.max }
@@ -646,7 +646,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
                     m.name = target.name
                     val low = minOf(target.min, target.max)
                     val high = maxOf(target.min, target.max)
-                    m.setValue(target.getValue().coerceIn(low, high))
+                    m.valueIn.setValue(target.getValue().coerceIn(low, high))
                 } else if (nonCommand.size > 1) {
                     m.valueIn.min = nonCommand.minOf { it.input.min }
                     m.valueIn.max = nonCommand.maxOf { it.input.max }
@@ -666,11 +666,7 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
                         targetJack.isExponential = target.isExponential
                         val low = minOf(target.min, target.max)
                         val high = maxOf(target.min, target.max)
-                        if (output === m.outX) {
-                            m.setX(target.getValue().coerceIn(low, high))
-                        } else {
-                            m.setY(target.getValue().coerceIn(low, high))
-                        }
+                        targetJack.setValue(target.getValue().coerceIn(low, high))
                     } else if (nonCommand.size > 1) {
                         targetJack.min = nonCommand.minOf { it.input.min }
                         targetJack.max = nonCommand.maxOf { it.input.max }

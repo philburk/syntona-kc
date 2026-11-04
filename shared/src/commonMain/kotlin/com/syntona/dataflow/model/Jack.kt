@@ -133,7 +133,7 @@ open class InputJack(
     /**
      * Convenience to get the current numeric value, or a default if not set or not a FloatValue.
      */
-    fun getDoubleValue(default: Double = 0.0): Double {
+    open fun getDoubleValue(default: Double = 0.0): Double {
         val msg = lastMessage
         return if (msg is Message.FloatValue) msg.value else default
     }

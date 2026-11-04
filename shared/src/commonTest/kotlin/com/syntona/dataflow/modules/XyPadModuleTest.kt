@@ -154,6 +154,7 @@ class XyPadModuleTest {
         assertEquals(40.0, pad.inX.min)
         assertEquals(8000.0, pad.inX.max)
         assertEquals(440.0, pad.x)
+        assertEquals(440.0, pad.inX.getValue())
         assertEquals(440.0, freqJack.getValue())
 
         // Connect outY to rateHz
@@ -161,6 +162,7 @@ class XyPadModuleTest {
         assertEquals(0.1, pad.inY.min)
         assertEquals(100.0, pad.inY.max)
         assertEquals(2.0, pad.y)
+        assertEquals(2.0, pad.inY.getValue())
         assertEquals(2.0, rateJack.getValue())
 
         // Modify X, connect to second target with different range
@@ -177,6 +179,7 @@ class XyPadModuleTest {
         assertEquals(10000.0, pad.inX.max)
         // Value preserved on second connection
         assertEquals(1000.0, pad.x)
+        assertEquals(1000.0, pad.inX.getValue())
 
         // Changing value now sends to both connected targets
         pad.setX(800.0)

@@ -7,22 +7,30 @@ On FireFox plug in MIDI hardware before running Syntona.
 Install the MIDI Add-on.
 Or just say "Works best on Chrome..."
 
+Add choose module and choose(4) in the f(x). Int output, 0 to N-1.
+
+Add range and expRange modules. How handle zero crossing? Linear region around zero. Max 3 orders of magnitude on either side?
+How does knob currently handle exponential taper crossing zero?
+
+matchControl could inherit jack ranges like a knob. Conceptually it is similar in a UI sense.
+Will we need inValue jack for setting the ranges? Maybe just allow range editing for the conversion function.
+Is there a purpose for an "inValue" or "in" jack, like on a knob?
+
+Volume of sampleGrains is low. Is that because we divide by N=16 = max grains at density==1.0?
+
+Indicate whether an Audio port is in Add? mode.
+
 Release 0.8.1 with delayGrains, sampleScrubber, etc.
 
 Add more physical models.
 
 Seq8 should support feedback cycle.
 
-Indicate whether an Audio port is in Add? mode.
-
-Add choose module and choose(4) in the f(x). Int output, 0 to N-1.
-
 Add Gaussian distribution and histogram.
 
 A seq8 with numeric fields or knobs or horizontal faders that can be swept quickly to make a shape.
 
-Toolbar toggle that sets a global that tells all the modules to show their jack values instead of their jack names.
-Or pass as a parameter to the module display node???
+Toolbar toggle that tells all the modules to show their jack values instead of their jack names.
 
 Move mixers to their own bundle.
 Add Mute and Solo buttons to the mixers.

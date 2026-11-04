@@ -11,11 +11,20 @@ import com.syntona.dataflow.model.Module
 
 class XyPadModule : Module("xyPad") {
     val kick = addInput("kick", isKickable = true)
-    val inX = addInput("x").also {
+    var x by mutableStateOf(0.5)
+    var y by mutableStateOf(0.5)
+
+    val inX: InputJack = addCustomInput(object : InputJack("x", this) {
+        override fun getValue(): Double = x
+        override fun getDoubleValue(default: Double): Double = x
+    }).also {
         it.min = 0.0
         it.max = 1.0
     }
-    val inY = addInput("y").also {
+    val inY: InputJack = addCustomInput(object : InputJack("y", this) {
+        override fun getValue(): Double = y
+        override fun getDoubleValue(default: Double): Double = y
+    }).also {
         it.min = 0.0
         it.max = 1.0
     }
@@ -43,9 +52,6 @@ class XyPadModule : Module("xyPad") {
     var isIntegerY: Boolean
         get() = inY.isInteger
         set(value) { inY.isInteger = value }
-
-    var x by mutableStateOf(0.5)
-    var y by mutableStateOf(0.5)
 
     fun setX(newX: Double, time: ScoreTime = ScoreClock.now()) {
         val rounded = if (inX.isInteger) kotlin.math.round(newX) else newX

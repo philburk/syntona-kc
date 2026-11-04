@@ -30,12 +30,14 @@ class JackInheritanceTest {
         assertEquals(40.0, freqJack.min)
         assertEquals(8000.0, freqJack.max)
         assertEquals(440.0, freqJack.getValue())
+        assertEquals(0.5, knob.valueIn.getValue())
 
         rootGraph.connect(outJack, freqJack)
 
         assertEquals(40.0, knob.valueIn.min)
         assertEquals(8000.0, knob.valueIn.max)
         assertEquals(440.0, knob.value)
+        assertEquals(440.0, knob.valueIn.getValue())
         assertEquals(440.0, freqJack.getValue())
     }
 
@@ -61,6 +63,7 @@ class JackInheritanceTest {
         // User changes value
         knob.setValue(1200.0)
         assertEquals(1200.0, knob.value)
+        assertEquals(1200.0, knob.valueIn.getValue())
 
         // Connect to second input with different range and default
         rootGraph.connect(outJack, rateJack)
@@ -84,11 +87,14 @@ class JackInheritanceTest {
         val outJack = fader.outputs.find { it.name == "out" }!!
         val freqJack = osc.inputs.find { it.name == "frequency" }!!
 
+        assertEquals(0.0, fader.valueIn.getValue())
+
         rootGraph.connect(outJack, freqJack)
 
         assertEquals(40.0, fader.valueIn.min)
         assertEquals(8000.0, fader.valueIn.max)
         assertEquals(440.0, fader.value)
+        assertEquals(440.0, fader.valueIn.getValue())
     }
 
     @Test

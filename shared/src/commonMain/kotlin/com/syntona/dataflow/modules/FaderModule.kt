@@ -11,7 +11,12 @@ import com.syntona.dataflow.model.Module
 
 class FaderModule : Module("fader") {
     val kick = addInput("kick", isKickable = true)
-    val valueIn = addInput("in").also {
+    var value by mutableStateOf(0.0)
+
+    val valueIn: InputJack = addCustomInput(object : InputJack("in", this) {
+        override fun getValue(): Double = value
+        override fun getDoubleValue(default: Double): Double = value
+    }).also {
         it.min = 0.0
         it.max = 100.0
     }
@@ -24,8 +29,6 @@ class FaderModule : Module("fader") {
     var isInteger: Boolean
         get() = valueIn.isInteger
         set(value) { valueIn.isInteger = value }
-
-    var value by mutableStateOf(0.0)
 
     fun setValue(newValue: Double, time: ScoreTime = ScoreClock.now()) {
         val rounded = if (valueIn.isInteger) kotlin.math.round(newValue) else newValue
