@@ -9,6 +9,7 @@ import com.syntona.dataflow.engine.DataFlowEngine
 import com.syntona.dataflow.engine.EngineAware
 import com.syntona.dataflow.model.CommandJack
 import com.syntona.dataflow.model.CommandJackBadge
+import com.syntona.dataflow.model.ExponentialTaper
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
@@ -449,9 +450,42 @@ class MatchControlModule : MatchVoiceModule(
     var currentValue by mutableStateOf(0.0)
         private set
 
+    val valueIn: InputJack = addCustomInput(object : InputJack("value", this) {
+        override val isNodeVisible: Boolean get() = false
+        override fun getValue(): Double = currentValue
+        override fun getDoubleValue(default: Double): Double = currentValue
+    }).also {
+        it.min = 0.0
+        it.max = 1.0
+    }
+
+    fun setValue(newValue: Double, time: ScoreTime = ScoreTime.Zero) {
+        val effective = if (valueIn.isInteger) round(newValue) else newValue
+        val low = minOf(valueIn.min, valueIn.max)
+        val high = maxOf(valueIn.min, valueIn.max)
+        val clamped = effective.coerceIn(low, high)
+        currentValue = clamped
+        output.send(Message.FloatValue(time, currentValue))
+    }
+
+    private fun convertFraction(fraction: Double): Double {
+        val scaled = ExponentialTaper.fractionToValue(fraction, valueIn.min, valueIn.max, valueIn.isExponential)
+        val effective = if (valueIn.isInteger) round(scaled) else scaled
+        val low = minOf(valueIn.min, valueIn.max)
+        val high = maxOf(valueIn.min, valueIn.max)
+        return effective.coerceIn(low, high)
+    }
+
     override fun identifierOf(msg: Message.VoiceMessage): Double = msg.extra
 
-    override fun payloadOf(msg: Message.VoiceMessage): Double = msg.value
+    override fun payloadOf(msg: Message.VoiceMessage): Double = convertFraction(msg.value)
+
+    override fun onMessageReceived(jack: InputJack, msg: Message) {
+        super.onMessageReceived(jack, msg)
+        if (jack === valueIn && msg is Message.FloatValue) {
+            setValue(msg.value, msg.time)
+        }
+    }
 
     override fun execute(triggerMessage: Message) {
         super.execute(triggerMessage)
@@ -493,12 +527,46 @@ abstract class MatchControlSequentialModule(
         repeat(numOutputs) { add(0.0) }
     }
 
+    val stepInputs: List<InputJack> = List(numOutputs) { index ->
+        addCustomInput(object : InputJack("value$index", this) {
+            override val isNodeVisible: Boolean get() = false
+            override fun getValue(): Double = currentValues[index]
+            override fun getDoubleValue(default: Double): Double = currentValues[index]
+        }).also {
+            it.min = 0.0
+            it.max = 1.0
+        }
+    }
+
+    /** Alias for [stepInputs]. */
+    val valueInputs: List<InputJack> get() = stepInputs
+
     /** Alias for [stepOutputs]. */
     val valueOutputs: List<OutputJack> get() = stepOutputs
 
     fun getValue(index: Int): Double = currentValues.getOrElse(index) { 0.0 }
     fun getValueJack(index: Int): OutputJack = stepOutputs[index]
     fun getOutputJack(index: Int): OutputJack = stepOutputs[index]
+
+    fun setValue(index: Int, newValue: Double, time: ScoreTime = ScoreTime.Zero) {
+        if (index !in 0 until numOutputs) return
+        val jack = stepInputs[index]
+        val effective = if (jack.isInteger) round(newValue) else newValue
+        val low = minOf(jack.min, jack.max)
+        val high = maxOf(jack.min, jack.max)
+        val clamped = effective.coerceIn(low, high)
+        currentValues[index] = clamped
+        stepOutputs[index].send(Message.FloatValue(time, clamped))
+    }
+
+    private fun convertFraction(index: Int, fraction: Double): Double {
+        val jack = stepInputs[index]
+        val scaled = ExponentialTaper.fractionToValue(fraction, jack.min, jack.max, jack.isExponential)
+        val effective = if (jack.isInteger) round(scaled) else scaled
+        val low = minOf(jack.min, jack.max)
+        val high = maxOf(jack.min, jack.max)
+        return effective.coerceIn(low, high)
+    }
 
     // Convenience accessors
     val value0: OutputJack get() = stepOutputs[0]
@@ -540,7 +608,14 @@ abstract class MatchControlSequentialModule(
 
     override fun onMessageReceived(jack: InputJack, msg: Message) {
         super.onMessageReceived(jack, msg)
-        if (jack === matchIn) syncIndicators()
+        if (jack === matchIn) {
+            syncIndicators()
+        } else if (msg is Message.FloatValue) {
+            val stepIndex = stepInputs.indexOf(jack)
+            if (stepIndex != -1) {
+                setValue(stepIndex, msg.value, msg.time)
+            }
+        }
     }
 
     private fun syncIndicators() {
@@ -563,15 +638,17 @@ abstract class MatchControlSequentialModule(
 
         if (isArmed) {
             matchIn.setValue(incoming.toDouble().coerceIn(0.0, matchIn.max))
-            stepOutputs[0].send(Message.FloatValue(msg.time, msg.value))
-            currentValues[0] = msg.value
+            val converted = convertFraction(0, msg.value)
+            stepOutputs[0].send(Message.FloatValue(msg.time, converted))
+            currentValues[0] = converted
             return
         }
 
         val offset = incoming - matchNumber
         if (offset in 0 until numOutputs) {
-            stepOutputs[offset].send(Message.FloatValue(msg.time, msg.value))
-            currentValues[offset] = msg.value
+            val converted = convertFraction(offset, msg.value)
+            stepOutputs[offset].send(Message.FloatValue(msg.time, converted))
+            currentValues[offset] = converted
         } else {
             unmatched.send(msg)
         }

@@ -1593,18 +1593,24 @@ fun MatchControlModuleNode(module: MatchControlModule, state: GraphState) {
         Column(modifier = Modifier.fillMaxWidth()) {
             ModuleHeader(module = module, state = state, headerColor = colors.headerDefault)
 
-            // Inputs: "in", "learn", "index"
-            module.inputs.forEach { JackView(it, state, isLeft = true) }
+            // Inputs: "in", "learn", "index" (phantom "value" input is only in ModuleEditor)
+            module.inputs.filter { it.isNodeVisible }.forEach { JackView(it, state, isLeft = true) }
 
             HorizontalDivider(color = Color.Black, thickness = 1.dp)
 
             // Output row with graphic display to the left of the "value" output jack
+            val indicatorFraction = ExponentialTaper.valueToFraction(
+                module.currentValue,
+                module.valueIn.min,
+                module.valueIn.max,
+                module.valueIn.isExponential
+            ).toFloat()
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 HorizontalValueIndicator(
-                    value = module.currentValue.toFloat(),
+                    value = indicatorFraction,
                     modifier = Modifier
                         .padding(start = 6.dp, end = 2.dp)
                         .width(40.dp)
@@ -1641,19 +1647,26 @@ fun MatchControlSequentialModuleNode(module: MatchControlSequentialModule, state
         Column(modifier = Modifier.fillMaxWidth()) {
             ModuleHeader(module = module, state = state, headerColor = colors.headerDefault)
 
-            // Inputs: "in", "learn", "index"
-            module.inputs.forEach { JackView(it, state, isLeft = true) }
+            // Inputs: "in", "learn", "index" (phantom "value0..valueN" inputs are only in ModuleEditor)
+            module.inputs.filter { it.isNodeVisible }.forEach { JackView(it, state, isLeft = true) }
 
             HorizontalDivider(color = Color.Black, thickness = 1.dp)
 
             // Output rows with graphic display to the left of each "value" output jack
             module.stepOutputs.forEachIndexed { i, jack ->
+                val stepIn = module.stepInputs[i]
+                val indicatorFraction = ExponentialTaper.valueToFraction(
+                    module.currentValues[i],
+                    stepIn.min,
+                    stepIn.max,
+                    stepIn.isExponential
+                ).toFloat()
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     HorizontalValueIndicator(
-                        value = module.currentValues[i].toFloat(),
+                        value = indicatorFraction,
                         modifier = Modifier
                             .padding(start = 6.dp, end = 2.dp)
                             .width(40.dp)

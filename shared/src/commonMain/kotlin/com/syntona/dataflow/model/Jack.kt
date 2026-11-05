@@ -32,6 +32,9 @@ sealed class Jack {
 
     /** Whether this jack appears as a customizable row in ModuleEditor. */
     open val isModuleEditorVisible: Boolean get() = false
+
+    /** Whether this jack is rendered as a wireable port on the module node in the graph canvas. */
+    open val isNodeVisible: Boolean get() = true
 }
 
 private val DEFAULT_EXPONENTIAL_NAMES = setOf(

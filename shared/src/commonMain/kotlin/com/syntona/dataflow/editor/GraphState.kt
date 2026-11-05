@@ -28,6 +28,8 @@ import com.syntona.dataflow.modules.AudioInputModule
 import com.syntona.dataflow.modules.FaderModule
 import com.syntona.dataflow.modules.InputModule
 import com.syntona.dataflow.modules.KnobModule
+import com.syntona.dataflow.modules.MatchControlModule
+import com.syntona.dataflow.modules.MatchControlSequentialModule
 import com.syntona.dataflow.modules.XyPadModule
 import com.syntona.core.model.ScoreClock
 import com.syntona.dataflow.engine.SendOutputCommand
@@ -182,6 +184,11 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
                     m.outX -> m.x
                     m.outY -> m.y
                     else -> null
+                }
+                is MatchControlModule -> if (output === m.output) m.currentValue else null
+                is MatchControlSequentialModule -> {
+                    val idx = m.stepOutputs.indexOf(output)
+                    if (idx != -1) m.currentValues[idx] else null
                 }
                 is com.syntona.dataflow.modules.InputModule -> if (m.hasValue) m.defaultValue else null
                 else -> if (output.getValue() != 0.0) output.getValue() else null
@@ -658,6 +665,48 @@ class GraphState(private val onModuleAdded: ((Module) -> Unit)? = null) {
                 if (output === m.outX || output === m.outY) {
                     val nonCommand = connected.filter { it.input !is CommandJack && !it.input.isKickable && it.input !is UniversalInputJack && it.input !is VoiceInputJack }
                     val targetJack = if (output === m.outX) m.inX else m.inY
+                    if (nonCommand.size == 1) {
+                        val target = nonCommand.first().input
+                        targetJack.min = target.min
+                        targetJack.max = target.max
+                        targetJack.isInteger = target.isInteger
+                        targetJack.isExponential = target.isExponential
+                        val low = minOf(target.min, target.max)
+                        val high = maxOf(target.min, target.max)
+                        targetJack.setValue(target.getValue().coerceIn(low, high))
+                    } else if (nonCommand.size > 1) {
+                        targetJack.min = nonCommand.minOf { it.input.min }
+                        targetJack.max = nonCommand.maxOf { it.input.max }
+                        targetJack.isInteger = nonCommand.all { it.input.isInteger }
+                        targetJack.isExponential = nonCommand.all { it.input.isExponential }
+                    }
+                }
+            }
+            is MatchControlModule -> {
+                if (output === m.output) {
+                    val nonCommand = connected.filter { it.input !is CommandJack && !it.input.isKickable && it.input !is UniversalInputJack && it.input !is VoiceInputJack }
+                    if (nonCommand.size == 1) {
+                        val target = nonCommand.first().input
+                        m.valueIn.min = target.min
+                        m.valueIn.max = target.max
+                        m.valueIn.isInteger = target.isInteger
+                        m.valueIn.isExponential = target.isExponential
+                        val low = minOf(target.min, target.max)
+                        val high = maxOf(target.min, target.max)
+                        m.valueIn.setValue(target.getValue().coerceIn(low, high))
+                    } else if (nonCommand.size > 1) {
+                        m.valueIn.min = nonCommand.minOf { it.input.min }
+                        m.valueIn.max = nonCommand.maxOf { it.input.max }
+                        m.valueIn.isInteger = nonCommand.all { it.input.isInteger }
+                        m.valueIn.isExponential = nonCommand.all { it.input.isExponential }
+                    }
+                }
+            }
+            is MatchControlSequentialModule -> {
+                val outIndex = m.stepOutputs.indexOf(output)
+                if (outIndex != -1) {
+                    val nonCommand = connected.filter { it.input !is CommandJack && !it.input.isKickable && it.input !is UniversalInputJack && it.input !is VoiceInputJack }
+                    val targetJack = m.stepInputs[outIndex]
                     if (nonCommand.size == 1) {
                         val target = nonCommand.first().input
                         targetJack.min = target.min

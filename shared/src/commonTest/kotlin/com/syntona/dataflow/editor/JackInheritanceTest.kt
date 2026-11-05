@@ -7,6 +7,9 @@ import com.syntona.dataflow.modules.ClockModule
 import com.syntona.dataflow.modules.FaderModule
 import com.syntona.dataflow.modules.InputModule
 import com.syntona.dataflow.modules.KnobModule
+import com.syntona.dataflow.modules.MatchControl4Module
+import com.syntona.dataflow.modules.MatchControl8Module
+import com.syntona.dataflow.modules.MatchControlModule
 import com.syntona.dataflow.modules.PatchModule
 import com.syntona.dataflow.modules.UnitGeneratorModule
 import kotlin.test.Test
@@ -445,5 +448,65 @@ class JackInheritanceTest {
         assertEquals("rateHz", knob.name)
         assertEquals(true, knob.valueIn.isExponential)
         assertEquals(true, knob.isExponential)
+    }
+
+    @Test
+    fun testMatchControlInheritsRangeAndValueOnFirstConnection() {
+        val rootGraph = GraphState()
+        val matchControl = MatchControlModule()
+        rootGraph.addModule(matchControl, Offset.Zero)
+
+        val osc = UnitGeneratorModule("sineOsc", SineOscillator())
+        rootGraph.addModule(osc, Offset.Zero)
+
+        val freqJack = osc.inputs.find { it.name == "frequency" }!!
+        rootGraph.connect(matchControl.output, freqJack)
+
+        assertEquals(40.0, matchControl.valueIn.min)
+        assertEquals(8000.0, matchControl.valueIn.max)
+        assertEquals(true, matchControl.valueIn.isExponential)
+        assertEquals(false, matchControl.valueIn.isInteger)
+        assertEquals(440.0, matchControl.currentValue)
+        assertEquals(440.0, matchControl.valueIn.getValue())
+    }
+
+    @Test
+    fun testMatchControl4And8InheritRangeAndValuePerOutputOnFirstConnection() {
+        val rootGraph = GraphState()
+        val match4 = MatchControl4Module()
+        val match8 = MatchControl8Module()
+        rootGraph.addModule(match4, Offset.Zero)
+        rootGraph.addModule(match8, Offset.Zero)
+
+        val osc = UnitGeneratorModule("sineOsc", SineOscillator())
+        rootGraph.addModule(osc, Offset.Zero)
+        val clock = ClockModule()
+        rootGraph.addModule(clock, Offset.Zero)
+
+        val freqJack = osc.inputs.find { it.name == "frequency" }!!
+        val ampJack = osc.inputs.find { it.name == "amplitude" }!!
+        val rateJack = clock.inputs.find { it.name == "rateHz" }!!
+
+        rootGraph.connect(match4.stepOutputs[0], freqJack)
+        rootGraph.connect(match4.stepOutputs[1], ampJack)
+        rootGraph.connect(match8.stepOutputs[7], rateJack)
+
+        assertEquals(40.0, match4.stepInputs[0].min)
+        assertEquals(8000.0, match4.stepInputs[0].max)
+        assertEquals(true, match4.stepInputs[0].isExponential)
+        assertEquals(440.0, match4.currentValues[0])
+        assertEquals(440.0, match4.stepInputs[0].getValue())
+
+        assertEquals(ampJack.min, match4.stepInputs[1].min)
+        assertEquals(ampJack.max, match4.stepInputs[1].max)
+        assertEquals(ampJack.isExponential, match4.stepInputs[1].isExponential)
+        assertEquals(ampJack.getValue(), match4.currentValues[1])
+        assertEquals(ampJack.getValue(), match4.stepInputs[1].getValue())
+
+        assertEquals(rateJack.min, match8.stepInputs[7].min)
+        assertEquals(rateJack.max, match8.stepInputs[7].max)
+        assertEquals(rateJack.isExponential, match8.stepInputs[7].isExponential)
+        assertEquals(rateJack.getValue(), match8.currentValues[7])
+        assertEquals(rateJack.getValue(), match8.stepInputs[7].getValue())
     }
 }

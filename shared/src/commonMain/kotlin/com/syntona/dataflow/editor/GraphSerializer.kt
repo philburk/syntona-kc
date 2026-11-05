@@ -38,6 +38,8 @@ import com.syntona.dataflow.modules.PianoRollNote
 import com.syntona.dataflow.modules.Ratio
 import com.syntona.dataflow.modules.KnobModule
 import com.syntona.dataflow.modules.FaderModule
+import com.syntona.dataflow.modules.MatchControlModule
+import com.syntona.dataflow.modules.MatchControlSequentialModule
 import com.syntona.dataflow.modules.XyPadModule
 import com.syntona.dataflow.modules.SequenceModule
 import com.syntona.dataflow.modules.StepValueModule
@@ -330,6 +332,8 @@ object GraphSerializer {
                             jack is AudioInputJack ||
                             ((module is KnobModule || module is FaderModule) && jack.name == "in") ||
                             (module is XyPadModule && (jack.name == "x" || jack.name == "y")) ||
+                            (module is MatchControlModule && jack === module.valueIn) ||
+                            (module is MatchControlSequentialModule && jack in module.stepInputs) ||
                             (module is SequenceModule && jack.name.startsWith("in") &&
                                 jack.name.substring(2).toIntOrNull() != null)
                         val v = if (module is XyPadModule) {

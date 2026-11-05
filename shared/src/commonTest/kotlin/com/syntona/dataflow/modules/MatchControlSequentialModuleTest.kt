@@ -307,4 +307,37 @@ class MatchControlSequentialModuleTest {
         assertEquals(1, reloaded.connections.size)
         assertEquals("value0", reloaded.connections[0].output.name)
     }
+
+    @Test
+    fun stepInputJacksScaleIncomingControlChangesIndependently() {
+        val module = MatchControl4Module()
+        assertEquals(4, module.stepInputs.size)
+        assertEquals("value0", module.stepInputs[0].name)
+        assertEquals("value3", module.stepInputs[3].name)
+        assertTrue(module.stepInputs.all { !it.isNodeVisible && it.isModuleEditorVisible })
+
+        // Configure output 0 as linear 10..20, output 1 as exponential 100..400
+        module.stepInputs[0].min = 10.0
+        module.stepInputs[0].max = 20.0
+        module.stepInputs[1].min = 100.0
+        module.stepInputs[1].max = 400.0
+        module.stepInputs[1].isExponential = true
+
+        val rec0 = Recorder()
+        val rec1 = Recorder()
+        module.stepOutputs[0].connect(rec0.input)
+        module.stepOutputs[1].connect(rec1.input)
+
+        // Teach CC 16 at 0.5 -> output 0 gets 15.0
+        module.input.receive(controlChange(index = 16.0, value = 0.5))
+        assertEquals(listOf(15.0), rec0.values)
+        assertEquals(15.0, module.currentValues[0])
+        assertEquals(15.0, module.stepInputs[0].getValue())
+
+        // CC 17 at 0.5 -> output 1 gets geometric midpoint 200.0
+        module.input.receive(controlChange(index = 17.0, value = 0.5))
+        assertEquals(listOf(200.0), rec1.values)
+        assertEquals(200.0, module.currentValues[1])
+        assertEquals(200.0, module.stepInputs[1].getValue())
+    }
 }

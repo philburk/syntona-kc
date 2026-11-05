@@ -196,4 +196,51 @@ class MatchControlModuleTest {
         module.input.receive(controlChange(index = 7.0, value = 0.1))
         assertEquals(0.8, module.currentValue)
     }
+
+    @Test
+    fun valueInputJackSetsCurrentValueAndEmitsToOutput() {
+        val (module, recorder) = matcherWithRecorder()
+        assertFalse(module.valueIn.isNodeVisible, "phantom value input should not be drawn on the node")
+        assertTrue(module.valueIn.isModuleEditorVisible, "phantom value input should appear in ModuleEditor")
+        module.valueIn.min = 10.0
+        module.valueIn.max = 110.0
+
+        module.valueIn.setValue(60.0)
+        assertEquals(60.0, module.currentValue)
+        assertEquals(60.0, module.valueIn.getValue())
+        assertEquals(listOf(60.0), recorder.values)
+    }
+
+    @Test
+    fun scalesIncomingControlChangeToValueInRange() {
+        val (module, recorder) = matcherWithRecorder()
+        module.valueIn.min = 100.0
+        module.valueIn.max = 200.0
+        module.valueIn.isExponential = false
+
+        // Learn CC 10 at 0.5 -> should emit 150.0
+        module.input.receive(controlChange(index = 10.0, value = 0.5))
+        assertEquals(listOf(150.0), recorder.values)
+        assertEquals(150.0, module.currentValue)
+        assertEquals(150.0, module.valueIn.getValue())
+
+        // CC 10 at 1.0 -> should emit 200.0
+        module.input.receive(controlChange(index = 10.0, value = 1.0))
+        assertEquals(listOf(150.0, 200.0), recorder.values)
+        assertEquals(200.0, module.currentValue)
+    }
+
+    @Test
+    fun scalesIncomingControlChangeExponentiallyAndRoundsWhenInteger() {
+        val (module, recorder) = matcherWithRecorder()
+        module.valueIn.min = 100.0
+        module.valueIn.max = 400.0
+        module.valueIn.isExponential = true
+        module.valueIn.isInteger = true
+
+        // Geometric midpoint of 100..400 is 200.0
+        module.input.receive(controlChange(index = 74.0, value = 0.5))
+        assertEquals(listOf(200.0), recorder.values)
+        assertEquals(200.0, module.currentValue)
+    }
 }

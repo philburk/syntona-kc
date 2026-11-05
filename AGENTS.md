@@ -40,3 +40,7 @@ ModuleRegistry.moduleDescriptions.
 Syntona must be able to run on both desktop and web platforms.
 Make sure that any widgets or UI elements are web compatible.
 Only use WASM compatible libraries.
+
+## Git
+
+When creating a git commit message, do not exceed 80 characters per line.

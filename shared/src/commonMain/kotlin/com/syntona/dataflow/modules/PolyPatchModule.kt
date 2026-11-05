@@ -914,6 +914,8 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                 }
                 voiceJack.min = templateJack.min
                 voiceJack.max = templateJack.max
+                voiceJack.isInteger = templateJack.isInteger
+                voiceJack.isExponential = templateJack.isExponential
                 if (voiceJack !is CommandJack && !voiceJack.isKickable) {
                     voiceJack.setValue(templateJack.getValue())
                 }

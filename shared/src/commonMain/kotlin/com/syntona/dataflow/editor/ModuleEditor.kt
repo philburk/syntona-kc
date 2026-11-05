@@ -289,18 +289,20 @@ internal fun JackEditorRow(
                 )
 
                 if (jack !is AudioInputJack) {
-                    Spacer(modifier = Modifier.width(4.dp))
-                    var isKickable by remember(jack) { mutableStateOf(jack.isKickable) }
-                    JackFlagCheckbox(
-                        label = "Kick?",
-                        checked = isKickable,
-                        onCheckedChange = {
-                            isKickable = it
-                            jack.isKickable = it
-                            FileState.markDirty()
-                        },
-                        textColor = textColor
-                    )
+                    if (jack.isNodeVisible) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        var isKickable by remember(jack) { mutableStateOf(jack.isKickable) }
+                        JackFlagCheckbox(
+                            label = "Kick?",
+                            checked = isKickable,
+                            onCheckedChange = {
+                                isKickable = it
+                                jack.isKickable = it
+                                FileState.markDirty()
+                            },
+                            textColor = textColor
+                        )
+                    }
                     Spacer(modifier = Modifier.width(4.dp))
                     var isInteger by remember(jack) { mutableStateOf(jack.isInteger) }
                     JackFlagCheckbox(
