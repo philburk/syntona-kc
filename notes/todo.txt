@@ -7,14 +7,18 @@ On FireFox plug in MIDI hardware before running Syntona.
 Install the MIDI Add-on.
 Or just say "Works best on Chrome..."
 
+sampleGrains in KSyn rate should allow negative rates, -2 to +2.
+Duration in seconds or normalized?
+
+matchControl could inherit jack ranges like a knob. Conceptually it is similar in a UI sense.
+Will we need inValue jack for setting the ranges? Maybe just allow range editing for the conversion function.
+Is there a purpose for an "inValue" or "in" jack, like on a knob?
+
 Add choose module and choose(4) in the f(x). Int output, 0 to N-1.
 
 Add range and expRange modules. How handle zero crossing? Linear region around zero. Max 3 orders of magnitude on either side?
 How does knob currently handle exponential taper crossing zero?
 
-matchControl could inherit jack ranges like a knob. Conceptually it is similar in a UI sense.
-Will we need inValue jack for setting the ranges? Maybe just allow range editing for the conversion function.
-Is there a purpose for an "inValue" or "in" jack, like on a knob?
 
 Volume of sampleGrains is low. Is that because we divide by N=16 = max grains at density==1.0?
 
