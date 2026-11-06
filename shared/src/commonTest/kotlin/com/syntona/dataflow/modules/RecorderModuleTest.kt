@@ -46,11 +46,34 @@ class RecorderModuleTest {
         assertEquals(0.0, latencyJack.min)
         assertEquals(1000.0, latencyJack.max)
 
-        assertEquals(2, module.outputs.size)
+        assertEquals(3, module.outputs.size)
         assertEquals("out", module.outputs[0].name)
         assertTrue(module.outputs[0] is AudioOutputJack, "out should carry audio")
         assertEquals("data", module.outputs[1].name)
         assertTrue(module.outputs[1] is SequentialDataOutputJack, "data should carry SequentialData")
+        assertEquals("durationMs", module.outputs[2].name)
+    }
+
+    @Test
+    fun testDurationMsOutputTracksTheRecordingLength() {
+        val recorder = RecorderModule()
+        assertEquals(0.0, recorder.durationOutput.getValue())
+
+        kick(recorder, "record")
+        repeat(30) {
+            recorder.unit.replenish()
+            recorder.unit.generate()
+        }
+        // Stop recording by kicking "play", which sends the finished take and its duration.
+        kick(recorder, "play")
+
+        val length = recorder.unit.length
+        assertTrue(length > 0)
+        val expectedMs = length * 1000.0 / recorder.unit.frameRate
+        assertEquals(expectedMs, recorder.durationOutput.getValue(), 1e-6)
+        assertTrue(recorder.durationOutput.getValue() > 0.0)
+
+        recorder.teardown()
     }
 
     @Test

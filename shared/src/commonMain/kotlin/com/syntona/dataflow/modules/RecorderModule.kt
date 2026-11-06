@@ -20,6 +20,7 @@ import com.syntona.dataflow.model.SequentialDataOutputJack
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
+import com.syntona.dataflow.model.OutputJack
 import com.syntona.unitgen.Recorder
 
 /**
@@ -44,7 +45,7 @@ class RecorderModule : Module("recorder"), EngineAware {
     val rewindIn: CommandJack
     val output: AudioOutputJack
     val dataOutput: SequentialDataOutputJack
-
+    val durationOutput: OutputJack
     var filePath: String? by mutableStateOf(null)
     var isLoadedFromFile: Boolean by mutableStateOf(false)
 
@@ -81,14 +82,23 @@ class RecorderModule : Module("recorder"), EngineAware {
         rewindIn = addCommandInput("rewind")
         output = addAudioOutput("out", unit.output, 0)
         dataOutput = addSequentialDataOutput("data")
+        durationOutput = addOutput("durationMs")
 
         // Fill the pool up front so the first record does not have to allocate.
         unit.replenish()
         sendData()
     }
 
+    /** Sends the recording to "data" and its length, in milliseconds, to "durationMs". */
     fun sendData() {
         dataOutput.send(Message.SequentialDataMessage(ScoreClock.now(), unit.recording))
+        sendDuration()
+    }
+
+    private fun sendDuration() {
+        val rate = if (unit.frameRate > 0.0) unit.frameRate else SynthKSyn.synth.frameRate.toDouble()
+        val durationMs = if (rate > 0.0) unit.length * 1000.0 / rate else 0.0
+        durationOutput.send(Message.FloatValue(ScoreTime.Zero, durationMs))
     }
 
     override fun setEngine(engine: DataFlowEngine) {
@@ -127,6 +137,8 @@ class RecorderModule : Module("recorder"), EngineAware {
                     pendingStopEvent = e.schedule(fireTime) {
                         pendingStopEvent = null
                         unit.pause()
+                        // The recording kept growing until now, so its length has changed.
+                        sendDuration()
                     }
                 } else {
                     unit.pause()
