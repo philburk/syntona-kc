@@ -55,9 +55,9 @@ kotlin {
             implementation(libs.androidx.lifecycle.runtimeCompose)
 
             implementation("com.softsynth:audio-bridge:0.4.1")
-            implementation("com.softsynth:midi-bridge:0.1.0")
-            implementation("com.softsynth.ksyn:ksyn:1.3.4")
-            implementation("com.softsynth.ksyn.compose:ksyn-compose:1.3.4")
+            implementation("com.softsynth:midi-bridge:0.1.1")
+            implementation("com.softsynth.ksyn:ksyn:1.3.5")
+            implementation("com.softsynth.ksyn.compose:ksyn-compose:1.3.5")
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.0")
 
         }
