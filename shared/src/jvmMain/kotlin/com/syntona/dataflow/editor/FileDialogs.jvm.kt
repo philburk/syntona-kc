@@ -69,11 +69,11 @@ internal fun resolveResourceDirectory(root: File?, relativePath: String?): File?
     return File(root, relativePath).parentFile?.takeIf { it.isDirectory }
 }
 
-private fun getInitialDocumentDirectory(): File {
+internal fun resolveInitialDocumentDirectory(settings: SettingsStore = SettingsStore.default): File {
     val savedPath = try {
-        val docPath = SettingsStore.default.getString(SettingsStore.KEY_LAST_DOCUMENT_DIRECTORY)
+        val docPath = settings.getString(SettingsStore.KEY_LAST_DOCUMENT_DIRECTORY)
         if (docPath.isNotEmpty()) docPath
-        else SettingsStore.default.getString(SettingsStore.KEY_LAST_DIRECTORY)
+        else settings.getString(SettingsStore.KEY_LAST_DIRECTORY)
     } catch (_: Exception) { "" }
 
     if (savedPath.isNotEmpty()) {
@@ -90,18 +90,49 @@ private fun getInitialDocumentDirectory(): File {
     return docsDir
 }
 
-private var lastDocumentDirectory: File = getInitialDocumentDirectory()
+private var lastDocumentDirectory: File = resolveInitialDocumentDirectory()
 
-private fun updateLastDocumentDirectory(dir: File) {
+internal fun updateLastDocumentDirectory(dir: File, settings: SettingsStore = SettingsStore.default) {
     if (!dir.exists()) {
         dir.mkdirs()
     }
-    lastDocumentDirectory = dir
+    if (settings === SettingsStore.default) {
+        lastDocumentDirectory = dir
+    }
     try {
-        SettingsStore.default.edit {
+        settings.edit {
             putString(SettingsStore.KEY_LAST_DOCUMENT_DIRECTORY, dir.absolutePath)
             putString(SettingsStore.KEY_LAST_DIRECTORY, dir.absolutePath)
         }
+    } catch (_: Exception) {}
+}
+
+internal fun resolveInitialWavDirectory(settings: SettingsStore = SettingsStore.default): File {
+    val savedPath = try {
+        settings.getString(SettingsStore.KEY_LAST_WAV_DIRECTORY)
+    } catch (_: Exception) { "" }
+
+    if (savedPath.isNotEmpty()) {
+        val dir = File(savedPath)
+        if (dir.exists() && dir.isDirectory) {
+            return dir
+        }
+    }
+
+    return resolveInitialDocumentDirectory(settings)
+}
+
+private var lastWavDirectory: File = resolveInitialWavDirectory()
+
+internal fun updateLastWavDirectory(dir: File, settings: SettingsStore = SettingsStore.default) {
+    if (!dir.exists()) {
+        dir.mkdirs()
+    }
+    if (settings === SettingsStore.default) {
+        lastWavDirectory = dir
+    }
+    try {
+        settings.putString(SettingsStore.KEY_LAST_WAV_DIRECTORY, dir.absolutePath)
     } catch (_: Exception) {}
 }
 
@@ -236,14 +267,14 @@ actual fun chooseWavRecordFile(defaultName: String, onSelected: (path: String) -
     val chooser = JFileChooser().apply {
         dialogTitle = "Record Audio"
         fileFilter = FileNameExtensionFilter("WAV files (*.wav)", "wav")
-        if (!lastDocumentDirectory.exists()) lastDocumentDirectory.mkdirs()
-        currentDirectory = lastDocumentDirectory
-        selectedFile = File(lastDocumentDirectory, defaultName)
+        if (!lastWavDirectory.exists()) lastWavDirectory.mkdirs()
+        currentDirectory = lastWavDirectory
+        selectedFile = File(lastWavDirectory, defaultName)
     }
     if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
         var file = chooser.selectedFile
         if (!file.name.endsWith(".wav")) file = File(file.path + ".wav")
-        updateLastDocumentDirectory(file.parentFile)
+        updateLastWavDirectory(file.parentFile)
 
         if (file.exists()) {
             val response = javax.swing.JOptionPane.showConfirmDialog(
@@ -266,12 +297,12 @@ actual fun chooseWavOpenFile(onSelected: (path: String) -> Unit) {
     val chooser = JFileChooser().apply {
         dialogTitle = "Open WAV File"
         fileFilter = FileNameExtensionFilter("WAV files (*.wav)", "wav", "WAV")
-        if (!lastDocumentDirectory.exists()) lastDocumentDirectory.mkdirs()
-        currentDirectory = lastDocumentDirectory
+        if (!lastWavDirectory.exists()) lastWavDirectory.mkdirs()
+        currentDirectory = lastWavDirectory
     }
     if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
         val file = chooser.selectedFile
-        updateLastDocumentDirectory(file.parentFile)
+        updateLastWavDirectory(file.parentFile)
         onSelected(file.absolutePath)
     }
 }

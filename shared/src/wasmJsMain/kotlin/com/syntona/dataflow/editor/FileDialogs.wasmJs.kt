@@ -23,6 +23,7 @@ import org.khronos.webgl.get
 
     if (typeof window !== 'undefined' && window.showOpenFilePicker) {
         window.showOpenFilePicker({
+            id: 'syntona_sntn',
             types: [{
                 description: 'Syntona files (*.sntn, *.json)',
                 accept: {
@@ -80,6 +81,7 @@ private external fun jsOpenFilePicker(callback: (String, String) -> Unit)
 
     if (typeof window !== 'undefined' && window.showSaveFilePicker) {
         window.showSaveFilePicker({
+            id: 'syntona_sntn',
             suggestedName: defaultName,
             types: [{
                 description: 'Syntona files (*.sntn, *.json)',
@@ -361,6 +363,7 @@ fun cacheBinaryFile(path: String, bytes: ByteArray) {
 
     if (typeof window !== 'undefined' && window.showSaveFilePicker) {
         window.showSaveFilePicker({
+            id: 'syntona_wav',
             suggestedName: cleanName,
             types: [{
                 description: 'WAV audio files (*.wav)',
@@ -441,6 +444,7 @@ actual fun chooseWavRecordFile(defaultName: String, onSelected: (path: String) -
 
     if (typeof window !== 'undefined' && window.showOpenFilePicker) {
         window.showOpenFilePicker({
+            id: 'syntona_wav',
             types: [{
                 description: 'WAV audio files (*.wav)',
                 accept: {

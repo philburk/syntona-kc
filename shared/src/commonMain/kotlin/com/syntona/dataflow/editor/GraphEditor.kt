@@ -3790,6 +3790,7 @@ fun ModuleHeader(
                                     val defaultName = when (module) {
                                         is FloatSampleModule -> module.fileName ?: "${module.name}.wav"
                                         is SamplePlayerModule -> module.fileName ?: "${module.name}.wav"
+                                        is RecorderModule -> module.fileName ?: "${module.name}.wav"
                                         else -> "${module.name}.wav"
                                     }
                                     chooseWavRecordFile(defaultName = defaultName) { path ->

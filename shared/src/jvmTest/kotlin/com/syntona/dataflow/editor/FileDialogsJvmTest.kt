@@ -12,6 +12,38 @@ class FileDialogsJvmTest {
     @Test
     fun testKeyLastDocumentDirectoryConstant() {
         assertEquals("lastDocumentDirectoryUsed", SettingsStore.KEY_LAST_DOCUMENT_DIRECTORY)
+        assertEquals("lastWavDirectoryUsed", SettingsStore.KEY_LAST_WAV_DIRECTORY)
+    }
+
+    @Test
+    fun testDocumentAndWavDirectoriesSavedSeparately() {
+        val tempRoot = File.createTempFile("syntona-dirs", "").let { temp ->
+            temp.delete()
+            temp.also { it.mkdirs() }
+        }
+        try {
+            val sntnDir = File(tempRoot, "patches").also { it.mkdirs() }
+            val wavDir = File(tempRoot, "samples").also { it.mkdirs() }
+            val settings = SettingsStore("test_dirs", com.syntona.storage.InMemorySettingsBackend())
+
+            updateLastDocumentDirectory(sntnDir, settings)
+            // Before any WAV directory is chosen, WAV dialogs fall back to the document directory.
+            assertEquals(sntnDir.absolutePath, resolveInitialDocumentDirectory(settings).absolutePath)
+            assertEquals(sntnDir.absolutePath, resolveInitialWavDirectory(settings).absolutePath)
+
+            // Updating the WAV directory does not overwrite the SNTN document directory.
+            updateLastWavDirectory(wavDir, settings)
+            assertEquals(sntnDir.absolutePath, resolveInitialDocumentDirectory(settings).absolutePath)
+            assertEquals(wavDir.absolutePath, resolveInitialWavDirectory(settings).absolutePath)
+
+            // Updating the SNTN document directory again does not overwrite the WAV directory.
+            val sntnDir2 = File(tempRoot, "more_patches").also { it.mkdirs() }
+            updateLastDocumentDirectory(sntnDir2, settings)
+            assertEquals(sntnDir2.absolutePath, resolveInitialDocumentDirectory(settings).absolutePath)
+            assertEquals(wavDir.absolutePath, resolveInitialWavDirectory(settings).absolutePath)
+        } finally {
+            tempRoot.deleteRecursively()
+        }
     }
 
     @Test

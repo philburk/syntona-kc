@@ -47,6 +47,8 @@ class RecorderModule : Module("recorder"), EngineAware {
     val dataOutput: SequentialDataOutputJack
     val durationOutput: OutputJack
     var filePath: String? by mutableStateOf(null)
+    val fileName: String?
+        get() = filePath?.substringAfterLast('/')?.substringAfterLast('\\')?.takeIf { it.isNotBlank() }
     var isLoadedFromFile: Boolean by mutableStateOf(false)
 
     private var engine: DataFlowEngine? = null
