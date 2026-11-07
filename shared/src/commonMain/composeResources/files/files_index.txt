@@ -1,4 +1,5 @@
 examples/basic_sequence.json
+examples/delayGrains.json
 examples/drum_rhythm.json
 examples/etude_001.json
 examples/filter_bank_delay.json

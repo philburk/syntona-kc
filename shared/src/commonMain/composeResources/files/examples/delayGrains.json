@@ -1,0 +1,306 @@
+{
+  "version": "0.8.0 beta",
+  "versionCode": 524288,
+  "modules": [
+    {
+      "id": 0,
+      "type": "ksyn.lineOut",
+      "name": "lineOut",
+      "x": 1121.9,
+      "y": 274.1,
+      "jacks": {
+        "in0": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "in1": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 1,
+      "type": "ksyn.lineIn",
+      "name": "lineIn",
+      "x": 904,
+      "y": 286.1
+    },
+    {
+      "id": 2,
+      "type": "ksyn.view.vu1",
+      "name": "vu1",
+      "x": 1021.9,
+      "y": 169,
+      "jacks": {
+        "in": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "ksyn.view.vu1",
+      "name": "vu1",
+      "x": 1144.9,
+      "y": 366,
+      "jacks": {
+        "in": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 4,
+      "type": "ksyn.effects.delayGrains",
+      "name": "delayGrains",
+      "x": 1013.9,
+      "y": 349,
+      "jacks": {
+        "in": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "density": {
+          "v": 0.9650349617004395,
+          "min": 0.0010000000474974513,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "rate": {
+          "v": -1.1800000667572021,
+          "min": -2,
+          "max": 2,
+          "kickable": false,
+          "exponential": false,
+          "add": false
+        },
+        "rateRange": {
+          "v": 0.2664608061313629,
+          "min": 0,
+          "max": 2,
+          "kickable": false,
+          "add": false
+        },
+        "duration": {
+          "v": 0.29400983452796936,
+          "min": 0.0010000000474974513,
+          "max": 0.5,
+          "kickable": false,
+          "exponential": true,
+          "add": false
+        },
+        "durationRange": {
+          "v": 0.596648097038269,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "amplitude": {
+          "v": 3.3954997062683105,
+          "min": 0,
+          "max": 8,
+          "kickable": false,
+          "exponential": true,
+          "add": false
+        },
+        "amplitudeRange": {
+          "v": 0.15778948366641998,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "delay": {
+          "v": 0.42042142152786255,
+          "min": 0,
+          "max": 2.176870822906494,
+          "kickable": false,
+          "exponential": true,
+          "add": false
+        },
+        "delayRange": {
+          "v": 0.6597704291343689,
+          "min": 0,
+          "max": 1.088435411453247,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "core.input.xyPad",
+      "name": "xyPad_position_density",
+      "x": 27.6,
+      "y": 313.8,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "x": {
+          "v": 0.42042142152786255,
+          "min": 0,
+          "max": 2.176870822906494,
+          "kickable": false,
+          "exponential": true
+        },
+        "y": {
+          "v": 0.9650349617004395,
+          "min": 0.0010000000474974513,
+          "max": 1,
+          "kickable": false
+        }
+      },
+      "w": 418.16016,
+      "h": 250.3086
+    },
+    {
+      "id": 6,
+      "type": "core.input.xyPad",
+      "name": "xyPad_duration_rate",
+      "x": 461,
+      "y": 313.9,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "x": {
+          "v": 0.29400983452796936,
+          "min": 0.0010000000474974513,
+          "max": 0.5,
+          "kickable": false,
+          "exponential": true
+        },
+        "y": {
+          "v": -1.1800000667572021,
+          "min": -2,
+          "max": 2,
+          "kickable": false
+        }
+      },
+      "w": 419.625,
+      "h": 249.75
+    },
+    {
+      "id": 7,
+      "type": "core.input.knob",
+      "name": "amplitude",
+      "x": 895.9,
+      "y": 490,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 3.3954997062683105,
+          "min": 0,
+          "max": 8,
+          "kickable": false,
+          "exponential": true
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 60,
+      "y": 25.9,
+      "text": "The delayGrains module can perform granular synthesis on a delayed input sound.\n\nTo Do:\n* Connect a microphone and start talking.\n* Change the position, density, grain duration, and rate using the xyPads.",
+      "w": 809.875,
+      "h": 240
+    }
+  ],
+  "connections": [
+    {
+      "from": 1,
+      "fromJack": "out0",
+      "to": 2,
+      "toJack": "in"
+    },
+    {
+      "from": 1,
+      "fromJack": "out0",
+      "to": 0,
+      "toJack": "in0"
+    },
+    {
+      "from": 1,
+      "fromJack": "out0",
+      "to": 4,
+      "toJack": "in"
+    },
+    {
+      "from": 4,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "in1"
+    },
+    {
+      "from": 4,
+      "fromJack": "out",
+      "to": 3,
+      "toJack": "in"
+    },
+    {
+      "from": 5,
+      "fromJack": "x",
+      "to": 4,
+      "toJack": "delay"
+    },
+    {
+      "from": 5,
+      "fromJack": "y",
+      "to": 4,
+      "toJack": "density"
+    },
+    {
+      "from": 6,
+      "fromJack": "x",
+      "to": 4,
+      "toJack": "duration"
+    },
+    {
+      "from": 6,
+      "fromJack": "y",
+      "to": 4,
+      "toJack": "rate"
+    },
+    {
+      "from": 7,
+      "fromJack": "out",
+      "to": 4,
+      "toJack": "amplitude"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 1296.88818359375,
+  "windowHeight": 663.819091796875
+}
