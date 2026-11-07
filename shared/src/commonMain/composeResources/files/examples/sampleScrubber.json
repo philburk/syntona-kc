@@ -1,0 +1,564 @@
+{
+  "version": "0.8.0 beta",
+  "versionCode": 524288,
+  "modules": [
+    {
+      "id": 0,
+      "type": "ksyn.lineOut",
+      "name": "lineOut",
+      "x": 1117.9,
+      "y": 342.1,
+      "jacks": {
+        "in0": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "in1": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 1,
+      "type": "ksyn.sources.triOsc",
+      "name": "triOsc",
+      "x": 811.9,
+      "y": 447,
+      "jacks": {
+        "frequency": {
+          "v": 0.17612063884735107,
+          "min": 1,
+          "max": 8000,
+          "kickable": false,
+          "exponential": true,
+          "add": false
+        },
+        "amplitude": {
+          "v": 0.9242895245552063,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "exponential": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": "ksyn.sampling.sampleScrubber",
+      "name": "sampleScrubber",
+      "x": 1045.9,
+      "y": 452,
+      "jacks": {
+        "data": {
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        },
+        "in": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "position": {
+          "v": 0.28089892864227295,
+          "min": -1,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "time": {
+          "v": 0.979914665222168,
+          "min": 0.0010000000474974513,
+          "max": 1,
+          "kickable": false,
+          "exponential": true,
+          "add": false
+        },
+        "amplitude": {
+          "v": 0.800000011920929,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "exponential": true,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "core.input.xyPad",
+      "name": "xyPad",
+      "x": 22.9,
+      "y": 431,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "x": {
+          "v": 0.28089892864227295,
+          "min": -1,
+          "max": 1,
+          "kickable": false
+        },
+        "y": {
+          "v": 0.3677007257938385,
+          "min": 0.01,
+          "max": 1,
+          "kickable": false
+        }
+      },
+      "w": 548.75,
+      "h": 323.875
+    },
+    {
+      "id": 4,
+      "type": "ksyn.control.envDAHDSR",
+      "name": "envDAHDSR",
+      "x": 817.9,
+      "y": 554,
+      "jacks": {
+        "in": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "delay": {
+          "v": 0,
+          "min": 0,
+          "max": 2,
+          "kickable": false,
+          "exponential": true,
+          "add": false
+        },
+        "attack": {
+          "v": 0.009999999776482582,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "exponential": true,
+          "add": false
+        },
+        "hold": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "exponential": true,
+          "add": false
+        },
+        "decay": {
+          "v": 0.20000000298023224,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "exponential": true,
+          "add": false
+        },
+        "sustain": {
+          "v": 0.5,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "release": {
+          "v": 8.995983123779297,
+          "min": 0,
+          "max": 15,
+          "kickable": false,
+          "exponential": true,
+          "add": false
+        },
+        "amplitude": {
+          "v": 1.8512988090515137,
+          "min": 0,
+          "max": 4,
+          "kickable": false,
+          "exponential": true,
+          "add": false
+        }
+      },
+      "autoDisableVoice": "NO"
+    },
+    {
+      "id": 5,
+      "type": "music.midi.midiIn",
+      "name": "midiIn",
+      "x": 196.9,
+      "y": 310,
+      "device": "MIDI, Arturia",
+      "channelFilter": -1
+    },
+    {
+      "id": 6,
+      "type": "music.midi.matchControl",
+      "name": "matchControl",
+      "x": 341.9,
+      "y": 292,
+      "jacks": {
+        "in": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "index": {
+          "v": 73,
+          "min": -1,
+          "max": 127,
+          "kickable": false,
+          "integer": true
+        },
+        "value": {
+          "v": 0.5354330708661418,
+          "min": 0,
+          "max": 1,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 7,
+      "type": "ksyn.sampling.recorder",
+      "name": "recorder",
+      "x": 934.9,
+      "y": 244.9,
+      "jacks": {
+        "in": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "amplitude": {
+          "v": 1,
+          "min": 0,
+          "max": 2,
+          "kickable": false,
+          "exponential": true,
+          "add": false
+        },
+        "latencyMs": {
+          "v": 82,
+          "min": 0,
+          "max": 1000,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 8,
+      "type": "ksyn.lineIn",
+      "name": "lineIn",
+      "x": 677.9,
+      "y": 281.1
+    },
+    {
+      "id": 9,
+      "type": "ksyn.view.vu1",
+      "name": "vu1",
+      "x": 867.9,
+      "y": 183.1,
+      "jacks": {
+        "in": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "core.math.f(x,y,z)",
+      "name": "f(x,y,z)",
+      "x": 612.9,
+      "y": 349,
+      "jacks": {
+        "x": {
+          "v": 0.5354330708661418,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "y": {
+          "v": 0.3677007257938385,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "z": {
+          "v": 8268,
+          "min": 0,
+          "max": 20000,
+          "kickable": true
+        }
+      },
+      "equation": "max(0.1,1000*x/(y*z))",
+      "w": 180,
+      "h": 88
+    },
+    {
+      "id": 11,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 801.9,
+      "y": 352,
+      "jacks": {
+        "in": {
+          "v": 0.17612063258797173,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 12,
+      "type": "core.view.show",
+      "name": "show",
+      "x": 720.9,
+      "y": 692,
+      "jacks": {
+        "in": {
+          "v": 0.3677007257938385,
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        }
+      }
+    },
+    {
+      "id": 13,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 62.9,
+      "y": 9.1,
+      "text": "The sampleScrubber uses a sample as a waveshaping function. You can connect an oscillator to the \"in\" port to drive the waveshaper.\n\nTo Do:\n* Click the \"record\" button on the \"recorder\" and record a few seconds of your voice using a microphone.\n* Click the \"play\" or \"pause\" button to stop recording.\n* Click the \"learn\" button on the \"matchControl\" then move a MIDI controller, for example the mod wheel. Or just use the knob. The controls the frequency of the scanning oscillator.\n* Click on the xyPad and drag the blue dot around. The x axis is position in the sample. The y axis is the width of the scrubbing window. The on and off jacks are used to trigger an envelope.",
+      "w": 792.875,
+      "h": 239
+    },
+    {
+      "id": 14,
+      "type": "core.input.knob",
+      "name": "knob",
+      "x": 506.9,
+      "y": 275,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "in": {
+          "v": 0.5354330708661418,
+          "min": 0,
+          "max": 1,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 15,
+      "type": "ksyn.view.scope",
+      "name": "scope",
+      "x": 958.9,
+      "y": 602,
+      "jacks": {
+        "in0": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "in1": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      },
+      "w": 300,
+      "h": 200
+    },
+    {
+      "id": 16,
+      "type": "ksyn.control.rampLin",
+      "name": "rampLin",
+      "x": 653,
+      "y": 490.1,
+      "jacks": {
+        "in": {
+          "v": 0.3677007257938385,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "time": {
+          "v": 0.07730629295110703,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "exponential": true,
+          "add": false
+        }
+      }
+    }
+  ],
+  "connections": [
+    {
+      "from": 1,
+      "fromJack": "out",
+      "to": 2,
+      "toJack": "in"
+    },
+    {
+      "from": 2,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "in1"
+    },
+    {
+      "from": 3,
+      "fromJack": "x",
+      "to": 2,
+      "toJack": "position"
+    },
+    {
+      "from": 3,
+      "fromJack": "on",
+      "to": 4,
+      "toJack": "on"
+    },
+    {
+      "from": 3,
+      "fromJack": "off",
+      "to": 4,
+      "toJack": "off"
+    },
+    {
+      "from": 4,
+      "fromJack": "out",
+      "to": 2,
+      "toJack": "amplitude"
+    },
+    {
+      "from": 5,
+      "fromJack": "out",
+      "to": 6,
+      "toJack": "in"
+    },
+    {
+      "from": 8,
+      "fromJack": "out0",
+      "to": 7,
+      "toJack": "in"
+    },
+    {
+      "from": 7,
+      "fromJack": "data",
+      "to": 2,
+      "toJack": "data"
+    },
+    {
+      "from": 8,
+      "fromJack": "out0",
+      "to": 9,
+      "toJack": "in"
+    },
+    {
+      "from": 7,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "in0"
+    },
+    {
+      "from": 7,
+      "fromJack": "durationMs",
+      "to": 10,
+      "toJack": "z"
+    },
+    {
+      "from": 3,
+      "fromJack": "y",
+      "to": 10,
+      "toJack": "y"
+    },
+    {
+      "from": 10,
+      "fromJack": "out",
+      "to": 1,
+      "toJack": "frequency"
+    },
+    {
+      "from": 10,
+      "fromJack": "out",
+      "to": 11,
+      "toJack": "in"
+    },
+    {
+      "from": 3,
+      "fromJack": "y",
+      "to": 12,
+      "toJack": "in"
+    },
+    {
+      "from": 6,
+      "fromJack": "value",
+      "to": 14,
+      "toJack": "in"
+    },
+    {
+      "from": 14,
+      "fromJack": "out",
+      "to": 10,
+      "toJack": "x"
+    },
+    {
+      "from": 1,
+      "fromJack": "out",
+      "to": 15,
+      "toJack": "in0"
+    },
+    {
+      "from": 16,
+      "fromJack": "out",
+      "to": 1,
+      "toJack": "amplitude"
+    },
+    {
+      "from": 3,
+      "fromJack": "y",
+      "to": 16,
+      "toJack": "in"
+    },
+    {
+      "from": 2,
+      "fromJack": "out",
+      "to": 15,
+      "toJack": "in1"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 1288.125,
+  "windowHeight": 880.819091796875
+}
