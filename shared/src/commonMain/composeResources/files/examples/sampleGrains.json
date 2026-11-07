@@ -1,0 +1,289 @@
+{
+  "version": "0.8.0 beta",
+  "versionCode": 524288,
+  "modules": [
+    {
+      "id": 0,
+      "type": "ksyn.lineOut",
+      "name": "lineOut",
+      "x": 979.3,
+      "y": 161.1,
+      "jacks": {
+        "in0": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "in1": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 1,
+      "type": "core.input.xyPad",
+      "name": "xyPad_position_density",
+      "x": 27.6,
+      "y": 304.8,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "x": {
+          "v": -0.6815286874771118,
+          "min": -1,
+          "max": 1,
+          "kickable": false
+        },
+        "y": {
+          "v": 0.0010000000474974513,
+          "min": 0.0010000000474974513,
+          "max": 1,
+          "kickable": false
+        }
+      },
+      "w": 418.16016,
+      "h": 250.3086
+    },
+    {
+      "id": 2,
+      "type": "ksyn.sampling.sampleGrains",
+      "name": "sampleGrains",
+      "x": 958,
+      "y": 276.1,
+      "jacks": {
+        "data": {
+          "min": 0,
+          "max": 100,
+          "kickable": false
+        },
+        "density": {
+          "v": 0.0010000000474974513,
+          "min": 0.0010000000474974513,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "rate": {
+          "v": 1.380000114440918,
+          "min": -2,
+          "max": 2,
+          "kickable": false,
+          "exponential": true,
+          "add": false
+        },
+        "rateRange": {
+          "v": 0.10000000149011612,
+          "min": 0,
+          "max": 2,
+          "kickable": false,
+          "add": false
+        },
+        "duration": {
+          "v": 0.013779723085463047,
+          "min": 0.0010000000474974513,
+          "max": 0,
+          "kickable": false,
+          "exponential": true,
+          "add": false
+        },
+        "durationRange": {
+          "v": 0.2815212309360504,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "amplitude": {
+          "v": 3.71478533744812,
+          "min": 0,
+          "max": 8,
+          "kickable": false,
+          "exponential": true,
+          "add": false
+        },
+        "amplitudeRange": {
+          "v": 0.044572051614522934,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "position": {
+          "v": -0.6815286874771118,
+          "min": -1,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "positionRange": {
+          "v": 0.10000000149011612,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 3,
+      "type": "ksyn.lineIn",
+      "name": "lineIn",
+      "x": 689.9,
+      "y": 68
+    },
+    {
+      "id": 4,
+      "type": "ksyn.sampling.recorder",
+      "name": "recorder",
+      "x": 852,
+      "y": 48.1,
+      "jacks": {
+        "in": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        },
+        "amplitude": {
+          "v": 1,
+          "min": 0,
+          "max": 2,
+          "kickable": false,
+          "exponential": true,
+          "add": false
+        },
+        "latencyMs": {
+          "v": 82,
+          "min": 0,
+          "max": 1000,
+          "kickable": false
+        }
+      }
+    },
+    {
+      "id": 5,
+      "type": "ksyn.view.vu1",
+      "name": "vu1",
+      "x": 771.9,
+      "y": 121,
+      "jacks": {
+        "in": {
+          "v": 0,
+          "min": 0,
+          "max": 1,
+          "kickable": false,
+          "add": false
+        }
+      }
+    },
+    {
+      "id": 6,
+      "type": "core.input.xyPad",
+      "name": "xyPad_duration_rate",
+      "x": 461,
+      "y": 307.9,
+      "jacks": {
+        "kick": {
+          "min": 0,
+          "max": 100,
+          "kickable": true
+        },
+        "x": {
+          "v": 0.013779723085463047,
+          "min": 0.0010000000474974513,
+          "max": 1,
+          "kickable": false,
+          "exponential": true
+        },
+        "y": {
+          "v": 1.380000114440918,
+          "min": -2,
+          "max": 2,
+          "kickable": false
+        }
+      },
+      "w": 419.625,
+      "h": 249.75
+    },
+    {
+      "id": 7,
+      "type": "core.input.comment",
+      "name": "comment",
+      "x": 61.9,
+      "y": 18.1,
+      "text": "The sampleGrains module can perform granular synthesis using a recorded sample as the source.\n\nTo Do:\n* Click the \"record\" button on the \"recorder\" and record a few seconds of your voice using a microphone.\n* Click the \"play\" or \"pause\" button to stop recording.\n* Change the position, density, grain duration, and rate using the xyPads.",
+      "w": 605.875,
+      "h": 245
+    }
+  ],
+  "connections": [
+    {
+      "from": 1,
+      "fromJack": "y",
+      "to": 2,
+      "toJack": "density"
+    },
+    {
+      "from": 1,
+      "fromJack": "x",
+      "to": 2,
+      "toJack": "position"
+    },
+    {
+      "from": 2,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "in1"
+    },
+    {
+      "from": 3,
+      "fromJack": "out0",
+      "to": 5,
+      "toJack": "in"
+    },
+    {
+      "from": 3,
+      "fromJack": "out0",
+      "to": 4,
+      "toJack": "in"
+    },
+    {
+      "from": 4,
+      "fromJack": "out",
+      "to": 0,
+      "toJack": "in0"
+    },
+    {
+      "from": 4,
+      "fromJack": "data",
+      "to": 2,
+      "toJack": "data"
+    },
+    {
+      "from": 6,
+      "fromJack": "y",
+      "to": 2,
+      "toJack": "rate"
+    },
+    {
+      "from": 6,
+      "fromJack": "x",
+      "to": 2,
+      "toJack": "duration"
+    }
+  ],
+  "windowX": 10,
+  "windowY": 10,
+  "windowWidth": 1121,
+  "windowHeight": 640.875
+}
