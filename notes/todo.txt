@@ -6,13 +6,11 @@ MAKE SOME MUSIC!
 Create a Discourse site for Syntona.
 Update links in the app.
 
+Add more of the example patches as help modules.
+
 Add more physical models.
 
-The delayGrains example has xy = position/{}  should be delay/{}.
-
 Add choose module and choose(4) in the f(x). Int output, 0 to N-1.
-
-Add light-mode in the UI.
 
 Indicate whether an Audio port is in Add? mode.
 

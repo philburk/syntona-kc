@@ -312,11 +312,11 @@ object ModuleRegistry {
         val basic = getOrCreateBundle(core, "basic")
         basic.modules.add(ModuleEntry("clock") { ClockModule() })
         basic.modules.add(ModuleEntry("clockDiv") { ClockDividerModule() })
-        basic.modules.add(ModuleEntry("timeline") { TimelineModule() })
+        basic.modules.add(ModuleEntry("timeline", "examples/timeline.json") { TimelineModule() })
         basic.modules.add(ModuleEntry("addTime") { AddTimeModule() })
         basic.modules.add(ModuleEntry("grabTime") { GrabTimeModule() })
         basic.modules.add(ModuleEntry("timeNow") { TimeNowModule() })
-        basic.modules.add(ModuleEntry("valueList") { ValueListModule() })
+        basic.modules.add(ModuleEntry("valueList", "examples/valueList.json") { ValueListModule() })
         basic.modules.add(ModuleEntry("counter") { CounterModule() })
         basic.modules.add(ModuleEntry("seq2") { SequenceModule(2) })
         basic.modules.add(ModuleEntry("seq8") { SequenceModule(8) })
@@ -385,9 +385,9 @@ object ModuleRegistry {
 
         val music = getOrCreateBundle(root, "music")
         val musicInput = getOrCreateBundle(music, "input")
-        musicInput.modules.add(ModuleEntry("keyboard13") { Keyboard13Module() })
+        musicInput.modules.add(ModuleEntry("keyboard13", "examples/keyboard13.json") { Keyboard13Module() })
         musicInput.modules.add(ModuleEntry("keyboard25") { Keyboard25Module() })
-        musicInput.modules.add(ModuleEntry("keyNotes") { KeyNotesModule() })
+        musicInput.modules.add(ModuleEntry("keyNotes", "examples/keyNotes.json") { KeyNotesModule() })
         musicInput.modules.add(ModuleEntry("pianoRoll", "examples/pianoRoll.json") { PianoRollModule() })
 
         val midi = getOrCreateBundle(music, "midi")
@@ -527,7 +527,7 @@ object ModuleRegistry {
             allocateDelay(DELAY_BUFFER_FRAMES) } }
         ksynFactories["delayGrains"] = delayGrainsFactory
         ksynClassFactories[DelayGrains::class] = delayGrainsFactory
-        effects.modules.add(ModuleEntry("delayGrains") { UnitGeneratorModule("delayGrains", delayGrainsFactory()) })
+        effects.modules.add(ModuleEntry("delayGrains", "examples/delayGrains.json") { UnitGeneratorModule("delayGrains", delayGrainsFactory()) })
         addKSynModule(effects, "pan", ::Pan)
         addKSynModule(effects, "plateReverb", ::PlateReverb)
         addKSynModule(effects, "roomReverb", ::RoomReverb)
@@ -545,16 +545,16 @@ object ModuleRegistry {
         sampling.modules.add(ModuleEntry("samplePlayer") { SamplePlayerModule() })
         sampling.modules.add(ModuleEntry("sample") { FloatSampleModule() })
         sampling.modules.add(ModuleEntry("sampleReader", "tutorials/07_audio_input/05_sampleReader.json") { SampleReaderModule() })
-        sampling.modules.add(ModuleEntry("sampleWriter") { SampleWriterModule() })
+        sampling.modules.add(ModuleEntry("sampleWriter", "examples/sampleWriter.json") { SampleWriterModule() })
         val sampleScrubberFactory = { SampleScrubber() }
         ksynFactories[SampleScrubberModule.TYPE_NAME] = sampleScrubberFactory
         ksynClassFactories[SampleScrubber::class] = sampleScrubberFactory
-        sampling.modules.add(ModuleEntry(SampleScrubberModule.TYPE_NAME) { SampleScrubberModule() })
+        sampling.modules.add(ModuleEntry(SampleScrubberModule.TYPE_NAME, "examples/sampleScrubber.json") { SampleScrubberModule() })
         val sampleGrainsFactory = { SampleGrains().apply { allocate(GRAIN_FARM_GRAINS) } }
         ksynFactories[SampleGrainsModule.TYPE_NAME] = sampleGrainsFactory
         ksynClassFactories[SampleGrains::class] = sampleGrainsFactory
-        sampling.modules.add(ModuleEntry(SampleGrainsModule.TYPE_NAME) { SampleGrainsModule() })
-        sampling.modules.add(ModuleEntry("recorder") { RecorderModule() })
+        sampling.modules.add(ModuleEntry(SampleGrainsModule.TYPE_NAME, "examples/sampleGrains.json") { SampleGrainsModule() })
+        sampling.modules.add(ModuleEntry("recorder", "examples/recorder.json") { RecorderModule() })
 
         fun applyDescriptions(bundle: Bundle) {
             bundle.modules.forEach { mod ->

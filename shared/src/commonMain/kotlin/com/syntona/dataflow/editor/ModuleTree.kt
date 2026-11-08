@@ -36,7 +36,7 @@ fun ModuleTree(state: GraphState) {
     val colors = LocalGraphColors.current
     var filterText by remember { mutableStateOf("") }
 
-    Column(modifier = Modifier.fillMaxHeight().width(180.dp).padding(8.dp).onKeyEvent { true }) {
+    Column(modifier = Modifier.fillMaxHeight().width(188.dp).padding(8.dp).onKeyEvent { true }) {
         Text("Syntona v" + SyntonaVersion, fontSize = 16.sp, color = colors.sidebarText)
         Spacer(modifier = Modifier.height(6.dp))
 
@@ -113,7 +113,7 @@ fun BundleView(
     val isFiltering = filterText.isNotBlank()
     val isExpanded = expandedState || isFiltering
 
-    Column(modifier = Modifier.padding(start = (level * 8).dp)) {
+    Column(modifier = Modifier.padding(start = if (level == 0) 0.dp else 8.dp)) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -190,7 +190,9 @@ fun BundleView(
                             Text(
                                 text = module.name,
                                 fontSize = 13.sp,
-                                color = colors.sidebarModuleText
+                                color = colors.sidebarModuleText,
+                                maxLines = 1,
+                                softWrap = false
                             )
                             if (com.syntona.dataflow.registry.HelpRegistry.hasHelpFile(module.name)) {
                                 Text(
@@ -198,6 +200,8 @@ fun BundleView(
                                     fontSize = 11.sp,
                                     color = if (colors.isDark) Color(0xFFFFCC00) else Color(0xFFD97706),
                                     fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                                    maxLines = 1,
+                                    softWrap = false,
                                     modifier = Modifier
                                         .pointerHoverIcon(PointerIcon.Hand)
                                         .clickable {
