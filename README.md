@@ -2,6 +2,8 @@
 
 Syntona is an interactive modular synthesizer application built with Kotlin Multiplatform and Compose Multiplatform, targeting Desktop (JVM), Web (WASM), and Android.
 
+Syntona is available online as a web app at: [softsynth.com/syntona](https://softsynth.com/syntona)
+
 ## Prerequisites
 
 * **JDK 17** or higher
@@ -43,17 +45,6 @@ Syntona is an interactive modular synthesizer application built with Kotlin Mult
 * Build debug APK:
   ```bash
   ./gradlew :androidApp:assembleDebug
-  ```
-
-## Building Desktop Packages
-
-* Build macOS DMG installer:
-  ```bash
-  ./gradlew :desktopApp:packageDmg
-  ```
-* Build unpacked local app:
-  ```bash
-  ./gradlew :desktopApp:createDistributable
   ```
 
 ## Running Tests

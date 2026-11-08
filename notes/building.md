@@ -3,7 +3,7 @@
 1. cd ~/work/syntona-kc
 1. ./gradlew clean :webApp:wasmJsBrowserDistribution
 1. open /Users/phil/Work/softsynth.github.io/src/syntona/
-1. MAYBE delete contents of the test folder
+1. MAYBE delete old WASM app from the test folder
 1. open webApp/build/dist/wasmJs/productionExecutable
 1. copy contents to the softsynth syntona/test folder
 1. commit change to the softsynth repo
