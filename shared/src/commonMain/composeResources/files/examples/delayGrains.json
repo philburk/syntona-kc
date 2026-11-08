@@ -1,6 +1,6 @@
 {
-  "version": "0.8.0 beta",
-  "versionCode": 524288,
+  "version": "0.8.1 beta",
+  "versionCode": 524289,
   "modules": [
     {
       "id": 0,
@@ -150,7 +150,7 @@
     {
       "id": 5,
       "type": "core.input.xyPad",
-      "name": "xyPad_position_density",
+      "name": "xyPad_delay_density",
       "x": 27.6,
       "y": 313.8,
       "jacks": {
@@ -232,7 +232,7 @@
       "name": "comment",
       "x": 60,
       "y": 25.9,
-      "text": "The delayGrains module can perform granular synthesis on a delayed input sound.\n\nTo Do:\n* Connect a microphone and start talking.\n* Change the position, density, grain duration, and rate using the xyPads.",
+      "text": "The delayGrains module can perform granular synthesis on a delayed input sound.\n\nTo Do:\n* Connect a microphone and start talking.\n* Change the delay, density, grain duration, and rate using the xyPads.",
       "w": 809.875,
       "h": 240
     }
