@@ -21,13 +21,14 @@ import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import com.syntona.dataflow.editor.LocalGraphColors
-import com.syntona.dataflow.editor.DarkGraphColors
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -323,8 +324,10 @@ fun App(
     showEditMenuInToolbar: Boolean = true,
     showFileMenuInToolbar: Boolean = true,
 ) {
-    MaterialTheme {
-        CompositionLocalProvider(LocalGraphColors provides DarkGraphColors) {
+    val isDark = GraphViewSettings.isDarkMode
+    val graphColors = GraphViewSettings.graphColors
+    MaterialTheme(colorScheme = if (isDark) darkColorScheme() else lightColorScheme()) {
+        CompositionLocalProvider(LocalGraphColors provides graphColors) {
             var showContent by remember { mutableStateOf(true) }
             val scope = rememberCoroutineScope()
         val examplesList by produceState<List<String>>(emptyList()) {
@@ -572,7 +575,7 @@ fun App(
                             modifier = Modifier
                                 .fillMaxHeight()
                                 .width(200.dp)
-                                .background(Color(0xFF252525))
+                                .background(graphColors.sidebarBackground)
                         ) {
                             ModuleTree(state = rootPatch.graphState)
                         }
@@ -584,7 +587,7 @@ fun App(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(40.dp)
-                                    .background(Color(0xFF1A1A1A))
+                                    .background(graphColors.toolbarBackground)
                                     .padding(horizontal = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1401,12 +1404,21 @@ fun App(
                                              modifier = Modifier.size(width = 34.dp, height = 30.dp),
                                              shape = RoundedCornerShape(4.dp),
                                              colors = ButtonDefaults.buttonColors(
-                                                 containerColor = if (isWiresOnTop) Color(0xFF2D4356) else Color(0xFF2A2A2A),
+                                                 containerColor = when {
+                                                     isWiresOnTop && isDark -> Color(0xFF2D4356)
+                                                     isWiresOnTop && !isDark -> Color(0xFFBBDEFB)
+                                                     isDark -> Color(0xFF2A2A2A)
+                                                     else -> Color(0xFFCCCCCC)
+                                                 },
                                                  contentColor = if (isWiresOnTop) Color(0xFF80D8FF) else Color(0xFFB0BEC5)
                                              ),
                                              border = BorderStroke(
                                                  width = 1.dp,
-                                                 color = if (isWiresOnTop) Color(0xFF5C89AF) else Color(0xFF444444)
+                                                 color = when {
+                                                     isWiresOnTop -> Color(0xFF5C89AF)
+                                                     isDark -> Color(0xFF444444)
+                                                     else -> Color(0xFF999999)
+                                                 }
                                              ),
                                              contentPadding = PaddingValues(0.dp)
                                          ) {
@@ -1442,7 +1454,7 @@ fun App(
                                  ) {
                                      Text(
                                          text = "CPU: ${(cpuUsage * 100).toInt().toString().padStart(2, '0')}%",
-                                         color = Color.White,
+                                         color = graphColors.toolbarText,
                                          style = MaterialTheme.typography.bodySmall.copy(
                                              fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                                          ),
@@ -1452,14 +1464,14 @@ fun App(
                                          modifier = Modifier
                                              .width(60.dp)
                                              .height(10.dp)
-                                             .background(Color(0xFF2E2E2E), RoundedCornerShape(2.dp))
+                                             .background(if (isDark) Color(0xFF2E2E2E) else Color(0xFFBDBDBD), RoundedCornerShape(2.dp))
                                              .border(0.5.dp, Color.Gray, RoundedCornerShape(2.dp))
                                      ) {
                                          val fillWidth = (60.dp * cpuUsage.coerceIn(0.0, 1.0).toFloat())
                                          val barColor = when {
                                              cpuUsage >= 0.8 -> Color.Red
                                              cpuUsage >= 0.6 -> Color(0xFFFFA500)
-                                             else -> Color.Green
+                                             else -> if (isDark) Color.Green else Color(0xFF2E7D32)
                                          }
                                          Box(
                                              modifier = Modifier
@@ -1480,7 +1492,7 @@ fun App(
 
                                 Text(
                                     text = "KSyn:",
-                                    color = Color.White,
+                                    color = graphColors.toolbarText,
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                                 Button(
@@ -1491,7 +1503,7 @@ fun App(
                                     },
                                     enabled = !KSynRecorder.isRecording,
                                     colors = ButtonDefaults.buttonColors(
-                                        disabledContainerColor = Color(0xFF2E2E2E),
+                                        disabledContainerColor = if (isDark) Color(0xFF2E2E2E) else Color(0xFFCCCCCC),
                                         disabledContentColor = Color.Gray
                                     ),
                                     modifier = Modifier.height(32.dp),
@@ -1503,7 +1515,7 @@ fun App(
                                     onClick = { KSynRecorder.stopRecording() },
                                     enabled = KSynRecorder.isRecording,
                                     colors = ButtonDefaults.buttonColors(
-                                        disabledContainerColor = Color(0xFF2E2E2E),
+                                        disabledContainerColor = if (isDark) Color(0xFF2E2E2E) else Color(0xFFCCCCCC),
                                         disabledContentColor = Color.Gray
                                     ),
                                     modifier = Modifier.height(32.dp),
@@ -1513,7 +1525,7 @@ fun App(
                                 }
                                 Text(
                                     text = KSynRecorder.durationText,
-                                    color = Color.White,
+                                    color = graphColors.toolbarText,
                                     style = MaterialTheme.typography.bodyMedium.copy(
                                         fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace
                                     )
@@ -1527,7 +1539,7 @@ fun App(
                                 }
                                 Text(
                                     text = "Max:",
-                                    color = Color.White,
+                                    color = graphColors.toolbarText,
                                     style = MaterialTheme.typography.bodyMedium
                                 )
 
@@ -1563,7 +1575,7 @@ fun App(
                                 }
                                 Text(
                                     text = "minutes",
-                                    color = Color.White,
+                                    color = graphColors.toolbarText,
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                             }
@@ -1571,7 +1583,7 @@ fun App(
                             // MDI Desktop
                             MdiDesktop(
                                 mdiState = mdiState,
-                                modifier = Modifier.weight(1f).background(Color(0xFF181818))
+                                modifier = Modifier.weight(1f).background(graphColors.desktopBackground)
                             )
                         }
                     }

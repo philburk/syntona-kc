@@ -2,7 +2,9 @@ package com.syntona.dataflow.editor
 
 import kotlin.math.pow
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -15,7 +17,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 private val DIRTY_BACKGROUND = Color(0xFFFFB0B0)
-private val CLEAN_BACKGROUND = Color.White
+private val CLEAN_BACKGROUND = Color(0xFFF0F4F8)
+private val FIELD_BORDER = Color(0xFF90A4AE)
 
 /**
  * A single-line numeric text field.
@@ -58,7 +61,8 @@ fun NumberField(
         keyboardOptions = KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = { commit() }),
         modifier = modifier
-            .background(if (isDirty) DIRTY_BACKGROUND else CLEAN_BACKGROUND)
+            .background(if (isDirty) DIRTY_BACKGROUND else CLEAN_BACKGROUND, RoundedCornerShape(3.dp))
+            .border(1.dp, FIELD_BORDER, RoundedCornerShape(3.dp))
             .padding(horizontal = 4.dp, vertical = 2.dp)
             .onPreviewKeyEvent { event ->
                 if (event.key == Key.Enter && event.type == KeyEventType.KeyDown) {

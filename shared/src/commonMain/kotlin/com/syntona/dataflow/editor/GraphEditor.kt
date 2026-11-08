@@ -214,7 +214,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
             ) {
                 Text(
                     text = "Patch Name:",
-                    color = if (colors.background == Color(0xFF1E1E1E)) Color.LightGray else Color.DarkGray,
+                    color = colors.moduleText,
                     fontSize = 12.sp
                 )
                 var tempName by remember(parentPatch) { mutableStateOf(parentPatch.name) }
@@ -245,10 +245,10 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                             }
                         },
                         textStyle = TextStyle(
-                            color = if (colors.background == Color(0xFF1E1E1E)) Color.White else Color.Black,
+                            color = colors.commentText,
                             fontSize = 12.sp
                         ),
-                        cursorBrush = SolidColor(if (colors.background == Color(0xFF1E1E1E)) Color.White else Color.Black),
+                        cursorBrush = SolidColor(colors.commentText),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -396,14 +396,24 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             modifier = Modifier
-                                .background(Color(0x11FFFFFF), RoundedCornerShape(8.dp))
-                                .border(1.dp, Color(0x14FFFFFF), RoundedCornerShape(8.dp))
+                                .background(
+                                    if (colors.isDark) Color(0x11FFFFFF) else Color(0x11000000),
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .border(
+                                    1.dp,
+                                    if (colors.isDark) Color(0x14FFFFFF) else Color(0x22000000),
+                                    RoundedCornerShape(8.dp)
+                                )
                                 .padding(horizontal = 24.dp, vertical = 12.dp)
                         ) {
-                            LightbulbIcon(color = Color(0xFFFFD54F), size = 18.dp)
+                            LightbulbIcon(
+                                color = if (colors.isDark) Color(0xFFFFD54F) else Color(0xFFF59E0B),
+                                size = 18.dp
+                            )
                             Text(
                                 text = "Look in the Help menu for Examples and Tutorials!",
-                                color = Color(0xAAFFFFFF),
+                                color = if (colors.isDark) Color(0xAAFFFFFF) else Color(0xAA000000),
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Medium
                             )
@@ -565,6 +575,7 @@ fun GraphVerticalScrollbar(
 ) {
     if (maxScroll <= 0f || contentLength <= viewportLength) return
 
+    val colors = LocalGraphColors.current
     val density = LocalDensity.current
     var isHovered by remember { mutableStateOf(false) }
     var isDragging by remember { mutableStateOf(false) }
@@ -655,7 +666,11 @@ fun GraphVerticalScrollbar(
         val scrollRatio = if (maxScroll > 0f) (scrollOffset / maxScroll).coerceIn(0f, 1f) else 0f
         val thumbY = scrollRange * scrollRatio
 
-        val thumbColor = if (isDragging || isHovered) Color(0x99FFFFFF) else Color(0x55FFFFFF)
+        val thumbColor = if (colors.isDark) {
+            if (isDragging || isHovered) Color(0x99FFFFFF) else Color(0x55FFFFFF)
+        } else {
+            if (isDragging || isHovered) Color(0x99000000) else Color(0x55000000)
+        }
         val inset = 1.dp.toPx()
 
         drawRoundRect(
@@ -679,6 +694,7 @@ fun GraphHorizontalScrollbar(
 ) {
     if (maxScroll <= 0f || contentLength <= viewportLength) return
 
+    val colors = LocalGraphColors.current
     val density = LocalDensity.current
     var isHovered by remember { mutableStateOf(false) }
     var isDragging by remember { mutableStateOf(false) }
@@ -769,7 +785,11 @@ fun GraphHorizontalScrollbar(
         val scrollRatio = if (maxScroll > 0f) (scrollOffset / maxScroll).coerceIn(0f, 1f) else 0f
         val thumbX = scrollRange * scrollRatio
 
-        val thumbColor = if (isDragging || isHovered) Color(0x99FFFFFF) else Color(0x55FFFFFF)
+        val thumbColor = if (colors.isDark) {
+            if (isDragging || isHovered) Color(0x99FFFFFF) else Color(0x55FFFFFF)
+        } else {
+            if (isDragging || isHovered) Color(0x99000000) else Color(0x55000000)
+        }
         val inset = 1.dp.toPx()
 
         drawRoundRect(
@@ -1091,7 +1111,7 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color? = null, la
                     ) {
                         Text(
                             text = sampleFileName,
-                            color = if (colors.moduleBackground == Color.White) Color.DarkGray else Color.LightGray,
+                            color = colors.moduleText,
                             fontSize = 11.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
@@ -1276,7 +1296,7 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color? = null, la
             }
             if (module !is TimelineModule) {
                 if (module.inputs.isNotEmpty() && module.outputs.isNotEmpty()) {
-                    HorizontalDivider(color = Color.Black, thickness = 1.dp)
+                    HorizontalDivider(color = colors.moduleDivider, thickness = 1.dp)
                 }
                 module.outputs.forEach { JackView(it, state, isLeft = false) }
             }
@@ -1298,7 +1318,8 @@ private fun <T> ModuleOptionDropdown(
     optionLabel: (T) -> String = { it.toString() },
     onSelect: (T) -> Unit
 ) {
-    HorizontalDivider(color = Color.Black, thickness = 1.dp)
+    val colors = LocalGraphColors.current
+    HorizontalDivider(color = colors.moduleDivider, thickness = 1.dp)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1308,7 +1329,7 @@ private fun <T> ModuleOptionDropdown(
     ) {
         Text(
             text = caption,
-            color = Color.Gray,
+            color = colors.moduleSecondaryText,
             fontSize = 10.sp,
             lineHeight = 10.sp
         )
@@ -1435,7 +1456,7 @@ fun KeyMatchModuleNode(module: KeyMatchModule, state: GraphState) {
                 ) {
                     Text(
                         text = module.keyChar.toString().uppercase(),
-                        color = Color.White,
+                        color = if (colors.isDark) Color.White else Color.Black,
                         fontSize = 14.sp,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                     )
@@ -1464,7 +1485,7 @@ fun HorizontalValueIndicator(
     value: Float,
     modifier: Modifier = Modifier,
     lineColor: Color = Color.Gray,
-    thumbColor: Color = Color.White
+    thumbColor: Color = if (LocalGraphColors.current.isDark) Color.White else Color.Black
 ) {
     Canvas(modifier = modifier) {
         val strokePx = 1.5.dp.toPx()
@@ -1596,7 +1617,7 @@ fun MatchControlModuleNode(module: MatchControlModule, state: GraphState) {
             // Inputs: "in", "learn", "index" (phantom "value" input is only in ModuleEditor)
             module.inputs.filter { it.isNodeVisible }.forEach { JackView(it, state, isLeft = true) }
 
-            HorizontalDivider(color = Color.Black, thickness = 1.dp)
+            HorizontalDivider(color = colors.moduleDivider, thickness = 1.dp)
 
             // Output row with graphic display to the left of the "value" output jack
             val indicatorFraction = ExponentialTaper.valueToFraction(
@@ -1650,7 +1671,7 @@ fun MatchControlSequentialModuleNode(module: MatchControlSequentialModule, state
             // Inputs: "in", "learn", "index" (phantom "value0..valueN" inputs are only in ModuleEditor)
             module.inputs.filter { it.isNodeVisible }.forEach { JackView(it, state, isLeft = true) }
 
-            HorizontalDivider(color = Color.Black, thickness = 1.dp)
+            HorizontalDivider(color = colors.moduleDivider, thickness = 1.dp)
 
             // Output rows with graphic display to the left of each "value" output jack
             module.stepOutputs.forEachIndexed { i, jack ->
@@ -1713,7 +1734,7 @@ fun MatchNoteOnModuleNode(module: MatchNoteOnModule, state: GraphState) {
             // Inputs: "in", "learn", "tag"
             module.inputs.forEach { JackView(it, state, isLeft = true) }
 
-            HorizontalDivider(color = Color.Black, thickness = 1.dp)
+            HorizontalDivider(color = colors.moduleDivider, thickness = 1.dp)
 
             // Output row with flash indicator to the left of the "amplitude" output jack
             Row(
@@ -1764,7 +1785,7 @@ fun MatchNoteOnSequentialModuleNode(module: MatchNoteOnSequentialModule, state: 
             // Inputs: "in", "learn", "tag"
             module.inputs.forEach { JackView(it, state, isLeft = true) }
 
-            HorizontalDivider(color = Color.Black, thickness = 1.dp)
+            HorizontalDivider(color = colors.moduleDivider, thickness = 1.dp)
 
             // Output rows with flash indicator to the left of each "amplitude" output jack
             module.stepOutputs.forEachIndexed { i, jack ->
@@ -1868,7 +1889,7 @@ fun MidiInModuleNode(module: MidiInModule, state: GraphState) {
             }
 
             if (module.outputs.isNotEmpty()) {
-                HorizontalDivider(color = Color.Black, thickness = 1.dp)
+                HorizontalDivider(color = colors.moduleDivider, thickness = 1.dp)
                 module.outputs.forEach { JackView(it, state, isLeft = false) }
             }
         }
@@ -1949,7 +1970,7 @@ fun MidiOutModuleNode(module: MidiOutModule, state: GraphState) {
             }
 
             if (module.inputs.isNotEmpty()) {
-                HorizontalDivider(color = Color.Black, thickness = 1.dp)
+                HorizontalDivider(color = colors.moduleDivider, thickness = 1.dp)
                 module.inputs.forEach { JackView(it, state, isLeft = true) }
             }
         }
@@ -1974,7 +1995,7 @@ fun JackView(
         return
     }
     val colors = LocalGraphColors.current
-    val textColor = if (jack.isHighlighted) Color.Black else Color.LightGray
+    val textColor = if (jack.isHighlighted) Color.Black else colors.jackText
     val backgroundColor = when {
         jack.isHighlighted -> colors.jackBgHighlighted
         jack is AudioInputJack || jack is AudioOutputJack -> colors.jackBgAudio
@@ -2876,7 +2897,8 @@ fun SequenceStepTextField(
         keyboardOptions = KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = { commit() }),
         modifier = modifier
-            .background(if (isDirty) Color(0xFFFFB0B0) else Color.White)
+            .background(if (isDirty) Color(0xFFFFB0B0) else Color(0xFFF0F4F8), RoundedCornerShape(3.dp))
+            .border(1.dp, Color(0xFF90A4AE), RoundedCornerShape(3.dp))
             .padding(horizontal = 4.dp, vertical = 2.dp)
             .onKeyEvent { event ->
                 if (event.type == KeyEventType.KeyDown &&
@@ -3166,8 +3188,8 @@ fun CommentModuleNode(module: CommentModule, state: GraphState) {
             value = module.text,
             onValueChange = { module.text = it },
             modifier = Modifier.fillMaxSize().padding(8.dp).onKeyEvent { true },
-            textStyle = TextStyle(color = Color.White, fontSize = 14.sp),
-            cursorBrush = SolidColor(Color.White)
+            textStyle = TextStyle(color = colors.commentText, fontSize = 14.sp),
+            cursorBrush = SolidColor(colors.commentText)
         )
     }
 }
@@ -3555,12 +3577,12 @@ fun EnvSegModuleNode(module: EnvSegModule, state: GraphState) {
                                     ModuleNameEditor(
                                         module = module,
                                         modifier = Modifier.padding(bottom = 4.dp),
-                                        textColor = Color.LightGray,
+                                        textColor = colors.moduleText,
                                         borderColor = Color.Gray,
                                         onNameChanged = { windowInfo?.title = it }
                                     )
 
-                                    AutoDisableVoiceEditor(module, textColor = Color.LightGray)
+                                    AutoDisableVoiceEditor(module, textColor = colors.moduleText)
 
                                     androidx.compose.material3.HorizontalDivider(color = Color.Gray, thickness = 1.dp)
 
@@ -3582,7 +3604,7 @@ fun EnvSegModuleNode(module: EnvSegModule, state: GraphState) {
             // Draw jacks.
             module.inputs.forEach { JackView(it, state, isLeft = true) }
             if (module.inputs.isNotEmpty() && module.outputs.isNotEmpty()) {
-                HorizontalDivider(color = Color.Black, thickness = 1.dp)
+                HorizontalDivider(color = colors.moduleDivider, thickness = 1.dp)
             }
             module.outputs.forEach { JackView(it, state, isLeft = false) }
         }
@@ -3648,7 +3670,7 @@ fun PianoRollModuleNode(module: PianoRollModule, state: GraphState) {
             // Draw jacks.
             module.inputs.forEach { JackView(it, state, isLeft = true) }
             if (module.inputs.isNotEmpty() && module.outputs.isNotEmpty()) {
-                HorizontalDivider(color = Color.Black, thickness = 1.dp)
+                HorizontalDivider(color = colors.moduleDivider, thickness = 1.dp)
             }
             module.outputs.forEach { JackView(it, state, isLeft = false) }
         }
@@ -3910,7 +3932,7 @@ fun MixerModuleNode(module: MixerModule, state: GraphState) {
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = "${i + 1}",
-                        color = Color.LightGray,
+                        color = colors.moduleText,
                         fontSize = 11.sp
                     )
 
@@ -3966,11 +3988,11 @@ fun MixerModuleNode(module: MixerModule, state: GraphState) {
                 if (ampJack != null) {
                     CompactJackConnector(ampJack, state, isLeft = true)
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("amp", color = Color.LightGray, fontSize = 10.sp)
+                    Text("amp", color = colors.moduleText, fontSize = 10.sp)
                 }
 
                 Spacer(modifier = Modifier.weight(1f))
-                Text("Master", color = Color.Gray, fontSize = 11.sp)
+                Text("Master", color = colors.moduleSecondaryText, fontSize = 11.sp)
                 Spacer(modifier = Modifier.weight(1f))
 
                 Column(horizontalAlignment = Alignment.End) {
@@ -3978,14 +4000,14 @@ fun MixerModuleNode(module: MixerModule, state: GraphState) {
                     val out1 = module.getOutputJack(1) ?: module.outputs.find { it.name == "out1" || it.name == "output1" }
                     if (out0 != null) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("L", color = Color.LightGray, fontSize = 10.sp)
+                            Text("L", color = colors.moduleText, fontSize = 10.sp)
                             Spacer(modifier = Modifier.width(4.dp))
                             CompactJackConnector(out0, state, isLeft = false)
                         }
                     }
                     if (out1 != null) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("R", color = Color.LightGray, fontSize = 10.sp)
+                            Text("R", color = colors.moduleText, fontSize = 10.sp)
                             Spacer(modifier = Modifier.width(4.dp))
                             CompactJackConnector(out1, state, isLeft = false)
                         }
@@ -4096,9 +4118,11 @@ fun EquationField(
                         when {
                             isDirty -> Color(0xFFFFB0B0)
                             errorMessage != null -> Color(0xFFFFC266)
-                            else -> Color.White
-                        }
+                            else -> Color(0xFFF0F4F8)
+                        },
+                        RoundedCornerShape(3.dp)
                     )
+                    .border(1.dp, Color(0xFF90A4AE), RoundedCornerShape(3.dp))
                     .padding(horizontal = 4.dp, vertical = 2.dp)
                     .onPreviewKeyEvent { event ->
                         if (event.key == Key.Enter && event.type == KeyEventType.KeyDown) {
@@ -4224,9 +4248,11 @@ fun ScaleField(
                         when {
                             isDirty -> Color(0xFFFF8080) // Turns red while editing
                             errorMessage != null -> Color(0xFFFFC266) // Orange if error
-                            else -> Color.White
-                        }
+                            else -> Color(0xFFF0F4F8)
+                        },
+                        RoundedCornerShape(3.dp)
                     )
+                    .border(1.dp, Color(0xFF90A4AE), RoundedCornerShape(3.dp))
                     .padding(horizontal = 4.dp, vertical = 2.dp)
                     .onPreviewKeyEvent { event ->
                         if (event.key == Key.Enter && event.type == KeyEventType.KeyDown) {
@@ -5588,7 +5614,22 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
                                 }
                             },
                             valueRange = minZoom..maxZoom,
-                            modifier = Modifier.width(70.dp).height(18.dp)
+                            modifier = Modifier.width(90.dp).height(18.dp),
+                            colors = SliderDefaults.colors(
+                                thumbColor = Color.White,
+                                activeTrackColor = Color.Yellow,
+                                inactiveTrackColor = Color.LightGray
+                            ),
+                            track = { sliderState ->
+                                SliderDefaults.Track(
+                                    sliderState = sliderState,
+                                    thumbTrackGapSize = 0.dp,
+                                    colors = SliderDefaults.colors(
+                                        activeTrackColor = Color.Yellow,
+                                        inactiveTrackColor = Color.LightGray
+                                    )
+                                )
+                            }
                         )
                     }
                 }

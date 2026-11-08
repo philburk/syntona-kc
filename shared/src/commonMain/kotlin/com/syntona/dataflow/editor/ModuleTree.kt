@@ -33,10 +33,11 @@ import com.syntona.ui.SearchIcon
 
 @Composable
 fun ModuleTree(state: GraphState) {
+    val colors = LocalGraphColors.current
     var filterText by remember { mutableStateOf("") }
 
     Column(modifier = Modifier.fillMaxHeight().width(180.dp).padding(8.dp).onKeyEvent { true }) {
-        Text("Syntona v" + SyntonaVersion, fontSize = 16.sp, color = Color.LightGray)
+        Text("Syntona v" + SyntonaVersion, fontSize = 16.sp, color = colors.sidebarText)
         Spacer(modifier = Modifier.height(6.dp))
 
         Row(
@@ -49,17 +50,17 @@ fun ModuleTree(state: GraphState) {
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(end = 4.dp)
             ) {
-                SearchIcon(color = Color.LightGray, size = 12.dp, modifier = Modifier.padding(end = 4.dp))
+                SearchIcon(color = colors.sidebarText, size = 12.dp, modifier = Modifier.padding(end = 4.dp))
                 Text(
                     text = "Filter:",
                     fontSize = 12.sp,
-                    color = Color.LightGray
+                    color = colors.sidebarText
                 )
             }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color(0xFF2A2A2A), RoundedCornerShape(4.dp))
+                    .background(colors.sidebarFilterBackground, RoundedCornerShape(4.dp))
                     .border(1.dp, Color.Gray, RoundedCornerShape(4.dp))
                     .padding(horizontal = 6.dp, vertical = 4.dp)
             ) {
@@ -67,8 +68,8 @@ fun ModuleTree(state: GraphState) {
                     value = filterText,
                     onValueChange = { filterText = it },
                     singleLine = true,
-                    textStyle = TextStyle(color = Color.White, fontSize = 12.sp),
-                    cursorBrush = SolidColor(Color.Cyan),
+                    textStyle = TextStyle(color = colors.sidebarFilterText, fontSize = 12.sp),
+                    cursorBrush = SolidColor(colors.sidebarModuleText),
                     modifier = Modifier.fillMaxWidth().onKeyEvent { true }
                 )
             }
@@ -104,6 +105,7 @@ fun BundleView(
 ) {
     if (!bundle.hasMatchingModules(filterText)) return
 
+    val colors = LocalGraphColors.current
     val mdiState = LocalMdiState.current
     val density = LocalDensity.current.density
     val scope = rememberCoroutineScope()
@@ -129,7 +131,7 @@ fun BundleView(
                     size = 8.dp
                 )
             }
-            Text(bundle.name, fontSize = 14.sp, color = Color.LightGray)
+            Text(bundle.name, fontSize = 14.sp, color = colors.sidebarText)
         }
 
         if (isExpanded) {
@@ -188,13 +190,13 @@ fun BundleView(
                             Text(
                                 text = module.name,
                                 fontSize = 13.sp,
-                                color = Color.Cyan
+                                color = colors.sidebarModuleText
                             )
                             if (com.syntona.dataflow.registry.HelpRegistry.hasHelpFile(module.name)) {
                                 Text(
                                     text = " (?)",
                                     fontSize = 11.sp,
-                                    color = Color(0xFFFFCC00),
+                                    color = if (colors.isDark) Color(0xFFFFCC00) else Color(0xFFD97706),
                                     fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                                     modifier = Modifier
                                         .pointerHoverIcon(PointerIcon.Hand)

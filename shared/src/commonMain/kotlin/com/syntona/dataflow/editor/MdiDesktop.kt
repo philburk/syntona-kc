@@ -72,13 +72,14 @@ fun MdiDesktop(
 @Composable
 fun MdiWindowFrame(window: MdiWindowInfo, mdiState: MdiState) {
     val density = LocalDensity.current
+    val colors = LocalGraphColors.current
 
     Surface(
         modifier = Modifier
             .offset { IntOffset(window.position.x.roundToInt(), window.position.y.roundToInt()) }
             .width(window.width)
             .height(window.height)
-            .border(1.dp, Color(0xFF555555), RoundedCornerShape(8.dp))
+            .border(1.dp, colors.windowBorder, RoundedCornerShape(8.dp))
             .pointerInput(window.id) {
                 awaitPointerEventScope {
                     while (true) {
@@ -90,7 +91,7 @@ fun MdiWindowFrame(window: MdiWindowInfo, mdiState: MdiState) {
                 }
             },
         shape = RoundedCornerShape(8.dp),
-        color = Color(0xFF2D2D2D),
+        color = colors.windowSurface,
         shadowElevation = 8.dp
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
@@ -127,8 +128,9 @@ fun MdiWindowFrame(window: MdiWindowInfo, mdiState: MdiState) {
 
 @Composable
 private fun ResizeGrip() {
+    val colors = LocalGraphColors.current
     Canvas(modifier = Modifier.fillMaxSize()) {
-        val color = Color(0xFF888888)
+        val color = colors.faderGrip
         val count = 3
         for (i in 1..count) {
             val d = size.width * i / (count + 1)
@@ -139,11 +141,12 @@ private fun ResizeGrip() {
 
 @Composable
 private fun MdiTitleBar(window: MdiWindowInfo, mdiState: MdiState) {
+    val colors = LocalGraphColors.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(28.dp)
-            .background(Color(0xFF3C3C3C))
+            .background(colors.windowTitleBar)
             .pointerInput(window.id) {
                 detectDragGestures(
                     onDragStart = { mdiState.bringToFront(window) },
@@ -174,7 +177,7 @@ private fun MdiTitleBar(window: MdiWindowInfo, mdiState: MdiState) {
         Spacer(modifier = Modifier.width(10.dp))
         Text(
             text = window.title,
-            color = Color(0xFFCCCCCC),
+            color = colors.windowTitleText,
             fontSize = 12.sp,
             modifier = Modifier.weight(1f)
         )
@@ -183,7 +186,8 @@ private fun MdiTitleBar(window: MdiWindowInfo, mdiState: MdiState) {
 
 @Composable
 private fun TrafficLightButton(color: Color, enabled: Boolean = true, onClick: () -> Unit) {
-    val displayColor = if (enabled) color else Color(0xFF555555)
+    val colors = LocalGraphColors.current
+    val displayColor = if (enabled) color else if (colors.isDark) Color(0xFF555555) else Color(0xFFB0B0B0)
     Box(
         modifier = Modifier
             .size(12.dp)
@@ -197,17 +201,18 @@ private fun TrafficLightButton(color: Color, enabled: Boolean = true, onClick: (
 
 @Composable
 private fun MdiMinimizedBar(window: MdiWindowInfo, mdiState: MdiState) {
+    val colors = LocalGraphColors.current
     Row(
         modifier = Modifier
             .height(24.dp)
-            .background(Color(0xFF3C3C3C), RoundedCornerShape(4.dp))
-            .border(1.dp, Color(0xFF555555), RoundedCornerShape(4.dp))
+            .background(colors.windowTitleBar, RoundedCornerShape(4.dp))
+            .border(1.dp, colors.windowBorder, RoundedCornerShape(4.dp))
             .padding(horizontal = 8.dp)
             .pointerInput(window.id) {
                 detectTapGestures { mdiState.toggleMinimize(window.id) }
             },
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(window.title, color = Color(0xFFCCCCCC), fontSize = 11.sp)
+        Text(window.title, color = colors.windowTitleText, fontSize = 11.sp)
     }
 }

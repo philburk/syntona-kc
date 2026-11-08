@@ -170,5 +170,8 @@ class SettingsStore(
 
         /** Key for whether wires are rendered on top of modules. */
         const val KEY_WIRES_ON_TOP = "wiresOnTop"
+
+        /** Key for the UI color theme ("DARK" or "LIGHT"). */
+        const val KEY_COLOR_THEME = "colorTheme"
     }
 }

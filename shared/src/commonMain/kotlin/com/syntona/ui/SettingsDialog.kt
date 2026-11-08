@@ -47,7 +47,10 @@ import com.softsynth.audiobridge.AudioDeviceInfo
 import com.softsynth.audiobridge.AudioDeviceManager
 import com.softsynth.audiobridge.AudioInputBridge
 import com.syntona.core.audio.AudioSettings
+import com.syntona.dataflow.editor.ColorTheme
 import com.syntona.dataflow.editor.CompactDropdownMenuItem
+import com.syntona.dataflow.editor.GraphViewSettings
+import com.syntona.dataflow.editor.LocalGraphColors
 import com.syntona.core.audio.LatencyMeasurement
 import com.syntona.core.audio.SynthKSyn
 import kotlin.math.abs
@@ -55,6 +58,7 @@ import kotlin.math.log10
 import kotlinx.coroutines.launch
 
 private enum class SettingsTab(val title: String) {
+    GENERAL("General"),
     AUDIO("Audio"),
     LATENCY("Latency")
 }
@@ -81,7 +85,7 @@ object SettingsDialogState {
  */
 @Composable
 fun SettingsDialog(onDismiss: () -> Unit) {
-    var selectedTab by remember { mutableStateOf(SettingsTab.AUDIO) }
+    var selectedTab by remember { mutableStateOf(SettingsTab.GENERAL) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -100,6 +104,7 @@ fun SettingsDialog(onDismiss: () -> Unit) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Box(modifier = Modifier.heightIn(min = 220.dp)) {
                     when (selectedTab) {
+                        SettingsTab.GENERAL -> GeneralSettingsTab()
                         SettingsTab.AUDIO -> AudioSettingsTab()
                         SettingsTab.LATENCY -> LatencySettingsTab()
                     }
@@ -110,6 +115,40 @@ fun SettingsDialog(onDismiss: () -> Unit) {
             TextButton(onClick = onDismiss) { Text("Close") }
         }
     )
+}
+
+@Composable
+private fun GeneralSettingsTab() {
+    var expanded by remember { mutableStateOf(false) }
+    val currentTheme = GraphViewSettings.colorTheme
+
+    Column(
+        modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("Color Theme", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Box {
+                Button(onClick = { expanded = true }) {
+                    Text(currentTheme.label)
+                }
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    ColorTheme.entries.forEach { theme ->
+                        CompactDropdownMenuItem(
+                            text = { Text(theme.label, fontSize = 12.sp) },
+                            onClick = {
+                                expanded = false
+                                GraphViewSettings.setColorTheme(theme)
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -234,11 +273,12 @@ private fun LatencySettingsTab() {
             return@Column
         }
 
+        val colors = LocalGraphColors.current
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFF1E1E1E), RoundedCornerShape(4.dp))
-                .border(1.dp, Color(0xFF444444), RoundedCornerShape(4.dp))
+                .background(colors.background, RoundedCornerShape(4.dp))
+                .border(1.dp, colors.moduleBorder, RoundedCornerShape(4.dp))
                 .padding(8.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
@@ -468,11 +508,12 @@ private fun formatMillis(value: Double): String {
 /** Shows which devices are actually open right now, which is what the user cares about. */
 @Composable
 private fun InUseSummary(isRestarting: Boolean) {
+    val colors = LocalGraphColors.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFF1E1E1E), RoundedCornerShape(4.dp))
-            .border(1.dp, Color(0xFF444444), RoundedCornerShape(4.dp))
+            .background(colors.background, RoundedCornerShape(4.dp))
+            .border(1.dp, colors.moduleBorder, RoundedCornerShape(4.dp))
             .padding(8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {

@@ -83,25 +83,27 @@ import kotlin.math.roundToInt
 
 // ---------------------------------------------------------------------------- colors
 
-private val PR_BACKGROUND = Color(0xFF1A1A2E)
-private val PR_GRID_LINE = Color(0x22FFFFFF)
-private val PR_OCTAVE_LINE = Color(0x55FFFFFF)
-private val PR_BEAT_LINE = Color(0x14FFFFFF)
-private val PR_MEASURE_LINE = Color(0x33FFFFFF)
-private val PR_NOTE_FILL = Color(0xFF64748B)
-private val PR_NOTE_ROOT_FILL = Color(0xFF475569)
-private val PR_NOTE_PLAYING = Color(0xFF3B82F6)
-private val PR_NOTE_TEXT = Color.White
-private val PR_SELECTED_OUTLINE = Color(0xFFEF4444)
-private val PR_CONNECTOR = Color(0xFF60A5FA)
-private val PR_RATIO_TEXT = Color(0xFF93C5FD)
-private val PR_GHOST = Color(0x8894A3B8)
-private val PR_PLAYHEAD = Color(0xFFEF4444)
-private val PR_RULER_BG = Color(0xFF12122A)
-private val PR_RULER_TEXT = Color(0xFF94A3B8)
-private val PR_RUBBER_SELECT = Color(0x333B82F6)
-private val PR_RUBBER_ERASE = Color(0x33EF4444)
-private val PR_CHAIN_LINE = Color(0xFF10B981)
+private val isDarkPianoRoll: Boolean get() = GraphViewSettings.isDarkMode
+
+private val PR_BACKGROUND: Color get() = if (isDarkPianoRoll) Color(0xFF1A1A2E) else Color(0xFFF8FAFC)
+private val PR_GRID_LINE: Color get() = if (isDarkPianoRoll) Color(0x22FFFFFF) else Color(0x18000000)
+private val PR_OCTAVE_LINE: Color get() = if (isDarkPianoRoll) Color(0x55FFFFFF) else Color(0x44000000)
+private val PR_BEAT_LINE: Color get() = if (isDarkPianoRoll) Color(0x14FFFFFF) else Color(0x14000000)
+private val PR_MEASURE_LINE: Color get() = if (isDarkPianoRoll) Color(0x33FFFFFF) else Color(0x33000000)
+private val PR_NOTE_FILL: Color get() = Color(0xFF64748B)
+private val PR_NOTE_ROOT_FILL: Color get() = Color(0xFF475569)
+private val PR_NOTE_PLAYING: Color get() = Color(0xFF3B82F6)
+private val PR_NOTE_TEXT: Color get() = Color.White
+private val PR_SELECTED_OUTLINE: Color get() = Color(0xFFEF4444)
+private val PR_CONNECTOR: Color get() = if (isDarkPianoRoll) Color(0xFF60A5FA) else Color(0xFF2563EB)
+private val PR_RATIO_TEXT: Color get() = if (isDarkPianoRoll) Color(0xFF93C5FD) else Color(0xFF1D4ED8)
+private val PR_GHOST: Color get() = if (isDarkPianoRoll) Color(0x8894A3B8) else Color(0x8864748B)
+private val PR_PLAYHEAD: Color get() = Color(0xFFEF4444)
+private val PR_RULER_BG: Color get() = if (isDarkPianoRoll) Color(0xFF12122A) else Color(0xFFE2E8F0)
+private val PR_RULER_TEXT: Color get() = if (isDarkPianoRoll) Color(0xFF94A3B8) else Color(0xFF334155)
+private val PR_RUBBER_SELECT: Color get() = Color(0x333B82F6)
+private val PR_RUBBER_ERASE: Color get() = Color(0x33EF4444)
+private val PR_CHAIN_LINE: Color get() = if (isDarkPianoRoll) Color(0xFF10B981) else Color(0xFF059669)
 
 // ---------------------------------------------------------------------------- tools
 
@@ -916,8 +918,9 @@ private fun PianoRollScrollBar(
         val trackHeight = size.height
 
         // Draw top separator border
+        val trackLineColor = if (isDarkPianoRoll) Color(0x14FFFFFF) else Color(0x22000000)
         drawLine(
-            color = Color(0x14FFFFFF),
+            color = trackLineColor,
             start = Offset(0f, 0f),
             end = Offset(trackWidth, 0f),
             strokeWidth = 1f
@@ -928,7 +931,7 @@ private fun PianoRollScrollBar(
         val barY = (trackHeight - barHeight) / 2f
 
         drawRoundRect(
-            color = Color(0x14FFFFFF),
+            color = trackLineColor,
             topLeft = Offset(0f, barY),
             size = Size(trackWidth, barHeight),
             cornerRadius = CornerRadius(barHeight / 2f)
@@ -973,6 +976,7 @@ private fun PianoRollToolbar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
+        val borderMuted = if (isDarkPianoRoll) Color(0x33FFFFFF) else Color(0x33000000)
         PianoRollTool.entries.forEach { t ->
             val selected = tool == t
             TextButton(
@@ -980,17 +984,21 @@ private fun PianoRollToolbar(
                 modifier = Modifier
                     .border(
                         width = 1.dp,
-                        color = if (selected) PR_NOTE_PLAYING else Color(0x33FFFFFF),
+                        color = if (selected) PR_NOTE_PLAYING else borderMuted,
                         shape = RoundedCornerShape(4.dp),
                     )
                     .height(30.dp)
                     .focusProperties { canFocus = false },
             ) {
-                Text(t.label, fontSize = 11.sp, color = if (selected) Color.White else PR_RULER_TEXT)
+                Text(
+                    t.label,
+                    fontSize = 11.sp,
+                    color = if (selected) (if (isDarkPianoRoll) Color.White else PR_NOTE_PLAYING) else PR_RULER_TEXT
+                )
             }
         }
 
-        Text("|", color = Color(0x33FFFFFF))
+        Text("|", color = borderMuted)
 
         TextButton(
             onClick = { module.requestPlayToggle() },
@@ -1006,15 +1014,16 @@ private fun PianoRollToolbar(
                     StopIcon(color = PR_PLAYHEAD, size = 10.dp)
                     Text("Stop", fontSize = 12.sp, color = PR_PLAYHEAD)
                 } else {
-                    PlayIcon(color = Color(0xFF34D399), size = 10.dp)
-                    Text("Play", fontSize = 12.sp, color = Color(0xFF34D399))
+                    val playColor = if (isDarkPianoRoll) Color(0xFF34D399) else Color(0xFF059669)
+                    PlayIcon(color = playColor, size = 10.dp)
+                    Text("Play", fontSize = 12.sp, color = playColor)
                 }
             }
         }
 
         DurationSelector(defaultDurationTicks, onDefaultDurationChange)
 
-        Text("|", color = Color(0x33FFFFFF))
+        Text("|", color = borderMuted)
 
         Text("Zoom", fontSize = 10.sp, color = PR_RULER_TEXT)
         Slider(
@@ -1023,9 +1032,9 @@ private fun PianoRollToolbar(
             valueRange = 0.1f..2f,
             modifier = Modifier.width(110.dp),
             colors = SliderDefaults.colors(
-                thumbColor = Color.White, // Sets the thumb color
-                activeTrackColor = Color.Yellow, // Matches the track to the left of the thumb
-                inactiveTrackColor = Color.LightGray // Track to the right of the thumb
+                thumbColor = if (isDarkPianoRoll) Color.White else Color.DarkGray, // Sets the thumb color
+                activeTrackColor = if (isDarkPianoRoll) Color.Yellow else Color(0xFFF59E0B), // Matches the track to the left of the thumb
+                inactiveTrackColor = if (isDarkPianoRoll) Color.LightGray else Color(0xFF94A3B8) // Track to the right of the thumb
             ),
             // 1. Override the default track
             track = { sliderState ->
@@ -1034,8 +1043,8 @@ private fun PianoRollToolbar(
                     // 2. Set the gap to 0 to prevent the background from showing through
                     thumbTrackGapSize = 0.dp,
                     colors = SliderDefaults.colors(
-                        activeTrackColor = Color.Yellow,
-                        inactiveTrackColor = Color.LightGray
+                        activeTrackColor = if (isDarkPianoRoll) Color.Yellow else Color(0xFFF59E0B),
+                        inactiveTrackColor = if (isDarkPianoRoll) Color.LightGray else Color(0xFF94A3B8)
                     )
                 )
             },
