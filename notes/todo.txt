@@ -6,9 +6,7 @@ MAKE SOME MUSIC!
 Create a Discourse site for Syntona.
 Update links in the app.
 
-Add more of the example patches as help modules.
-
-Add more physical models.
+Add comment in examples/recorder.
 
 Add choose module and choose(4) in the f(x). Int output, 0 to N-1.
 
@@ -18,10 +16,12 @@ Add Gaussian distribution and histogram display with auto-ranging.
 
 Toolbar toggle that tells all the modules to show their jack values instead of their jack names.
 
+Add more physical models. Modal resonators, violin, guitar body, reed with feedback.
+Not physically accurate but flexible thingy model. Start in KSyn.
+
 On FireFox plug in MIDI hardware before running Syntona.
 Install the MIDI Add-on.
 Or just say "Works best on Chrome..."
-
 
 Add range and expRange modules. How handle zero crossing? Linear region around zero. Max 3 orders of magnitude on either side?
 How does knob currently handle exponential taper crossing zero?
@@ -45,6 +45,8 @@ Composing Tutorial
 
 TimeLine and BeatLine Tutorial
 * Add an Audio Track, drag copy, punch in
+
+Add synthesis tutorials.
 
 Add drum grid modules, 4x8, 4x16, 8x16, cascadable for 8x32 and syncable for 16x16.
 

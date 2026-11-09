@@ -74,6 +74,7 @@ object ModuleRegistry {
         "*" to "multiply two numbers (A * B)",
         "/" to "divide two numbers (A / B)",
         "abs" to "calculate the absolute value of a number",
+        "choose" to "generate a pseudo-random integer in 0..(range - 1) when kicked",
         "compare" to "compare two numbers and output to less-than, equal, or greater-than jacks",
         "cos" to "calculate cosine of an angle in radians",
         "floor" to "round number down to the nearest integer",
@@ -337,6 +338,7 @@ object ModuleRegistry {
         math.modules.add(ModuleEntry("*") { MultiplyModule() })
         math.modules.add(ModuleEntry("/") { DivideModule() })
         math.modules.add(ModuleEntry("abs") { AbsModule() })
+        math.modules.add(ModuleEntry("choose") { ChooseModule() })
         math.modules.add(ModuleEntry("compare") { CompareModule() })
         math.modules.add(ModuleEntry("cos") { CosineModule() })
         math.modules.add(ModuleEntry("floor") { FloorModule() })

@@ -112,7 +112,7 @@ class EquationModule(type: String) : Module(type) {
                 }
             }
             is UnaryNode -> {
-                val allowed = listOf("+", "-", "sin", "cos", "tan", "ln", "log", "exp", "sqrt", "abs", "floor", "round", "p2f", "f2p")
+                val allowed = listOf("+", "-", "sin", "cos", "tan", "ln", "log", "exp", "sqrt", "abs", "floor", "round", "p2f", "f2p", "choose")
                 if (node.operation !in allowed) {
                     throw IllegalArgumentException("Unknown function: ${node.operation}")
                 }
@@ -162,6 +162,10 @@ class EquationModule(type: String) : Module(type) {
                     "round" -> kotlin.math.round(arg)
                     "p2f" -> com.softsynth.math.AudioMath.pitchToFrequency(arg)
                     "f2p" -> com.softsynth.math.AudioMath.frequencyToPitch(arg)
+                    "choose" -> {
+                        val n = arg.toInt()
+                        if (n > 0) Random.nextInt(n).toDouble() else 0.0
+                    }
                     else -> throw IllegalArgumentException("Unknown unary operation: ${node.operation}")
                 }
             }

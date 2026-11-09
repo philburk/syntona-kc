@@ -15,11 +15,7 @@ Provide feedback for the user when moving notes.
 * Play the note when it moves.
 * Display the note name and octave, eg. "F#4".
 
-## Advanced Features
-
-* Add advanced editing such as retrograde inversion, transposition chromatic and in-key.
-* Allow editing of contours and other parameters in time with the notes.
-* Add editing note parameters and articulations.
+Can be used as an alternative display mode for a MIDI track in a timeline. PianoRoll/Staff/Events
 
 ## Design Considerations
 
@@ -32,3 +28,12 @@ Pizzicato is required. Should articulations be implemented using:
 * a separate output
 * a separate channel
 
+What are the new articulations defined for the Orchestra Profile in MIDI 2.0?
+
+## Advanced Features
+
+* Add advanced editing such as retrograde inversion, transposition chromatic and in-key.
+* Allow editing of contours and other parameters in time with the notes.
+* Add editing note parameters and articulations.
+* Measure lines for multiple instruments can be synced or not to support polyrhythms or independent accelerandi.
+* Per Note Controller editing for MIDI 2.0.

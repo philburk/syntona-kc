@@ -316,5 +316,71 @@ class EquationModuleTest {
         kotlin.test.assertFalse(compileMaxSingleArg, "max with single arg should fail compilation")
         assertTrue(mod.errorMessage?.contains("requires at least 2 arguments") == true)
     }
+
+    @Test
+    fun testChooseFunction() {
+        val seen = mutableSetOf<Int>()
+        for (i in 0 until 200) {
+            val v = evaluateFormula("choose(6)")
+            assertEquals(kotlin.math.floor(v), v, "choose(6) should return an integer")
+            val intVal = v.toInt()
+            assertTrue(intVal in 0..5, "choose(6) value $intVal should be in 0..5")
+            seen.add(intVal)
+        }
+        assertEquals((0..5).toSet(), seen, "choose(6) should cover 0..5 over 200 samples")
+
+        // Variable argument in f(x), f(x,y), f(x,y,z)
+        for (i in 0 until 50) {
+            val v = evaluateFormula("choose(x) + y + z", x = 4.0, y = 10.0, z = 100.0)
+            val offset = (v - 110.0).toInt()
+            assertTrue(offset in 0..3, "choose(4) offset $offset should be in 0..3")
+        }
+
+        // Edge case: non-positive N returns 0.0
+        assertEquals(0.0, evaluateFormula("choose(0)"))
+        assertEquals(0.0, evaluateFormula("choose(-5)"))
+    }
+
+    @Test
+    fun testChooseModule() {
+        val creator = ModuleRegistry.findCreator("choose")
+        assertNotNull(creator, "choose should be registered in ModuleRegistry")
+        assertEquals("core.math.choose", ModuleRegistry.getBundlePath("choose"))
+
+        val choose = creator() as ChooseModule
+        assertEquals("choose", choose.name)
+        assertEquals("kick", choose.kick.name)
+        assertTrue(choose.range.isInteger)
+        assertEquals(false, choose.range.isKickable)
+        assertTrue(choose.output.isInteger)
+
+        var lastValue: Double? = null
+        val receiver = object : com.syntona.dataflow.model.Module("receiver") {
+            val input = addInput("in", isKickable = true)
+            override fun execute(triggerMessage: Message) {
+                if (triggerMessage is Message.FloatValue) {
+                    lastValue = triggerMessage.value
+                }
+            }
+        }
+        choose.output.connect(receiver.input)
+
+        // Setting range should not trigger output
+        choose.range.setValue(6.0)
+        assertEquals(null, lastValue, "Setting range should not trigger output")
+
+        val seen = mutableSetOf<Int>()
+        for (i in 0 until 200) {
+            choose.kick.receive(Message.FloatValue(ScoreTime.Zero, 1.0))
+            val v = lastValue
+            assertNotNull(v)
+            assertEquals(kotlin.math.floor(v), v, "Output should be an integer")
+            val intVal = v.toInt()
+            assertTrue(intVal in 0..5, "Output $intVal should be in 0..5 when range is 6")
+            seen.add(intVal)
+        }
+        assertEquals((0..5).toSet(), seen, "choose module should produce all values 0..5")
+    }
 }
+
 
