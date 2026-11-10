@@ -283,5 +283,19 @@ class JackRoundTripTest {
         val backEnvSeg = roundTrip(envSeg) as com.syntona.dataflow.modules.EnvSegModule
         assertEquals(com.syntona.dataflow.model.AutoDisableVoiceMode.NO, backEnvSeg.autoDisableVoice)
     }
+
+    @Test
+    fun audioInputJackValueAddedSurvivesSaveAndLoad() {
+        val filter = com.syntona.dataflow.modules.UnitGeneratorModule(
+            "lowPass",
+            com.softsynth.ksyn.unitgen.FilterLowPass()
+        )
+        val freqJack = filter.inputs.first { it.name == "frequency" } as com.syntona.dataflow.model.AudioInputJack
+        assertEquals(false, freqJack.isValueAdded)
+        freqJack.isValueAdded = true
+        val backFilter = roundTrip(filter) as com.syntona.dataflow.modules.UnitGeneratorModule
+        val backFreqJack = backFilter.inputs.first { it.name == "frequency" } as com.syntona.dataflow.model.AudioInputJack
+        assertEquals(true, backFreqJack.isValueAdded)
+    }
 }
 

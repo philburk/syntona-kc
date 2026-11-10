@@ -96,7 +96,8 @@ class ModuleRegistryTest {
         assertEquals("tutorials/07_audio_input/05_sampleReader.json", ModuleRegistry.getHelpResourcePath("sampleReader"))
         assertEquals("tutorials/07_audio_input/05_sampleReader.json", ModuleRegistry.getHelpResourcePath("ksyn.data.sampleReader"))
 
-        assertEquals(null, ModuleRegistry.getHelpResourcePath("keyboard13"))
+        assertEquals("examples/keyboard13.json", ModuleRegistry.getHelpResourcePath("keyboard13"))
+        assertEquals(null, ModuleRegistry.getHelpResourcePath("keyboard25"))
     }
 
     @Test

@@ -2436,7 +2436,9 @@ fun CommandOutputJackView(jack: CommandOutputJack, state: GraphState, isLeft: Bo
 private fun JackMarker(jack: Jack, state: GraphState? = null, squareSize: Dp = 8.dp) {
     val colors = LocalGraphColors.current
     val isUniversal = jack is UniversalInputJack || jack is UniversalOutputJack
+    val isAudioAdd = jack is AudioInputJack && jack.isValueAdded
     val typeColor = when {
+        isAudioAdd -> colors.jackAudioAddBg
         jack is AudioInputJack || jack is AudioOutputJack -> colors.jackAudio
         jack is VoiceInputJack || jack is VoiceOutputJack -> colors.jackVoice
         jack is SequentialDataInputJack || jack is SequentialDataOutputJack -> colors.jackSequentialData
@@ -2461,7 +2463,33 @@ private fun JackMarker(jack: Jack, state: GraphState? = null, squareSize: Dp = 8
                     }
                 } else Modifier
             )
-        Box(modifier = boxModifier)
+        Box(
+            modifier = boxModifier,
+            contentAlignment = Alignment.Center
+        ) {
+            if (isAudioAdd) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val strokeWidth = 1.5.dp.toPx()
+                    val padding = 1.5.dp.toPx()
+                    val cx = size.width / 2f
+                    val cy = size.height / 2f
+                    drawLine(
+                        color = colors.jackAudioAddPlus,
+                        start = Offset(padding, cy),
+                        end = Offset(size.width - padding, cy),
+                        strokeWidth = strokeWidth,
+                        cap = StrokeCap.Butt
+                    )
+                    drawLine(
+                        color = colors.jackAudioAddPlus,
+                        start = Offset(cx, padding),
+                        end = Offset(cx, size.height - padding),
+                        strokeWidth = strokeWidth,
+                        cap = StrokeCap.Butt
+                    )
+                }
+            }
+        }
         if (jack is InputJack && jack.isKickable) {
             Canvas(modifier = Modifier.size(width = squareSize / 2, height = squareSize)) {
                 drawPath(

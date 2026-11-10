@@ -3,8 +3,6 @@
 
 MAKE SOME MUSIC!
 
-Indicate whether an Audio port is in Add? mode.
-
 Add Gaussian distribution and histogram display with auto-ranging.
 
 Toolbar toggle that tells all the modules to show their jack values instead of their jack names.

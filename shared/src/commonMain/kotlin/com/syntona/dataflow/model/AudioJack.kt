@@ -1,5 +1,8 @@
 package com.syntona.dataflow.model
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.softsynth.ksyn.ports.UnitInputPort
 import com.softsynth.ksyn.ports.UnitOutputPort
 
@@ -36,12 +39,15 @@ class AudioInputJack(
             polyPatch?.syncInputJackMax(this, value)
         }
 
+    private var _isValueAdded by mutableStateOf(unitInputPort.isValueAdded)
+
     /** When true, the value set() on this jack is added to the audio values of connected ports
      * instead of being ignored while an audio-rate connection is present. */
     var isValueAdded: Boolean
-        get() = unitInputPort.isValueAdded
+        get() = _isValueAdded
         set(value) {
             unitInputPort.isValueAdded = value
+            _isValueAdded = value
             val polyPatch = module.parentPatch as? com.syntona.dataflow.modules.PolyPatchModule
             polyPatch?.syncInputJackValueAdded(this, value)
         }
