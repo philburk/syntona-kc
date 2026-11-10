@@ -41,6 +41,21 @@ class MultiplyModule : BinaryOperatorModule("*") {
     }
 }
 
+/**
+ * Multiplies two inputs and adds a third: (A * B) + C.
+ */
+class MultiplyAddModule : Module("*+") {
+    val inputA = addInput("A", isKickable = true)
+    val inputB = addInput("B", isKickable = false)
+    val inputC = addInput("C", isKickable = false)
+    val output = addOutput("out")
+
+    override fun execute(triggerMessage: Message) {
+        val result = (inputA.getDoubleValue() * inputB.getDoubleValue()) + inputC.getDoubleValue()
+        output.send(Message.FloatValue(triggerMessage.time, result))
+    }
+}
+
 class SubtractModule : BinaryOperatorModule("-") {
     override fun execute(triggerMessage: Message) {
         val product = inputA.getDoubleValue() - inputB.getDoubleValue()

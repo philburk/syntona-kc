@@ -72,6 +72,7 @@ object ModuleRegistry {
         "+" to "add two numbers (A + B)",
         "-" to "subtract two numbers (A - B)",
         "*" to "multiply two numbers (A * B)",
+        "*+" to "multiply two numbers and add a third ((A * B) + C)",
         "/" to "divide two numbers (A / B)",
         "abs" to "calculate the absolute value of a number",
         "choose" to "generate a pseudo-random integer in 0..(range - 1) when kicked",
@@ -336,6 +337,7 @@ object ModuleRegistry {
         math.modules.add(ModuleEntry("+") { AddModule() })
         math.modules.add(ModuleEntry("-") { SubtractModule() })
         math.modules.add(ModuleEntry("*") { MultiplyModule() })
+        math.modules.add(ModuleEntry("*+") { MultiplyAddModule() })
         math.modules.add(ModuleEntry("/") { DivideModule() })
         math.modules.add(ModuleEntry("abs") { AbsModule() })
         math.modules.add(ModuleEntry("choose") { ChooseModule() })

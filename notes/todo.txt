@@ -3,15 +3,44 @@
 
 MAKE SOME MUSIC!
 
-Add Mute and Solo buttons to the Mixer4x2 and Mixer8x2, to the right of the pan knobs.
-The Solo button should have a prominent red color, like a "rude solo"
-so that it is obvious when enabled.
+Use a monospace font for the number in a jack display so the width does not jump around so much.
+
+Better mapping of velocity to amplitude. Different curves in MIDI Settings.
+
+Add a command input jack. Maybe in a core/patches bundle.
+
+Add duration to _NOTE_ command to support staff notation.
+See staff.md file.
+
+Add drum grid modules, 4x8, 4x16, 8x16, cascadable for 8x32 and syncable for 16x16.
+
+Network MIDI 2.0 so we can access MIDI 2.0 synths in Logic or ???
+
+Add a "normalize sample" function to the sample and recorder module menu.
+
+Add ksyn.patches.soundPatch module with "trigger" and audio "out".
+Uses a Circuit so that setupAutoDisable() can be used to reduce CPU load.
+Can be exported as a Circuit to JSyn or KSyn.
+Should we have an interface like PitchedVoice in KSyn or KMSL?
+
+Add a waitAll module that waits for all connected patches to finish.
+This can be used to implement a parallelConnection.
+
+Add Gaussian distribution and histogram display with auto-ranging.
+
+DAHDSR decay needs higher range in KSyn.
+
+AudioJacks do not need to store the kickable value in the JSON because it is ignored.
+
+Website softsynth.com/syntona
+* user guide, just to get started and into the tutorial
+* archive old Syntona
+* Overview, screen shots, recordings
+
+# ----------------------------------------------- HIGH PRIORITY
 
 A seq8 with numeric fields or knobs or horizontal faders that can be swept quickly to make a shape.
 
-Knobs with a range that crosses zero, like the Pan knobs on a mixer, should have their indicators center at 0.0, not the min value.
-
-Add Gaussian distribution and histogram display with auto-ranging.
 
 Toolbar toggle that tells all the modules to show their jack values instead of their jack names.
 
@@ -43,12 +72,6 @@ TimeLine and BeatLine Tutorial
 
 Add synthesis tutorials.
 
-Add drum grid modules, 4x8, 4x16, 8x16, cascadable for 8x32 and syncable for 16x16.
-
-# ----------------------------------------------- HIGH PRIORITY
-
-Network MIDI 2.0 so we can access MIDI 2.0 synths in Logic or ???
-
 BUG: deleting modules using BACKSPACE or DELETE key sometimes does not work. Edit menu Cut always works.
 Need repro steps.
 
@@ -56,17 +79,8 @@ Add Asset Manager that can Zip WAV files in a ZIP.
 
 Label wire outputs with order (1) (2)
 
-Better mapping of velocity to amplitude. Different curves in MIDI Settings.
-
 Move polyPatch into ksyn.patches bundle.
 
-Add ksyn.patches.soundPatch module with "trigger" and audio "out".
-Uses a Circuit so that setupAutoDisable() can be used to reduce CPU load.
-Can be exported as a Circuit to JSyn or KSyn.
-Should we have an interface like PitchedVoice in KSyn or KMSL?
-
-Add a waitAll module that waits for all connected patches to finish.
-This can be used to implement a parallelConnection.
 
 Timeline - show time as a popup when dragging a Trigger or a region.
 
@@ -80,7 +94,6 @@ section aren't heard until the next cycle; old WAV files are never deleted.
 
 # ----------------------------------------------- MEDIUM PRIORITY
 
-Add a "normalize sample" function to the sample and recorder module menu.
 
 For beatLine DAW:
 Support quantization based on tempo, save original content for requantization.
@@ -99,7 +112,6 @@ Call it a "blast" because it blasts out indexed kicks?
 
 Add XY display to scope for Lissajous curves
 
-
 Getting Started video on YouTube
 
 Add hierarchy editor
@@ -114,10 +126,6 @@ Nick: Suggest an Input Wizard for a patch.
 NoiseGate - implement using modules as a patch?
 
 Show units in one line help, eg. seconds
-
-DAHDSR decay needs higher range in KSyn.
-
-AudioJacks do not need to store the kickable value in the JSON because it is ignored.
 
 When selecting a new input/output audio device pair, suggest measuring latency.
 

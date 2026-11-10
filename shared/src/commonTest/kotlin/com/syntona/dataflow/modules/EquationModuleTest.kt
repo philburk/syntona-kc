@@ -381,6 +381,37 @@ class EquationModuleTest {
         }
         assertEquals((0..5).toSet(), seen, "choose module should produce all values 0..5")
     }
+
+    @Test
+    fun testMultiplyAddModule() {
+        val creator = ModuleRegistry.findCreator("*+")
+        assertNotNull(creator, "*+ should be registered in ModuleRegistry")
+        assertEquals("core.math.*+", ModuleRegistry.getBundlePath("*+"))
+
+        val mulAdd = creator() as MultiplyAddModule
+        assertEquals("*+", mulAdd.name)
+        assertTrue(mulAdd.inputA.isKickable)
+        assertEquals(false, mulAdd.inputB.isKickable)
+        assertEquals(false, mulAdd.inputC.isKickable)
+
+        var lastValue: Double? = null
+        val receiver = object : com.syntona.dataflow.model.Module("receiver") {
+            val input = addInput("in", isKickable = true)
+            override fun execute(triggerMessage: Message) {
+                if (triggerMessage is Message.FloatValue) {
+                    lastValue = triggerMessage.value
+                }
+            }
+        }
+        mulAdd.output.connect(receiver.input)
+
+        mulAdd.inputB.setValue(3.0)
+        mulAdd.inputC.setValue(10.0)
+        assertEquals(null, lastValue, "Setting B and C should not trigger output")
+
+        mulAdd.inputA.receive(Message.FloatValue(ScoreTime.Zero, 4.0))
+        assertEquals(22.0, lastValue, "(4.0 * 3.0) + 10.0 should equal 22.0")
+    }
 }
 
 
