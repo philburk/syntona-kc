@@ -3,8 +3,6 @@
 
 MAKE SOME MUSIC!
 
-Use a monospace font for the number in a jack display so the width does not jump around so much.
-
 Better mapping of velocity to amplitude. Different curves in MIDI Settings.
 
 Add a command input jack. Maybe in a core/patches bundle.

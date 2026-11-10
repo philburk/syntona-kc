@@ -1978,7 +1978,35 @@ fun MidiOutModuleNode(module: MidiOutModule, state: GraphState) {
     }
 }
 
-private fun formatValue(value: Double): String = formatNumber(value)
+private fun formatValue(value: Double, keepTrailingZeros: Boolean = false): String {
+    if (!keepTrailingZeros || !value.isFinite()) return formatNumber(value)
+    val absVal = kotlin.math.abs(value)
+    if (absVal == 0.0) return "0.0000"
+    val exp = kotlin.math.floor(kotlin.math.log10(absVal)).toInt()
+    return if (exp in -4..7) {
+        val isNeg = value < 0
+        val sign = if (isNeg) "-" else ""
+        if (absVal < 1.0) {
+            val frac = kotlin.math.round(absVal * 10000.0).toLong()
+            if (frac == 10000L) "${sign}1.0000"
+            else "${sign}0.${frac.toString().padStart(4, '0')}"
+        } else {
+            val intPart = absVal.toLong()
+            val fracPart = absVal - intPart
+            val frac = kotlin.math.round(fracPart * 10000.0).toLong()
+            if (frac == 10000L) "$sign${intPart + 1}.0000"
+            else "$sign$intPart.${frac.toString().padStart(4, '0')}"
+        }
+    } else {
+        val mantissa = value / 10.0.pow(exp)
+        val sign = if (mantissa < 0) "-" else ""
+        val absM = kotlin.math.abs(mantissa)
+        val intPart = absM.toLong()
+        val frac = kotlin.math.round((absM - intPart) * 1000.0).toLong()
+        if (frac == 1000L) "$sign${intPart + 1}.000e$exp"
+        else "$sign$intPart.${frac.toString().padStart(3, '0')}e$exp"
+    }
+}
 
 @Composable
 fun JackView(
@@ -2014,11 +2042,13 @@ fun JackView(
     var jackRootPosition by remember { mutableStateOf(Offset.Zero) }
 
     val shouldShowValueOnHover = jack.isDisplayableValue && (jack !is InputJack || jack.isValueDraggable)
+    val isShowingNumber = isValueDragging || (isHovered && shouldShowValueOnHover)
     val displayText = when {
-        isValueDragging -> formatValue(valueDragCurrentValue)
+        isValueDragging -> formatValue(valueDragCurrentValue, keepTrailingZeros = !jack.isInteger)
         isHovered && shouldShowValueOnHover -> formatValue(jack.getValue())
         else -> jack.name
     }
+    val displayFontFamily = if (isShowingNumber) FontFamily.Monospace else FontFamily.Default
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -2135,7 +2165,7 @@ fun JackView(
         if (isLeft) {
             JackMarker(jack, state)
             Spacer(modifier = Modifier.width(4.dp))
-            Text(displayText, color = textColor, fontSize = 10.sp, lineHeight = 10.sp, maxLines = 1, softWrap = false)
+            Text(displayText, color = textColor, fontSize = 10.sp, lineHeight = 10.sp, fontFamily = displayFontFamily, maxLines = 1, softWrap = false)
             trailingContent?.invoke()
             if (jack.module is SendModule) {
                 Spacer(modifier = Modifier.width(4.dp))
@@ -2209,6 +2239,7 @@ fun JackView(
                     color = textColor,
                     fontSize = 10.sp,
                     lineHeight = 10.sp,
+                    fontFamily = displayFontFamily,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     textAlign = TextAlign.End,
