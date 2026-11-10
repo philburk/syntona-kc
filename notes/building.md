@@ -18,5 +18,5 @@ This should only be done by Phil Burk or another team member.
 
 1. Enter:     ./gradlew :desktopApp:packageDmg
 2. Wait for a few minutes while Apple notarizes the DMG file.
-3. Look for DMG file in "syntona-kc/desktopApp/build/compose/binaries/main/dmg/".
+3. Open desktopApp/build/compose/binaries/main/dmg/
 4. Create a new tagged release on GitHub and attach the DMG file.

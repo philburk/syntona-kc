@@ -57,7 +57,7 @@ Syntona is available online as a web app at: [softsynth.com/syntona](https://sof
 ## Community & Feedback
 
 * **Website:** [softsynth.com/syntona](https://softsynth.com/syntona)
-* **Discord:** Join the discussion on [Discord](https://discord.gg/Q5tAD5bqw)
+* **Discourse:** Join the discussion on [Discourse](https://syntona.discourse.group/)
 * **Issues:** Report bugs or submit feature requests on [GitHub Issues](https://github.com/philburk/syntona-kc/issues)
 
 ---
