@@ -48,6 +48,7 @@ import com.syntona.dataflow.modules.EquationModule
 import com.syntona.dataflow.modules.ScaleModule
 import com.syntona.dataflow.modules.BeatClockModule
 import com.syntona.dataflow.modules.ChebyshevOscModule
+import com.syntona.dataflow.modules.MixerModule
 import com.syntona.dataflow.modules.TimelineModule
 import com.syntona.dataflow.modules.TrackSection
 import com.syntona.dataflow.modules.TrackType
@@ -338,6 +339,9 @@ object GraphSerializer {
                                 jack.name.substring(2).toIntOrNull() != null)
                         val v = if (module is XyPadModule) {
                             if (jack.name == "x") module.x else module.y
+                        } else if (module is MixerModule && jack.name.startsWith("gain")) {
+                            val idx = jack.name.substring(4).toIntOrNull()
+                            if (idx != null && idx in 0 until module.numInputs) module.getChannelGain(idx) else jack.getValue()
                         } else {
                             jack.getValue()
                         }
@@ -398,6 +402,16 @@ object GraphSerializer {
             }
             if (module is ChebyshevOscModule) {
                 append(",\"order\":${module.order}")
+            }
+            if (module is MixerModule) {
+                if ((0 until module.numInputs).any { module.isChannelMuted(it) }) {
+                    val mutedStr = (0 until module.numInputs).joinToString(",") { "${module.isChannelMuted(it)}" }
+                    append(",\"muted\":[$mutedStr]")
+                }
+                if ((0 until module.numInputs).any { module.isChannelSoloed(it) }) {
+                    val soloedStr = (0 until module.numInputs).joinToString(",") { "${module.isChannelSoloed(it)}" }
+                    append(",\"soloed\":[$soloedStr]")
+                }
             }
             if (module is TimelineModule) {
                 append(",\"width\":${module.width}")
@@ -829,6 +843,18 @@ object GraphSerializer {
             }
             if (module is ChebyshevOscModule) {
                 (obj?.map?.get("order") as? JsonValue.Num)?.value?.let { module.order = it.toInt() }
+            }
+            if (module is MixerModule) {
+                (obj?.map?.get("muted") as? JsonValue.Arr)?.items?.forEachIndexed { chIdx, item ->
+                    if (chIdx in 0 until module.numInputs) {
+                        module.setChannelMuted(chIdx, (item as? JsonValue.Bool)?.value ?: false)
+                    }
+                }
+                (obj?.map?.get("soloed") as? JsonValue.Arr)?.items?.forEachIndexed { chIdx, item ->
+                    if (chIdx in 0 until module.numInputs) {
+                        module.setChannelSoloed(chIdx, (item as? JsonValue.Bool)?.value ?: false)
+                    }
+                }
             }
             if (module is TimelineModule) {
                 (obj?.map?.get("width") as? JsonValue.Num)?.value?.let { module.width = it }

@@ -185,6 +185,7 @@ import com.syntona.dataflow.editor.FileState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.LineHeightStyle
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
@@ -3944,6 +3945,9 @@ fun MixerModuleNode(module: MixerModule, state: GraphState) {
         Column {
             ModuleHeader(module = module, state = state, headerColor = colors.headerAudio)
 
+            val inactiveBtnBg = if (colors.isDark) Color(0xFF333333) else colors.buttonBg
+            val inactiveBtnText = if (colors.isDark) Color.LightGray else colors.moduleText
+
             // Channel strips
             for (i in 0 until module.numInputs) {
                 Row(
@@ -3982,7 +3986,7 @@ fun MixerModuleNode(module: MixerModule, state: GraphState) {
                         modifier = Modifier.size(40.dp)
                     )
 
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
 
                     // Right knob: Pan (-1 to +1)
                     RotaryKnob(
@@ -4000,8 +4004,40 @@ fun MixerModuleNode(module: MixerModule, state: GraphState) {
                         modifier = Modifier.size(40.dp)
                     )
 
-                    Spacer(modifier = Modifier.weight(1f))
-                    Spacer(modifier = Modifier.width(28.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        TrackButton(
+                            text = "M",
+                            isActive = module.isChannelMuted(i),
+                            activeColor = Color(0xFFFFA000),
+                            inactiveColor = inactiveBtnBg,
+                            inactiveTextColor = inactiveBtnText,
+                            modifier = Modifier.size(15.dp),
+                            onClick = {
+                                module.setChannelMuted(i, !module.isChannelMuted(i))
+                                state.markChanged()
+                                FileState.markDirty()
+                            }
+                        )
+                        TrackButton(
+                            text = "S",
+                            isActive = module.isChannelSoloed(i),
+                            activeColor = Color(0xFFE53935),
+                            activeTextColor = Color.White,
+                            inactiveColor = inactiveBtnBg,
+                            inactiveTextColor = inactiveBtnText,
+                            modifier = Modifier.size(15.dp),
+                            onClick = {
+                                module.setChannelSoloed(i, !module.isChannelSoloed(i))
+                                state.markChanged()
+                                FileState.markDirty()
+                            }
+                        )
+                    }
                 }
             }
 
@@ -4470,13 +4506,16 @@ private fun TrackButton(
     text: String,
     isActive: Boolean,
     activeColor: Color,
+    activeTextColor: Color = Color.Black,
+    inactiveColor: Color = Color(0xFF333333),
+    inactiveTextColor: Color = Color.LightGray,
+    modifier: Modifier = Modifier.size(16.dp),
     onClick: () -> Unit
 ) {
     Box(
-        modifier = Modifier
-            .size(16.dp)
+        modifier = modifier
             .background(
-                color = if (isActive) activeColor else Color(0xFF333333),
+                color = if (isActive) activeColor else inactiveColor,
                 shape = RoundedCornerShape(2.dp)
             )
             .clickable(onClick = onClick),
@@ -4484,9 +4523,18 @@ private fun TrackButton(
     ) {
         Text(
             text = text,
-            color = if (isActive) Color.Black else Color.LightGray,
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Bold
+            color = if (isActive) activeTextColor else inactiveTextColor,
+            style = TextStyle(
+                fontSize = 9.sp,
+                lineHeight = 9.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                lineHeightStyle = LineHeightStyle(
+                    alignment = LineHeightStyle.Alignment.Center,
+                    trim = LineHeightStyle.Trim.Both
+                )
+            ),
+            modifier = Modifier.offset(y = (-0.5).dp)
         )
     }
 }

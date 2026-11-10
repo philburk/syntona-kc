@@ -3,6 +3,10 @@
 
 MAKE SOME MUSIC!
 
+Add Mute and Solo buttons to the Mixer4x2 and Mixer8x2, to the right of the pan knobs.
+The Solo button should have a prominent red color, like a "rude solo"
+so that it is obvious when enabled.
+
 A seq8 with numeric fields or knobs or horizontal faders that can be swept quickly to make a shape.
 
 Knobs with a range that crosses zero, like the Pan knobs on a mixer, should have their indicators center at 0.0, not the min value.
@@ -25,10 +29,7 @@ Volume of sampleGrains is low. Is that because we divide by N=16 = max grains at
 
 Seq8 should support feedback cycle.
 
-
 Move mixers to their own bundle.
-Add Mute and Solo buttons to the mixers.
-
 Maybe add a MixerSend and then have a separate mixer panel separate from the dataflow.
 That will be useful if we support a more DAW-like interface.,
 

@@ -880,6 +880,16 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                     sample = templateModule.sample
                 }
             }
+            is Mixer8x2Module -> {
+                Mixer8x2Module().apply {
+                    name = templateModule.name
+                }
+            }
+            is Mixer4x2Module -> {
+                Mixer4x2Module().apply {
+                    name = templateModule.name
+                }
+            }
             is UnitGeneratorModule -> {
                 val resolvedType = ModuleRegistry.resolveLegacyTypeName(templateModule.type)
                 val factory = ModuleRegistry.ksynFactories[templateModule.type]
@@ -917,11 +927,34 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                 voiceJack.isInteger = templateJack.isInteger
                 voiceJack.isExponential = templateJack.isExponential
                 if (voiceJack !is CommandJack && !voiceJack.isKickable) {
-                    voiceJack.setValue(templateJack.getValue())
+                    val v = if (templateModule is MixerModule && templateJack.name.startsWith("gain")) {
+                        val idx = templateJack.name.substring(4).toIntOrNull()
+                        if (idx != null && idx in 0 until templateModule.numInputs) templateModule.getChannelGain(idx) else templateJack.getValue()
+                    } else {
+                        templateJack.getValue()
+                    }
+                    voiceJack.setValue(v)
                 }
             }
         }
+        if (templateModule is MixerModule && voiceModule is MixerModule) {
+            for (ch in 0 until templateModule.numInputs) {
+                voiceModule.setChannelMuted(ch, templateModule.isChannelMuted(ch))
+                voiceModule.setChannelSoloed(ch, templateModule.isChannelSoloed(ch))
+            }
+        }
         return voiceModule
+    }
+
+    fun syncMixerMuteSolo(templateMixer: MixerModule) {
+        if (!isInitialized) return
+        for (voice in voices) {
+            val voiceMod = voice.templateToVoiceMap[templateMixer] as? MixerModule ?: continue
+            for (ch in 0 until templateMixer.numInputs) {
+                voiceMod.setChannelMuted(ch, templateMixer.isChannelMuted(ch))
+                voiceMod.setChannelSoloed(ch, templateMixer.isChannelSoloed(ch))
+            }
+        }
     }
 
     fun syncEnvSegEnvelope(templateMod: EnvSegModule, newEnvelope: com.softsynth.ksyn.data.SegmentedEnvelope) {

@@ -917,6 +917,71 @@ class PolyPatchModuleTest {
     }
 
     @Test
+    fun testMixerMuteAndSolo() {
+        val mixer = com.syntona.dataflow.modules.Mixer4x2Module()
+        val gain0 = (50.0.pow(0.8) - 1.0) / 49.0
+        val gain1 = (50.0.pow(0.6) - 1.0) / 49.0
+        val gain2 = (50.0.pow(0.4) - 1.0) / 49.0
+        mixer.getGainJack(0)!!.setValue(gain0)
+        mixer.getGainJack(1)!!.setValue(gain1)
+        mixer.getGainJack(2)!!.setValue(gain2)
+
+        // Initially all channels are audible
+        for (i in 0 until 4) {
+            kotlin.test.assertTrue(mixer.isChannelAudible(i))
+        }
+        assertEquals(gain0, mixer.getGainJack(0)!!.getValue(), 1e-4)
+        assertEquals(gain1, mixer.getGainJack(1)!!.getValue(), 1e-4)
+
+        // Mute channel 0: effective gain is 0, but knob position and channelGain remain intact
+        mixer.setChannelMuted(0, true)
+        kotlin.test.assertTrue(mixer.isChannelMuted(0))
+        kotlin.test.assertFalse(mixer.isChannelAudible(0))
+        assertEquals(0.0, mixer.getGainJack(0)!!.getValue(), 1e-4)
+        assertEquals(gain0, mixer.getChannelGain(0), 1e-4)
+        assertEquals(0.8f, mixer.getVolumeKnobValue(0), 1e-4f)
+        assertEquals(gain1, mixer.getGainJack(1)!!.getValue(), 1e-4)
+
+        // Unmute channel 0: effective gain is restored
+        mixer.setChannelMuted(0, false)
+        kotlin.test.assertTrue(mixer.isChannelAudible(0))
+        assertEquals(gain0, mixer.getGainJack(0)!!.getValue(), 1e-4)
+
+        // Solo channel 1: only channel 1 is audible; channels 0, 2, 3 are silenced
+        mixer.setChannelSoloed(1, true)
+        kotlin.test.assertFalse(mixer.isChannelAudible(0))
+        kotlin.test.assertTrue(mixer.isChannelAudible(1))
+        kotlin.test.assertFalse(mixer.isChannelAudible(2))
+        kotlin.test.assertFalse(mixer.isChannelAudible(3))
+        assertEquals(0.0, mixer.getGainJack(0)!!.getValue(), 1e-4)
+        assertEquals(gain1, mixer.getGainJack(1)!!.getValue(), 1e-4)
+        assertEquals(0.0, mixer.getGainJack(2)!!.getValue(), 1e-4)
+
+        // Round-trip save and load while channel 1 is soloed and channel 2 is muted
+        mixer.setChannelMuted(2, true)
+        val state = GraphState()
+        state.addModule(mixer, androidx.compose.ui.geometry.Offset.Zero)
+        val json = GraphSerializer.serialize(state, listOf(mixer))
+        val afterState = GraphState()
+        val loaded = GraphSerializer.deserialize(afterState, json)
+        val loadedMixer = loaded[0] as com.syntona.dataflow.modules.Mixer4x2Module
+
+        kotlin.test.assertFalse(loadedMixer.isChannelMuted(0))
+        kotlin.test.assertTrue(loadedMixer.isChannelSoloed(1))
+        kotlin.test.assertTrue(loadedMixer.isChannelMuted(2))
+        assertEquals(gain0, loadedMixer.getChannelGain(0), 1e-4)
+        assertEquals(gain1, loadedMixer.getChannelGain(1), 1e-4)
+        assertEquals(gain2, loadedMixer.getChannelGain(2), 1e-4)
+        assertEquals(0.0, loadedMixer.getGainJack(0)!!.getValue(), 1e-4)
+        assertEquals(gain1, loadedMixer.getGainJack(1)!!.getValue(), 1e-4)
+
+        // Unsolo channel 1 on loaded mixer: channel 0 becomes audible with its saved gain0, channel 2 stays muted
+        loadedMixer.setChannelSoloed(1, false)
+        assertEquals(gain0, loadedMixer.getGainJack(0)!!.getValue(), 1e-4)
+        assertEquals(0.0, loadedMixer.getGainJack(2)!!.getValue(), 1e-4)
+    }
+
+    @Test
     fun testSegEnvAndMonoRdrInPolyPatch() = kotlinx.coroutines.runBlocking {
         val polyPatch = PolyPatchModule()
         polyPatch.initializeVoices(2)

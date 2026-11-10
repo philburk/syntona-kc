@@ -15,6 +15,7 @@ examples/matchNoteOn4.json
 examples/midiIn.json
 examples/midiOut.json
 examples/midi_branch.json
+examples/mixer4x2.json
 examples/mod8_knobs.json
 examples/patch.json
 examples/pianoRoll.json
