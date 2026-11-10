@@ -79,7 +79,11 @@ data class GraphColors(
     val wireDragging: Color,
 
     // Fader specifics
-    val faderGrip: Color
+    val faderGrip: Color,
+
+    // Rotary knob
+    val knobArc: Color,
+    val knobTrack: Color
 )
 
 val DarkGraphColors = GraphColors(
@@ -149,7 +153,10 @@ val DarkGraphColors = GraphColors(
     wireUniversal = Color.White,
     wireDragging = Color.Yellow,
 
-    faderGrip = Color(0xFF888888)
+    faderGrip = Color(0xFF888888),
+
+    knobArc = Color(0xFFE6A820),
+    knobTrack = Color(0xFF3A3A3A)
 )
 
 val LightGraphColors = GraphColors(
@@ -219,7 +226,10 @@ val LightGraphColors = GraphColors(
     wireUniversal = Color(0xFF546E7A),
     wireDragging = Color(0xFFFBC02D),
 
-    faderGrip = Color(0xFF78909C)
+    faderGrip = Color(0xFF78909C),
+
+    knobArc = Color(0xFFFF9500),
+    knobTrack = Color(0xFF424242)
 )
 
 val LocalGraphColors = staticCompositionLocalOf { LightGraphColors }

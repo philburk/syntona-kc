@@ -3,6 +3,10 @@
 
 MAKE SOME MUSIC!
 
+A seq8 with numeric fields or knobs or horizontal faders that can be swept quickly to make a shape.
+
+Knobs with a range that crosses zero, like the Pan knobs on a mixer, should have their indicators center at 0.0, not the min value.
+
 Add Gaussian distribution and histogram display with auto-ranging.
 
 Toolbar toggle that tells all the modules to show their jack values instead of their jack names.
@@ -21,7 +25,6 @@ Volume of sampleGrains is low. Is that because we divide by N=16 = max grains at
 
 Seq8 should support feedback cycle.
 
-A seq8 with numeric fields or knobs or horizontal faders that can be swept quickly to make a shape.
 
 Move mixers to their own bundle.
 Add Mute and Solo buttons to the mixers.

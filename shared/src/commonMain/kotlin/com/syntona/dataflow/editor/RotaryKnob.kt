@@ -19,6 +19,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.sin
@@ -36,8 +37,8 @@ fun RotaryKnob(
     modifier: Modifier = Modifier,
     valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
     isExponential: Boolean = false,
-    trackColor: Color = Color(0xFF3A3A3A),
-    arcColor: Color = Color(0xFFE6A820),
+    trackColor: Color = LocalGraphColors.current.knobTrack,
+    arcColor: Color = LocalGraphColors.current.knobArc,
     knobBodyColor: Color = Color(0xFF808080),
     needleColor: Color = Color(0xFFDD2222),
 ) {
@@ -93,13 +94,16 @@ fun RotaryKnob(
         val cx = size.width / 2f
         val cy = size.height / 2f
         val availableRadius = minOf(cx, cy) - 2.dp.toPx()
-        val arcThickness = availableRadius * 0.20f
+        val visibleArcWidth = availableRadius * 0.20f
+        // Arc extends slightly underneath the knob body circle so no background shows through
+        val overlap = 1.5.dp.toPx()
+        val knobRadius = availableRadius - visibleArcWidth
+        val arcThickness = visibleArcWidth + overlap
         val arcMidRadius = availableRadius - arcThickness / 2f
-        val knobRadius = availableRadius - arcThickness - 1.dp.toPx()
 
         val arcTopLeft = Offset(cx - arcMidRadius, cy - arcMidRadius)
         val arcSize = Size(arcMidRadius * 2f, arcMidRadius * 2f)
-        val arcStroke = Stroke(width = arcThickness, cap = StrokeCap.Square)
+        val arcStroke = Stroke(width = arcThickness, cap = StrokeCap.Butt)
 
         // Background track arc
         drawArc(
@@ -112,20 +116,47 @@ fun RotaryKnob(
             style = arcStroke
         )
 
-        // Value arc (amber)
-        if (fraction > 0f) {
-            drawArc(
-                color = arcColor,
-                startAngle = KNOB_START_ANGLE,
-                sweepAngle = fraction * KNOB_SWEEP,
-                useCenter = false,
-                topLeft = arcTopLeft,
-                size = arcSize,
-                style = arcStroke
-            )
+        // Value arc
+        val crossesZero = valueRange.start < 0f && valueRange.endInclusive > 0f
+        if (crossesZero) {
+            val zeroFraction = com.syntona.dataflow.model.ExponentialTaper.valueToFraction(
+                0.0,
+                valueRange.start.toDouble(),
+                valueRange.endInclusive.toDouble(),
+                isExponential
+            ).toFloat().coerceIn(0f, 1f)
+
+            val zeroAngle = KNOB_START_ANGLE + zeroFraction * KNOB_SWEEP
+            val currentAngle = KNOB_START_ANGLE + fraction * KNOB_SWEEP
+            val arcStart = minOf(zeroAngle, currentAngle)
+            val arcSweep = abs(fraction - zeroFraction) * KNOB_SWEEP
+
+            if (arcSweep > 0.1f) {
+                drawArc(
+                    color = arcColor,
+                    startAngle = arcStart,
+                    sweepAngle = arcSweep,
+                    useCenter = false,
+                    topLeft = arcTopLeft,
+                    size = arcSize,
+                    style = arcStroke
+                )
+            }
+        } else {
+            if (fraction > 0f) {
+                drawArc(
+                    color = arcColor,
+                    startAngle = KNOB_START_ANGLE,
+                    sweepAngle = fraction * KNOB_SWEEP,
+                    useCenter = false,
+                    topLeft = arcTopLeft,
+                    size = arcSize,
+                    style = arcStroke
+                )
+            }
         }
 
-        // Knob body — two-tone for subtle depth
+        // Knob body — two-tone for subtle depth (drawn on top of the arc so the arc extends cleanly underneath)
         drawCircle(color = Color(0xFF484848), radius = knobRadius, center = Offset(cx, cy))
         drawCircle(
             color = knobBodyColor,
