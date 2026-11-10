@@ -6,8 +6,6 @@ MAKE SOME MUSIC!
 Create a Discourse site for Syntona.
 Update links in the app.
 
-Add comment in examples/recorder.
-
 Add choose module and choose(4) in the f(x). Int output, 0 to N-1.
 
 Indicate whether an Audio port is in Add? mode.
@@ -51,6 +49,8 @@ Add synthesis tutorials.
 Add drum grid modules, 4x8, 4x16, 8x16, cascadable for 8x32 and syncable for 16x16.
 
 # ----------------------------------------------- HIGH PRIORITY
+
+Network MIDI 2.0 so we can access MIDI 2.0 synths in Logic or ???
 
 BUG: deleting modules using BACKSPACE or DELETE key sometimes does not work. Edit menu Cut always works.
 Need repro steps.

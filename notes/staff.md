@@ -17,6 +17,15 @@ Provide feedback for the user when moving notes.
 
 Can be used as an alternative display mode for a MIDI track in a timeline. PianoRoll/Staff/Events
 
+## Implementation Stages
+
+1. Add a note "on/off" or "play" or just NOTE with a duration field. Can also use the duration to implement ramps for control changes.
+1. Single staff with a key signature and time signature, basic notes and rests. Display pitch while editing. Play all simultaneous notes.
+1. Different clefs
+1. Add ties and beams, repeating measure bars.
+1. Add support for multiple instruments.
+1. Add M2-123-UM compatible articulations.
+
 ## Design Considerations
 
 Should note duration be added to the Syntona Voice Message?
