@@ -19,6 +19,7 @@ examples/mixer4x2.json
 examples/mod8_knobs.json
 examples/patch.json
 examples/pianoRoll.json
+examples/play_instruments.json
 examples/poly_delay.json
 examples/poly_patch.json
 examples/polyrhythm.json

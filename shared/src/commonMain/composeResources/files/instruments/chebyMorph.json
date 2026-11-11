@@ -1,10 +1,10 @@
 {
-  "version": "0.7.15 beta",
-  "versionCode": 458767,
+  "version": "0.8.3 beta",
+  "versionCode": 524291,
   "type": "core.polyPatch",
   "maxVoices": 8,
-  "windowX": 276.7119140625,
-  "windowY": 422.5386962890625,
+  "windowX": 220.8369140625,
+  "windowY": 398.5386962890625,
   "windowWidth": 1073.9970703125,
   "windowHeight": 582.3193359375,
   "patch": {
@@ -62,7 +62,8 @@
             "v": 1,
             "min": 0,
             "max": 1,
-            "kickable": false
+            "kickable": false,
+            "exponential": true
           }
         }
       },
@@ -100,8 +101,8 @@
         "id": 6,
         "type": "ksyn.control.envSeg",
         "name": "envSeg",
-        "x": 327.2,
-        "y": 286.6,
+        "x": 345.2,
+        "y": 355.6,
         "jacks": {
           "looping": {
             "min": 0,
@@ -114,6 +115,7 @@
             "min": 0,
             "max": 8,
             "kickable": false,
+            "exponential": true,
             "add": false
           },
           "amplitude": {
@@ -121,6 +123,7 @@
             "min": 0,
             "max": 1,
             "kickable": false,
+            "exponential": true,
             "add": false
           }
         },
@@ -135,14 +138,15 @@
         "id": 7,
         "type": "ksyn.sources.redNoise",
         "name": "redNoise",
-        "x": 215.2,
-        "y": 340.8,
+        "x": 217.2,
+        "y": 376.8,
         "jacks": {
           "frequency": {
             "v": 4921.7294921875,
             "min": 40,
             "max": 8000,
             "kickable": false,
+            "exponential": true,
             "add": false
           },
           "amplitude": {
@@ -150,6 +154,7 @@
             "min": 0,
             "max": 1,
             "kickable": false,
+            "exponential": true,
             "add": false
           }
         }
@@ -166,6 +171,7 @@
             "min": 40,
             "max": 8000,
             "kickable": false,
+            "exponential": true,
             "add": false
           },
           "amplitude": {
@@ -173,6 +179,7 @@
             "min": 0,
             "max": 1,
             "kickable": false,
+            "exponential": true,
             "add": false
           },
           "width": {
@@ -224,6 +231,7 @@
             "min": 0,
             "max": 8,
             "kickable": false,
+            "exponential": true,
             "add": false
           },
           "amplitude": {
@@ -231,6 +239,7 @@
             "min": 0,
             "max": 1,
             "kickable": false,
+            "exponential": true,
             "add": false
           }
         },
@@ -259,6 +268,7 @@
             "min": 0,
             "max": 8,
             "kickable": false,
+            "exponential": true,
             "add": false
           },
           "amplitude": {
@@ -266,6 +276,7 @@
             "min": 0,
             "max": 1,
             "kickable": false,
+            "exponential": true,
             "add": false
           }
         },
@@ -318,6 +329,7 @@
             "min": 40,
             "max": 8000,
             "kickable": false,
+            "exponential": true,
             "add": false
           },
           "drive": {
@@ -332,6 +344,7 @@
             "min": 0,
             "max": 1,
             "kickable": false,
+            "exponential": true,
             "add": false
           }
         },
@@ -458,12 +471,6 @@
         "toJack": "amplitude"
       },
       {
-        "from": 6,
-        "fromJack": "out",
-        "to": 5,
-        "toJack": "in"
-      },
-      {
         "from": 2,
         "fromJack": "out",
         "to": 9,
@@ -576,6 +583,18 @@
         "fromJack": "out",
         "to": 18,
         "toJack": "inB"
+      },
+      {
+        "from": 6,
+        "fromJack": "out",
+        "to": 5,
+        "toJack": "in"
+      },
+      {
+        "from": 3,
+        "fromJack": "out",
+        "to": 13,
+        "toJack": "amplitude"
       }
     ]
   }
