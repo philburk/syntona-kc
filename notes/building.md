@@ -9,8 +9,7 @@
 1. commit change to the softsynth repo
 1. wait for it to deploy: https://github.com/philburk/softsynth.github.io/deployments
 1. test the app at https://softsynth.com/syntona/test/
-1. if it works, deploy to the "beta" folder
-1. if the beta seems OK for a few days then copy contents to the app folder
+1. if it works, deploy to the "app" folder
 
 ## How to build an Installable Desktop App with a DMG file
 
