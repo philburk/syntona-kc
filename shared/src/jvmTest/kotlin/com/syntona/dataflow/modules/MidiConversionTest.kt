@@ -37,6 +37,14 @@ class MidiConversionTest {
     }
 
     @Test
+    fun noteOnAppliesQuadraticVelocityCurve() {
+        val msg = voiceMessageOf(Midi1Messages.noteOn(60, 64))!!
+        val linearFraction = 64.0 / 127.0
+        val expectedAmplitude = linearFraction * linearFraction
+        assertEquals(expectedAmplitude, msg.extra, 0.001)
+    }
+
+    @Test
     fun noteOnWithZeroVelocityBecomesNoteOff() {
         val msg = voiceMessageOf(Midi1Messages.noteOn(60, 0))!!
         assertEquals(Message.VoiceOpcode.NOTE_OFF, msg.opcode)

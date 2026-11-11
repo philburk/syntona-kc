@@ -60,6 +60,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.round
+import kotlin.math.sqrt
 
 /**
  * Semitones spanned by a MIDI 1.0 pitch bend at either extreme, at the default bend sensitivity.
@@ -239,12 +240,15 @@ class MidiInModule : Module("midiIn"), EngineAware, AdoptsRememberedDefaults {
 internal fun toVoiceMessage(event: MidiEvent, time: ScoreTime): Message.VoiceMessage? {
     if (event.messageType != Ump.MT_MIDI1_CHANNEL_VOICE) return null
     return when {
-        event.isNoteOn -> Message.VoiceMessage(
-            time, Message.VoiceOpcode.NOTE_ON,
-            tag = event.note,
-            value = event.note.toDouble(),
-            extra = event.velocityFraction.toDouble()
-        )
+        event.isNoteOn -> {
+            val fraction = event.velocityFraction.toDouble()
+            Message.VoiceMessage(
+                time, Message.VoiceOpcode.NOTE_ON,
+                tag = event.note,
+                value = event.note.toDouble(),
+                extra = fraction * fraction // quadratic velocity curve
+            )
+        }
         event.isNoteOff -> Message.VoiceMessage(
             time, Message.VoiceOpcode.NOTE_OFF,
             tag = event.note,
@@ -453,7 +457,8 @@ internal fun toMidi1Word(msg: Message.VoiceMessage, channelZeroBased: Int = 0): 
     val ch = channelZeroBased.coerceIn(0, 15)
     return when (msg.opcode) {
         Message.VoiceOpcode.NOTE_ON -> {
-            val velocity = toMidi7Bit(msg.extra).coerceAtLeast(1) // 0 would mean note off
+            val fraction = sqrt(msg.extra.coerceAtLeast(0.0))
+            val velocity = toMidi7Bit(fraction).coerceAtLeast(1) // 0 would mean note off
             Midi1Messages.noteOn(toMidiNote(msg.value), velocity, ch)
         }
         // noteOff takes a velocity before the channel, so ch must be named or it lands in it.
