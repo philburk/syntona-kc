@@ -35,15 +35,17 @@ sealed class Message {
 
     /** Commands for [VoiceMessage], modeled after MIDI Channel Voice Messages. */
     enum class VoiceOpcode {
-        NOTE_ON, NOTE_OFF, CONTROL_CHANGE, PRESSURE, PITCH_BEND, PROGRAM_CHANGE
+        NOTE_ON, NOTE_OFF, CONTROL_CHANGE, PRESSURE, PITCH_BEND, PROGRAM_CHANGE, NOTE
     }
 
     /**
-     * A compound message for note and controller events. The meaning of [tag], [value], and
-     * [extra] depends on [opcode]:
+     * A compound message for note and controller events. The meaning of [tag], [value],
+     * [extra], and [duration] depends on [opcode]:
      *
      * - NOTE_ON / NOTE_OFF: tag = noteNumber, value = pitch in fractional semitones,
      *   extra = amplitude (0.0 to 1.0)
+     * - NOTE: tag = noteNumber, value = pitch in fractional semitones,
+     *   extra = amplitude (0.0 to 1.0), duration = note length in seconds
      * - CONTROL_CHANGE: tag = noteNumber, or -1 for all notes; value = controller value;
      *   extra = which controller to change
      * - PRESSURE: tag = noteNumber, or -1 for all notes; value = pressure value; extra ignored
@@ -57,9 +59,15 @@ sealed class Message {
         val opcode: VoiceOpcode,
         val tag: Int,
         val value: Double,
-        val extra: Double
+        val extra: Double,
+        val duration: Double = 0.0
     ) : Message() {
-        override fun toString(): String = "$opcode t=$tag v=${formatVal(value)} x=${formatVal(extra)}"
+        override fun toString(): String =
+            if (opcode == VoiceOpcode.NOTE) {
+                "$opcode t=$tag v=${formatVal(value)} x=${formatVal(extra)} d=${formatVal(duration)}"
+            } else {
+                "$opcode t=$tag v=${formatVal(value)} x=${formatVal(extra)}"
+            }
     }
 }
 

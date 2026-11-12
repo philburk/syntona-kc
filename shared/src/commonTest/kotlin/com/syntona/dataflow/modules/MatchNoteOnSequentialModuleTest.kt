@@ -345,4 +345,41 @@ class MatchNoteOnSequentialModuleTest {
         assertNotNull(module8.amplitude7)
         assertEquals(module8.stepOutputs[7], module8.amplitude7)
     }
+
+    @Test
+    fun noteOpcodeTriggersMatchNoteOnAndSequentialModules() {
+        val single = MatchNoteOnModule()
+        val singleUnmatched = VoiceRecorder().also { single.unmatched.connect(it.input) }
+        val singleOut = Recorder().also { single.output.connect(it.input) }
+
+        val note60 = Message.VoiceMessage(testTime, Message.VoiceOpcode.NOTE, tag = 60, value = 60.0, extra = 0.75, duration = 0.2)
+        val note61 = Message.VoiceMessage(testTime, Message.VoiceOpcode.NOTE, tag = 61, value = 61.0, extra = 0.5, duration = 0.3)
+
+        // Armed: first NOTE learns tag 60 and emits amplitude
+        single.input.receive(note60)
+        assertFalse(single.isArmed)
+        assertEquals(60, single.matchNumber)
+        assertEquals(listOf(0.75), singleOut.values)
+        assertTrue(singleUnmatched.messages.isEmpty())
+
+        // Unmatched NOTE passes to unmatched
+        single.input.receive(note61)
+        assertEquals(1, singleUnmatched.messages.size)
+        assertEquals(61, singleUnmatched.messages.single().tag)
+
+        // Sequential module: NOTE learns and triggers
+        val seq = MatchNoteOn4Module()
+        val seqUnmatched = VoiceRecorder().also { seq.unmatched.connect(it.input) }
+        val seqOut0 = Recorder().also { seq.stepOutputs[0].connect(it.input) }
+        val seqOut1 = Recorder().also { seq.stepOutputs[1].connect(it.input) }
+
+        seq.input.receive(note60)
+        assertFalse(seq.isArmed)
+        assertEquals(60, seq.matchNumber)
+        assertEquals(listOf(0.75), seqOut0.values)
+
+        seq.input.receive(note61)
+        assertEquals(listOf(0.5), seqOut1.values)
+        assertTrue(seqUnmatched.messages.isEmpty())
+    }
 }

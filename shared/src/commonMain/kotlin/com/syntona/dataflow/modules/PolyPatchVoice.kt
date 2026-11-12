@@ -32,6 +32,7 @@ class PolyPatchVoice(
 
     var currentPitch: Double = 60.0
     var currentAmplitude: Double = 1.0
+    var currentDuration: Double = 1.0
     var pitchBend: Double = 0.0
 
     init {
@@ -76,15 +77,25 @@ class PolyPatchVoice(
         voiceCircuit.isEnabled = true
         this.currentPitch = pitch
         this.currentAmplitude = amplitude
+        val duration = parentPolyPatch.nextNoteDuration
+        this.currentDuration = duration
         val now = ScoreClock.now()
 
-        // 1. Dispatch "on" event
-        val onMod = findVoiceSpecialInput("on")
-        when (onMod) {
-            is InputModule -> onMod.receive(Message.FloatValue(now, 1.0))
+        // 1. Dispatch duration (in seconds)
+        val durMod = findVoiceSpecialInput("duration")
+        when (durMod) {
+            is InputModule -> durMod.receive(Message.FloatValue(now, duration))
+            is AudioInputModule -> durMod.passThrough.input.setValueInternal(0, duration.toFloat())
         }
 
-        // 2. Dispatch pitch
+        // 2. Dispatch amplitude
+        val ampMod = findVoiceSpecialInput("amplitude")
+        when (ampMod) {
+            is InputModule -> ampMod.receive(Message.FloatValue(now, amplitude))
+            is AudioInputModule -> ampMod.passThrough.input.setValueInternal(0, amplitude.toFloat())
+        }
+
+        // 3. Dispatch pitch
         val totalPitch = pitch + pitchBend
         val pitchMod = findVoiceSpecialInput("pitch")
         when (pitchMod) {
@@ -92,18 +103,17 @@ class PolyPatchVoice(
             is AudioInputModule -> pitchMod.passThrough.input.setValueInternal(0, totalPitch.toFloat())
         }
 
-        // 3. Dispatch amplitude
-        val ampMod = findVoiceSpecialInput("amplitude")
-        when (ampMod) {
-            is InputModule -> ampMod.receive(Message.FloatValue(now, amplitude))
-            is AudioInputModule -> ampMod.passThrough.input.setValueInternal(0, amplitude.toFloat())
-        }
-
         // 4. Dispatch gate (high) if legacy/custom gate module exists
         val gateMod = findVoiceSpecialInput("gate")
         when (gateMod) {
             is AudioInputModule -> gateMod.passThrough.input.setValueInternal(0, 1.0f)
             is InputModule -> gateMod.receive(Message.FloatValue(now, 1.0))
+        }
+
+        // 5. Dispatch "on" event last so parameters have settled before envelopes trigger
+        val onMod = findVoiceSpecialInput("on")
+        when (onMod) {
+            is InputModule -> onMod.receive(Message.FloatValue(now, 1.0))
         }
     }
 

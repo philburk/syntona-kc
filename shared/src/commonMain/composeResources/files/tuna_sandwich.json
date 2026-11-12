@@ -592,7 +592,7 @@
                   "type": "core.input",
                   "name": "on",
                   "x": 50,
-                  "y": 60,
+                  "y": 50,
                   "jacks": {
                     "on": {
                       "v": 0,
@@ -607,7 +607,7 @@
                   "type": "core.input",
                   "name": "off",
                   "x": 50,
-                  "y": 130,
+                  "y": 100,
                   "jacks": {
                     "off": {
                       "v": 0,
@@ -622,7 +622,7 @@
                   "type": "core.input",
                   "name": "pitch",
                   "x": 50,
-                  "y": 200,
+                  "y": 150,
                   "jacks": {
                     "pitch": {
                       "v": 0,
@@ -637,7 +637,7 @@
                   "type": "core.input",
                   "name": "amplitude",
                   "x": 50,
-                  "y": 270,
+                  "y": 200,
                   "jacks": {
                     "amplitude": {
                       "v": 0,
@@ -652,7 +652,7 @@
                   "type": "core.input",
                   "name": "pressure",
                   "x": 50,
-                  "y": 340,
+                  "y": 250,
                   "jacks": {
                     "pressure": {
                       "v": 0,
@@ -989,6 +989,20 @@
                       "min": 0,
                       "max": 100,
                       "kickable": true
+                    }
+                  }
+                },
+                {
+                  "id": 17,
+                  "type": "core.input",
+                  "name": "duration",
+                  "x": 50,
+                  "y": 300,
+                  "jacks": {
+                    "duration": {
+                      "min": 0,
+                      "max": 100,
+                      "kickable": false
                     }
                   }
                 }
@@ -1389,7 +1403,7 @@
                   "type": "core.input",
                   "name": "on",
                   "x": 50,
-                  "y": 60,
+                  "y": 50,
                   "jacks": {
                     "on": {
                       "v": 0,
@@ -1404,7 +1418,7 @@
                   "type": "core.input",
                   "name": "off",
                   "x": 50,
-                  "y": 130,
+                  "y": 100,
                   "jacks": {
                     "off": {
                       "v": 0,
@@ -1419,7 +1433,7 @@
                   "type": "core.input",
                   "name": "pitch",
                   "x": 50,
-                  "y": 200,
+                  "y": 150,
                   "jacks": {
                     "pitch": {
                       "v": 0,
@@ -1434,7 +1448,7 @@
                   "type": "core.input",
                   "name": "amplitude",
                   "x": 50,
-                  "y": 270,
+                  "y": 200,
                   "jacks": {
                     "amplitude": {
                       "v": 0,
@@ -1449,7 +1463,7 @@
                   "type": "core.input",
                   "name": "pressure",
                   "x": 50,
-                  "y": 340,
+                  "y": 250,
                   "jacks": {
                     "pressure": {
                       "v": 0,
@@ -1599,6 +1613,20 @@
                       "max": 1,
                       "kickable": false,
                       "add": false
+                    }
+                  }
+                },
+                {
+                  "id": 10,
+                  "type": "core.input",
+                  "name": "duration",
+                  "x": 50,
+                  "y": 300,
+                  "jacks": {
+                    "duration": {
+                      "min": 0,
+                      "max": 100,
+                      "kickable": false
                     }
                   }
                 }

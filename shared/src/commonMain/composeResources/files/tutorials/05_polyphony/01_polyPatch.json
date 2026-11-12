@@ -79,7 +79,7 @@
             "type": "core.input",
             "name": "off",
             "x": 50,
-            "y": 215,
+            "y": 195,
             "jacks": {
               "off": {
                 "v": 0,
@@ -94,7 +94,7 @@
             "type": "core.input",
             "name": "pitch",
             "x": 50,
-            "y": 285,
+            "y": 245,
             "jacks": {
               "pitch": {
                 "v": 60,
@@ -109,7 +109,7 @@
             "type": "core.input",
             "name": "amplitude",
             "x": 50,
-            "y": 355,
+            "y": 295,
             "jacks": {
               "amplitude": {
                 "v": 1,
@@ -124,7 +124,7 @@
             "type": "core.input",
             "name": "pressure",
             "x": 50,
-            "y": 425,
+            "y": 345,
             "jacks": {
               "pressure": {
                 "v": 0,
@@ -262,6 +262,20 @@
             "text": "The incoming pitch is connected to the p2f (pitch to frequency module).\nThe incoming amplitude is connected to the oscillator amplitude.\nThe DAHDSR envelope shapes the volume of the note.\nThe incoming on/off inputs are connected to the DAHDSR envelope to turn it on and off.",
             "w": 627.75,
             "h": 98
+          },
+          {
+            "id": 10,
+            "type": "core.input",
+            "name": "duration",
+            "x": 50,
+            "y": 395,
+            "jacks": {
+              "duration": {
+                "min": 0,
+                "max": 100,
+                "kickable": false
+              }
+            }
           }
         ],
         "connections": [

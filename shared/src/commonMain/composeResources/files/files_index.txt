@@ -1,4 +1,5 @@
 examples/basic_sequence.json
+examples/cello_note_dur.json
 examples/delayGrains.json
 examples/drum_rhythm.json
 examples/etude_001.json

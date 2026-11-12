@@ -54,14 +54,13 @@ class PackVoiceModule : Module("packVoice") {
 }
 
 /**
- * Composes a timed note from four inputs: pitch, tag, amplitude, duration. Receiving a message
- * on [pitchIn] (kickable) sends a NOTE_ON immediately, followed by a matching NOTE_OFF scheduled
- * [durationIn] milliseconds later, using the same engine-scheduling technique as [AddTimeModule].
+ * Composes a timed note from four inputs: pitch, tag, amplitude, durationMs. Receiving a message
+ * on [pitchIn] (kickable) sends a NOTE VoiceMessage with its duration converted to seconds.
  *
- * If [tagIn] is left at its default of -1, the tag is resolved to `floor(pitch)` so untagged
- * notes still pair their NOTE_ON/NOTE_OFF by pitch.
+ * If [tagIn] is left at its default of -1, the tag is resolved to `round(pitch)` so untagged
+ * notes still carry a pitch-derived tag.
  */
-class PackNoteModule : Module("packNote"), EngineAware {
+class PackNoteModule : Module("packNote") {
     val pitchIn = addInput("pitch", isKickable = true)
     val tagIn = addIntegerInput("tag").also {
         it.min = -1.0
@@ -71,13 +70,12 @@ class PackNoteModule : Module("packNote"), EngineAware {
         it.min = 0.0
         it.max = 2.0
     }
-    val durationIn = addInput("duration").also {
+    val durationIn = addInput("durationMs").also {
         it.min = 0.0
         it.max = 1000.0
     }
+    val durationMs: InputJack get() = durationIn
     val output = addVoiceOutput("out")
-
-    private var engine: DataFlowEngine? = null
 
     init {
         tagIn.setValue(-1.0)
@@ -85,27 +83,23 @@ class PackNoteModule : Module("packNote"), EngineAware {
         durationIn.setValue(20.0) // millis
     }
 
-    override fun setEngine(engine: DataFlowEngine) {
-        this.engine = engine
-    }
-
     override fun execute(triggerMessage: Message) {
         val pitch = pitchIn.getDoubleValue()
         val amplitude = amplitudeIn.getDoubleValue()
         val rawTag = tagIn.getDoubleValue().toInt()
         val tag = if (rawTag == -1) round(pitch).toInt() else rawTag
+        val durationSec = (durationIn.getDoubleValue() * 0.001).coerceAtLeast(0.0)
 
-        output.send(Message.VoiceMessage(triggerMessage.time, Message.VoiceOpcode.NOTE_ON, tag, pitch, amplitude))
-
-        val durationNs = (durationIn.getDoubleValue() * 1_000_000.0).toLong().coerceAtLeast(0L)
-        val fireTime = triggerMessage.time + ScoreTime(durationNs)
-        val noteOff = Message.VoiceMessage(fireTime, Message.VoiceOpcode.NOTE_OFF, tag, pitch, amplitude)
-        val e = engine
-        if (e != null) {
-            e.schedule(fireTime) { output.send(noteOff) }
-        } else {
-            output.send(noteOff)
-        }
+        output.send(
+            Message.VoiceMessage(
+                time = triggerMessage.time,
+                opcode = Message.VoiceOpcode.NOTE,
+                tag = tag,
+                value = pitch,
+                extra = amplitude,
+                duration = durationSec
+            )
+        )
     }
 }
 
@@ -213,8 +207,8 @@ class PackProgramModule : Module("packProgram") {
 }
 
 /**
- * Unpacks NOTE_ON VoiceMessages into pitch, tag, and amplitude outputs.
- * Ignores messages that are not NOTE_ON.
+ * Unpacks NOTE_ON and NOTE VoiceMessages into pitch, tag, and amplitude outputs.
+ * Ignores messages that are not NOTE_ON or NOTE.
  * Outputs fire in order from bottom to top: amplitude, tag, pitch.
  */
 class UnpackNoteOnModule : Module("unpackNoteOn") {
@@ -225,7 +219,7 @@ class UnpackNoteOnModule : Module("unpackNoteOn") {
 
     override fun execute(triggerMessage: Message) {
         val msg = triggerMessage as? Message.VoiceMessage ?: return
-        if (msg.opcode != Message.VoiceOpcode.NOTE_ON) return
+        if (msg.opcode != Message.VoiceOpcode.NOTE_ON && msg.opcode != Message.VoiceOpcode.NOTE) return
 
         amplitude.send(Message.FloatValue(msg.time, msg.extra))
         tag.send(Message.FloatValue(msg.time, msg.tag.toDouble()))
@@ -364,12 +358,16 @@ abstract class MatchVoiceModule(
     /** Which field is passed on when a message matches. */
     protected abstract fun payloadOf(msg: Message.VoiceMessage): Double
 
+    /** Whether this message triggers an output emission (and claims the target when armed). */
+    protected open fun isMatchingTrigger(msg: Message.VoiceMessage): Boolean =
+        msg.opcode == opcode
+
     /**
      * Whether this message belongs to the matched target (and should therefore be filtered from [unmatched]).
-     * By default, checks if [msg.opcode] == [opcode] and [identifierOf] matches [matchNumber].
+     * By default, checks if [isMatchingTrigger] and [identifierOf] matches [matchNumber].
      */
     protected open fun isTarget(msg: Message.VoiceMessage): Boolean {
-        if (msg.opcode != opcode) return false
+        if (!isMatchingTrigger(msg)) return false
         val incoming = round(identifierOf(msg)).toInt()
         return incoming == matchNumber
     }
@@ -401,7 +399,7 @@ abstract class MatchVoiceModule(
         val msg = triggerMessage as? Message.VoiceMessage ?: return
 
         if (isArmed) {
-            if (msg.opcode == opcode) {
+            if (isMatchingTrigger(msg)) {
                 val incoming = round(identifierOf(msg)).toInt()
                 matchIn.setValue(incoming.toDouble().coerceIn(0.0, matchIn.max))
                 output.send(Message.FloatValue(msg.time, payloadOf(msg)))
@@ -413,7 +411,7 @@ abstract class MatchVoiceModule(
         }
 
         if (isTarget(msg)) {
-            if (msg.opcode == opcode) {
+            if (isMatchingTrigger(msg)) {
                 output.send(Message.FloatValue(msg.time, payloadOf(msg)))
             }
         } else {
@@ -687,8 +685,11 @@ class MatchNoteOnModule : MatchVoiceModule(
 
     override fun payloadOf(msg: Message.VoiceMessage): Double = msg.extra
 
+    override fun isMatchingTrigger(msg: Message.VoiceMessage): Boolean =
+        msg.opcode == Message.VoiceOpcode.NOTE_ON || msg.opcode == Message.VoiceOpcode.NOTE
+
     override fun isTarget(msg: Message.VoiceMessage): Boolean {
-        if (msg.opcode != Message.VoiceOpcode.NOTE_ON && msg.opcode != Message.VoiceOpcode.NOTE_OFF) {
+        if (!isMatchingTrigger(msg) && msg.opcode != Message.VoiceOpcode.NOTE_OFF) {
             return false
         }
         val incoming = round(identifierOf(msg)).toInt()
@@ -699,7 +700,7 @@ class MatchNoteOnModule : MatchVoiceModule(
         val wasArmed = isArmed
         super.execute(triggerMessage)
         val msg = triggerMessage as? Message.VoiceMessage ?: return
-        if (msg.opcode == Message.VoiceOpcode.NOTE_ON) {
+        if (isMatchingTrigger(msg)) {
             if (wasArmed || isTarget(msg)) {
                 triggerCount++
             }
@@ -795,8 +796,10 @@ abstract class MatchNoteOnSequentialModule(
         }
         val msg = triggerMessage as? Message.VoiceMessage ?: return
 
+        val isNoteOnLike = msg.opcode == Message.VoiceOpcode.NOTE_ON || msg.opcode == Message.VoiceOpcode.NOTE
+
         if (isArmed) {
-            if (msg.opcode == Message.VoiceOpcode.NOTE_ON) {
+            if (isNoteOnLike) {
                 val incoming = msg.tag
                 matchIn.setValue(incoming.toDouble().coerceIn(0.0, matchIn.max))
                 stepOutputs[0].send(Message.FloatValue(msg.time, msg.extra))
@@ -809,12 +812,12 @@ abstract class MatchNoteOnSequentialModule(
             }
         }
 
-        val isNote = msg.opcode == Message.VoiceOpcode.NOTE_ON || msg.opcode == Message.VoiceOpcode.NOTE_OFF
+        val isNote = isNoteOnLike || msg.opcode == Message.VoiceOpcode.NOTE_OFF
         val offset = msg.tag - matchNumber
         val isMatched = isNote && (offset in 0 until numOutputs)
 
         if (isMatched) {
-            if (msg.opcode == Message.VoiceOpcode.NOTE_ON) {
+            if (isNoteOnLike) {
                 stepOutputs[offset].send(Message.FloatValue(msg.time, msg.extra))
                 currentAmplitudes[offset] = msg.extra
                 triggerCounts[offset]++

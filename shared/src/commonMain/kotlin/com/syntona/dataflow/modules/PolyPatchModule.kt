@@ -35,6 +35,8 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
 
     internal val auxMixers = mutableMapOf<String, PassThrough>()
 
+    internal var nextNoteDuration: Double = 1.0
+
     init {
         // Setup graphState lifecycle callbacks to sync edits to background voices
         graphState.onModuleAddedCallback = ::syncModuleAdded
@@ -45,29 +47,34 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
         // 1. "on" (event kick for triggering envelopes, sample queues, sequencers)
         val onIn = InputModule().apply { isIntrinsic = true }
         onIn.name = "on"
-        graphState.addModule(onIn, androidx.compose.ui.geometry.Offset(50f, 60f))
+        graphState.addModule(onIn, androidx.compose.ui.geometry.Offset(50f, 50f))
 
         // 2. "off" (event kick for releasing envelopes, sequencers)
         val offIn = InputModule().apply { isIntrinsic = true }
         offIn.name = "off"
-        graphState.addModule(offIn, androidx.compose.ui.geometry.Offset(50f, 130f))
+        graphState.addModule(offIn, androidx.compose.ui.geometry.Offset(50f, 100f))
 
         // 3. "pitch" (event input)
         val pitchIn = InputModule().apply { isIntrinsic = true }
         pitchIn.name = "pitch"
-        graphState.addModule(pitchIn, androidx.compose.ui.geometry.Offset(50f, 200f))
+        graphState.addModule(pitchIn, androidx.compose.ui.geometry.Offset(50f, 150f))
 
         // 4. "amplitude" (event input)
         val ampIn = InputModule().apply { isIntrinsic = true }
         ampIn.name = "amplitude"
-        graphState.addModule(ampIn, androidx.compose.ui.geometry.Offset(50f, 270f))
+        graphState.addModule(ampIn, androidx.compose.ui.geometry.Offset(50f, 200f))
 
         // 5. "pressure" (event input)
         val pressIn = InputModule().apply { isIntrinsic = true }
         pressIn.name = "pressure"
-        graphState.addModule(pressIn, androidx.compose.ui.geometry.Offset(50f, 340f))
+        graphState.addModule(pressIn, androidx.compose.ui.geometry.Offset(50f, 250f))
 
-        // 6. "output" (audio output)
+        // 6. "duration" (event input, in seconds)
+        val durIn = InputModule().apply { isIntrinsic = true }
+        durIn.name = "duration"
+        graphState.addModule(durIn, androidx.compose.ui.geometry.Offset(50f, 300f))
+
+        // 7. "output" (audio output)
         val defaultOutput = AudioOutputModule().apply { isIntrinsic = true }
         defaultOutput.name = "output"
         graphState.addModule(defaultOutput, androidx.compose.ui.geometry.Offset(450f, 200f))
@@ -84,7 +91,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
 
     private fun isSpecialVoiceInput(name: String): Boolean {
         val n = name.lowercase()
-        if (n == "pitch" || n == "amplitude" || n == "pressure" || n == "pitchbend" || n == "gate" || n == "on" || n == "off") return true
+        if (n == "pitch" || n == "amplitude" || n == "pressure" || n == "duration" || n == "pitchbend" || n == "gate" || n == "on" || n == "off") return true
         if (n.startsWith("control") && n.length > 7) {
             val numPart = n.substring(7)
             return numPart.toIntOrNull() != null
@@ -204,7 +211,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
         if (onIn == null) {
             val newOn = InputModule().apply { isIntrinsic = true }
             newOn.name = "on"
-            graphState.addModule(newOn, androidx.compose.ui.geometry.Offset(50f, 60f))
+            graphState.addModule(newOn, androidx.compose.ui.geometry.Offset(50f, 50f))
         } else {
             onIn.isIntrinsic = true
         }
@@ -213,7 +220,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
         if (offIn == null) {
             val newOff = InputModule().apply { isIntrinsic = true }
             newOff.name = "off"
-            graphState.addModule(newOff, androidx.compose.ui.geometry.Offset(50f, 130f))
+            graphState.addModule(newOff, androidx.compose.ui.geometry.Offset(50f, 100f))
         } else {
             offIn.isIntrinsic = true
         }
@@ -222,7 +229,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
         if (pitchIn == null) {
             val newPitch = InputModule().apply { isIntrinsic = true }
             newPitch.name = "pitch"
-            graphState.addModule(newPitch, androidx.compose.ui.geometry.Offset(50f, 200f))
+            graphState.addModule(newPitch, androidx.compose.ui.geometry.Offset(50f, 150f))
         } else {
             pitchIn.isIntrinsic = true
         }
@@ -231,7 +238,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
         if (ampIn == null) {
             val newAmp = InputModule().apply { isIntrinsic = true }
             newAmp.name = "amplitude"
-            graphState.addModule(newAmp, androidx.compose.ui.geometry.Offset(50f, 270f))
+            graphState.addModule(newAmp, androidx.compose.ui.geometry.Offset(50f, 200f))
         } else {
             ampIn.isIntrinsic = true
         }
@@ -240,9 +247,25 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
         if (pressIn == null) {
             val newPress = InputModule().apply { isIntrinsic = true }
             newPress.name = "pressure"
-            graphState.addModule(newPress, androidx.compose.ui.geometry.Offset(50f, 340f))
+            graphState.addModule(newPress, androidx.compose.ui.geometry.Offset(50f, 250f))
         } else {
             pressIn.isIntrinsic = true
+        }
+
+        val durIn = graphState.modules.find { (it is InputModule || it is AudioInputModule) && it.name == "duration" }
+        if (durIn == null) {
+            val newDur = InputModule().apply { isIntrinsic = true }
+            newDur.name = "duration"
+            val pressMod = graphState.modules.find { (it is InputModule || it is AudioInputModule) && it.name == "pressure" }
+            val pressPos = pressMod?.let { graphState.modulePositions[it] }
+            val durPos = if (pressPos != null) {
+                androidx.compose.ui.geometry.Offset(pressPos.x, pressPos.y + 50f)
+            } else {
+                androidx.compose.ui.geometry.Offset(50f, 300f)
+            }
+            graphState.addModule(newDur, durPos)
+        } else {
+            durIn.isIntrinsic = true
         }
 
         if (isStereo) {
@@ -279,6 +302,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
              module.name.equals("pitch", ignoreCase = true) ||
              module.name.equals("amplitude", ignoreCase = true) ||
              module.name.equals("pressure", ignoreCase = true) ||
+             module.name.equals("duration", ignoreCase = true) ||
              module.name.equals("in", ignoreCase = true) ||
              module.name.equals("input", ignoreCase = true))) {
             return true
@@ -299,10 +323,26 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                 val timeStamp = SynthKSyn.synth.createTimeStamp()
                 when (msg.opcode) {
                     Message.VoiceOpcode.NOTE_ON -> {
+                        SynthKSyn.synth.queueCommand { nextNoteDuration = 1.0 }
                         instrument.noteOn(msg.tag, msg.value, msg.extra, timeStamp)
                     }
                     Message.VoiceOpcode.NOTE_OFF -> {
                         instrument.noteOff(msg.tag, timeStamp)
+                    }
+                    Message.VoiceOpcode.NOTE -> {
+                        val durSec = msg.duration.coerceAtLeast(0.0)
+                        SynthKSyn.synth.queueCommand { nextNoteDuration = durSec }
+                        instrument.noteOn(msg.tag, msg.value, msg.extra, timeStamp)
+                        val offTime = msg.time + com.syntona.core.model.ScoreTime.fromSeconds(durSec)
+                        val e = graphState.engine
+                        if (e != null) {
+                            e.schedule(offTime) {
+                                val offStamp = SynthKSyn.synth.createTimeStamp()
+                                instrument.noteOff(msg.tag, offStamp)
+                            }
+                        } else {
+                            instrument.noteOff(msg.tag, timeStamp)
+                        }
                     }
                     Message.VoiceOpcode.CONTROL_CHANGE -> {
                         setVoicePort(msg.tag, "control${msg.extra.toInt()}", msg.value, timeStamp)

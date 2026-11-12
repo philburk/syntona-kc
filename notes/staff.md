@@ -39,6 +39,10 @@ Pizzicato is required. Should articulations be implemented using:
 
 What are the new articulations defined for the Orchestra Profile in MIDI 2.0?
 
+We could have a separate package for the MIDI 2.0 articulations in preparation for eventually
+outputting MIDI 2.0 notes directly.
+Also maybe some day we can get note durations back in the MIDI 2.0 standard.
+
 ## Advanced Features
 
 * Add advanced editing such as retrograde inversion, transposition chromatic and in-key.
@@ -46,3 +50,4 @@ What are the new articulations defined for the Orchestra Profile in MIDI 2.0?
 * Add editing note parameters and articulations.
 * Measure lines for multiple instruments can be synced or not to support polyrhythms or independent accelerandi.
 * Per Note Controller editing for MIDI 2.0.
+* Loop repeatedly on a section and enter notes using live transcription. Ideally save comps like in Logic Pro.

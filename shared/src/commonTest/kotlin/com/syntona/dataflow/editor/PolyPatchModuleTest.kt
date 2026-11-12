@@ -111,7 +111,7 @@ class PolyPatchModuleTest {
     @Test
     fun testDefaultOutputModule() {
         val polyPatch = PolyPatchModule()
-        assertEquals(6, polyPatch.graphState.modules.size)
+        assertEquals(7, polyPatch.graphState.modules.size)
         val defaultOutput = polyPatch.graphState.modules.find { it is AudioOutputModule }
         assertNotNull(defaultOutput)
         assertEquals("output", defaultOutput.name)
@@ -128,9 +128,9 @@ class PolyPatchModuleTest {
     @Test
     fun testCannotDeleteBuiltInModules() {
         val polyPatch = PolyPatchModule()
-        assertEquals(6, polyPatch.graphState.modules.size)
+        assertEquals(7, polyPatch.graphState.modules.size)
 
-        // All 6 built-in modules must be intrinsic and non-deletable
+        // All 7 built-in modules must be intrinsic and non-deletable
         for (m in polyPatch.graphState.modules) {
             assertTrue(m.isIntrinsic, "Module ${m.name} should be marked isIntrinsic")
             assertFalse(polyPatch.canDeleteChildModule(m), "Module ${m.name} should not be deletable by parent")
@@ -142,7 +142,7 @@ class PolyPatchModuleTest {
         polyPatch.graphState.selectModule(outputMod)
         polyPatch.graphState.deleteSelectedModules()
         assertTrue(polyPatch.graphState.modules.contains(outputMod), "Output module must not be deleted")
-        assertEquals(6, polyPatch.graphState.modules.size)
+        assertEquals(7, polyPatch.graphState.modules.size)
 
         // Test deleting single built-in module: "on"
         val onMod = polyPatch.graphState.modules.find { it.name == "on" }!!
@@ -150,7 +150,7 @@ class PolyPatchModuleTest {
         polyPatch.graphState.selectModule(onMod)
         polyPatch.graphState.deleteSelectedModules()
         assertTrue(polyPatch.graphState.modules.contains(onMod), "On module must not be deleted")
-        assertEquals(6, polyPatch.graphState.modules.size)
+        assertEquals(7, polyPatch.graphState.modules.size)
 
         // Test selecting all built-in modules and trying to delete them
         polyPatch.graphState.clearSelection()
@@ -158,7 +158,7 @@ class PolyPatchModuleTest {
             polyPatch.graphState.selectModule(m)
         }
         polyPatch.graphState.deleteSelectedModules()
-        assertEquals(6, polyPatch.graphState.modules.size, "No built-in modules should be deleted")
+        assertEquals(7, polyPatch.graphState.modules.size, "No built-in modules should be deleted")
     }
 
     @Test
@@ -168,13 +168,13 @@ class PolyPatchModuleTest {
 
         val sineOsc = UnitGeneratorModule("sineOsc", SineOscillator())
         polyPatch.graphState.addModule(sineOsc, androidx.compose.ui.geometry.Offset.Zero)
-        assertEquals(7, polyPatch.graphState.modules.size)
+        assertEquals(8, polyPatch.graphState.modules.size)
         assertTrue(polyPatch.canDeleteChildModule(sineOsc))
         assertTrue(polyPatch.graphState.canDeleteModule(sineOsc))
 
         polyPatch.graphState.selectModule(sineOsc)
         polyPatch.graphState.deleteSelectedModules()
-        assertEquals(6, polyPatch.graphState.modules.size)
+        assertEquals(7, polyPatch.graphState.modules.size)
         assertFalse(polyPatch.graphState.modules.contains(sineOsc))
     }
 
@@ -200,7 +200,7 @@ class PolyPatchModuleTest {
         polyPatch.graphState.deleteSelectedModules()
 
         // Oscillator should be deleted and connection removed, but outputMod should remain
-        assertEquals(6, polyPatch.graphState.modules.size)
+        assertEquals(7, polyPatch.graphState.modules.size)
         assertFalse(polyPatch.graphState.modules.contains(sineOsc))
         assertTrue(polyPatch.graphState.modules.contains(outputMod))
         assertEquals(0, polyPatch.graphState.connections.size)
@@ -538,12 +538,13 @@ class PolyPatchModuleTest {
         val deserialized = GraphSerializer.deserialize(rootGraph, json)
         val polyPatch = deserialized[0] as PolyPatchModule
 
-        assertEquals(6, polyPatch.graphState.modules.size)
+        assertEquals(7, polyPatch.graphState.modules.size)
         assertTrue(polyPatch.graphState.modules.any { it.name == "on" })
         assertTrue(polyPatch.graphState.modules.any { it.name == "off" })
         assertTrue(polyPatch.graphState.modules.any { it.name == "pitch" })
         assertTrue(polyPatch.graphState.modules.any { it.name == "amplitude" })
         assertTrue(polyPatch.graphState.modules.any { it.name == "pressure" })
+        assertTrue(polyPatch.graphState.modules.any { it.name == "duration" })
         assertTrue(polyPatch.graphState.modules.any { it.name == "output" })
 
         // Check intrinsic flags and non-deletability
@@ -554,7 +555,7 @@ class PolyPatchModuleTest {
         val outputMod = polyPatch.graphState.modules.find { it.name == "output" }!!
         polyPatch.graphState.selectModule(outputMod)
         polyPatch.graphState.deleteSelectedModules()
-        assertEquals(6, polyPatch.graphState.modules.size, "Deserialized output module must not be deleted")
+        assertEquals(7, polyPatch.graphState.modules.size, "Deserialized output module must not be deleted")
     }
 
     @Test
@@ -1647,6 +1648,97 @@ class PolyPatchModuleTest {
             delay.generate()
             assertEquals(1.0f, delay.output.getValues()[0], "delay in a voice produced no output")
         }
+    }
+
+    @Test
+    fun testNoteCommandDurationAndDispatchOrder() = kotlinx.coroutines.runBlocking {
+        val polyPatch = PolyPatchModule()
+        val durTemplate = polyPatch.graphState.modules.find { it.name == "duration" }
+        assertNotNull(durTemplate, "polyPatch should have an intrinsic 'duration' input module")
+        assertTrue(polyPatch.isModuleIntrinsic(durTemplate))
+
+        polyPatch.initializeVoices(1)
+        val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
+        engine.generateNextBuffer()
+
+        val voice0 = polyPatch.voices[0]
+        val log = mutableListOf<Pair<String, Double>>()
+
+        for (inputName in listOf("duration", "amplitude", "pitch", "on", "off")) {
+            val voiceInMod = voice0.findVoiceSpecialInput(inputName) as InputModule
+            val outJack = voiceInMod.outputs.first { it.name == "out" }
+            val recorder = object : Module("rec_$inputName") {
+                val input = addInput("in", isKickable = true)
+                override fun execute(triggerMessage: Message) {
+                    if (triggerMessage is Message.FloatValue) {
+                        log.add(inputName to triggerMessage.value)
+                    }
+                }
+            }
+            outJack.connect(recorder.input)
+        }
+
+        // 1. Plain NOTE_ON should dispatch duration = 1.0s, then amplitude, pitch, on
+        polyPatch.voiceInputJack.receive(
+            Message.VoiceMessage(
+                com.syntona.core.model.ScoreTime.Zero,
+                Message.VoiceOpcode.NOTE_ON,
+                tag = 60,
+                value = 60.0,
+                extra = 0.5
+            )
+        )
+        engine.generateNextBuffer()
+        assertEquals(
+            listOf("duration" to 1.0, "amplitude" to 0.5, "pitch" to 60.0, "on" to 1.0),
+            log,
+            "NOTE_ON should dispatch duration(1.0), amplitude, pitch before on"
+        )
+
+        // 2. NOTE with duration = 0.15s should dispatch duration = 0.15s before on, and schedule noteOff
+        log.clear()
+        var scheduledTime: com.syntona.core.model.ScoreTime? = null
+        var scheduledAction: (() -> Unit)? = null
+        val fakeEngine = object : com.syntona.dataflow.engine.DataFlowEngine(
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined)
+        ) {
+            override fun schedule(
+                time: com.syntona.core.model.ScoreTime,
+                action: () -> Unit
+            ): com.syntona.dataflow.engine.ScheduledEvent {
+                scheduledTime = time
+                scheduledAction = action
+                return com.syntona.dataflow.engine.ScheduledEvent(action)
+            }
+        }
+        polyPatch.setEngine(fakeEngine)
+
+        val startTime = com.syntona.core.model.ScoreTime.fromSeconds(2.0)
+        polyPatch.voiceInputJack.receive(
+            Message.VoiceMessage(
+                startTime,
+                Message.VoiceOpcode.NOTE,
+                tag = 64,
+                value = 64.0,
+                extra = 0.8,
+                duration = 0.15
+            )
+        )
+        engine.generateNextBuffer()
+
+        assertEquals(
+            listOf("duration" to 0.15, "amplitude" to 0.8, "pitch" to 64.0, "on" to 1.0),
+            log,
+            "NOTE should dispatch duration(0.15), amplitude, pitch before on"
+        )
+        assertNotNull(scheduledTime, "NOTE should schedule a noteOff on the DataFlowEngine")
+        assertEquals(2.15, scheduledTime.seconds, 1e-6)
+
+        // Firing the scheduled event triggers noteOff ("off" = 0.0)
+        log.clear()
+        scheduledAction!!.invoke()
+        engine.generateNextBuffer()
+        assertEquals(listOf("off" to 0.0), log)
     }
 }
 
