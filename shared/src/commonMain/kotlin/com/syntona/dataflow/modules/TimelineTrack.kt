@@ -1000,27 +1000,45 @@ class MidiTrack(
 
     override fun onMessageReceived(jack: InputJack, msg: Message) {
         if (jack === inputJack && msg is Message.VoiceMessage) {
-            val noteOff = isNoteOff(msg)
-            // A note-off always follows its monitored note-on, even if monitoring was turned off in between.
-            val shouldSend = if (noteOff) {
-                isInputMonitored || monitoredNoteTags.contains(msg.tag)
+            if (msg.opcode == Message.VoiceOpcode.NOTE) {
+                val durSec = msg.duration.coerceAtLeast(0.0)
+                val offTime = msg.time + ScoreTime.fromSeconds(durSec)
+                val noteOn = Message.VoiceMessage(msg.time, Message.VoiceOpcode.NOTE_ON, msg.tag, msg.value, msg.extra)
+                val noteOff = Message.VoiceMessage(offTime, Message.VoiceOpcode.NOTE_OFF, msg.tag, msg.value, msg.extra)
+                handleIncomingVoiceMessage(noteOn)
+                val e = engine
+                if (e != null) {
+                    e.schedule(offTime) { handleIncomingVoiceMessage(noteOff) }
+                } else {
+                    handleIncomingVoiceMessage(noteOff)
+                }
             } else {
-                isInputMonitored && isAudible
+                handleIncomingVoiceMessage(msg)
             }
-            if (shouldSend) {
-                if (msg.opcode == Message.VoiceOpcode.PITCH_BEND) {
-                    lastSentPitchBend = msg.value
-                }
-                outputJack.send(msg)
-                if (noteOff) {
-                    monitoredNoteTags.remove(msg.tag)
-                } else if (msg.opcode == Message.VoiceOpcode.NOTE_ON) {
-                    monitoredNoteTags.add(msg.tag)
-                }
+        }
+    }
+
+    private fun handleIncomingVoiceMessage(msg: Message.VoiceMessage) {
+        val noteOff = isNoteOff(msg)
+        // A note-off always follows its monitored note-on, even if monitoring was turned off in between.
+        val shouldSend = if (noteOff) {
+            isInputMonitored || monitoredNoteTags.contains(msg.tag)
+        } else {
+            isInputMonitored && isAudible
+        }
+        if (shouldSend) {
+            if (msg.opcode == Message.VoiceOpcode.PITCH_BEND) {
+                lastSentPitchBend = msg.value
             }
-            if (isRecordArmed && timeline.isRecording) {
-                recordVoiceMessage(msg)
+            outputJack.send(msg)
+            if (noteOff) {
+                monitoredNoteTags.remove(msg.tag)
+            } else if (msg.opcode == Message.VoiceOpcode.NOTE_ON) {
+                monitoredNoteTags.add(msg.tag)
             }
+        }
+        if (isRecordArmed && timeline.isRecording) {
+            recordVoiceMessage(msg)
         }
     }
 

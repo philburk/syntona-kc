@@ -136,6 +136,70 @@ class VoiceUnpackModulesTest {
             log,
             "outputs should fire bottom-up: amplitude, tag, pitch"
         )
+
+        log.clear()
+        unpacker.sendIn(Message.VoiceMessage(testTime, Message.VoiceOpcode.NOTE, tag = 62, value = 62.25, extra = 0.6, duration = 0.25))
+        assertEquals(
+            listOf("amplitude" to 0.6, "tag" to 62.0, "pitch" to 62.25),
+            log,
+            "unpackNoteOn should also unpack NOTE messages and ignore duration"
+        )
+    }
+
+    @Test
+    fun testPackNoteEmitsNoteCommandWithDurationInSeconds() {
+        val pack = PackNoteModule()
+        assertEquals("durationMs", pack.durationIn.name)
+        pack.amplitudeIn.setValue(0.5)
+        pack.durationIn.setValue(250.0) // 250 ms = 0.25 s
+
+        val sent = mutableListOf<Message.VoiceMessage>()
+        pack.output.connect(object : Module("sink") {
+            val input = addInput("in", isKickable = true)
+            override fun execute(triggerMessage: Message) {
+                (triggerMessage as? Message.VoiceMessage)?.let { sent.add(it) }
+            }
+        }.input)
+
+        pack.pitchIn.setValue(60.0)
+
+        assertEquals(1, sent.size)
+        val msg = sent.single()
+        assertEquals(Message.VoiceOpcode.NOTE, msg.opcode)
+        assertEquals(60, msg.tag)
+        assertEquals(60.0, msg.value, 1e-6)
+        assertEquals(0.5, msg.extra, 1e-6)
+        assertEquals(0.25, msg.duration, 1e-6)
+    }
+
+    @Test
+    fun testPackNoteLegacyDurationJsonCompatibility() {
+        val json = """
+            {
+              "modules": [
+                {
+                  "id": 1,
+                  "type": "music.midi.packNote",
+                  "name": "packNote",
+                  "x": 0.0,
+                  "y": 0.0,
+                  "jacks": {
+                    "duration": {
+                      "v": 150.0,
+                      "min": 0.0,
+                      "max": 1000.0,
+                      "kickable": false
+                    }
+                  }
+                }
+              ],
+              "connections": []
+            }
+        """.trimIndent()
+        val state = com.syntona.dataflow.editor.GraphState()
+        val modules = com.syntona.dataflow.editor.GraphSerializer.deserialize(state, json)
+        val loaded = modules.single() as PackNoteModule
+        assertEquals(150.0, loaded.durationMs.getDoubleValue(), 1e-6, "legacy 'duration' jack should map to 'durationMs'")
     }
 
     @Test

@@ -151,7 +151,7 @@ object SourceExporter {
             .firstOrNull { it.name.trim().lowercase() in SINK_INPUT_NAMES }
     }
 
-    private val STANDARD_VOICE_INPUT_NAMES = setOf("on", "off", "pitch", "amplitude", "pressure")
+    private val STANDARD_VOICE_INPUT_NAMES = setOf("on", "off", "pitch", "amplitude", "pressure", "duration")
 
     fun isStandardVoiceInput(name: String): Boolean =
         name.trim().lowercase() in STANDARD_VOICE_INPUT_NAMES

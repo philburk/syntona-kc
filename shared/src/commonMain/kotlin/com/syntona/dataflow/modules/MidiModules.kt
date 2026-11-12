@@ -295,7 +295,7 @@ internal fun toVoiceMessage(event: MidiEvent, time: ScoreTime): Message.VoiceMes
  * The device is chosen by name in the module editor. Fractional pitches are rounded to the
  * nearest MIDI note number, since MIDI 1.0 has nowhere to put the fraction.
  */
-class MidiOutModule : Module("midiOut"), AdoptsRememberedDefaults {
+class MidiOutModule : Module("midiOut"), AdoptsRememberedDefaults, EngineAware {
     override val isAllowedInPolyPatch: Boolean
         get() = false
 
@@ -303,6 +303,12 @@ class MidiOutModule : Module("midiOut"), AdoptsRememberedDefaults {
     val channelIn = addIntegerInput("channel").also {
         it.min = 1.0
         it.max = 16.0
+    }
+
+    private var engine: DataFlowEngine? = null
+
+    override fun setEngine(engine: DataFlowEngine) {
+        this.engine = engine
     }
 
     /** Name of the destination device to send to, or empty for none. */
@@ -446,6 +452,19 @@ class MidiOutModule : Module("midiOut"), AdoptsRememberedDefaults {
         val dest = destination ?: return
         val chZeroBased = (channel - 1).coerceIn(0, 15)
         dest.send(toMidi1Word(msg, chZeroBased), MidiClock.nowNanos())
+        if (msg.opcode == Message.VoiceOpcode.NOTE) {
+            val durSec = msg.duration.coerceAtLeast(0.0)
+            val offTime = msg.time + ScoreTime.fromSeconds(durSec)
+            val noteOffWord = Midi1Messages.noteOff(toMidiNote(msg.value), channel = chZeroBased)
+            val e = engine
+            if (e != null) {
+                e.schedule(offTime) {
+                    destination?.send(noteOffWord, MidiClock.nowNanos())
+                }
+            } else {
+                dest.send(noteOffWord, MidiClock.nowNanos())
+            }
+        }
     }
 }
 
@@ -456,7 +475,7 @@ class MidiOutModule : Module("midiOut"), AdoptsRememberedDefaults {
 internal fun toMidi1Word(msg: Message.VoiceMessage, channelZeroBased: Int = 0): Int {
     val ch = channelZeroBased.coerceIn(0, 15)
     return when (msg.opcode) {
-        Message.VoiceOpcode.NOTE_ON -> {
+        Message.VoiceOpcode.NOTE_ON, Message.VoiceOpcode.NOTE -> {
             val fraction = sqrt(msg.extra.coerceAtLeast(0.0))
             val velocity = toMidi7Bit(fraction).coerceAtLeast(1) // 0 would mean note off
             Midi1Messages.noteOn(toMidiNote(msg.value), velocity, ch)

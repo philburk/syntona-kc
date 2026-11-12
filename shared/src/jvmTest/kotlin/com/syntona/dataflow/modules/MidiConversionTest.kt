@@ -134,4 +134,12 @@ class MidiConversionTest {
         assertEquals(sent.value, received.value)
         assertEquals(sent.extra, received.extra, 0.01)
     }
+
+    @Test
+    fun noteCommandProducesMidiNoteOnWord() {
+        val note = Message.VoiceMessage(time, Message.VoiceOpcode.NOTE, 60, 60.0, 1.0, duration = 0.25)
+        val event = eventOf(toMidi1Word(note))
+        assertEquals(60, event.note)
+        assertEquals(127, event.velocity7)
+    }
 }

@@ -1764,6 +1764,7 @@ internal fun resolveLegacyInputJack(module: Module, serializedName: String): com
         serializedName == "enable" -> "enabled"
         module is ClockDividerModule && serializedName.equals("N", ignoreCase = true) -> "divisor"
         module is StepperModule && (serializedName.equals("N", ignoreCase = true) || serializedName.equals("limit", ignoreCase = true)) -> "length"
+        module is com.syntona.dataflow.modules.PackNoteModule && serializedName.equals("duration", ignoreCase = true) -> "durationMs"
         serializedName.startsWith("input", ignoreCase = true) -> "in" + serializedName.substring(5)
         else -> null
     }
