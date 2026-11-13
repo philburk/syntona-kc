@@ -33,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -86,8 +87,9 @@ import kotlin.math.roundToInt
 private val isDarkPianoRoll: Boolean get() = GraphViewSettings.isDarkMode
 
 private val PR_BACKGROUND: Color get() = if (isDarkPianoRoll) Color(0xFF1A1A2E) else Color(0xFFF8FAFC)
-private val PR_GRID_LINE: Color get() = if (isDarkPianoRoll) Color(0x22FFFFFF) else Color(0x18000000)
-private val PR_OCTAVE_LINE: Color get() = if (isDarkPianoRoll) Color(0x55FFFFFF) else Color(0x44000000)
+private val PR_WHITE_KEY_ROW: Color get() = if (isDarkPianoRoll) Color(0xFF282842) else Color(0xFFEAECEF)
+private val PR_BLACK_KEY_ROW: Color get() = if (isDarkPianoRoll) Color(0xFF161628) else Color(0xFFC5CBD3)
+private val PR_GRID_LINE: Color get() = if (isDarkPianoRoll) Color(0x22FFFFFF) else Color(0x20000000)
 private val PR_BEAT_LINE: Color get() = if (isDarkPianoRoll) Color(0x14FFFFFF) else Color(0x14000000)
 private val PR_MEASURE_LINE: Color get() = if (isDarkPianoRoll) Color(0x33FFFFFF) else Color(0x33000000)
 private val PR_NOTE_FILL: Color get() = Color(0xFF64748B)
@@ -465,6 +467,7 @@ fun PianoRollEditor(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
+                .clipToBounds()
                 .pointerHoverIcon(hoverCursor)
                 .pointerInput(Unit) {
                     // Hover tracking (cursor feedback) and wheel scrolling.
@@ -693,13 +696,24 @@ fun PianoRollEditor(
             val topPitch = view.pitchAt(0f).toInt() + 1
             val bottomPitch = view.pitchAt(size.height).toInt() - 1
             for (pitch in bottomPitch..topPitch) {
+                val centerY = view.yOf(pitch.toFloat())
+                val isBlack = when (pitch.mod(12)) {
+                    1, 3, 6, 8, 10 -> true
+                    else -> false
+                }
+                drawRect(
+                    color = if (isBlack) PR_BLACK_KEY_ROW else PR_WHITE_KEY_ROW,
+                    topLeft = Offset(0f, centerY - noteH / 2f),
+                    size = Size(size.width, noteH + 0.5f),
+                )
+            }
+            for (pitch in (bottomPitch - 1)..topPitch) {
                 val y = view.yOf(pitch.toFloat() + 0.5f)
-                val isC = pitch.mod(12) == 0
                 drawLine(
-                    color = if (isC) PR_OCTAVE_LINE else PR_GRID_LINE,
+                    color = PR_GRID_LINE,
                     start = Offset(0f, y),
                     end = Offset(size.width, y),
-                    strokeWidth = if (isC) 2f else 1f,
+                    strokeWidth = 1f,
                 )
             }
 
