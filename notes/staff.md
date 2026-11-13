@@ -101,6 +101,17 @@ Pressing ESC will exit step record mode.
 Pressing a note duration key, like 'q', will change the current duration
 but leave us in step record mode.
 
+### Phase 5 - key signatures
+Add a palette for setting the key for a selected measure. If multiple measures selected,
+set key for first measure and remove any key signatures from later selected measures.
+Do not change any note pitch values when changing the key.
+Name the button that opens the palette "Key".
+
+### Phase 5
+Add support for chords by adding notes vertically aligned with existing notes.
+When clicking on a note, try to display the name of the chord based on the notes and
+the key signature, eg. "C#m7".
+
 ### Phase ?
 
 Add a "dot" button to the Notes/Rests palette. Pressing 'd' will toggle dot mode.
@@ -110,8 +121,6 @@ This can be used to make "dotted" notes, which have 3/2 the duration of an undot
 Add other common clefs.
 Add ties and beams, repeating measure bars.
 
-Add a palette for setting the key for a selected measure. If multiple measures selected,
-set key for first measure and remove any key signatures from later selected measures.
 
 ### Phase ? - Copy/Paste
 Add support for copying and pasting selected notes.

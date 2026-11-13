@@ -737,4 +737,68 @@ class ScoreModuleTest {
         )
         assertEquals(3, score.scoreData.measures[0].items.size)
     }
+
+    @Test
+    fun testStaccatoDotsStayClearOfNoteheadsAndStaffLines() {
+        // Line notes and space notes across treble staff (C4=-2 through F5=8)
+        assertEquals(-4, ScoreRenderer.staccatoStepForNote(noteStep = -2, placeBelow = true))
+        assertEquals(-3, ScoreRenderer.staccatoStepForNote(noteStep = -1, placeBelow = true))
+        assertEquals(-1, ScoreRenderer.staccatoStepForNote(noteStep = 2, placeBelow = true))
+        assertEquals(7, ScoreRenderer.staccatoStepForNote(noteStep = 4, placeBelow = false))
+        assertEquals(9, ScoreRenderer.staccatoStepForNote(noteStep = 6, placeBelow = false))
+        assertEquals(10, ScoreRenderer.staccatoStepForNote(noteStep = 8, placeBelow = false))
+
+        val sp = 10f
+        val score = ScoreData()
+        score.replaceMeasures(
+            listOf(
+                ScoreMeasure(
+                    number = 1,
+                    items = listOf(
+                        ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 4), NoteDuration.QUARTER, isStaccato = true),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.G, 0, 4), NoteDuration.QUARTER, isStaccato = true),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.B, 0, 4), NoteDuration.QUARTER, isStaccato = true),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.D, 0, 5), NoteDuration.QUARTER, isStaccato = true),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.F, 0, 5), NoteDuration.QUARTER, isStaccato = true),
+                    ),
+                )
+            )
+        )
+        val target = RecordingDrawTarget()
+        val layout = ScoreRenderer.render(
+            score = score,
+            target = target,
+            staffSpacePx = sp,
+            minWidthPx = 500f,
+            colors = ScoreRenderColors.forTheme(darkMode = false),
+        )
+
+        val noteheads = target.glyphs.filter { it.glyph == SmuflGlyphs.NOTEHEAD_BLACK }
+        val staccatos = target.glyphs.filter {
+            it.glyph == SmuflGlyphs.ARTIC_STACCATO_BELOW || it.glyph == SmuflGlyphs.ARTIC_STACCATO_ABOVE
+        }
+        assertEquals(5, noteheads.size)
+        assertEquals(5, staccatos.size)
+
+        val staffLineYs = (0..8 step 2).map { layout.yForStep(it) }
+        for (i in noteheads.indices) {
+            val headY = noteheads[i].baselineY
+            val dotGlyph = staccatos[i]
+            val dotCenterY = if (dotGlyph.glyph == SmuflGlyphs.ARTIC_STACCATO_BELOW) {
+                dotGlyph.baselineY + SmuflGlyphs.ARTIC_STACCATO_WIDTH * sp * 0.5f
+            } else {
+                dotGlyph.baselineY - SmuflGlyphs.ARTIC_STACCATO_WIDTH * sp * 0.5f
+            }
+            assertTrue(
+                kotlin.math.abs(dotCenterY - headY) >= sp - 0.05f,
+                "Staccato dot $i too close to notehead oval: |dotCenterY=$dotCenterY - headY=$headY| < $sp",
+            )
+            for (lineY in staffLineYs) {
+                assertTrue(
+                    kotlin.math.abs(dotCenterY - lineY) >= sp * 0.4f,
+                    "Staccato dot $i should not sit on staff line y=$lineY (dotCenterY=$dotCenterY)",
+                )
+            }
+        }
+    }
 }
