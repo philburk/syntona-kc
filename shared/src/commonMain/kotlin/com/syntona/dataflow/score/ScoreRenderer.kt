@@ -17,6 +17,8 @@ data class ScoreRenderColors(
     val selectedBoxBorder: Color,
     val overflowNote: Color,
     val ghostNote: Color,
+    val cursor: Color,
+    val stepCursor: Color,
 ) {
     companion object {
         fun forTheme(darkMode: Boolean): ScoreRenderColors = if (darkMode) {
@@ -30,6 +32,8 @@ data class ScoreRenderColors(
                 selectedBoxBorder = Color(0xDDFBBF24),
                 overflowNote = Color(0xFFEF4444),
                 ghostNote = Color(0x6694A3B8),
+                cursor = Color(0xFF60A5FA),
+                stepCursor = Color(0xFFEF4444),
             )
         } else {
             ScoreRenderColors(
@@ -42,6 +46,8 @@ data class ScoreRenderColors(
                 selectedBoxBorder = Color(0xDDF59E0B),
                 overflowNote = Color(0xFFDC2626),
                 ghostNote = Color(0x6664748B),
+                cursor = Color(0xFF2563EB),
+                stepCursor = Color(0xFFDC2626),
             )
         }
     }
@@ -175,6 +181,48 @@ data class ScoreLayout(
             ScoreInsertionTarget(measureIdx = lastPm.measureIdx, itemIdx = 0, appendNewMeasure = false)
         } else {
             ScoreInsertionTarget(measureIdx = placedMeasures.size, itemIdx = 0, appendNewMeasure = true)
+        }
+    }
+
+    /**
+     * Resolves a selection-mode click at [x] to a [ScoreCursorPosition] inside an empty measure
+     * or between/around notes, or `null` if inside the clef/key header.
+     */
+    fun cursorPositionAt(x: Float): ScoreCursorPosition? {
+        val firstStart = placedMeasures.firstOrNull()?.startX ?: headerEndX
+        if (x < firstStart - staffSpacePx * 0.5f) return null
+        if (placedMeasures.isEmpty()) return ScoreCursorPosition(0, 0)
+        for (pm in placedMeasures) {
+            if (x <= pm.barlineX) {
+                val itemIdx = if (pm.items.isEmpty()) {
+                    0
+                } else {
+                    pm.items.indexOfFirst { x < it.x + it.width * 0.5f }
+                        .let { if (it < 0) pm.items.size else it }
+                }
+                return ScoreCursorPosition(measureIdx = pm.measureIdx, itemIdx = itemIdx)
+            }
+        }
+        val lastPm = placedMeasures.last()
+        return ScoreCursorPosition(measureIdx = lastPm.measureIdx, itemIdx = lastPm.items.size)
+    }
+
+    /** Computes the horizontal canvas coordinate for rendering the vertical cursor at [cursor]. */
+    fun cursorXFor(cursor: ScoreCursorPosition): Float? {
+        val pm = placedMeasures.getOrNull(cursor.measureIdx) ?: return null
+        val sp = staffSpacePx
+        if (pm.items.isEmpty()) {
+            return pm.startX + sp * 1.1f
+        }
+        val clampedIdx = cursor.itemIdx.coerceIn(0, pm.items.size)
+        return when {
+            clampedIdx == 0 -> ((pm.startX + sp * 0.35f) + pm.items.first().boxLeft) * 0.5f
+            clampedIdx >= pm.items.size -> {
+                val tailRight = pm.items.last().boxRight
+                val limit = min(pm.barlineX - sp * 0.25f, tailRight + sp * 0.9f)
+                max(tailRight + sp * 0.25f, (tailRight + limit) * 0.5f)
+            }
+            else -> (pm.items[clampedIdx - 1].boxRight + pm.items[clampedIdx].boxLeft) * 0.5f
         }
     }
 }
@@ -427,6 +475,8 @@ object ScoreRenderer {
         selectedLocations: Set<ScoreItemLocation> = emptySet(),
         ghostPreview: ScoreGhostPreview? = null,
         rubberBand: ScoreRubberBand? = null,
+        cursorPosition: ScoreCursorPosition? = null,
+        isStepRecording: Boolean = false,
     ): ScoreLayout {
         val (header, layout) = computeHeaderAndMeasures(
             score = score,
@@ -560,6 +610,20 @@ object ScoreRenderer {
                 ledgerThick = ledgerThick,
                 ledgerExt = ledgerExt,
             )
+        }
+
+        // Optional vertical insertion / step-record cursor
+        if (cursorPosition != null) {
+            layout.cursorXFor(cursorPosition)?.let { cx ->
+                val cursorColor = if (isStepRecording) colors.stepCursor else colors.cursor
+                val cursorTop = topStaffY - sp * 1.35f
+                val cursorBottom = bottomStaffY + sp * 1.35f
+                val cursorStroke = max(2f, sp * 0.2f)
+                val capHalf = sp * 0.35f
+                target.drawLine(cx, cursorTop, cx, cursorBottom, cursorStroke, cursorColor)
+                target.drawLine(cx - capHalf, cursorTop, cx + capHalf, cursorTop, cursorStroke * 0.8f, cursorColor)
+                target.drawLine(cx - capHalf, cursorBottom, cx + capHalf, cursorBottom, cursorStroke * 0.8f, cursorColor)
+            }
         }
 
         // Optional rubber-band selection rectangle

@@ -10,16 +10,18 @@ import com.syntona.dataflow.engine.EngineAware
 import com.syntona.dataflow.engine.KickJackCommand
 import com.syntona.dataflow.engine.ScheduledEvent
 import com.syntona.dataflow.engine.SyntonaCommand
+import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.model.VoiceOutputJack
 import com.syntona.dataflow.modules.PianoRollTiming
+import kotlin.math.roundToInt
 import kotlin.math.roundToLong
 
 /**
  * Staff notation score module under `music.compose`.
- * Displays a stave with key signature, time signature, notes, and rests rendered via SMuFL (Leland)
- * and outputs timed [Message.VoiceMessage] events on [output].
+ * Displays a stave with key signature, time signature, notes, and rests rendered via SMuFL (Leland),
+ * accepts MIDI Voice input on [input] for step recording, and outputs timed [Message.VoiceMessage] events on [output].
  */
 class ScoreModule : Module("score"), EngineAware {
     val start = addCommandInput("start")
@@ -29,6 +31,7 @@ class ScoreModule : Module("score"), EngineAware {
         it.max = PianoRollTiming.MAX_TEMPO
         it.setValue(PianoRollTiming.DEFAULT_TEMPO)
     }
+    val input = addVoiceInput("in")
     val output = addVoiceOutput("out")
 
     val scoreData = ScoreData()
@@ -44,6 +47,21 @@ class ScoreModule : Module("score"), EngineAware {
     var activeItemIndex by mutableStateOf<Int?>(null)
         private set
 
+    var isStepRecording by mutableStateOf(false)
+        private set
+
+    var cursorPosition by mutableStateOf<ScoreCursorPosition?>(null)
+        internal set
+
+    var stepRecordDuration by mutableStateOf(NoteDuration.QUARTER)
+    var stepRecordStaccato by mutableStateOf(false)
+
+    var lastStepRecordedText by mutableStateOf<String?>(null)
+        internal set
+
+    var stepRecordRevision by mutableStateOf(0)
+        internal set
+
     private var engine: DataFlowEngine? = null
     private val scheduledEvents = mutableListOf<ScheduledEvent>()
     private val soundingNotes = mutableMapOf<Int, Double>() // tag -> pitch
@@ -53,6 +71,53 @@ class ScoreModule : Module("score"), EngineAware {
     }
 
     fun getEngine(): DataFlowEngine? = engine
+
+    fun setStepRecordingEnabled(enabled: Boolean) {
+        if (enabled && cursorPosition == null) {
+            cursorPosition = ScoreEditing.defaultStepCursor(scoreData.measures)
+        }
+        isStepRecording = enabled
+        if (!enabled) {
+            lastStepRecordedText = null
+        }
+    }
+
+    fun exitStepRecording() {
+        setStepRecordingEnabled(false)
+    }
+
+    fun placeCursor(position: ScoreCursorPosition?) {
+        cursorPosition = position
+    }
+
+    override fun onMessageReceived(jack: InputJack, msg: Message) {
+        if (jack === input && msg is Message.VoiceMessage && isStepRecording) {
+            handleIncomingVoiceMessage(msg)
+        }
+        super.onMessageReceived(jack, msg)
+    }
+
+    private fun handleIncomingVoiceMessage(msg: Message.VoiceMessage) {
+        if (!isPlaying) {
+            output.send(msg)
+        }
+        val isNoteOn = (msg.opcode == Message.VoiceOpcode.NOTE_ON || msg.opcode == Message.VoiceOpcode.NOTE) &&
+            msg.extra > 0.0
+        if (!isNoteOn) return
+
+        val midiPitch = msg.value.roundToInt().coerceIn(0, 127)
+        val cmd = StepRecordScoreNoteCommand(
+            module = this,
+            midiPitch = midiPitch,
+            amplitude = msg.extra,
+        )
+        val e = engine
+        if (e != null) {
+            e.post(cmd)
+        } else {
+            cmd.execute()
+        }
+    }
 
     override fun execute(triggerMessage: Message) {
         val now = triggerMessage.time
