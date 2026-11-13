@@ -801,4 +801,121 @@ class ScoreModuleTest {
             }
         }
     }
+
+    @Test
+    fun testKeySignaturePaletteOptionsButtonLabelAndMeasureApplication() {
+        assertEquals("Key", ScorePaletteKind.KEY_SIGNATURES.buttonLabel)
+        val paletteKeys = (ScorePalettes.sharpKeyOptions + ScorePalettes.flatKeyOptions).map { it.keySignature }
+        assertEquals(KeySignature.entries.size, paletteKeys.size)
+        assertEquals(KeySignature.entries.toSet(), paletteKeys.toSet())
+
+        val fSharp4 = ScoreItem.Note(SpelledPitch(NoteLetter.F, 1, 4), NoteDuration.QUARTER)
+        val cSharp5 = ScoreItem.Note(SpelledPitch(NoteLetter.C, 1, 5), NoteDuration.QUARTER)
+        val bb4 = ScoreItem.Note(SpelledPitch(NoteLetter.B, -1, 4), NoteDuration.QUARTER)
+
+        val initialMeasures = listOf(
+            ScoreMeasure(number = 1, items = listOf(fSharp4)),
+            ScoreMeasure(number = 2, items = listOf(cSharp5)),
+            ScoreMeasure(number = 3, items = listOf(bb4), keySignature = KeySignature.F_MAJOR),
+            ScoreMeasure(number = 4, items = listOf(fSharp4), keySignature = KeySignature.E_MAJOR),
+        )
+
+        // Multi-measure selection (measures 2..4 = indices 1..3): sets key on first selected (index 1)
+        // and clears key signatures from later selected measures (indices 2..3), preserving all pitches.
+        val (nextInit, updatedMeasures) = ScoreEditing.setKeySignatureOnMeasures(
+            initialKey = KeySignature.D_MAJOR,
+            measures = initialMeasures,
+            selectedMeasureIndices = setOf(1, 2, 3),
+            newKey = KeySignature.C_MAJOR,
+        )
+        assertEquals(KeySignature.D_MAJOR, nextInit)
+        assertEquals(null, updatedMeasures[0].keySignature)
+        assertEquals(KeySignature.C_MAJOR, updatedMeasures[1].keySignature)
+        assertEquals(null, updatedMeasures[2].keySignature)
+        assertEquals(null, updatedMeasures[3].keySignature)
+
+        // Note pitch values are completely unchanged across all measures
+        assertEquals(fSharp4, updatedMeasures[0].items[0])
+        assertEquals(cSharp5, updatedMeasures[1].items[0])
+        assertEquals(bb4, updatedMeasures[2].items[0])
+        assertEquals(fSharp4, updatedMeasures[3].items[0])
+        assertEquals(KeySignature.C_MAJOR, ScoreEditing.effectiveKeyAtMeasure(updatedMeasures, nextInit, 1))
+        assertEquals(KeySignature.C_MAJOR, ScoreEditing.effectiveKeyAtMeasure(updatedMeasures, nextInit, 3))
+
+        // Selecting measure 1 + later measures updates opening key and clears later explicit keys
+        val (m1Init, m1Measures) = ScoreEditing.setKeySignatureOnMeasures(
+            initialKey = nextInit,
+            measures = updatedMeasures,
+            selectedMeasureIndices = setOf(0, 1),
+            newKey = KeySignature.G_MAJOR,
+        )
+        assertEquals(KeySignature.G_MAJOR, m1Init)
+        assertEquals(null, m1Measures[0].keySignature)
+        assertEquals(null, m1Measures[1].keySignature)
+    }
+
+    @Test
+    fun testMidScoreKeyChangeRenderingUndoRedoAndSerialization() {
+        val graph = GraphState()
+        val scoreModule = ScoreModule().apply {
+            scoreData.keySignature = KeySignature.D_MAJOR
+            scoreData.replaceMeasures(
+                listOf(
+                    ScoreMeasure(
+                        number = 1,
+                        items = listOf(ScoreItem.Note(SpelledPitch(NoteLetter.F, 1, 4), NoteDuration.QUARTER)),
+                    ),
+                    ScoreMeasure(
+                        number = 2,
+                        // In D major, F#4 has no inline accidental; once Measure 2 changes to C major, F#4 stays F#4
+                        // and automatically renders an inline sharp accidental.
+                        items = listOf(ScoreItem.Note(SpelledPitch(NoteLetter.F, 1, 4), NoteDuration.QUARTER)),
+                    ),
+                )
+            )
+        }
+
+        // Apply C major to Measure 2 via undoable command
+        val beforeKey = scoreModule.scoreData.keySignature
+        val beforeMeasures = scoreModule.scoreData.measures.toList()
+        val (afterKey, afterMeasures) = ScoreEditing.setKeySignatureOnMeasures(
+            initialKey = beforeKey,
+            measures = beforeMeasures,
+            selectedMeasureIndices = setOf(1),
+            newKey = KeySignature.C_MAJOR,
+        )
+        val cmd = SetScoreKeySignatureCommand(scoreModule.scoreData, beforeKey, beforeMeasures, afterKey, afterMeasures)
+        cmd.execute()
+
+        val target = RecordingDrawTarget()
+        val layout = ScoreRenderer.render(
+            score = scoreModule.scoreData,
+            target = target,
+            staffSpacePx = 10f,
+            minWidthPx = 600f,
+            colors = ScoreRenderColors.forTheme(darkMode = false),
+            selectedMeasureIndices = setOf(1),
+        )
+        // Measure 2 switched D major (2#) -> C major (0), so 2 cancellation naturals + F#4 inline sharp are drawn
+        assertEquals(2, layout.placedMeasures[1].keyChangeGlyphs.size)
+        assertTrue(layout.placedMeasures[1].keyChangeGlyphs.all { it.second == Accidental.NATURAL })
+        assertEquals(Accidental.SHARP, layout.placedMeasures[1].items[0].accidental)
+        assertEquals(66, (scoreModule.scoreData.measures[1].items[0] as ScoreItem.Note).pitch.midiPitch)
+        assertEquals(1, layout.measureAt(layout.placedMeasures[1].barlineX - 5f))
+
+        // Serialization round-trip preserves per-measure key signature and exact note pitches
+        graph.addModule(scoreModule, Offset.Zero)
+        val json = GraphSerializer.serialize(graph, graph.modules)
+        val reloaded = GraphSerializer.deserialize(GraphState(), json).filterIsInstance<ScoreModule>().single()
+        assertEquals(KeySignature.D_MAJOR, reloaded.scoreData.keySignature)
+        assertEquals(null, reloaded.scoreData.measures[0].keySignature)
+        assertEquals(KeySignature.C_MAJOR, reloaded.scoreData.measures[1].keySignature)
+        assertEquals(66, (reloaded.scoreData.measures[1].items[0] as ScoreItem.Note).pitch.midiPitch)
+
+        // Undo restores Measure 2 back to null key signature (inheriting D major -> F#4 has no inline accidental)
+        cmd.undo()
+        assertEquals(null, scoreModule.scoreData.measures[1].keySignature)
+        val undoneLayout = ScoreRenderer.computeLayout(scoreModule.scoreData, 10f, 600f) { _, fs -> fs * 0.35f }
+        assertEquals(null, undoneLayout.placedMeasures[1].items[0].accidental)
+    }
 }

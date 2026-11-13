@@ -14,6 +14,10 @@ enum class ScorePaletteKind(
         title = "Notes/Rests",
         buttonLabel = "Notes/\nRests",
     ),
+    KEY_SIGNATURES(
+        title = "Key Signatures",
+        buttonLabel = "Key",
+    ),
 }
 
 /**
@@ -25,6 +29,15 @@ data class ScoreNoteRestOption(
     val glyph: String,
     val shortcutChar: Char,
     val label: String,
+)
+
+/**
+ * A selectable entry inside the Key Signatures popup palette.
+ */
+data class ScoreKeyOption(
+    val keySignature: KeySignature,
+    val shortName: String,
+    val countLabel: String,
 )
 
 /**
@@ -59,6 +72,27 @@ object ScorePalettes {
             label = "${dur.displayLabel} Rest",
         )
     }
+
+    val sharpKeyOptions: List<ScoreKeyOption> = listOf(
+        ScoreKeyOption(KeySignature.C_MAJOR, "C", "0"),
+        ScoreKeyOption(KeySignature.G_MAJOR, "G", "1#"),
+        ScoreKeyOption(KeySignature.D_MAJOR, "D", "2#"),
+        ScoreKeyOption(KeySignature.A_MAJOR, "A", "3#"),
+        ScoreKeyOption(KeySignature.E_MAJOR, "E", "4#"),
+        ScoreKeyOption(KeySignature.B_MAJOR, "B", "5#"),
+        ScoreKeyOption(KeySignature.F_SHARP, "F#", "6#"),
+        ScoreKeyOption(KeySignature.C_SHARP, "C#", "7#"),
+    )
+
+    val flatKeyOptions: List<ScoreKeyOption> = listOf(
+        ScoreKeyOption(KeySignature.F_MAJOR, "F", "1b"),
+        ScoreKeyOption(KeySignature.B_FLAT, "Bb", "2b"),
+        ScoreKeyOption(KeySignature.E_FLAT, "Eb", "3b"),
+        ScoreKeyOption(KeySignature.A_FLAT, "Ab", "4b"),
+        ScoreKeyOption(KeySignature.D_FLAT, "Db", "5b"),
+        ScoreKeyOption(KeySignature.G_FLAT, "Gb", "6b"),
+        ScoreKeyOption(KeySignature.C_FLAT, "Cb", "7b"),
+    )
 }
 
 /**
