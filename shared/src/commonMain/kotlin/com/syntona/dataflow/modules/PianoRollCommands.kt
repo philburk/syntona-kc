@@ -16,9 +16,10 @@ data class NoteFields(
     val parentId: Int,
     val ratio: Ratio,
     val rootPitch: Double,
+    val amplitude: Double = PianoRollModule.NOTE_AMPLITUDE,
 )
 
-fun PianoRollNote.captureFields() = NoteFields(startTicks, durationTicks, parentId, ratio, rootPitch)
+fun PianoRollNote.captureFields() = NoteFields(startTicks, durationTicks, parentId, ratio, rootPitch, amplitude)
 
 fun PianoRollNote.applyFields(fields: NoteFields) {
     startTicks = fields.startTicks
@@ -26,6 +27,7 @@ fun PianoRollNote.applyFields(fields: NoteFields) {
     parentId = fields.parentId
     ratio = fields.ratio
     rootPitch = fields.rootPitch
+    amplitude = fields.amplitude
 }
 
 /** Adds [newNotes] to the module. Also used by Paste. */

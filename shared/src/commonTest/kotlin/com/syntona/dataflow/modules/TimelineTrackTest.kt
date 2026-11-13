@@ -2935,6 +2935,143 @@ class TimelineTrackTest {
         engine.fireUntil(now.plusSeconds(1.2))
         assertEquals(listOf(1.0, 2.0), receivedCounts)
     }
+
+    @Test
+    fun testMidiTrackNoteModeAndAmplitudeSerializationRoundTrip() {
+        val rootGraph = GraphState()
+        val beatLine = BeatLineModule()
+        rootGraph.addModule(beatLine, Offset.Zero)
+
+        val defaultTrack = beatLine.addTrack(TrackType.MIDI, "DefaultTrack") as MidiTrack
+        assertEquals(PianoRollModule.NoteOutputMode.NOTE_ON_OFF, defaultTrack.noteOutputMode)
+
+        val noteModeTrack = beatLine.addTrack(TrackType.MIDI, "ScoreTrack") as MidiTrack
+        noteModeTrack.noteOutputMode = PianoRollModule.NoteOutputMode.NOTE
+        val sec = noteModeTrack.addSection(start = 0.0, duration = 4.0)!!
+        (sec.data as MidiSectionData).addNote(startTicks = 0, durationTicks = 240, pitch = 64.0, amplitude = 0.85)
+
+        val json = GraphSerializer.serialize(rootGraph, rootGraph.modules)
+        val restored = GraphState()
+        GraphSerializer.deserialize(restored, json)
+
+        val loadedBeatLine = restored.modules.filterIsInstance<BeatLineModule>().first()
+        val loadedDefault = loadedBeatLine.tracks[0] as MidiTrack
+        val loadedScore = loadedBeatLine.tracks[1] as MidiTrack
+        assertEquals(PianoRollModule.NoteOutputMode.NOTE_ON_OFF, loadedDefault.noteOutputMode)
+        assertEquals(PianoRollModule.NoteOutputMode.NOTE, loadedScore.noteOutputMode)
+        val loadedNote = (loadedScore.sections.first().data as MidiSectionData).pianoRoll.notes.first()
+        assertEquals(0.85, loadedNote.amplitude, 1e-6)
+    }
+
+    @Test
+    fun testMidiTrackRecordsVoiceNoteAndPreservesVelocity() {
+        val beatLine = BeatLineModule() // 120 BPM = 2 beats/sec
+        val midiTrack = beatLine.addTrack(TrackType.MIDI) as MidiTrack
+        val sec = midiTrack.addSection(start = 0.0, duration = 4.0)!!
+        midiTrack.isRecordArmed = true
+        val engine = TestEngine()
+        beatLine.setEngine(engine)
+
+        val startNow = ScoreTime(1_000_000_000L)
+        beatLine.startRecording(startNow)
+
+        // Direct NOTE+duration command: 0.25s = 0.5 beats = 120 ticks at 120 BPM
+        midiTrack.onMessageReceived(
+            midiTrack.inputJack,
+            Message.VoiceMessage(
+                startNow + ScoreTime(500_000_000L), // 1.0 beat = 240 ticks
+                Message.VoiceOpcode.NOTE,
+                tag = 10,
+                value = 62.0,
+                extra = 0.72,
+                duration = 0.25
+            )
+        )
+
+        // Discrete NOTE_ON / NOTE_OFF preserving velocity
+        midiTrack.onMessageReceived(
+            midiTrack.inputJack,
+            Message.VoiceMessage(
+                startNow + ScoreTime(1_000_000_000L), // 2.0 beats = 480 ticks
+                Message.VoiceOpcode.NOTE_ON,
+                tag = 20,
+                value = 67.0,
+                extra = 0.41
+            )
+        )
+        midiTrack.onMessageReceived(
+            midiTrack.inputJack,
+            Message.VoiceMessage(
+                startNow + ScoreTime(1_500_000_000L), // 3.0 beats = 720 ticks
+                Message.VoiceOpcode.NOTE_OFF,
+                tag = 20,
+                value = 67.0,
+                extra = 0.0
+            )
+        )
+
+        beatLine.stopPlayback(startNow + ScoreTime(2_000_000_000L))
+
+        val notes = (sec.data as MidiSectionData).pianoRoll.notes
+        assertEquals(2, notes.size)
+
+        assertEquals(240, notes[0].startTicks)
+        assertEquals(120, notes[0].durationTicks)
+        assertEquals(62.0, notes[0].rootPitch)
+        assertEquals(0.72, notes[0].amplitude, 1e-6)
+
+        assertEquals(480, notes[1].startTicks)
+        assertEquals(240, notes[1].durationTicks)
+        assertEquals(67.0, notes[1].rootPitch)
+        assertEquals(0.41, notes[1].amplitude, 1e-6)
+    }
+
+    @Test
+    fun testMidiTrackPlaybackInNoteMode() {
+        val beatLine = BeatLineModule() // 120 BPM = 2 beats/sec
+        val midiTrack = beatLine.addTrack(TrackType.MIDI) as MidiTrack
+        midiTrack.noteOutputMode = PianoRollModule.NoteOutputMode.NOTE
+        val sec = midiTrack.addSection(start = 0.0, duration = 4.0)!!
+        (sec.data as MidiSectionData).addNote(startTicks = 240, durationTicks = 120, pitch = 65.0, amplitude = 0.9)
+
+        val engine = TestEngine()
+        beatLine.setEngine(engine)
+
+        val sent = mutableListOf<Message.VoiceMessage>()
+        midiTrack.outputJack.connect(object : InputJack("spy", beatLine) {
+            override fun receive(msg: Message) {
+                if (msg is Message.VoiceMessage) sent.add(msg)
+            }
+        })
+
+        val now = ScoreTime(1_000_000_000L)
+        beatLine.startPlayback(now, 0.0)
+
+        // Note starts at beat 1.0 (= 0.5s) and lasts 0.5 beats (= 0.25s)
+        engine.fireUntil(now.plusSeconds(0.6))
+        assertEquals(1, sent.size)
+        assertEquals(Message.VoiceOpcode.NOTE, sent[0].opcode)
+        assertEquals(65.0, sent[0].value)
+        assertEquals(0.9, sent[0].extra, 1e-6)
+        assertEquals(0.25, sent[0].duration, 1e-6)
+
+        // Finishing past offTime (0.75s) should NOT send a redundant NOTE_OFF
+        engine.fireUntil(now.plusSeconds(1.0))
+        assertEquals(1, sent.size)
+
+        // Chase + early mute mid-note should send NOTE_OFF to silence sounding note
+        sent.clear()
+        beatLine.stopPlayback(now.plusSeconds(1.0))
+        val chaseNow = now.plusSeconds(2.0)
+        beatLine.startPlayback(chaseNow, 1.2) // mid-note (1.0..1.5 beats -> remaining 0.3 beats = 0.15s)
+        assertEquals(1, sent.size)
+        assertEquals(Message.VoiceOpcode.NOTE, sent[0].opcode)
+        assertEquals(0.15, sent[0].duration, 1e-6)
+
+        midiTrack.isMuted = true
+        assertEquals(2, sent.size)
+        assertEquals(Message.VoiceOpcode.NOTE_OFF, sent[1].opcode)
+    }
 }
 
 

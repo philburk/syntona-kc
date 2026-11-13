@@ -4677,6 +4677,24 @@ fun TrackHeaderView(
                         FileState.markDirty()
                     }
                 )
+                if (track is MidiTrack) {
+                    val isUnifiedNote = track.noteOutputMode == com.syntona.dataflow.modules.PianoRollModule.NoteOutputMode.NOTE
+                    TrackButton(
+                        text = if (isUnifiedNote) "N+" else "N",
+                        isActive = isUnifiedNote,
+                        activeColor = Color(0xFF4FC3F7),
+                        onClick = {
+                            module.runOnEngine {
+                                track.noteOutputMode = if (isUnifiedNote) {
+                                    com.syntona.dataflow.modules.PianoRollModule.NoteOutputMode.NOTE_ON_OFF
+                                } else {
+                                    com.syntona.dataflow.modules.PianoRollModule.NoteOutputMode.NOTE
+                                }
+                            }
+                            FileState.markDirty()
+                        }
+                    )
+                }
             } else if (onEditTrack != null) {
                 Box(
                     modifier = Modifier
@@ -5548,7 +5566,7 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
             height = prModule.windowHeight?.dp ?: 500.dp,
             graphState = state,
             onClose = { state.clearSelection() },
-            content = { PianoRollEditor(prModule, state) }
+            content = { PianoRollEditor(prModule, state, showOutputModeSelector = false) }
         )
         window.onGeometryChanged = {
             prModule.windowX = window.position.x / density.density

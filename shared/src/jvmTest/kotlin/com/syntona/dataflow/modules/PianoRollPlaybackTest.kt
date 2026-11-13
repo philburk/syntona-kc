@@ -41,6 +41,7 @@ class PianoRollPlaybackTest {
         try {
             val engine = DataFlowEngine(scope)
             val module = PianoRollModule()
+            module.noteOutputMode = PianoRollModule.NoteOutputMode.NOTE_ON_OFF
             module.setEngine(engine)
             val probe = ProbeModule()
             module.output.connect(probe.input)
@@ -77,6 +78,47 @@ class PianoRollPlaybackTest {
     }
 
     @Test
+    fun testDefaultPlaybackSendsUnifiedNoteMessages() {
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        try {
+            val engine = DataFlowEngine(scope)
+            val module = PianoRollModule()
+            module.setEngine(engine)
+            val probe = ProbeModule()
+            module.output.connect(probe.input)
+
+            assertEquals(PianoRollModule.NoteOutputMode.NOTE, module.noteOutputMode)
+            module.tempo.setValue(120.0) // 60 ticks = 0.125s
+            module.notes.add(PianoRollNote(id = 0, startTicks = 0, durationTicks = 60, rootPitch = 60.0, amplitude = 0.75))
+            module.notes.add(
+                PianoRollNote(id = 1, startTicks = 60, durationTicks = 120, parentId = 0, ratio = Ratio(3, 2), amplitude = 0.35)
+            )
+
+            engine.post(KickJackCommand(module.start, ScoreClock.now()))
+            waitUntil { probe.received.size >= 2 && !module.isPlaying }
+
+            assertFalse(module.isPlaying, "playback should stop after last note finishes")
+            assertEquals(2, probe.received.size, "NOTE mode should emit only NOTE messages when playing to completion")
+
+            val note0 = probe.received[0]
+            assertEquals(Message.VoiceOpcode.NOTE, note0.opcode)
+            assertEquals(0, note0.tag)
+            assertEquals(60.0, note0.value)
+            assertEquals(0.75, note0.extra, 1e-6)
+            assertTrue(kotlin.math.abs(note0.duration - 0.125) < 0.002, "expected ~0.125s duration, got ${note0.duration}")
+
+            val note1 = probe.received[1]
+            assertEquals(Message.VoiceOpcode.NOTE, note1.opcode)
+            assertEquals(1, note1.tag)
+            assertTrue(kotlin.math.abs(note1.value - 67.02) < 0.01)
+            assertEquals(0.35, note1.extra, 1e-6)
+            assertTrue(kotlin.math.abs(note1.duration - 0.250) < 0.002, "expected ~0.250s duration, got ${note1.duration}")
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
     fun testStopFlushesSoundingNotes() {
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         try {
@@ -90,7 +132,11 @@ class PianoRollPlaybackTest {
             module.notes.add(PianoRollNote(id = 0, startTicks = 0, durationTicks = 960, rootPitch = 60.0))
 
             engine.post(KickJackCommand(module.start, ScoreClock.now()))
-            waitUntil { probe.received.any { it.opcode == Message.VoiceOpcode.NOTE_ON } }
+            waitUntil {
+                probe.received.any {
+                    it.opcode == Message.VoiceOpcode.NOTE || it.opcode == Message.VoiceOpcode.NOTE_ON
+                }
+            }
             assertTrue(module.isPlaying)
 
             engine.post(KickJackCommand(module.stop, ScoreClock.now()))
@@ -128,7 +174,8 @@ class PianoRollPlaybackTest {
             waitUntil { !module.isPlaying && probe.received.isNotEmpty() }
 
             assertTrue(probe.received.all { it.tag == 1 }, "only the note after the marker should play, got ${probe.received}")
-            assertEquals(2, probe.received.size)
+            assertEquals(1, probe.received.size)
+            assertEquals(Message.VoiceOpcode.NOTE, probe.received[0].opcode)
         } finally {
             scope.cancel()
         }

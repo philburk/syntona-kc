@@ -45,7 +45,12 @@ class MidiSectionData(
     /**
      * Convenience helper to add a root note to the backing [PianoRollModule].
      */
-    fun addNote(startTicks: Int, durationTicks: Int, pitch: Double): PianoRollNote {
+    fun addNote(
+        startTicks: Int,
+        durationTicks: Int,
+        pitch: Double,
+        amplitude: Double = PianoRollModule.NOTE_AMPLITUDE,
+    ): PianoRollNote {
         val nid = pianoRoll.allocateNoteId()
         val note = PianoRollNote(
             id = nid,
@@ -53,7 +58,8 @@ class MidiSectionData(
             durationTicks = durationTicks,
             parentId = -1,
             ratio = Ratio.UNISON,
-            rootPitch = pitch
+            rootPitch = pitch,
+            amplitude = amplitude,
         )
         pianoRoll.notes.add(note)
         return note

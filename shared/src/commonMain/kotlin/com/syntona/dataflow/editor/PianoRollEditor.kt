@@ -180,7 +180,11 @@ private sealed interface DragState {
 // ----------------------------------------------------------------------- composable
 
 @Composable
-fun PianoRollEditor(module: PianoRollModule, state: GraphState) {
+fun PianoRollEditor(
+    module: PianoRollModule,
+    state: GraphState,
+    showOutputModeSelector: Boolean = true,
+) {
     val density = LocalDensity.current
     val mdiState = LocalMdiState.current
     val textMeasurer = rememberTextMeasurer()
@@ -440,6 +444,7 @@ fun PianoRollEditor(module: PianoRollModule, state: GraphState) {
             onToolChange = { tool = it },
             defaultDurationTicks = defaultDurationTicks,
             onDefaultDurationChange = { defaultDurationTicks = it },
+            showOutputModeSelector = showOutputModeSelector,
             zoom = view.zoom,
             onZoomChange = { newZoom ->
                 // Keep the center of the view stable while zooming.
@@ -965,6 +970,7 @@ private fun PianoRollToolbar(
     onToolChange: (PianoRollTool) -> Unit,
     defaultDurationTicks: Int,
     onDefaultDurationChange: (Int) -> Unit,
+    showOutputModeSelector: Boolean,
     zoom: Float,
     onZoomChange: (Float) -> Unit,
 ) {
@@ -1023,6 +1029,16 @@ private fun PianoRollToolbar(
 
         DurationSelector(defaultDurationTicks, onDefaultDurationChange)
 
+        if (showOutputModeSelector) {
+            NoteModeSelector(
+                mode = module.noteOutputMode,
+                onChange = {
+                    module.noteOutputMode = it
+                    FileState.markDirty()
+                }
+            )
+        }
+
         Text("|", color = borderMuted)
 
         Text("Zoom", fontSize = 10.sp, color = PR_RULER_TEXT)
@@ -1078,6 +1094,40 @@ private fun DurationSelector(durationTicks: Int, onChange: (Int) -> Unit) {
                     text = { Text("$label ($shortcut)") },
                     onClick = {
                         onChange(ticks)
+                        expanded = false
+                    },
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NoteModeSelector(
+    mode: PianoRollModule.NoteOutputMode,
+    onChange: (PianoRollModule.NoteOutputMode) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val options = listOf(
+        PianoRollModule.NoteOutputMode.NOTE to "NOTE (with duration)",
+        PianoRollModule.NoteOutputMode.NOTE_ON_OFF to "NOTE_ON / NOTE_OFF",
+    )
+    Box {
+        TextButton(
+            onClick = { expanded = true },
+            modifier = Modifier
+                .height(30.dp)
+                .focusProperties { canFocus = false }
+        ) {
+            val shortLabel = if (mode == PianoRollModule.NoteOutputMode.NOTE) "NOTE" else "ON/OFF"
+            Text("Out: $shortLabel", fontSize = 11.sp, color = PR_RULER_TEXT)
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { (candidate, label) ->
+                CompactDropdownMenuItem(
+                    text = { Text(label) },
+                    onClick = {
+                        onChange(candidate)
                         expanded = false
                     },
                 )
