@@ -80,6 +80,10 @@ data class ScorePlacedMeasure(
     val items: List<ScorePlacedItem>,
     val totalTicks: Int,
     val capacityTicks: Int,
+    val contentStartX: Float = startX,
+    val keyChangeX: Float = startX,
+    val keyChangeGlyphs: List<Pair<Int, Accidental>> = emptyList(),
+    val activeKeySignature: KeySignature = KeySignature.C_MAJOR,
 )
 
 data class ScoreInsertionTarget(
@@ -207,16 +211,41 @@ data class ScoreLayout(
         return ScoreCursorPosition(measureIdx = lastPm.measureIdx, itemIdx = lastPm.items.size)
     }
 
+    /** Returns the 0-based measure index under [x], or `null` if outside measure bounds (e.g. header). */
+    fun measureAt(x: Float): Int? {
+        for ((idx, pm) in placedMeasures.withIndex()) {
+            val leftBound = if (idx == 0) pm.startX - staffSpacePx * 0.5f else placedMeasures[idx - 1].barlineX
+            if (x >= leftBound && x <= pm.barlineX) {
+                return pm.measureIdx
+            }
+        }
+        return null
+    }
+
+    /** Returns the indices of all measures whose horizontal bounds intersect `[left, right]` across the staff. */
+    fun measuresInRect(left: Float, top: Float, right: Float, bottom: Float): Set<Int> {
+        val sp = staffSpacePx
+        if (bottom < topStaffY - sp || top > bottomStaffY + sp) return emptySet()
+        val result = linkedSetOf<Int>()
+        for ((idx, pm) in placedMeasures.withIndex()) {
+            val leftBound = if (idx == 0) pm.startX else placedMeasures[idx - 1].barlineX
+            if (pm.barlineX >= left && leftBound <= right) {
+                result.add(pm.measureIdx)
+            }
+        }
+        return result
+    }
+
     /** Computes the horizontal canvas coordinate for rendering the vertical cursor at [cursor]. */
     fun cursorXFor(cursor: ScoreCursorPosition): Float? {
         val pm = placedMeasures.getOrNull(cursor.measureIdx) ?: return null
         val sp = staffSpacePx
         if (pm.items.isEmpty()) {
-            return pm.startX + sp * 1.1f
+            return pm.contentStartX + sp * 1.1f
         }
         val clampedIdx = cursor.itemIdx.coerceIn(0, pm.items.size)
         return when {
-            clampedIdx == 0 -> ((pm.startX + sp * 0.35f) + pm.items.first().boxLeft) * 0.5f
+            clampedIdx == 0 -> ((pm.contentStartX + sp * 0.35f) + pm.items.first().boxLeft) * 0.5f
             clampedIdx >= pm.items.size -> {
                 val tailRight = pm.items.last().boxRight
                 val limit = min(pm.barlineX - sp * 0.25f, tailRight + sp * 0.9f)
@@ -279,9 +308,10 @@ object ScoreRenderer {
         val clefWidth = max(measureGlyphWidth(score.clef.glyph, emPx), sp * 2.6f)
         cursorX += clefWidth + sp * 0.8f
 
-        val keySteps = score.keySignature.trebleStaffSteps()
-        val keyGlyph = if (score.keySignature.fifths >= 0) SmuflGlyphs.ACCIDENTAL_SHARP else SmuflGlyphs.ACCIDENTAL_FLAT
-        val keyGlyphStepWidth = if (score.keySignature.fifths >= 0) {
+        val openingKey = score.measures.firstOrNull()?.keySignature ?: score.keySignature
+        val keySteps = openingKey.trebleStaffSteps()
+        val keyGlyph = if (openingKey.fifths >= 0) SmuflGlyphs.ACCIDENTAL_SHARP else SmuflGlyphs.ACCIDENTAL_FLAT
+        val keyGlyphStepWidth = if (openingKey.fifths >= 0) {
             SmuflGlyphs.ACCIDENTAL_SHARP_WIDTH * sp + sp * 0.18f
         } else {
             SmuflGlyphs.ACCIDENTAL_FLAT_WIDTH * sp + sp * 0.14f
@@ -304,9 +334,23 @@ object ScoreRenderer {
         val measureCapacity = score.timeSignature.measureCapacityTicks
         val placedMeasures = mutableListOf<ScorePlacedMeasure>()
         var globalIdx = 0
+        var effectiveKey = openingKey
 
         for ((mIdx, measure) in score.measures.withIndex()) {
             val mStartX = cursorX
+            val keyChangeX = cursorX
+            val keyChangeGlyphs = if (mIdx > 0 && measure.keySignature != null && measure.keySignature != effectiveKey) {
+                ScoreEditing.midMeasureKeyGlyphs(effectiveKey, measure.keySignature).also {
+                    effectiveKey = measure.keySignature
+                }
+            } else {
+                emptyList()
+            }
+            if (keyChangeGlyphs.isNotEmpty()) {
+                val (_, endKeyX) = keyChangeGlyphLayout(keyChangeX, keyChangeGlyphs, sp)
+                cursorX = endKeyX + sp * 0.45f
+            }
+            val contentStartX = cursorX
             val activeAlters = mutableMapOf<Int, Int>()
             val itemsInMeasure = mutableListOf<ScorePlacedItem>()
             var measureTicks = 0
@@ -316,7 +360,7 @@ object ScoreRenderer {
                 var shownAccidental: Accidental? = null
                 var step: Int? = null
                 if (item is ScoreItem.Note) {
-                    val keyDefault = score.keySignature.defaultAlter(item.pitch.letter)
+                    val keyDefault = effectiveKey.defaultAlter(item.pitch.letter)
                     val dStep = item.pitch.diatonicStep
                     val currentAlter = activeAlters[dStep] ?: keyDefault
                     if (item.pitch.alter != currentAlter) {
@@ -409,6 +453,10 @@ object ScoreRenderer {
                     items = itemsInMeasure,
                     totalTicks = measureTicks,
                     capacityTicks = measureCapacity,
+                    contentStartX = contentStartX,
+                    keyChangeX = keyChangeX,
+                    keyChangeGlyphs = keyChangeGlyphs,
+                    activeKeySignature = effectiveKey,
                 )
             )
             cursorX += sp * 0.6f
@@ -473,6 +521,7 @@ object ScoreRenderer {
         colors: ScoreRenderColors,
         activeItemGlobalIndex: Int? = null,
         selectedLocations: Set<ScoreItemLocation> = emptySet(),
+        selectedMeasureIndices: Set<Int> = emptySet(),
         ghostPreview: ScoreGhostPreview? = null,
         rubberBand: ScoreRubberBand? = null,
         cursorPosition: ScoreCursorPosition? = null,
@@ -517,6 +566,23 @@ object ScoreRenderer {
         val ledgerExt = SmuflGlyphs.LEGER_LINE_EXTENSION * sp
 
         for ((idx, pm) in layout.placedMeasures.withIndex()) {
+            if (pm.measureIdx in selectedMeasureIndices) {
+                val hlLeft = if (idx == 0) pm.startX else layout.placedMeasures[idx - 1].barlineX
+                val hlTop = topStaffY - sp * 0.55f
+                val hlBottom = bottomStaffY + sp * 0.55f
+                val borderThick = (sp * 0.12f).coerceAtLeast(1f)
+                target.fillRect(hlLeft, hlTop, (pm.barlineX - hlLeft).coerceAtLeast(1f), hlBottom - hlTop, colors.selectedBoxFill)
+                target.drawLine(hlLeft, hlTop, pm.barlineX, hlTop, borderThick, colors.selectedBoxBorder)
+                target.drawLine(hlLeft, hlBottom, pm.barlineX, hlBottom, borderThick, colors.selectedBoxBorder)
+            }
+
+            if (pm.keyChangeGlyphs.isNotEmpty()) {
+                val (glyphXs, _) = keyChangeGlyphLayout(pm.keyChangeX, pm.keyChangeGlyphs, sp)
+                pm.keyChangeGlyphs.forEachIndexed { gIdx, (kStep, acc) ->
+                    target.drawGlyph(acc.glyph, glyphXs[gIdx], layout.yForStep(kStep), emPx, colors.ink)
+                }
+            }
+
             if (idx > 0) {
                 target.drawText(
                     text = pm.measure.number.toString(),
@@ -811,6 +877,25 @@ object ScoreRenderer {
 
     private fun stemLengthSpaces(duration: NoteDuration): Float =
         if (duration.flagCount >= 3) STEM_LENGTH_32ND_SPACES else STEM_LENGTH_SPACES
+
+    private fun keyChangeGlyphLayout(
+        startX: Float,
+        glyphs: List<Pair<Int, Accidental>>,
+        sp: Float,
+    ): Pair<List<Float>, Float> {
+        var x = startX
+        var prevAcc: Accidental? = null
+        val xs = ArrayList<Float>(glyphs.size)
+        for ((_, acc) in glyphs) {
+            if (prevAcc != null && prevAcc != acc) {
+                x += sp * 0.25f
+            }
+            xs.add(x)
+            x += accidentalWidth(acc, sp) + sp * 0.16f
+            prevAcc = acc
+        }
+        return xs to x
+    }
 
     private fun accidentalWidth(acc: Accidental, sp: Float): Float = when (acc) {
         Accidental.SHARP -> SmuflGlyphs.ACCIDENTAL_SHARP_WIDTH * sp

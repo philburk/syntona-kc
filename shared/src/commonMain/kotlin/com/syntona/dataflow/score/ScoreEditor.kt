@@ -130,6 +130,7 @@ private sealed interface ScoreDragState {
         val start: Offset,
         val additive: Boolean,
         val baseSelection: Set<ScoreItemLocation>,
+        val baseMeasures: Set<Int>,
     ) : ScoreDragState {
         var end by mutableStateOf(start)
     }
@@ -163,6 +164,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
     var pendingAccidental by remember { mutableStateOf<Accidental?>(null) }
     var pendingStaccato by remember { mutableStateOf(false) }
     var selectedLocations by remember { mutableStateOf<Set<ScoreItemLocation>>(emptySet()) }
+    var selectedMeasures by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var activePitchText by remember { mutableStateOf<String?>(null) }
     var hoverPos by remember { mutableStateOf<Offset?>(null) }
     var hoveringItem by remember { mutableStateOf(false) }
@@ -244,6 +246,35 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         } else {
             pendingAccidental = if (pendingAccidental == accidental) null else accidental
         }
+    }
+
+    fun targetMeasuresForKeyChange(): Set<Int> {
+        if (selectedMeasures.isNotEmpty()) return selectedMeasures
+        if (selectedLocations.isNotEmpty()) return selectedLocations.map { it.measureIdx }.toSet()
+        module.cursorPosition?.let { return setOf(it.measureIdx) }
+        return if (score.measures.isNotEmpty()) setOf(0) else emptySet()
+    }
+
+    fun applyKeySignature(newKey: KeySignature, targetMeasures: Set<Int>) {
+        if (targetMeasures.isEmpty()) return
+        val beforeInitialKey = score.keySignature
+        val beforeMeasures = score.measures.toList()
+        val (afterInitialKey, afterMeasures) = ScoreEditing.setKeySignatureOnMeasures(
+            initialKey = beforeInitialKey,
+            measures = beforeMeasures,
+            selectedMeasureIndices = targetMeasures,
+            newKey = newKey,
+        )
+        if (afterInitialKey == beforeInitialKey && afterMeasures == beforeMeasures) return
+        postCommand(
+            SetScoreKeySignatureCommand(
+                scoreData = score,
+                beforeInitialKey = beforeInitialKey,
+                beforeMeasures = beforeMeasures,
+                afterInitialKey = afterInitialKey,
+                afterMeasures = afterMeasures,
+            )
+        )
     }
 
     fun toggleStaccato() {
@@ -559,11 +590,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             ScoreKeySelector(
                 selected = score.keySignature,
                 textColor = toolbarText,
-                onSelect = {
-                    score.keySignature = it
-                    FileState.markDirty()
-                    state.markChanged()
-                },
+                onSelect = { applyKeySignature(it, setOf(0)) },
             )
 
             ScoreTimeSigSelector(
@@ -595,6 +622,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     val before = score.measures.toList()
                     val after = ScoreEditing.clearToSingleEmptyMeasure()
                     selectedLocations = emptySet()
+                    selectedMeasures = emptySet()
                     activePitchText = null
                     postCommand(ReplaceScoreMeasuresCommand(score, before, after))
                 },
@@ -630,12 +658,20 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 .weight(1f)
                 .fillMaxWidth()
         ) {
+            val targetMeasureIndices = targetMeasuresForKeyChange()
+            val firstTargetIdx = targetMeasureIndices.minOrNull() ?: 0
+            val activeTargetKey = ScoreEditing.effectiveKeyAtMeasure(
+                measures = score.measures,
+                initialKey = score.keySignature,
+                measureIdx = firstTargetIdx,
+            )
             ScorePalettePanel(
                 openPalette = openPalette,
                 editorMode = editorMode,
                 isStepRecording = module.isStepRecording,
                 entryDuration = entryDuration,
                 entryIsRest = entryIsRest,
+                activeKeySignature = activeTargetKey,
                 toolbarBg = toolbarBg,
                 toolbarText = toolbarText,
                 accentColor = accentColor,
@@ -647,10 +683,11 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     openPalette = if (openPalette == kind) null else kind
                 },
             ) { kind, buttonWidthPx ->
+                val gapPx = with(density) { 4.dp.roundToPx() }
+                val popupOffsetX = (buttonWidthPx + gapPx).coerceAtLeast(1)
                 if (kind == openPalette && kind == ScorePaletteKind.NOTES_RESTS) {
-                    val gapPx = with(density) { 4.dp.roundToPx() }
                     NotesRestsPalettePopup(
-                        offsetX = (buttonWidthPx + gapPx).coerceAtLeast(1),
+                        offsetX = popupOffsetX,
                         editorMode = editorMode,
                         isStepRecording = module.isStepRecording,
                         entryDuration = entryDuration,
@@ -672,6 +709,24 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                 editorMode = ScoreEditMode.ENTRY
                                 entryIsRest = isRest
                             }
+                            openPalette = null
+                            focusRequester.requestFocus()
+                        },
+                        onDismiss = { openPalette = null },
+                        onKeyEvent = ::handleKeyEvent,
+                    )
+                } else if (kind == openPalette && kind == ScorePaletteKind.KEY_SIGNATURES) {
+                    KeySignaturesPalettePopup(
+                        offsetX = popupOffsetX,
+                        targetMeasures = targetMeasureIndices,
+                        activeKey = activeTargetKey,
+                        isDark = isDark,
+                        toolbarText = toolbarText,
+                        accentColor = accentColor,
+                        borderMuted = borderMuted,
+                        musicFontFamily = musicFontFamily,
+                        onSelectKey = { chosenKey ->
+                            applyKeySignature(chosenKey, targetMeasureIndices)
                             openPalette = null
                             focusRequester.requestFocus()
                         },
@@ -803,6 +858,23 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             } else {
                 selectedLocations
             }
+            val displayedSelectedMeasures = if (rubberBandState != null && rubberBand != null) {
+                val isTiny = abs(rubberBandState.end.x - rubberBandState.start.x) < 4f &&
+                    abs(rubberBandState.end.y - rubberBandState.start.y) < 4f
+                if (isTiny) {
+                    selectedMeasures
+                } else {
+                    val liveHits = layout.itemsInRect(rubberBand.left, rubberBand.top, rubberBand.right, rubberBand.bottom)
+                    val liveMeasures = layout.measuresInRect(rubberBand.left, rubberBand.top, rubberBand.right, rubberBand.bottom)
+                    if (liveMeasures.size > 1 || liveHits.isEmpty()) {
+                        if (rubberBandState.additive) rubberBandState.baseMeasures + liveMeasures else liveMeasures
+                    } else {
+                        emptySet()
+                    }
+                }
+            } else {
+                selectedMeasures
+            }
 
             Box(
                 modifier = Modifier
@@ -880,6 +952,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                             refreshPitchDisplayFromSelection()
                                         } else {
                                             selectedLocations = setOf(hit.location)
+                                            selectedMeasures = emptySet()
                                             val item = hit.item
                                             if (item is ScoreItem.Note) {
                                                 module.previewPitch(item.pitch.midiPitch.toDouble(), isStaccato = item.isStaccato)
@@ -892,21 +965,29 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                         }
                                     } else if (module.isStepRecording && hit == null) {
                                         selectedLocations = emptySet()
+                                        selectedMeasures = emptySet()
                                         activePitchText = null
                                         module.placeCursor(lyt.cursorPositionAt(downPos.x))
                                     } else if (module.isStepRecording && hit != null) {
                                         selectedLocations = emptySet()
+                                        selectedMeasures = emptySet()
                                         activePitchText = null
                                         module.placeCursor(lyt.cursorPositionAt(downPos.x))
                                     } else {
                                         if (!isShift) {
                                             selectedLocations = emptySet()
+                                            selectedMeasures = emptySet()
                                             activePitchText = null
                                         }
                                         dragState = ScoreDragState.RubberBand(
                                             start = downPos,
                                             additive = isShift,
                                             baseSelection = selectedLocations,
+                                            baseMeasures = if (selectedMeasures.isNotEmpty()) {
+                                                selectedMeasures
+                                            } else {
+                                                selectedLocations.map { it.measureIdx }.toSet()
+                                            },
                                         )
                                     }
                                 } else {
@@ -927,9 +1008,14 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                 postCommand(ReplaceScoreMeasuresCommand(score, beforeMeasures, after))
                                             } else {
                                                 val step = lyt.stepAtY(downPos.y)
+                                                val measureKey = ScoreEditing.effectiveKeyAtMeasure(
+                                                    beforeMeasures,
+                                                    score.keySignature,
+                                                    hit.location.measureIdx,
+                                                )
                                                 val pitch = score.clef.pitchForStaffStep(
                                                     stepFromBottom = step,
-                                                    keySignature = score.keySignature,
+                                                    keySignature = measureKey,
                                                     alterOverride = pendingAccidental?.alter,
                                                 )
                                                 val newNote = ScoreItem.Note(
@@ -947,6 +1033,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                             }
                                         } else {
                                             selectedLocations = setOf(hit.location)
+                                            selectedMeasures = emptySet()
                                             val item = hit.item
                                             if (item is ScoreItem.Note) {
                                                 module.previewPitch(item.pitch.midiPitch.toDouble(), isStaccato = item.isStaccato)
@@ -974,9 +1061,14 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                 postCommand(ReplaceScoreMeasuresCommand(score, beforeMeasures, after))
                                             } else {
                                                 val step = lyt.stepAtY(downPos.y)
+                                                val measureKey = ScoreEditing.effectiveKeyAtMeasure(
+                                                    beforeMeasures,
+                                                    score.keySignature,
+                                                    target.measureIdx,
+                                                )
                                                 val pitch = score.clef.pitchForStaffStep(
                                                     stepFromBottom = step,
-                                                    keySignature = score.keySignature,
+                                                    keySignature = measureKey,
                                                     alterOverride = pendingAccidental?.alter,
                                                 )
                                                 val newNote = ScoreItem.Note(
@@ -1017,12 +1109,17 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                             if (newStep != drag.lastStep) {
                                                 drag.lastStep = newStep
                                                 val alterOverride = if (newStep == drag.initialStep) drag.initialAlter else null
+                                                val currentMeasures = score.measures.toList()
+                                                val measureKey = ScoreEditing.effectiveKeyAtMeasure(
+                                                    currentMeasures,
+                                                    score.keySignature,
+                                                    drag.location.measureIdx,
+                                                )
                                                 val newPitch = score.clef.pitchForStaffStep(
                                                     stepFromBottom = newStep,
-                                                    keySignature = score.keySignature,
+                                                    keySignature = measureKey,
                                                     alterOverride = alterOverride,
                                                 )
-                                                val currentMeasures = score.measures.toList()
                                                 val updated = ScoreEditing.setNotePitch(currentMeasures, drag.location, newPitch)
                                                 score.replaceMeasures(updated)
                                                 drag.anchorY = lyt.yForStep(newStep)
@@ -1063,18 +1160,40 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                     is ScoreDragState.RubberBand -> {
                                         val isClick = abs(drag.end.x - drag.start.x) < 4f &&
                                             abs(drag.end.y - drag.start.y) < 4f
-                                        if (isClick && !drag.additive) {
-                                            selectedLocations = emptySet()
-                                            activePitchText = null
-                                            module.placeCursor(lyt.cursorPositionAt(drag.start.x))
+                                        if (isClick) {
+                                            val clickedMeasure = lyt.measureAt(drag.start.x)
+                                            if (!drag.additive) {
+                                                selectedLocations = emptySet()
+                                                activePitchText = null
+                                                selectedMeasures = clickedMeasure?.let(::setOf) ?: emptySet()
+                                                module.placeCursor(lyt.cursorPositionAt(drag.start.x))
+                                            } else if (clickedMeasure != null) {
+                                                val nextMeasures = if (clickedMeasure in drag.baseMeasures) {
+                                                    drag.baseMeasures - clickedMeasure
+                                                } else {
+                                                    drag.baseMeasures + clickedMeasure
+                                                }
+                                                selectedMeasures = nextMeasures
+                                                selectedLocations = emptySet()
+                                                activePitchText = null
+                                                if (nextMeasures.isNotEmpty()) {
+                                                    module.placeCursor(null)
+                                                }
+                                            }
                                         } else {
                                             val left = min(drag.start.x, drag.end.x)
                                             val top = min(drag.start.y, drag.end.y)
                                             val right = max(drag.start.x, drag.end.x)
                                             val bottom = max(drag.start.y, drag.end.y)
                                             val hits = lyt.itemsInRect(left, top, right, bottom)
+                                            val mHits = lyt.measuresInRect(left, top, right, bottom)
                                             selectedLocations = if (drag.additive) drag.baseSelection + hits else hits
-                                            if (selectedLocations.isNotEmpty()) {
+                                            selectedMeasures = if (mHits.size > 1 || hits.isEmpty()) {
+                                                if (drag.additive) drag.baseMeasures + mHits else mHits
+                                            } else {
+                                                emptySet()
+                                            }
+                                            if (selectedLocations.isNotEmpty() || selectedMeasures.isNotEmpty()) {
                                                 module.placeCursor(null)
                                             }
                                             refreshPitchDisplayFromSelection()
@@ -1100,6 +1219,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         colors = renderColors,
                         activeItemGlobalIndex = module.activeItemIndex,
                         selectedLocations = displayedSelectedLocations,
+                        selectedMeasureIndices = displayedSelectedMeasures,
                         ghostPreview = ghostPreview,
                         rubberBand = rubberBand,
                         cursorPosition = module.cursorPosition,
@@ -1311,6 +1431,7 @@ private fun ScorePalettePanel(
     isStepRecording: Boolean,
     entryDuration: NoteDuration,
     entryIsRest: Boolean,
+    activeKeySignature: KeySignature,
     toolbarBg: Color,
     toolbarText: Color,
     accentColor: Color,
@@ -1341,6 +1462,7 @@ private fun ScorePalettePanel(
                 val isToolActive = when (kind) {
                     ScorePaletteKind.NOTES_RESTS ->
                         (editorMode == ScoreEditMode.ENTRY && !isStepRecording) || isStepRecording
+                    ScorePaletteKind.KEY_SIGNATURES -> false
                 }
                 val highlighted = isOpen || isToolActive
                 val contentColor = if (highlighted) {
@@ -1401,6 +1523,18 @@ private fun ScorePalettePanel(
                                     width = 36.dp,
                                     height = 24.dp,
                                     glyphSizeSp = 20f,
+                                )
+                            }
+                            ScorePaletteKind.KEY_SIGNATURES -> {
+                                KeySignatureMiniStaff(
+                                    keySignature = activeKeySignature,
+                                    inkColor = contentColor,
+                                    staffLineColor = borderMuted,
+                                    musicFontFamily = musicFontFamily,
+                                    textMeasurer = textMeasurer,
+                                    width = 44.dp,
+                                    height = 22.dp,
+                                    staffSpaceDp = 3.2f,
                                 )
                             }
                         }
@@ -1599,6 +1733,231 @@ private fun NotesRestsPaletteRow(
                     fontFamily = FontFamily.Monospace,
                     fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                     color = contentColor.copy(alpha = if (selected) 1f else 0.8f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun KeySignaturesPalettePopup(
+    offsetX: Int,
+    targetMeasures: Set<Int>,
+    activeKey: KeySignature,
+    isDark: Boolean,
+    toolbarText: Color,
+    accentColor: Color,
+    borderMuted: Color,
+    musicFontFamily: FontFamily,
+    onSelectKey: (KeySignature) -> Unit,
+    onDismiss: () -> Unit,
+    onKeyEvent: (KeyEvent) -> Boolean,
+) {
+    val popupBg = if (isDark) Color(0xFF161832) else Color(0xFFFFFFFF)
+    val tileBg = if (isDark) Color(0xFF202446) else Color(0xFFF1F5F9)
+    val titleColor = if (isDark) Color(0xFFE2E8F0) else Color(0xFF0F172A)
+    val textMeasurer = rememberTextMeasurer()
+
+    val sortedNums = targetMeasures.map { it + 1 }.sorted()
+    val targetDescription = when {
+        sortedNums.isEmpty() -> "No measure"
+        sortedNums.size == 1 -> "Measure ${sortedNums.first()}"
+        else -> "Measures ${sortedNums.joinToString(", ")}"
+    }
+
+    Popup(
+        alignment = Alignment.TopStart,
+        offset = IntOffset(offsetX, 0),
+        properties = PopupProperties(
+            focusable = true,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true,
+        ),
+        onDismissRequest = onDismiss,
+    ) {
+        Surface(
+            color = popupBg,
+            shape = RoundedCornerShape(6.dp),
+            shadowElevation = 6.dp,
+            modifier = Modifier
+                .wrapContentSize()
+                .border(1.dp, accentColor.copy(alpha = 0.65f), RoundedCornerShape(6.dp))
+                .onKeyEvent(onKeyEvent),
+        ) {
+            Column(
+                modifier = Modifier
+                    .width(IntrinsicSize.Max)
+                    .padding(6.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = ScorePaletteKind.KEY_SIGNATURES.title,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = titleColor,
+                    )
+                    Text(
+                        text = targetDescription,
+                        fontSize = 9.sp,
+                        color = accentColor,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+
+                KeySignaturePaletteRow(
+                    rowLabel = "Sharps",
+                    options = ScorePalettes.sharpKeyOptions,
+                    activeKey = activeKey,
+                    isDark = isDark,
+                    tileBg = tileBg,
+                    toolbarText = toolbarText,
+                    accentColor = accentColor,
+                    borderMuted = borderMuted,
+                    musicFontFamily = musicFontFamily,
+                    textMeasurer = textMeasurer,
+                    onSelectKey = onSelectKey,
+                )
+
+                KeySignaturePaletteRow(
+                    rowLabel = "Flats",
+                    options = ScorePalettes.flatKeyOptions,
+                    activeKey = activeKey,
+                    isDark = isDark,
+                    tileBg = tileBg,
+                    toolbarText = toolbarText,
+                    accentColor = accentColor,
+                    borderMuted = borderMuted,
+                    musicFontFamily = musicFontFamily,
+                    textMeasurer = textMeasurer,
+                    onSelectKey = onSelectKey,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun KeySignaturePaletteRow(
+    rowLabel: String,
+    options: List<ScoreKeyOption>,
+    activeKey: KeySignature,
+    isDark: Boolean,
+    tileBg: Color,
+    toolbarText: Color,
+    accentColor: Color,
+    borderMuted: Color,
+    musicFontFamily: FontFamily,
+    textMeasurer: TextMeasurer,
+    onSelectKey: (KeySignature) -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Text(
+            text = rowLabel,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Medium,
+            color = toolbarText,
+            modifier = Modifier.width(34.dp),
+        )
+        options.forEach { option ->
+            val selected = option.keySignature == activeKey
+            val contentColor = if (selected) {
+                if (isDark) Color.White else accentColor
+            } else {
+                toolbarText
+            }
+            val bg = if (selected) accentColor.copy(alpha = 0.22f) else tileBg
+            Column(
+                modifier = Modifier
+                    .width(46.dp)
+                    .background(bg, RoundedCornerShape(5.dp))
+                    .border(
+                        width = if (selected) 1.5.dp else 1.dp,
+                        color = if (selected) accentColor else borderMuted,
+                        shape = RoundedCornerShape(5.dp),
+                    )
+                    .pointerHoverIcon(PointerIcon.Hand)
+                    .clickable { onSelectKey(option.keySignature) }
+                    .padding(horizontal = 2.dp, vertical = 2.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(1.dp),
+            ) {
+                KeySignatureMiniStaff(
+                    keySignature = option.keySignature,
+                    inkColor = contentColor,
+                    staffLineColor = borderMuted,
+                    musicFontFamily = musicFontFamily,
+                    textMeasurer = textMeasurer,
+                    width = 40.dp,
+                    height = 22.dp,
+                    staffSpaceDp = 3.2f,
+                )
+                Text(
+                    text = "${option.shortName} (${option.countLabel})",
+                    fontSize = 8.sp,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                    color = contentColor,
+                    maxLines = 1,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun KeySignatureMiniStaff(
+    keySignature: KeySignature,
+    inkColor: Color,
+    staffLineColor: Color,
+    musicFontFamily: FontFamily,
+    textMeasurer: TextMeasurer,
+    width: Dp,
+    height: Dp,
+    staffSpaceDp: Float,
+) {
+    Canvas(modifier = Modifier.size(width = width, height = height)) {
+        val sp = staffSpaceDp.dp.toPx()
+        val emPx = sp * 4f
+        val topStaffY = (size.height - 4f * sp) * 0.5f
+        val bottomStaffY = topStaffY + 4f * sp
+        val lineLeft = 2.dp.toPx()
+        val lineRight = size.width - 2.dp.toPx()
+        for (lineIdx in 0..4) {
+            val y = bottomStaffY - lineIdx * sp
+            drawLine(
+                color = staffLineColor,
+                start = Offset(lineLeft, y),
+                end = Offset(lineRight, y),
+                strokeWidth = 0.8f,
+            )
+        }
+        val steps = keySignature.trebleStaffSteps()
+        if (steps.isNotEmpty()) {
+            val glyph = if (keySignature.fifths >= 0) {
+                SmuflGlyphs.ACCIDENTAL_SHARP
+            } else {
+                SmuflGlyphs.ACCIDENTAL_FLAT
+            }
+            val emSp = with(this) { emPx.toSp() }
+            val style = TextStyle(fontFamily = musicFontFamily, fontSize = emSp, color = inkColor)
+            val measured = textMeasurer.measure(text = glyph, style = style, softWrap = false, maxLines = 1)
+            val stepW = ((lineRight - lineLeft - measured.size.width) / steps.size.coerceAtLeast(1))
+                .coerceAtMost(sp * 1.15f)
+            val totalGlyphsW = (steps.size - 1) * stepW + measured.size.width
+            val startX = ((size.width - totalGlyphsW) * 0.5f).coerceAtLeast(lineLeft)
+            steps.forEachIndexed { idx, step ->
+                val gx = startX + idx * stepW
+                val gy = bottomStaffY - step * (sp * 0.5f)
+                drawText(
+                    textLayoutResult = measured,
+                    color = inkColor,
+                    topLeft = Offset(gx, gy - measured.firstBaseline),
                 )
             }
         }

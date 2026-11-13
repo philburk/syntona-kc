@@ -562,7 +562,9 @@ object GraphSerializer {
                 append(",\"measures\":[")
                 module.scoreData.measures.forEachIndexed { mIdx, measure ->
                     if (mIdx > 0) append(",")
-                    append("{\"num\":${measure.number},\"items\":[")
+                    append("{\"num\":${measure.number}")
+                    measure.keySignature?.let { append(",\"key\":\"${it.name}\"") }
+                    append(",\"items\":[")
                     measure.items.forEachIndexed { iIdx, item ->
                         if (iIdx > 0) append(",")
                         when (item) {
@@ -1552,6 +1554,8 @@ object GraphSerializer {
                     for ((mIdx, mVal) in measuresArr.withIndex()) {
                         val mObj = mVal as? JsonValue.Obj ?: continue
                         val mNum = (mObj.map["num"] as? JsonValue.Num)?.value?.toInt() ?: (mIdx + 1)
+                        val mKeyStr = (mObj.map["key"] as? JsonValue.Str)?.value
+                        val mKey = mKeyStr?.let { name -> KeySignature.entries.firstOrNull { it.name == name } }
                         val itemsArr = (mObj.map["items"] as? JsonValue.Arr)?.items ?: emptyList()
                         val loadedItems = mutableListOf<ScoreItem>()
                         for (itemVal in itemsArr) {
@@ -1586,7 +1590,7 @@ object GraphSerializer {
                                 }
                             }
                         }
-                        loadedMeasures.add(ScoreMeasure(number = mNum, items = loadedItems))
+                        loadedMeasures.add(ScoreMeasure(number = mNum, items = loadedItems, keySignature = mKey))
                     }
                     module.scoreData.replaceMeasures(loadedMeasures)
                 }

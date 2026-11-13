@@ -305,6 +305,7 @@ sealed interface ScoreItem {
 data class ScoreMeasure(
     val number: Int,
     val items: List<ScoreItem>,
+    val keySignature: KeySignature? = null,
 )
 
 /** Identifies an item slot by measure index and item index within that measure. */
@@ -481,6 +482,76 @@ object ScoreEditing {
                 insertedLocation = loc,
                 nextCursor = ScoreCursorPosition(loc.measureIdx, loc.itemIdx + 1),
             )
+        }
+    }
+
+    /** Returns the [KeySignature] in effect during [measureIdx] (`0`-based). */
+    fun effectiveKeyAtMeasure(
+        measures: List<ScoreMeasure>,
+        initialKey: KeySignature,
+        measureIdx: Int,
+    ): KeySignature {
+        var effective = measures.firstOrNull()?.keySignature ?: initialKey
+        val limit = measureIdx.coerceAtMost(measures.lastIndex)
+        for (i in 1..limit) {
+            measures[i].keySignature?.let { effective = it }
+        }
+        return effective
+    }
+
+    /**
+     * Applies [newKey] to the first measure in [selectedMeasureIndices] and clears explicit
+     * key signatures from any later selected measures, without altering any note pitch values.
+     */
+    fun setKeySignatureOnMeasures(
+        initialKey: KeySignature,
+        measures: List<ScoreMeasure>,
+        selectedMeasureIndices: Set<Int>,
+        newKey: KeySignature,
+    ): Pair<KeySignature, List<ScoreMeasure>> {
+        val normalized = renumber(measures)
+        val sortedSelection = selectedMeasureIndices.filter { it in normalized.indices }.sorted()
+        if (sortedSelection.isEmpty()) return initialKey to normalized
+
+        val firstIdx = sortedSelection.first()
+        val laterIndices = sortedSelection.drop(1).toSet()
+        val nextInitialKey = if (firstIdx == 0) newKey else initialKey
+        val updated = normalized.mapIndexed { idx, measure ->
+            when {
+                idx == firstIdx -> measure.copy(keySignature = if (idx == 0) null else newKey)
+                idx in laterIndices -> measure.copy(keySignature = null)
+                else -> measure
+            }
+        }
+        return nextInitialKey to updated
+    }
+
+    /**
+     * Computes ordered `(staffStep, accidental)` glyphs for a mid-score key change from
+     * [prevKey] to [newKey], including cancellation naturals where appropriate.
+     */
+    fun midMeasureKeyGlyphs(prevKey: KeySignature, newKey: KeySignature): List<Pair<Int, Accidental>> {
+        if (newKey == prevKey) return emptyList()
+        val prevSteps = prevKey.trebleStaffSteps()
+        val newSteps = newKey.trebleStaffSteps()
+        if (newKey.fifths == 0) {
+            return prevSteps.map { it to Accidental.NATURAL }
+        }
+        val newAcc = if (newKey.fifths > 0) Accidental.SHARP else Accidental.FLAT
+        if (prevKey.fifths == 0) {
+            return newSteps.map { it to newAcc }
+        }
+        val sameSide = (prevKey.fifths > 0) == (newKey.fifths > 0)
+        return if (sameSide) {
+            val prevCount = kotlin.math.abs(prevKey.fifths)
+            val newCount = kotlin.math.abs(newKey.fifths)
+            if (newCount >= prevCount) {
+                newSteps.map { it to newAcc }
+            } else {
+                newSteps.map { it to newAcc } + prevSteps.drop(newCount).map { it to Accidental.NATURAL }
+            }
+        } else {
+            prevSteps.map { it to Accidental.NATURAL } + newSteps.map { it to newAcc }
         }
     }
 }

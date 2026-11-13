@@ -57,7 +57,12 @@ class StepRecordScoreNoteCommand(
             module.scoreData.replaceMeasures(cachedAfter)
             module.cursorPosition = cachedCursor
         } else {
-            val spelled = SpelledPitch.fromMidiPitch(midiPitch, module.scoreData.keySignature)
+            val activeKey = ScoreEditing.effectiveKeyAtMeasure(
+                measures = prevMeasures,
+                initialKey = module.scoreData.keySignature,
+                measureIdx = prevCursor.measureIdx,
+            )
+            val spelled = SpelledPitch.fromMidiPitch(midiPitch, activeKey)
             val note = ScoreItem.Note(
                 pitch = spelled,
                 duration = module.stepRecordDuration,
@@ -90,6 +95,35 @@ class StepRecordScoreNoteCommand(
         module.cursorPosition = beforeCursor
         module.lastStepRecordedText = null
         module.stepRecordRevision++
+        FileState.markDirty()
+    }
+}
+
+/**
+ * Undoable command updating the score's opening and/or per-measure key signatures while leaving
+ * all note pitch values unchanged.
+ */
+class SetScoreKeySignatureCommand(
+    private val scoreData: ScoreData,
+    private val beforeInitialKey: KeySignature,
+    private val beforeMeasures: List<ScoreMeasure>,
+    private val afterInitialKey: KeySignature,
+    private val afterMeasures: List<ScoreMeasure>,
+    private val onSync: (() -> Unit)? = null,
+) : SyntonaCommand {
+    override val isUndoable = true
+
+    override fun execute() {
+        scoreData.keySignature = afterInitialKey
+        scoreData.replaceMeasures(afterMeasures)
+        onSync?.invoke()
+        FileState.markDirty()
+    }
+
+    override fun undo() {
+        scoreData.keySignature = beforeInitialKey
+        scoreData.replaceMeasures(beforeMeasures)
+        onSync?.invoke()
         FileState.markDirty()
     }
 }
