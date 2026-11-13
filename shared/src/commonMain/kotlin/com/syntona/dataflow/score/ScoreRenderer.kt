@@ -764,11 +764,7 @@ object ScoreRenderer {
                 // Staccato dot (placed opposite the stem, or above whole notes)
                 if (item.isStaccato) {
                     val placeBelow = item.duration.hasStem && !stemDown
-                    val staccatoStep = if (placeBelow) {
-                        if (step % 2 == 0) step - 1 else step - 2
-                    } else {
-                        if (step % 2 == 0) step + 1 else step + 2
-                    }
+                    val staccatoStep = staccatoStepForNote(step, placeBelow)
                     val dotX = x + noteheadWidth * 0.5f - SmuflGlyphs.ARTIC_STACCATO_WIDTH * sp * 0.5f
                     val dotY = layout.yForStep(staccatoStep) +
                         if (placeBelow) -SmuflGlyphs.ARTIC_STACCATO_WIDTH * sp * 0.5f else SmuflGlyphs.ARTIC_STACCATO_WIDTH * sp * 0.5f
@@ -794,6 +790,22 @@ object ScoreRenderer {
                     )
                 }
             }
+        }
+    }
+
+    /**
+     * Computes the staff step for a note's staccato dot so it stays clear of the notehead oval
+     * (at least 2 steps / 1 staff space away) and never collides with a staff or ledger line.
+     */
+    internal fun staccatoStepForNote(noteStep: Int, placeBelow: Boolean): Int {
+        val candidate = if (placeBelow) noteStep - 2 else noteStep + 2
+        val onStaffLine = candidate in 0..8 && candidate % 2 == 0
+        val onLowerLedgerLine = candidate <= -2 && candidate % 2 == 0 && candidate >= noteStep
+        val onUpperLedgerLine = candidate >= 10 && candidate % 2 == 0 && candidate <= noteStep
+        return if (onStaffLine || onLowerLedgerLine || onUpperLedgerLine) {
+            if (placeBelow) candidate - 1 else candidate + 1
+        } else {
+            candidate
         }
     }
 
