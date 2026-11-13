@@ -11,7 +11,7 @@
 
 ## Basic Design
 
-Add a staff notation module similar to the Piano Roll editor except it uses traditional staff notation.
+Add a staff notation module called "score" similar to the Piano Roll editor except it uses traditional staff notation.
 
 Support multiple instruments. Add new instruments with a "+" button.
 Each instrument has its own voice output jack.
@@ -34,6 +34,9 @@ Provide feedback for the user when moving notes.
 The basic model should be shared with the Piano Roll editor and the TimelineModule MIDI track.
 Can be used as an alternative display mode for a MIDI track in a timeline. PianoRoll/Staff/Events
 
+We may want to start a new package for this staff
+editor because it may get a lot bigger in the later phases.
+
 The rendering should be through a shared drawing abstraction (ScoreDrawTarget):
 If the staff renderer draws through a thin interface (lines, filled rects, cubic Beziers
 for slurs/ties, and glyphs/text) implemented by both Compose DrawScope (screen)
@@ -42,6 +45,7 @@ and a PDF backend (export), the printed score matches the screen layout at infin
 ## Implementation Stages
 
 ### Phase 1
+Add "score" module under the music.compose bundle.
 Display a single stave with a key signature and time signature, and a few notes with different
 durations of notes and rests.
 Draw glyphs using a SMuFL font.

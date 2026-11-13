@@ -174,6 +174,8 @@ import com.syntona.core.audio.SynthKSyn
 import com.softsynth.audiobridge.AudioInputBridge
 import com.syntona.dataflow.modules.KeyNotesModule
 import com.syntona.dataflow.modules.PianoRollModule
+import com.syntona.dataflow.score.ScoreEditor
+import com.syntona.dataflow.score.ScoreModule
 import com.syntona.dataflow.modules.KickModule
 import com.syntona.dataflow.modules.MidiInModule
 import com.syntona.dataflow.modules.MidiOutModule
@@ -457,6 +459,7 @@ fun GraphEditor(state: GraphState, modifier: Modifier = Modifier) {
                             is CommentModule -> CommentModuleNode(module, state)
                             is EnvSegModule -> EnvSegModuleNode(module, state)
                             is PianoRollModule -> PianoRollModuleNode(module, state)
+                            is ScoreModule -> ScoreModuleNode(module, state)
                             is KeyMatchModule -> KeyMatchModuleNode(module, state)
                             is MatchControlModule -> MatchControlModuleNode(module, state)
                             is MatchControlSequentialModule -> MatchControlSequentialModuleNode(module, state)
@@ -3673,6 +3676,59 @@ fun EnvSegModuleNode(module: EnvSegModule, state: GraphState) {
 
 @Composable
 fun PianoRollModuleNode(module: PianoRollModule, state: GraphState) {
+    WindowedEditorModuleNode(
+        module = module,
+        state = state,
+        defaultWidthDp = 800f,
+        defaultHeightDp = 500f,
+        getWindowX = { module.windowX },
+        getWindowY = { module.windowY },
+        getWindowWidth = { module.windowWidth },
+        getWindowHeight = { module.windowHeight },
+        setWindowGeometry = { x, y, w, h ->
+            module.windowX = x
+            module.windowY = y
+            module.windowWidth = w
+            module.windowHeight = h
+        },
+        editorContent = { PianoRollEditor(module, state) },
+    )
+}
+
+@Composable
+fun ScoreModuleNode(module: ScoreModule, state: GraphState) {
+    WindowedEditorModuleNode(
+        module = module,
+        state = state,
+        defaultWidthDp = 860f,
+        defaultHeightDp = 340f,
+        getWindowX = { module.windowX },
+        getWindowY = { module.windowY },
+        getWindowWidth = { module.windowWidth },
+        getWindowHeight = { module.windowHeight },
+        setWindowGeometry = { x, y, w, h ->
+            module.windowX = x
+            module.windowY = y
+            module.windowWidth = w
+            module.windowHeight = h
+        },
+        editorContent = { ScoreEditor(module, state) },
+    )
+}
+
+@Composable
+private fun WindowedEditorModuleNode(
+    module: Module,
+    state: GraphState,
+    defaultWidthDp: Float,
+    defaultHeightDp: Float,
+    getWindowX: () -> Float?,
+    getWindowY: () -> Float?,
+    getWindowWidth: () -> Float?,
+    getWindowHeight: () -> Float?,
+    setWindowGeometry: (Float, Float, Float, Float) -> Unit,
+    editorContent: @Composable () -> Unit,
+) {
     val colors = LocalGraphColors.current
     val position = state.modulePositions[module] ?: Offset.Zero
     val mdiState = LocalMdiState.current
@@ -3698,8 +3754,8 @@ fun PianoRollModuleNode(module: PianoRollModule, state: GraphState) {
                 state = state,
                 headerColor = colors.headerSequence,
                 onDoubleTap = {
-                    val savedX = module.windowX
-                    val savedY = module.windowY
+                    val savedX = getWindowX()
+                    val savedY = getWindowY()
                     val restoredPosition = if (savedX != null && savedY != null) {
                         Offset(savedX * density.density, savedY * density.density)
                     } else {
@@ -3713,16 +3769,18 @@ fun PianoRollModuleNode(module: PianoRollModule, state: GraphState) {
                         id = module,
                         title = module.name,
                         position = restoredPosition,
-                        width = module.windowWidth?.dp ?: 800.dp,
-                        height = module.windowHeight?.dp ?: 500.dp,
+                        width = (getWindowWidth() ?: defaultWidthDp).dp,
+                        height = (getWindowHeight() ?: defaultHeightDp).dp,
                         graphState = state,
-                        content = { PianoRollEditor(module, state) }
+                        content = editorContent
                     )
                     window.onGeometryChanged = {
-                        module.windowX = window.position.x / density.density
-                        module.windowY = window.position.y / density.density
-                        module.windowWidth = window.width.value
-                        module.windowHeight = window.height.value
+                        setWindowGeometry(
+                            window.position.x / density.density,
+                            window.position.y / density.density,
+                            window.width.value,
+                            window.height.value,
+                        )
                     }
                     mdiState.open(window)
                 }

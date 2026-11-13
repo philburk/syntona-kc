@@ -16,7 +16,9 @@ class BundledFilesValidationTest {
         val filesDir = candidates.find { it.exists() && it.isDirectory }
         assertTrue(filesDir != null, "Could not find composeResources/files directory")
 
-        val jsonFiles = filesDir.walkTopDown().filter { it.extension == "json" }.toList()
+        val jsonFiles = filesDir.walkTopDown()
+            .filter { it.extension == "json" && it.name != "leland_metadata.json" }
+            .toList()
         assertTrue(jsonFiles.isNotEmpty(), "Found no JSON files to test")
 
         for (file in jsonFiles) {

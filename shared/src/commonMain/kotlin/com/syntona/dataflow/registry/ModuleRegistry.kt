@@ -3,6 +3,7 @@ package com.syntona.dataflow.registry
 import com.softsynth.ksyn.unitgen.*
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.modules.*
+import com.syntona.dataflow.score.ScoreModule
 
 /**
  * Registry of available modules organized by bundles.
@@ -171,6 +172,7 @@ object ModuleRegistry {
         "table4" to "use an index to look up a value in a table",
         "table8" to "use an index to look up a value in an 8-element table",
         "table16" to "use an index to look up a value in a 16-element table",
+        "score" to "staff notation display and sequencer rendered with a SMuFL music font",
 
         // ==========================================
         // KSyn (Top-level)
@@ -428,6 +430,7 @@ object ModuleRegistry {
         compose.modules.add(ModuleEntry("table4") { Table4Module() })
         compose.modules.add(ModuleEntry("table8") { Table8Module() })
         compose.modules.add(ModuleEntry("table16") { Table16Module() })
+        compose.modules.add(ModuleEntry("score") { ScoreModule() })
 
         val instruments = getOrCreateBundle(music, "instruments")
         val sounds = getOrCreateBundle(music, "sounds")
