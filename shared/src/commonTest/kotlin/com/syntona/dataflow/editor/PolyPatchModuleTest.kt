@@ -1740,5 +1740,87 @@ class PolyPatchModuleTest {
         engine.generateNextBuffer()
         assertEquals(listOf("off" to 0.0), log)
     }
+
+    @Test
+    fun testNoteCancelsStaleScheduledNoteOffOnEarlyOffAndRetrigger() = kotlinx.coroutines.runBlocking {
+        val polyPatch = PolyPatchModule()
+        polyPatch.initializeVoices(2)
+        val engine = com.syntona.core.audio.SynthKSyn.synth as com.softsynth.ksyn.engine.SynthesisEngine
+        engine.generateNextBuffer()
+
+        val scheduledEvents = mutableListOf<com.syntona.dataflow.engine.ScheduledEvent>()
+        val fakeEngine = object : com.syntona.dataflow.engine.DataFlowEngine(
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Unconfined)
+        ) {
+            override fun schedule(
+                time: com.syntona.core.model.ScoreTime,
+                action: () -> Unit
+            ): com.syntona.dataflow.engine.ScheduledEvent {
+                val ev = com.syntona.dataflow.engine.ScheduledEvent(action)
+                scheduledEvents.add(ev)
+                return ev
+            }
+        }
+        polyPatch.setEngine(fakeEngine)
+
+        // 1. Send NOTE(tag=60), then cancel early with NOTE_OFF(tag=60)
+        polyPatch.voiceInputJack.receive(
+            Message.VoiceMessage(
+                com.syntona.core.model.ScoreTime.fromSeconds(1.0),
+                Message.VoiceOpcode.NOTE,
+                tag = 60,
+                value = 60.0,
+                extra = 0.6,
+                duration = 0.5
+            )
+        )
+        assertEquals(1, scheduledEvents.size)
+        val firstEvent = scheduledEvents[0]
+        assertFalse(firstEvent.isCancelled)
+
+        polyPatch.voiceInputJack.receive(
+            Message.VoiceMessage(
+                com.syntona.core.model.ScoreTime.fromSeconds(1.1),
+                Message.VoiceOpcode.NOTE_OFF,
+                tag = 60,
+                value = 60.0,
+                extra = 0.0
+            )
+        )
+        assertTrue(firstEvent.isCancelled, "NOTE_OFF should cancel pending scheduled noteOff for the same tag")
+
+        // 2. Re-triggering NOTE with the same tag should cancel the previous NOTE's scheduled noteOff
+        polyPatch.voiceInputJack.receive(
+            Message.VoiceMessage(
+                com.syntona.core.model.ScoreTime.fromSeconds(2.0),
+                Message.VoiceOpcode.NOTE,
+                tag = 60,
+                value = 60.0,
+                extra = 0.7,
+                duration = 0.5
+            )
+        )
+        assertEquals(2, scheduledEvents.size)
+        val secondEvent = scheduledEvents[1]
+        assertFalse(secondEvent.isCancelled)
+
+        polyPatch.voiceInputJack.receive(
+            Message.VoiceMessage(
+                com.syntona.core.model.ScoreTime.fromSeconds(2.1),
+                Message.VoiceOpcode.NOTE,
+                tag = 60,
+                value = 60.0,
+                extra = 0.8,
+                duration = 0.5
+            )
+        )
+        assertEquals(3, scheduledEvents.size)
+        assertTrue(secondEvent.isCancelled, "Re-triggering NOTE with the same tag must cancel prior scheduled noteOff")
+        assertFalse(scheduledEvents[2].isCancelled)
+
+        // 3. teardown cancels any remaining pending scheduled noteOff events
+        polyPatch.teardown()
+        assertTrue(scheduledEvents[2].isCancelled, "teardown must cancel pending scheduled noteOff events")
+    }
 }
 

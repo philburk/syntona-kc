@@ -44,6 +44,11 @@ class PianoRollModule : Module("pianoRoll"), EngineAware {
     var windowWidth: Float? = null
     var windowHeight: Float? = null
 
+    enum class NoteOutputMode { NOTE, NOTE_ON_OFF }
+
+    /** Playback output format: unified NOTE+duration (default) or discrete NOTE_ON/NOTE_OFF. */
+    var noteOutputMode by mutableStateOf(NoteOutputMode.NOTE)
+
     var isPlaying by mutableStateOf(false)
         private set
 
@@ -140,31 +145,49 @@ class PianoRollModule : Module("pianoRoll"), EngineAware {
         playbackStartTime = now
         var lastOffTime = now
 
+        val mode = noteOutputMode
         for (note in playable) {
             val pitch = pitchOf(note)
+            val amp = note.amplitude
             val onDelayTicks = (note.startTicks - startTicks).coerceAtLeast(0)
             val onTime = now + ScoreTime((onDelayTicks * nsPerTick).roundToLong())
             val offTime = now + ScoreTime(((note.endTicks - startTicks) * nsPerTick).roundToLong())
             if (offTime > lastOffTime) lastOffTime = offTime
 
-            scheduledEvents.add(e.schedule(onTime) {
-                output.send(
-                    Message.VoiceMessage(
-                        onTime, Message.VoiceOpcode.NOTE_ON,
-                        tag = note.id, value = pitch, extra = NOTE_AMPLITUDE
+            if (mode == NoteOutputMode.NOTE) {
+                val durSec = ((offTime.nanoseconds - onTime.nanoseconds).coerceAtLeast(0L)) / 1_000_000_000.0
+                scheduledEvents.add(e.schedule(onTime) {
+                    output.send(
+                        Message.VoiceMessage(
+                            onTime, Message.VoiceOpcode.NOTE,
+                            tag = note.id, value = pitch, extra = amp, duration = durSec
+                        )
                     )
-                )
-                soundingNotes[note.id] = pitch
-            })
-            scheduledEvents.add(e.schedule(offTime) {
-                output.send(
-                    Message.VoiceMessage(
-                        offTime, Message.VoiceOpcode.NOTE_OFF,
-                        tag = note.id, value = pitch, extra = NOTE_AMPLITUDE
+                    soundingNotes[note.id] = pitch
+                })
+                scheduledEvents.add(e.schedule(offTime) {
+                    soundingNotes.remove(note.id)
+                })
+            } else {
+                scheduledEvents.add(e.schedule(onTime) {
+                    output.send(
+                        Message.VoiceMessage(
+                            onTime, Message.VoiceOpcode.NOTE_ON,
+                            tag = note.id, value = pitch, extra = amp
+                        )
                     )
-                )
-                soundingNotes.remove(note.id)
-            })
+                    soundingNotes[note.id] = pitch
+                })
+                scheduledEvents.add(e.schedule(offTime) {
+                    output.send(
+                        Message.VoiceMessage(
+                            offTime, Message.VoiceOpcode.NOTE_OFF,
+                            tag = note.id, value = pitch, extra = amp
+                        )
+                    )
+                    soundingNotes.remove(note.id)
+                })
+            }
         }
 
         // Mark playback finished just after the final NOTE_OFF fires.
@@ -214,7 +237,7 @@ class PianoRollModule : Module("pianoRoll"), EngineAware {
      */
     fun previewPitch(pitch: Double, durationMs: Long = PREVIEW_DURATION_MS) {
         val e = engine ?: return
-        e.post(PreviewNoteCommand(e, output, pitch, durationMs))
+        e.post(PreviewNoteCommand(e, output, pitch, durationMs, noteOutputMode))
     }
 
     companion object {
@@ -239,6 +262,7 @@ private class PreviewNoteCommand(
     private val output: VoiceOutputJack,
     private val pitch: Double,
     private val durationMs: Long,
+    private val mode: PianoRollModule.NoteOutputMode,
 ) : SyntonaCommand {
     override val isUndoable = false
 
@@ -251,20 +275,30 @@ private class PreviewNoteCommand(
                 tag = PianoRollModule.PREVIEW_TAG, value = pitch, extra = PianoRollModule.NOTE_AMPLITUDE
             )
         )
-        output.send(
-            Message.VoiceMessage(
-                now, Message.VoiceOpcode.NOTE_ON,
-                tag = PianoRollModule.PREVIEW_TAG, value = pitch, extra = PianoRollModule.NOTE_AMPLITUDE
-            )
-        )
-        val offTime = now + ScoreTime(durationMs * 1_000_000L)
-        engine.schedule(offTime) {
+        if (mode == PianoRollModule.NoteOutputMode.NOTE) {
             output.send(
                 Message.VoiceMessage(
-                    offTime, Message.VoiceOpcode.NOTE_OFF,
+                    now, Message.VoiceOpcode.NOTE,
+                    tag = PianoRollModule.PREVIEW_TAG, value = pitch,
+                    extra = PianoRollModule.NOTE_AMPLITUDE, duration = durationMs * 0.001
+                )
+            )
+        } else {
+            output.send(
+                Message.VoiceMessage(
+                    now, Message.VoiceOpcode.NOTE_ON,
                     tag = PianoRollModule.PREVIEW_TAG, value = pitch, extra = PianoRollModule.NOTE_AMPLITUDE
                 )
             )
+            val offTime = now + ScoreTime(durationMs * 1_000_000L)
+            engine.schedule(offTime) {
+                output.send(
+                    Message.VoiceMessage(
+                        offTime, Message.VoiceOpcode.NOTE_OFF,
+                        tag = PianoRollModule.PREVIEW_TAG, value = pitch, extra = PianoRollModule.NOTE_AMPLITUDE
+                    )
+                )
+            }
         }
     }
 

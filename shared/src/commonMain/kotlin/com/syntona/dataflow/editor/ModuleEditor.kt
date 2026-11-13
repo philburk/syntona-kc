@@ -43,6 +43,7 @@ import com.syntona.dataflow.modules.KeyNotesModule
 import com.syntona.dataflow.modules.MidiInModule
 import com.syntona.dataflow.modules.MidiOutModule
 import com.syntona.dataflow.modules.PackVoiceModule
+import com.syntona.dataflow.modules.PianoRollModule
 import com.syntona.core.midi.MidiDeviceService
 import com.syntona.core.midi.compoundName
 import com.softsynth.midibridge.MidiDirection
@@ -150,6 +151,8 @@ fun ModuleEditor(module: Module, onDismiss: () -> Unit, modifier: Modifier = Mod
                     KeyNotesModuleEditor(module)
                 } else if (module is PackVoiceModule) {
                     PackVoiceModuleEditor(module)
+                } else if (module is PianoRollModule) {
+                    PianoRollModuleEditor(module)
                 } else if (module is MidiInModule) {
                     MidiInModuleEditor(module)
                 } else if (module is MidiOutModule) {
@@ -642,6 +645,63 @@ private fun PackVoiceModuleEditor(module: PackVoiceModule) {
         androidx.compose.material3.HorizontalDivider(color = BORDER_COLOR, thickness = 1.dp)
 
         module.inputs.filter { it !== module.opcodeIn && it.isModuleEditorVisible }.forEach { jack ->
+            JackEditorRow(jack)
+        }
+    }
+}
+
+@Composable
+private fun PianoRollModuleEditor(module: PianoRollModule) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Column(
+        modifier = Modifier.padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Column {
+            Text("Note Output Mode:", fontSize = 12.sp, color = LABEL_COLOR)
+            Spacer(modifier = Modifier.height(4.dp))
+            Box {
+                Box(
+                    modifier = Modifier
+                        .width(180.dp)
+                        .border(1.dp, BORDER_COLOR, RoundedCornerShape(4.dp))
+                        .background(Color.White)
+                        .padding(horizontal = 8.dp, vertical = 6.dp)
+                        .clickable { expanded = true }
+                ) {
+                    val label = if (module.noteOutputMode == PianoRollModule.NoteOutputMode.NOTE) {
+                        "NOTE (with duration)"
+                    } else {
+                        "NOTE_ON / NOTE_OFF"
+                    }
+                    Text(label, fontSize = 13.sp)
+                }
+                androidx.compose.material3.DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    val options = listOf(
+                        PianoRollModule.NoteOutputMode.NOTE to "NOTE (with duration)",
+                        PianoRollModule.NoteOutputMode.NOTE_ON_OFF to "NOTE_ON / NOTE_OFF",
+                    )
+                    options.forEach { (candidate, label) ->
+                        CompactDropdownMenuItem(
+                            text = { Text(label, fontSize = 12.sp) },
+                            onClick = {
+                                module.noteOutputMode = candidate
+                                FileState.markDirty()
+                                expanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        androidx.compose.material3.HorizontalDivider(color = BORDER_COLOR, thickness = 1.dp)
+
+        module.inputs.filter { it.isModuleEditorVisible }.forEach { jack ->
             JackEditorRow(jack)
         }
     }

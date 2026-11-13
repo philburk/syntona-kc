@@ -434,6 +434,9 @@ object GraphSerializer {
                     append("{\"id\":${track.id},\"type\":\"${track.type.name}\",\"name\":\"${track.name.jsonEscape}\"")
                     append(",\"muted\":${track.isMuted},\"soloed\":${track.isSoloed}")
                     append(",\"armed\":${track.isRecordArmed},\"monitored\":${track.isInputMonitored}")
+                    if (track is MidiTrack) {
+                        append(",\"noteMode\":\"${track.noteOutputMode.name}\"")
+                    }
                     track.inputJack?.let { append(",\"inJack\":\"${it.name.jsonEscape}\"") }
                     track.outputJack?.let { append(",\"outJack\":\"${it.name.jsonEscape}\"") }
                     if (track is PatchTrack) {
@@ -471,7 +474,7 @@ object GraphSerializer {
                             append(",\"notes\":[")
                             midiData.pianoRoll.notes.forEachIndexed { ni, n ->
                                 if (ni > 0) append(",")
-                                append("[${n.id},${n.startTicks},${n.durationTicks},${n.parentId},${n.ratio.n},${n.ratio.d},${n.rootPitch}]")
+                                append("[${n.id},${n.startTicks},${n.durationTicks},${n.parentId},${n.ratio.n},${n.ratio.d},${n.rootPitch},${n.amplitude}]")
                             }
                             append("]")
                             if (midiData.voiceEvents.isNotEmpty()) {
@@ -527,6 +530,7 @@ object GraphSerializer {
                 append(",\"row4Keys\":\"${module.row4Keys.jsonEscape}\"")
             }
             if (module is PianoRollModule) {
+                append(",\"noteMode\":\"${module.noteOutputMode.name}\"")
                 append(",\"playStart\":${module.playStartTicks}")
                 module.windowX?.let { append(",\"windowX\":$it") }
                 module.windowY?.let { append(",\"windowY\":$it") }
@@ -535,7 +539,7 @@ object GraphSerializer {
                 append(",\"notes\":[")
                 module.notes.forEachIndexed { j, n ->
                     if (j > 0) append(",")
-                    append("[${n.id},${n.startTicks},${n.durationTicks},${n.parentId},${n.ratio.n},${n.ratio.d},${n.rootPitch}]")
+                    append("[${n.id},${n.startTicks},${n.durationTicks},${n.parentId},${n.ratio.n},${n.ratio.d},${n.rootPitch},${n.amplitude}]")
                 }
                 append("]")
             }
@@ -893,6 +897,12 @@ object GraphSerializer {
                     track.isSoloed = (trackObj.map["soloed"] as? JsonValue.Bool)?.value ?: false
                     track.isRecordArmed = (trackObj.map["armed"] as? JsonValue.Bool)?.value ?: false
                     track.isInputMonitored = (trackObj.map["monitored"] as? JsonValue.Bool)?.value ?: false
+                    if (track is MidiTrack) {
+                        val modeStr = (trackObj.map["noteMode"] as? JsonValue.Str)?.value
+                        track.noteOutputMode = modeStr?.let { s ->
+                            PianoRollModule.NoteOutputMode.entries.firstOrNull { it.name == s }
+                        } ?: PianoRollModule.NoteOutputMode.NOTE_ON_OFF
+                    }
 
                     if (track is PatchTrack) {
                         val patchObj = trackObj.map["patch"] as? JsonValue.Obj
@@ -960,6 +970,7 @@ object GraphSerializer {
                                     val rn = (items[4] as? JsonValue.Num)?.value?.toInt() ?: 1
                                     val rd = (items[5] as? JsonValue.Num)?.value?.toInt() ?: 1
                                     val rp = (items[6] as? JsonValue.Num)?.value ?: 60.0
+                                    val amp = (items.getOrNull(7) as? JsonValue.Num)?.value ?: PianoRollModule.NOTE_AMPLITUDE
                                     midiData.pianoRoll.notes.add(
                                         PianoRollNote(
                                             id = nid,
@@ -967,7 +978,8 @@ object GraphSerializer {
                                             durationTicks = dur,
                                             parentId = pid,
                                             ratio = Ratio(rn, rd),
-                                            rootPitch = rp
+                                            rootPitch = rp,
+                                            amplitude = amp,
                                         )
                                     )
                                 }
@@ -1432,6 +1444,12 @@ object GraphSerializer {
                         module.tempo.setValue(legacyBpm)
                     }
                 }
+                val modeStr = (obj?.map?.get("noteMode") as? JsonValue.Str)?.value
+                if (modeStr != null) {
+                    PianoRollModule.NoteOutputMode.entries.firstOrNull { it.name == modeStr }?.let {
+                        module.noteOutputMode = it
+                    }
+                }
                 (obj?.map?.get("playStart") as? JsonValue.Num)?.value?.toInt()?.let { module.playStartTicks = it }
                 (obj?.map?.get("windowX") as? JsonValue.Num)?.value?.let { module.windowX = it.toFloat() }
                 (obj?.map?.get("windowY") as? JsonValue.Num)?.value?.let { module.windowY = it.toFloat() }
@@ -1458,6 +1476,7 @@ object GraphSerializer {
                                 parentId = nums[3]!!.toInt(),
                                 ratio = Ratio(nums[4]!!.toInt(), nums[5]!!.toInt()),
                                 rootPitch = nums[6]!!,
+                                amplitude = nums.getOrNull(7) ?: PianoRollModule.NOTE_AMPLITUDE,
                             )
                         )
                     }

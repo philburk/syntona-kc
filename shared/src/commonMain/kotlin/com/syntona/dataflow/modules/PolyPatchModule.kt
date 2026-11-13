@@ -10,6 +10,7 @@ import com.softsynth.ksyn.voices.PolyphonicInstrument
 import com.syntona.core.audio.SynthKSyn
 import com.syntona.export.SourceExporter
 import com.syntona.dataflow.engine.DataFlowEngine
+import com.syntona.dataflow.engine.ScheduledEvent
 import com.syntona.dataflow.model.*
 import com.syntona.dataflow.registry.ModuleRegistry
 
@@ -32,6 +33,8 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
         private set
 
     val voiceInputJack = addVoiceInput("input", isKickable = true)
+
+    private val pendingNoteOffs = mutableMapOf<Int, ScheduledEvent>()
 
     internal val auxMixers = mutableMapOf<String, PassThrough>()
 
@@ -323,23 +326,31 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                 val timeStamp = SynthKSyn.synth.createTimeStamp()
                 when (msg.opcode) {
                     Message.VoiceOpcode.NOTE_ON -> {
+                        pendingNoteOffs.remove(msg.tag)?.cancel()
                         SynthKSyn.synth.queueCommand { nextNoteDuration = 1.0 }
                         instrument.noteOn(msg.tag, msg.value, msg.extra, timeStamp)
                     }
                     Message.VoiceOpcode.NOTE_OFF -> {
+                        pendingNoteOffs.remove(msg.tag)?.cancel()
                         instrument.noteOff(msg.tag, timeStamp)
                     }
                     Message.VoiceOpcode.NOTE -> {
+                        pendingNoteOffs.remove(msg.tag)?.cancel()
                         val durSec = msg.duration.coerceAtLeast(0.0)
                         SynthKSyn.synth.queueCommand { nextNoteDuration = durSec }
                         instrument.noteOn(msg.tag, msg.value, msg.extra, timeStamp)
                         val offTime = msg.time + com.syntona.core.model.ScoreTime.fromSeconds(durSec)
                         val e = graphState.engine
                         if (e != null) {
-                            e.schedule(offTime) {
+                            var scheduled: ScheduledEvent? = null
+                            scheduled = e.schedule(offTime) {
+                                if (pendingNoteOffs[msg.tag] === scheduled) {
+                                    pendingNoteOffs.remove(msg.tag)
+                                }
                                 val offStamp = SynthKSyn.synth.createTimeStamp()
                                 instrument.noteOff(msg.tag, offStamp)
                             }
+                            pendingNoteOffs[msg.tag] = scheduled
                         } else {
                             instrument.noteOff(msg.tag, timeStamp)
                         }
@@ -1117,6 +1128,8 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
     }
 
     override fun teardown() {
+        pendingNoteOffs.values.forEach { it.cancel() }
+        pendingNoteOffs.clear()
         val instrument = polyphonicInstrument
         if (instrument != null) {
             if (instrument.isStartRequired) {

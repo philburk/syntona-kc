@@ -42,6 +42,7 @@ class PianoRollNote(
     parentId: Int = -1,
     ratio: Ratio = Ratio.UNISON,
     rootPitch: Double = 60.0,
+    amplitude: Double = PianoRollModule.NOTE_AMPLITUDE,
 ) {
     var startTicks by mutableStateOf(startTicks)
     var durationTicks by mutableStateOf(durationTicks)
@@ -55,6 +56,9 @@ class PianoRollNote(
     /** Absolute pitch in fractional semitones; only meaningful when this is a root note. */
     var rootPitch by mutableStateOf(rootPitch)
 
+    /** Normalized note amplitude / velocity in [0.0, 1.0]. */
+    var amplitude by mutableStateOf(amplitude)
+
     /** Transient selection state; not serialized. */
     var selected by mutableStateOf(false)
 
@@ -63,7 +67,7 @@ class PianoRollNote(
     val isRoot: Boolean get() = parentId < 0
 
     fun copyData(newId: Int = id): PianoRollNote =
-        PianoRollNote(newId, startTicks, durationTicks, parentId, ratio, rootPitch)
+        PianoRollNote(newId, startTicks, durationTicks, parentId, ratio, rootPitch, amplitude)
 }
 
 /** Timing constants shared by the module and its editor. */

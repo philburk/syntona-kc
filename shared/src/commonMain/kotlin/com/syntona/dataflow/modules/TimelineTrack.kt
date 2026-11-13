@@ -846,6 +846,9 @@ class MidiTrack(
     override val outputJack: VoiceOutputJack = timeline.createTrackVoiceOutput(outJackName ?: "out$id")
     override val outputJacks: List<OutputJack> get() = listOf(outputJack)
 
+    /** Playback output format: discrete NOTE_ON/NOTE_OFF (default) or unified NOTE+duration. */
+    var noteOutputMode by mutableStateOf(PianoRollModule.NoteOutputMode.NOTE_ON_OFF)
+
     private var engine: DataFlowEngine? = null
     private val scheduledEvents = mutableListOf<ScheduledEvent>()
     private val activeSoundingNotes = mutableMapOf<Int, Double>() // tag -> pitch
@@ -1000,21 +1003,7 @@ class MidiTrack(
 
     override fun onMessageReceived(jack: InputJack, msg: Message) {
         if (jack === inputJack && msg is Message.VoiceMessage) {
-            if (msg.opcode == Message.VoiceOpcode.NOTE) {
-                val durSec = msg.duration.coerceAtLeast(0.0)
-                val offTime = msg.time + ScoreTime.fromSeconds(durSec)
-                val noteOn = Message.VoiceMessage(msg.time, Message.VoiceOpcode.NOTE_ON, msg.tag, msg.value, msg.extra)
-                val noteOff = Message.VoiceMessage(offTime, Message.VoiceOpcode.NOTE_OFF, msg.tag, msg.value, msg.extra)
-                handleIncomingVoiceMessage(noteOn)
-                val e = engine
-                if (e != null) {
-                    e.schedule(offTime) { handleIncomingVoiceMessage(noteOff) }
-                } else {
-                    handleIncomingVoiceMessage(noteOff)
-                }
-            } else {
-                handleIncomingVoiceMessage(msg)
-            }
+            handleIncomingVoiceMessage(msg)
         }
     }
 
@@ -1071,6 +1060,12 @@ class MidiTrack(
                 val endUnits = timeline.getCurrentTime(msg.time)
                 closeRecordingNote(openNote, endUnits)
             }
+        } else if (msg.opcode == Message.VoiceOpcode.NOTE) {
+            val pos = timeline.getCurrentTime(msg.time)
+            val sec = getOrCreateRecordingSection(pos) ?: return
+            openNotes.remove(msg.tag)?.let { closeRecordingNote(it, pos) }
+            val durUnits = timeline.secondsToUnits(msg.duration.coerceAtLeast(0.0))
+            recordNoteToSection(sec, pos, pos + durUnits, msg.value, msg.extra)
         } else if (msg.opcode == Message.VoiceOpcode.NOTE_ON) {
             val pos = timeline.getCurrentTime(msg.time)
             val sec = getOrCreateRecordingSection(pos) ?: return
@@ -1114,8 +1109,16 @@ class MidiTrack(
     }
 
     private fun closeRecordingNote(openNote: OpenRecordingNote, endUnits: Double) {
-        val sec = openNote.section
-        val startUnits = openNote.startUnits
+        recordNoteToSection(openNote.section, openNote.startUnits, endUnits, openNote.pitch, openNote.velocity)
+    }
+
+    private fun recordNoteToSection(
+        sec: TrackSection,
+        startUnits: Double,
+        endUnits: Double,
+        pitch: Double,
+        amplitude: Double,
+    ) {
         val safeEndUnits = maxOf(endUnits, startUnits + 0.01)
 
         if (safeEndUnits > sec.end && sec.repeats == 1) {
@@ -1142,7 +1145,7 @@ class MidiTrack(
         val startTicks = timeline.unitsToTicks(relStartUnits)
         val durTicks = timeline.unitsToTicks(durUnits).coerceAtLeast(PianoRollTiming.GRID_TICKS / 4)
 
-        data.addNote(startTicks, durTicks, openNote.pitch)
+        data.addNote(startTicks, durTicks, pitch, amplitude)
     }
 
     override fun onPlaybackStart(now: ScoreTime, startPosUnits: Double, cycleEndUnits: Double, engine: DataFlowEngine) {
@@ -1210,23 +1213,37 @@ class MidiTrack(
                     val soundingTag = if (isUnderPlayhead) soundingNoteKeys[key] else null
                     if (soundingTag != null) keptNotes.add(key)
                     val tag = soundingTag ?: allocatePlaybackTag()
+                    val amp = note.amplitude
+                    val emitNoteWithDuration = noteOutputMode == PianoRollModule.NoteOutputMode.NOTE
 
-                    // NOTE_ON
+                    // NOTE / NOTE_ON
                     if (onTimelineUnits >= startPosUnits && onTimelineUnits < cycleEndUnits) {
                         val delayUnits = onTimelineUnits - startPosUnits
                         val delaySec = timeline.unitsToSeconds(delayUnits)
                         val fireOnTime = now + ScoreTime((delaySec * 1_000_000_000.0).toLong())
                         val sched = engine.schedule(fireOnTime) {
                             if (isAudible) {
-                                outputJack.send(
+                                val msg = if (emitNoteWithDuration) {
+                                    val durSec = timeline.unitsToSeconds(effectiveOffUnits - onTimelineUnits)
+                                        .coerceAtLeast(0.0)
+                                    Message.VoiceMessage(
+                                        fireOnTime,
+                                        Message.VoiceOpcode.NOTE,
+                                        tag = tag,
+                                        value = pitch,
+                                        extra = amp,
+                                        duration = durSec
+                                    )
+                                } else {
                                     Message.VoiceMessage(
                                         fireOnTime,
                                         Message.VoiceOpcode.NOTE_ON,
                                         tag = tag,
                                         value = pitch,
-                                        extra = PianoRollModule.NOTE_AMPLITUDE
+                                        extra = amp
                                     )
-                                )
+                                }
+                                outputJack.send(msg)
                                 activeSoundingNotes[tag] = pitch
                                 soundingNoteKeys[key] = tag
                             }
@@ -1235,35 +1252,49 @@ class MidiTrack(
                     } else if (isUnderPlayhead && soundingTag == null) {
                         // Chase note
                         if (isAudible) {
-                            outputJack.send(
+                            val msg = if (emitNoteWithDuration) {
+                                val durSec = timeline.unitsToSeconds(effectiveOffUnits - startPosUnits)
+                                    .coerceAtLeast(0.0)
+                                Message.VoiceMessage(
+                                    now,
+                                    Message.VoiceOpcode.NOTE,
+                                    tag = tag,
+                                    value = pitch,
+                                    extra = amp,
+                                    duration = durSec
+                                )
+                            } else {
                                 Message.VoiceMessage(
                                     now,
                                     Message.VoiceOpcode.NOTE_ON,
                                     tag = tag,
                                     value = pitch,
-                                    extra = PianoRollModule.NOTE_AMPLITUDE
+                                    extra = amp
                                 )
-                            )
+                            }
+                            outputJack.send(msg)
                             activeSoundingNotes[tag] = pitch
                             soundingNoteKeys[key] = tag
                         }
                     }
 
-                    // NOTE_OFF
+                    // NOTE_OFF (or cleanup of active tracking for NOTE mode)
                     if (effectiveOffUnits > startPosUnits && effectiveOffUnits <= cycleEndUnits) {
                         val delayUnits = effectiveOffUnits - startPosUnits
                         val delaySec = timeline.unitsToSeconds(delayUnits)
                         val fireOffTime = now + ScoreTime((delaySec * 1_000_000_000.0).toLong())
                         val sched = engine.schedule(fireOffTime) {
-                            outputJack.send(
-                                Message.VoiceMessage(
-                                    fireOffTime,
-                                    Message.VoiceOpcode.NOTE_OFF,
-                                    tag = tag,
-                                    value = pitch,
-                                    extra = PianoRollModule.NOTE_AMPLITUDE
+                            if (!emitNoteWithDuration) {
+                                outputJack.send(
+                                    Message.VoiceMessage(
+                                        fireOffTime,
+                                        Message.VoiceOpcode.NOTE_OFF,
+                                        tag = tag,
+                                        value = pitch,
+                                        extra = amp
+                                    )
                                 )
-                            )
+                            }
                             activeSoundingNotes.remove(tag)
                             soundingNoteKeys.remove(key)
                         }
@@ -1523,6 +1554,9 @@ class AudioTrack(
     override val inputJack: AudioInputJack = timeline.createTrackAudioInput(inJackName ?: "in$id", unit.input)
     override val outputJack: AudioOutputJack = timeline.createTrackAudioOutput(outJackName ?: "out$id", unit.output)
     override val outputJacks: List<OutputJack> get() = listOf(outputJack)
+
+    /** Playback output format: discrete NOTE_ON/NOTE_OFF (default) or unified NOTE+duration. */
+    var noteOutputMode by mutableStateOf(PianoRollModule.NoteOutputMode.NOTE_ON_OFF)
 
     private var engine: DataFlowEngine? = null
     private val scheduledEvents = mutableListOf<ScheduledEvent>()

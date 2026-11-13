@@ -44,6 +44,7 @@ import com.syntona.core.model.ScoreClock
 import com.syntona.core.model.ScoreTime
 import com.syntona.dataflow.engine.DataFlowEngine
 import com.syntona.dataflow.engine.EngineAware
+import com.syntona.dataflow.engine.ScheduledEvent
 import com.syntona.dataflow.engine.SendOutputCommand
 import com.syntona.dataflow.model.AdoptsRememberedDefaults
 import com.syntona.dataflow.model.InputJack
@@ -338,6 +339,7 @@ class MidiOutModule : Module("midiOut"), AdoptsRememberedDefaults, EngineAware {
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var lease: MidiDeviceService.DestinationLease? = null
     private var openJob: Job? = null
+    private val pendingNoteOffs = mutableMapOf<Int, ScheduledEvent>()
 
     private val destination: MidiDestination? get() = lease?.destination
 
@@ -377,6 +379,8 @@ class MidiOutModule : Module("midiOut"), AdoptsRememberedDefaults, EngineAware {
     }
 
     override fun teardown() {
+        pendingNoteOffs.values.forEach { it.cancel() }
+        pendingNoteOffs.clear()
         openJob?.cancel()
         openJob = null
         releaseDestination()
@@ -451,6 +455,13 @@ class MidiOutModule : Module("midiOut"), AdoptsRememberedDefaults, EngineAware {
     private fun sendVoiceMessage(msg: Message.VoiceMessage) {
         val dest = destination ?: return
         val chZeroBased = (channel - 1).coerceIn(0, 15)
+        val isNoteOpcode = msg.opcode == Message.VoiceOpcode.NOTE_ON ||
+            msg.opcode == Message.VoiceOpcode.NOTE_OFF ||
+            msg.opcode == Message.VoiceOpcode.NOTE
+        val noteKey = (chZeroBased shl 8) or toMidiNote(msg.value)
+        if (isNoteOpcode) {
+            pendingNoteOffs.remove(noteKey)?.cancel()
+        }
         dest.send(toMidi1Word(msg, chZeroBased), MidiClock.nowNanos())
         if (msg.opcode == Message.VoiceOpcode.NOTE) {
             val durSec = msg.duration.coerceAtLeast(0.0)
@@ -458,9 +469,14 @@ class MidiOutModule : Module("midiOut"), AdoptsRememberedDefaults, EngineAware {
             val noteOffWord = Midi1Messages.noteOff(toMidiNote(msg.value), channel = chZeroBased)
             val e = engine
             if (e != null) {
-                e.schedule(offTime) {
+                var scheduled: ScheduledEvent? = null
+                scheduled = e.schedule(offTime) {
+                    if (pendingNoteOffs[noteKey] === scheduled) {
+                        pendingNoteOffs.remove(noteKey)
+                    }
                     destination?.send(noteOffWord, MidiClock.nowNanos())
                 }
+                pendingNoteOffs[noteKey] = scheduled
             } else {
                 dest.send(noteOffWord, MidiClock.nowNanos())
             }

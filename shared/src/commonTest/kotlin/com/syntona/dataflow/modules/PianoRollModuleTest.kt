@@ -252,6 +252,7 @@ class PianoRollSerializationTest {
         val m = graphState.modules.filterIsInstance<PianoRollModule>().firstOrNull()
         assertNotNull(m)
         assertEquals(PianoRollTiming.DEFAULT_TEMPO, m.tempo.getValue())
+        assertEquals(PianoRollModule.NoteOutputMode.NOTE, m.noteOutputMode)
         assertEquals(0, m.playStartTicks)
         assertEquals(0, m.notes.size)
         assertNull(m.windowWidth)
@@ -312,5 +313,24 @@ class PianoRollSerializationTest {
         assertEquals(Ratio(1, 1), note.ratio)
         // Its absolute pitch is preserved relative to middle C.
         assertTrue(abs(note.rootPitch - (60.0 + Ratio(3, 2).semitones)) < 0.01)
+    }
+
+    @Test
+    fun testNoteModeAndAmplitudeSerializationRoundTrip() {
+        val src = GraphState()
+        val module = PianoRollModule()
+        module.noteOutputMode = PianoRollModule.NoteOutputMode.NOTE_ON_OFF
+        module.notes.add(PianoRollNote(id = 0, startTicks = 0, durationTicks = 240, rootPitch = 62.0, amplitude = 0.65))
+        src.addModule(module, Offset.Zero)
+
+        val json = GraphSerializer.serialize(src, src.modules)
+        val dst = GraphState()
+        GraphSerializer.deserialize(dst, json)
+
+        val loaded = dst.modules.filterIsInstance<PianoRollModule>().firstOrNull()
+        assertNotNull(loaded)
+        assertEquals(PianoRollModule.NoteOutputMode.NOTE_ON_OFF, loaded.noteOutputMode)
+        assertEquals(1, loaded.notes.size)
+        assertEquals(0.65, loaded.notes[0].amplitude, 1e-6)
     }
 }
