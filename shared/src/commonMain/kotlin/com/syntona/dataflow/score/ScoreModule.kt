@@ -9,8 +9,10 @@ import com.syntona.dataflow.engine.DataFlowEngine
 import com.syntona.dataflow.engine.EngineAware
 import com.syntona.dataflow.engine.KickJackCommand
 import com.syntona.dataflow.engine.ScheduledEvent
+import com.syntona.dataflow.engine.SyntonaCommand
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
+import com.syntona.dataflow.model.VoiceOutputJack
 import com.syntona.dataflow.modules.PianoRollTiming
 import kotlin.math.roundToLong
 
@@ -50,6 +52,8 @@ class ScoreModule : Module("score"), EngineAware {
         this.engine = engine
     }
 
+    fun getEngine(): DataFlowEngine? = engine
+
     override fun execute(triggerMessage: Message) {
         val now = triggerMessage.time
         when {
@@ -62,6 +66,15 @@ class ScoreModule : Module("score"), EngineAware {
         val e = engine ?: return
         val jack = if (isPlaying) stop else start
         e.post(KickJackCommand(jack, ScoreClock.now()))
+    }
+
+    /**
+     * Sounds a short preview of [pitch] through [output]. Safe to call from the UI thread.
+     */
+    fun previewPitch(pitch: Double, isStaccato: Boolean = false) {
+        val e = engine ?: return
+        val durationMs = if (isStaccato) STACCATO_PREVIEW_DURATION_MS else PREVIEW_DURATION_MS
+        e.post(PreviewScoreNoteCommand(output, pitch, durationMs))
     }
 
     private fun startPlayback(now: ScoreTime) {
@@ -82,7 +95,14 @@ class ScoreModule : Module("score"), EngineAware {
             val itemTicks = item.totalTicks.toLong()
             val onTime = now + ScoreTime((tickCursor * nsPerTick).roundToLong())
             val offTime = now + ScoreTime(((tickCursor + itemTicks) * nsPerTick).roundToLong())
-            val durSec = (offTime.nanoseconds - onTime.nanoseconds).coerceAtLeast(0L) / 1_000_000_000.0
+            val fullDurSec = (offTime.nanoseconds - onTime.nanoseconds).coerceAtLeast(0L) / 1_000_000_000.0
+            val soundingDurSec = if (item is ScoreItem.Note && item.isStaccato) {
+                minOf(fullDurSec * STACCATO_DURATION_FRACTION, MAX_STACCATO_SECONDS)
+                    .coerceAtLeast(minOf(MIN_STACCATO_SECONDS, fullDurSec))
+            } else {
+                fullDurSec
+            }
+            val soundingOffTime = onTime + ScoreTime((soundingDurSec * 1_000_000_000.0).roundToLong())
 
             scheduledEvents.add(e.schedule(onTime) {
                 activeItemIndex = itemIdx
@@ -95,14 +115,14 @@ class ScoreModule : Module("score"), EngineAware {
                             tag = itemIdx,
                             value = pitch,
                             extra = item.amplitude,
-                            duration = durSec,
+                            duration = soundingDurSec,
                         )
                     )
                     soundingNotes[itemIdx] = pitch
                 }
             })
             if (item is ScoreItem.Note) {
-                scheduledEvents.add(e.schedule(offTime) {
+                scheduledEvents.add(e.schedule(soundingOffTime) {
                     soundingNotes.remove(itemIdx)
                 })
             }
@@ -140,4 +160,47 @@ class ScoreModule : Module("score"), EngineAware {
         stopPlayback(ScoreClock.now())
         super.teardown()
     }
+
+    companion object {
+        const val PREVIEW_TAG = -2
+        const val PREVIEW_DURATION_MS = 250L
+        const val STACCATO_PREVIEW_DURATION_MS = 60L
+        const val PREVIEW_AMPLITUDE = 0.25
+        const val STACCATO_DURATION_FRACTION = 0.35
+        const val MAX_STACCATO_SECONDS = 0.08
+        const val MIN_STACCATO_SECONDS = 0.015
+    }
+}
+
+private class PreviewScoreNoteCommand(
+    private val output: VoiceOutputJack,
+    private val pitch: Double,
+    private val durationMs: Long,
+) : SyntonaCommand {
+    override val isUndoable = false
+
+    override fun execute() {
+        val now = ScoreClock.now()
+        output.send(
+            Message.VoiceMessage(
+                time = now,
+                opcode = Message.VoiceOpcode.NOTE_OFF,
+                tag = ScoreModule.PREVIEW_TAG,
+                value = pitch,
+                extra = ScoreModule.PREVIEW_AMPLITUDE,
+            )
+        )
+        output.send(
+            Message.VoiceMessage(
+                time = now,
+                opcode = Message.VoiceOpcode.NOTE,
+                tag = ScoreModule.PREVIEW_TAG,
+                value = pitch,
+                extra = ScoreModule.PREVIEW_AMPLITUDE,
+                duration = durationMs * 0.001,
+            )
+        )
+    }
+
+    override fun undo() {}
 }

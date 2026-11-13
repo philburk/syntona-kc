@@ -25,9 +25,31 @@ UI for moving a note.
 * If the user clicks down on a note, play the note, highlight the note and display the name and pitch value.
 * If the user drags up or down, change the pitch of the note play the new note, and update the name and value display.
 
-Provide feedback for the user when moving notes.
-* Play the note when it moves.
-* Display the note name and octave, eg. "F#4".
+When in note entry mode, the mouse cursor should be a symbol for the note or rest of the current duration.
+
+If a note of a different duration is placed on top of an existing note then the old note will be replaced.
+
+If the notes in a measure exceed the duration of a measure then highlight those notes in red.
+For example the fifth quarter note in a 4:4 measure would be red.
+
+### Keyboard Shortcuts
+
+ESC = enter selection mode
+
+DELETE or BACKSPACE = delete selected items
+
+Note or rest durations, hitting the key a second time toggles between notes and rests.
+t = thirty-second
+s = sixteenth
+e = eighth
+q = quarter
+h = half
+w = whole
+
+1 = toggle staccato, implement as a short note, ie a quick on/off
+2 = flat
+3 = sharp
+4 = natural
 
 ## Code Organization
 
@@ -51,16 +73,43 @@ durations of notes and rests.
 Draw glyphs using a SMuFL font.
 
 ### Phase 2
-Add note entry and editing.
+Add basic note entry and editing. Add or drag notes.
+Use keyboard shortcuts from above to select note or rest durations.
 Display pitch while editing.
+Allow selection and deleting of notes and rests.
 
 ### Phase 3
-Add other common clefs. Add ties and beams, repeating measure bars.
+Move the selector buttons for the notes and rests into a popup palette.
+The palette should show the glyph and its keyboard shortcut.
+Create a section at the left of the score editor that contains buttons that cause the palettes to popup.
+Add a "Notes/Rests" button that open the palette.
+Later we will add other palettes.
+
+Add a horizontal scroll bar so that I can scroll to any measure of a long score.
+This would be like the pianoRoll scroll bar.
+
 ### Phase 4
+In selection mode, clicking in an empty measure, or at the end of a
+measure with room remaining, will place a vertical cursor.
+
+Add a MIDI Voice input jack to the score.
+Add an icon that enables "step record" mode.
+
+When a MIDI note is played into the score's input jack, insert that note
+into the score at the cursor position with the current duration, eg. eighth note.
+
+### Phase 5
+Add other common clefs. Add ties and beams, repeating measure bars.
+
+### Phase 6
 Add support for multiple instruments.
-### Phase 5
+Add new instruments with a "+" button.
+Each instrument has its own voice output jack.
+
+### Phase 7
 Add graphical scores, custom glyphs, textual scores.
-### Phase 5
+
+### Phase 8
 Add M2-123-UM compatible articulations.
 
 ## Design Considerations
