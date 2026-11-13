@@ -2,47 +2,125 @@ package com.syntona.dataflow.score
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isCtrlPressed
+import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.key.utf16CodePoint
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.isShiftPressed
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.syntona.dataflow.editor.CompactDropdownMenuItem
+import com.syntona.dataflow.editor.EditActionHandler
 import com.syntona.dataflow.editor.FileState
 import com.syntona.dataflow.editor.GraphState
 import com.syntona.dataflow.editor.GraphViewSettings
+import com.syntona.dataflow.editor.LocalMdiState
+import com.syntona.dataflow.editor.moveCursor
+import com.syntona.dataflow.editor.scoreSymbolCursor
+import com.syntona.dataflow.engine.SyntonaCommand
 import com.syntona.ui.PlayIcon
 import com.syntona.ui.StopIcon
 import org.jetbrains.compose.resources.Font
 import syntonakc.shared.generated.resources.Res
 import syntonakc.shared.generated.resources.leland
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.roundToInt
+
+private object ScoreClipboard {
+    var items: List<ScoreItem> = emptyList()
+}
+
+private enum class ScoreEditMode {
+    SELECT,
+    ENTRY,
+}
+
+private sealed interface ScoreDragState {
+    class PitchDrag(
+        val location: ScoreItemLocation,
+        val initialStep: Int,
+        val initialAlter: Int,
+        val beforeMeasures: List<ScoreMeasure>,
+        val downY: Float,
+        var lastStep: Int,
+        val anchorX: Float,
+        var anchorY: Float,
+    ) : ScoreDragState
+
+    class RubberBand(
+        val start: Offset,
+        val additive: Boolean,
+        val baseSelection: Set<ScoreItemLocation>,
+    ) : ScoreDragState {
+        var end by mutableStateOf(start)
+    }
+}
+
+private val TOOLBAR_DURATIONS = listOf(
+    NoteDuration.WHOLE,
+    NoteDuration.HALF,
+    NoteDuration.QUARTER,
+    NoteDuration.EIGHTH,
+    NoteDuration.SIXTEENTH,
+    NoteDuration.THIRTY_SECOND,
+)
 
 @Composable
 fun ScoreEditor(module: ScoreModule, state: GraphState) {
@@ -50,34 +128,251 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
     val bgColor = if (isDark) Color(0xFF1A1A2E) else Color(0xFFFFFDF8)
     val toolbarBg = if (isDark) Color(0xFF12122A) else Color(0xFFE2E8F0)
     val toolbarText = if (isDark) Color(0xFF94A3B8) else Color(0xFF334155)
+    val accentColor = if (isDark) Color(0xFF60A5FA) else Color(0xFF2563EB)
     val borderMuted = if (isDark) Color(0x33FFFFFF) else Color(0x33000000)
 
     val lelandFont = Font(Res.font.leland)
     val musicFontFamily = remember(lelandFont) { FontFamily(lelandFont) }
     val textMeasurer = rememberTextMeasurer()
     val density = LocalDensity.current
+    val mdiState = LocalMdiState.current
+    val focusRequester = remember { FocusRequester() }
 
     var staffSpaceDp by remember { mutableStateOf(10f) }
     val scrollState = rememberScrollState()
+    val toolbarScrollState = rememberScrollState()
+
+    var editorMode by remember { mutableStateOf(ScoreEditMode.ENTRY) }
+    var entryDuration by remember { mutableStateOf(NoteDuration.QUARTER) }
+    var entryIsRest by remember { mutableStateOf(false) }
+    var pendingAccidental by remember { mutableStateOf<Accidental?>(null) }
+    var pendingStaccato by remember { mutableStateOf(false) }
+    var selectedLocations by remember { mutableStateOf<Set<ScoreItemLocation>>(emptySet()) }
+    var activePitchText by remember { mutableStateOf<String?>(null) }
+    var hoverPos by remember { mutableStateOf<Offset?>(null) }
+    var hoveringItem by remember { mutableStateOf(false) }
+    var dragState by remember { mutableStateOf<ScoreDragState?>(null) }
+
+    val score = module.scoreData
+
+    fun refreshPitchDisplayFromSelection(
+        measures: List<ScoreMeasure> = score.measures,
+        selection: Set<ScoreItemLocation> = selectedLocations,
+    ) {
+        val selectedNotes = selection.mapNotNull { ScoreEditing.itemAt(measures, it) as? ScoreItem.Note }
+        activePitchText = if (selectedNotes.size == 1) {
+            selectedNotes.first().pitch.pitchDisplay()
+        } else if (selectedNotes.size > 1) {
+            "${selectedNotes.first().pitch.pitchDisplay()} (+${selectedNotes.size - 1})"
+        } else {
+            null
+        }
+    }
+
+    fun postCommand(command: SyntonaCommand) {
+        val engine = state.engine ?: module.getEngine()
+        if (engine != null) {
+            engine.post(command)
+        } else {
+            command.execute()
+        }
+        state.markChanged()
+    }
+
+    fun deleteSelection() {
+        if (selectedLocations.isEmpty()) return
+        val before = score.measures.toList()
+        val after = ScoreEditing.deleteItems(before, selectedLocations)
+        selectedLocations = emptySet()
+        activePitchText = null
+        postCommand(
+            ReplaceScoreMeasuresCommand(score, before, after) { restored ->
+                selectedLocations = selectedLocations.filterTo(linkedSetOf()) {
+                    ScoreEditing.itemAt(restored, it) != null
+                }
+                refreshPitchDisplayFromSelection(restored, selectedLocations)
+            }
+        )
+    }
+
+    fun selectDuration(duration: NoteDuration) {
+        if (editorMode == ScoreEditMode.ENTRY && entryDuration == duration) {
+            entryIsRest = !entryIsRest
+        } else {
+            editorMode = ScoreEditMode.ENTRY
+            entryDuration = duration
+            entryIsRest = false
+        }
+    }
+
+    fun applyAccidental(accidental: Accidental) {
+        val before = score.measures.toList()
+        val after = ScoreEditing.setAccidentalOnSelection(before, selectedLocations, accidental.alter)
+        val hasSelectedNotes = selectedLocations.any { ScoreEditing.itemAt(before, it) is ScoreItem.Note }
+        if (hasSelectedNotes) {
+            if (after != before) {
+                postCommand(ReplaceScoreMeasuresCommand(score, before, after))
+            }
+            val firstNote = selectedLocations.firstNotNullOfOrNull { ScoreEditing.itemAt(after, it) as? ScoreItem.Note }
+            if (firstNote != null) {
+                module.previewPitch(firstNote.pitch.midiPitch.toDouble(), isStaccato = firstNote.isStaccato)
+                refreshPitchDisplayFromSelection(after, selectedLocations)
+            }
+        } else {
+            pendingAccidental = if (pendingAccidental == accidental) null else accidental
+        }
+    }
+
+    fun toggleStaccato() {
+        val before = score.measures.toList()
+        val hasSelectedNotes = selectedLocations.any { ScoreEditing.itemAt(before, it) is ScoreItem.Note }
+        if (hasSelectedNotes) {
+            val after = ScoreEditing.toggleStaccatoOnSelection(before, selectedLocations)
+            if (after != before) {
+                postCommand(ReplaceScoreMeasuresCommand(score, before, after))
+            }
+            val firstNote = selectedLocations.firstNotNullOfOrNull { ScoreEditing.itemAt(after, it) as? ScoreItem.Note }
+            if (firstNote != null) {
+                module.previewPitch(firstNote.pitch.midiPitch.toDouble(), isStaccato = firstNote.isStaccato)
+            }
+        } else {
+            pendingStaccato = !pendingStaccato
+        }
+    }
+
+    fun copySelection() {
+        val sorted = selectedLocations
+            .sortedWith(compareBy<ScoreItemLocation> { it.measureIdx }.thenBy { it.itemIdx })
+        val copied = sorted.mapNotNull { ScoreEditing.itemAt(score.measures, it) }
+        if (copied.isNotEmpty()) {
+            ScoreClipboard.items = copied
+        }
+    }
+
+    fun pasteClipboard() {
+        val clip = ScoreClipboard.items
+        if (clip.isEmpty()) return
+        val before = score.measures.toList()
+        val lastSel = selectedLocations
+            .maxWithOrNull(compareBy<ScoreItemLocation> { it.measureIdx }.thenBy { it.itemIdx })
+        var targetMIdx = lastSel?.measureIdx ?: (before.lastIndex.coerceAtLeast(0))
+        var targetIIdx = if (lastSel != null) {
+            lastSel.itemIdx + 1
+        } else {
+            before.getOrNull(targetMIdx)?.items?.size ?: 0
+        }
+        var current = before
+        val pastedLocs = linkedSetOf<ScoreItemLocation>()
+        for (item in clip) {
+            val (next, loc) = ScoreEditing.insertItem(current, targetMIdx, targetIIdx, item)
+            current = next
+            pastedLocs.add(loc)
+            targetMIdx = loc.measureIdx
+            targetIIdx = loc.itemIdx + 1
+        }
+        selectedLocations = pastedLocs
+        refreshPitchDisplayFromSelection(current, pastedLocs)
+        postCommand(
+            ReplaceScoreMeasuresCommand(score, before, current) { restored ->
+                selectedLocations = pastedLocs.filterTo(linkedSetOf()) {
+                    ScoreEditing.itemAt(restored, it) != null
+                }
+                refreshPitchDisplayFromSelection(restored, selectedLocations)
+            }
+        )
+    }
+
+    // Route Cut / Copy / Paste / Delete from the global window Edit handler while Score window is active.
+    DisposableEffect(module) {
+        val window = mdiState.windows.find { it.id == module }
+        val handler = object : EditActionHandler {
+            override fun canCopy() = selectedLocations.isNotEmpty()
+            override fun canPaste() = ScoreClipboard.items.isNotEmpty()
+            override fun canDelete() = selectedLocations.isNotEmpty()
+            override fun cut() {
+                copySelection()
+                deleteSelection()
+            }
+            override fun copy() = copySelection()
+            override fun paste() = pasteClipboard()
+            override fun delete() = deleteSelection()
+        }
+        window?.editHandler = handler
+        onDispose {
+            if (window?.editHandler === handler) window.editHandler = null
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        focusRequester.requestFocus()
+    }
+
+    val measureGlyphWidth = remember(textMeasurer, density, musicFontFamily) {
+        { glyph: String, fontSizePx: Float ->
+            val fontSizeSp = with(density) { fontSizePx.toSp() }
+            textMeasurer.measure(
+                text = glyph,
+                style = TextStyle(fontFamily = musicFontFamily, fontSize = fontSizeSp),
+                softWrap = false,
+                maxLines = 1,
+            ).size.width.toFloat()
+        }
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(bgColor)
+            .focusRequester(focusRequester)
+            .focusable()
+            .onKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
+                if (event.isMetaPressed || event.isCtrlPressed) return@onKeyEvent false
+                when {
+                    event.key == Key.Escape -> {
+                        editorMode = ScoreEditMode.SELECT
+                        hoverPos = null
+                        true
+                    }
+                    event.key == Key.Delete || event.key == Key.Backspace -> {
+                        deleteSelection()
+                        true
+                    }
+                    event.key == Key.Spacebar -> {
+                        module.requestPlayToggle()
+                        true
+                    }
+                    else -> when (event.utf16CodePoint.toChar().lowercaseChar()) {
+                        't' -> { selectDuration(NoteDuration.THIRTY_SECOND); true }
+                        's' -> { selectDuration(NoteDuration.SIXTEENTH); true }
+                        'e' -> { selectDuration(NoteDuration.EIGHTH); true }
+                        'q' -> { selectDuration(NoteDuration.QUARTER); true }
+                        'h' -> { selectDuration(NoteDuration.HALF); true }
+                        'w' -> { selectDuration(NoteDuration.WHOLE); true }
+                        '1' -> { toggleStaccato(); true }
+                        '2' -> { applyAccidental(Accidental.FLAT); true }
+                        '3' -> { applyAccidental(Accidental.SHARP); true }
+                        '4' -> { applyAccidental(Accidental.NATURAL); true }
+                        else -> false
+                    }
+                }
+            }
     ) {
-        // Minimal Phase 1 toolbar
+        // Phase 2 toolbar
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .background(toolbarBg)
+                .horizontalScroll(toolbarScrollState)
                 .padding(horizontal = 8.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             TextButton(
                 onClick = { module.requestPlayToggle() },
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                 modifier = Modifier
-                    .height(30.dp)
+                    .height(28.dp)
                     .focusProperties { canFocus = false },
             ) {
                 Row(
@@ -97,25 +392,183 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
 
             Text("|", color = borderMuted)
 
+            ToolbarToggleChip(
+                selected = editorMode == ScoreEditMode.SELECT,
+                accentColor = accentColor,
+                borderMuted = borderMuted,
+                textColor = toolbarText,
+                isDark = isDark,
+                onClick = {
+                    editorMode = ScoreEditMode.SELECT
+                    hoverPos = null
+                },
+            ) { color ->
+                Text("Select", fontSize = 11.sp, color = color)
+            }
+
+            // Duration palette (shows note or rest SMuFL glyph)
+            TOOLBAR_DURATIONS.forEach { dur ->
+                val isSelected = editorMode == ScoreEditMode.ENTRY && entryDuration == dur
+                ToolbarToggleChip(
+                    selected = isSelected,
+                    accentColor = accentColor,
+                    borderMuted = borderMuted,
+                    textColor = toolbarText,
+                    isDark = isDark,
+                    onClick = { selectDuration(dur) },
+                ) { color ->
+                    val glyph = if (entryIsRest) dur.restGlyph else dur.noteSymbolGlyph
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Text(
+                            text = glyph,
+                            fontFamily = musicFontFamily,
+                            fontSize = if (entryIsRest) 15.sp else 18.sp,
+                            color = color,
+                        )
+                        Text(
+                            text = dur.shortcutChar.toString(),
+                            fontSize = 9.sp,
+                            color = color.copy(alpha = 0.75f),
+                        )
+                    }
+                }
+            }
+
+            ToolbarToggleChip(
+                selected = entryIsRest && editorMode == ScoreEditMode.ENTRY,
+                accentColor = accentColor,
+                borderMuted = borderMuted,
+                textColor = toolbarText,
+                isDark = isDark,
+                onClick = {
+                    editorMode = ScoreEditMode.ENTRY
+                    entryIsRest = !entryIsRest
+                },
+            ) { color ->
+                Text(if (entryIsRest) "Rest" else "Note", fontSize = 11.sp, color = color)
+            }
+
+            Text("|", color = borderMuted)
+
+            val selectedNotes = selectedLocations.mapNotNull { ScoreEditing.itemAt(score.measures, it) as? ScoreItem.Note }
+            val staccatoActive = if (selectedNotes.isNotEmpty()) {
+                selectedNotes.all { it.isStaccato }
+            } else {
+                pendingStaccato
+            }
+            val activeAlter = if (selectedNotes.isNotEmpty()) {
+                selectedNotes.map { it.pitch.alter }.distinct().singleOrNull()
+            } else {
+                pendingAccidental?.alter
+            }
+
+            ToolbarToggleChip(
+                selected = staccatoActive,
+                accentColor = accentColor,
+                borderMuted = borderMuted,
+                textColor = toolbarText,
+                isDark = isDark,
+                onClick = { toggleStaccato() },
+            ) { color ->
+                Text("1·", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = color)
+            }
+
+            ToolbarToggleChip(
+                selected = activeAlter == Accidental.FLAT.alter,
+                accentColor = accentColor,
+                borderMuted = borderMuted,
+                textColor = toolbarText,
+                isDark = isDark,
+                onClick = { applyAccidental(Accidental.FLAT) },
+            ) { color ->
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Text("2", fontSize = 9.sp, color = color.copy(alpha = 0.75f))
+                    Text(SmuflGlyphs.ACCIDENTAL_FLAT, fontFamily = musicFontFamily, fontSize = 15.sp, color = color)
+                }
+            }
+
+            ToolbarToggleChip(
+                selected = activeAlter == Accidental.SHARP.alter,
+                accentColor = accentColor,
+                borderMuted = borderMuted,
+                textColor = toolbarText,
+                isDark = isDark,
+                onClick = { applyAccidental(Accidental.SHARP) },
+            ) { color ->
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Text("3", fontSize = 9.sp, color = color.copy(alpha = 0.75f))
+                    Text(SmuflGlyphs.ACCIDENTAL_SHARP, fontFamily = musicFontFamily, fontSize = 15.sp, color = color)
+                }
+            }
+
+            ToolbarToggleChip(
+                selected = activeAlter == Accidental.NATURAL.alter,
+                accentColor = accentColor,
+                borderMuted = borderMuted,
+                textColor = toolbarText,
+                isDark = isDark,
+                onClick = { applyAccidental(Accidental.NATURAL) },
+            ) { color ->
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(1.dp)) {
+                    Text("4", fontSize = 9.sp, color = color.copy(alpha = 0.75f))
+                    Text(SmuflGlyphs.ACCIDENTAL_NATURAL, fontFamily = musicFontFamily, fontSize = 15.sp, color = color)
+                }
+            }
+
+            Text("|", color = borderMuted)
+
             ScoreKeySelector(
-                selected = module.scoreData.keySignature,
+                selected = score.keySignature,
                 textColor = toolbarText,
                 onSelect = {
-                    module.scoreData.keySignature = it
+                    score.keySignature = it
                     FileState.markDirty()
                     state.markChanged()
                 },
             )
 
             ScoreTimeSigSelector(
-                selected = module.scoreData.timeSignature,
+                selected = score.timeSignature,
                 textColor = toolbarText,
                 onSelect = {
-                    module.scoreData.timeSignature = it
+                    score.timeSignature = it
                     FileState.markDirty()
                     state.markChanged()
                 },
             )
+
+            TextButton(
+                onClick = {
+                    val before = score.measures.toList()
+                    val after = ScoreEditing.appendEmptyMeasure(before)
+                    postCommand(ReplaceScoreMeasuresCommand(score, before, after))
+                },
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                modifier = Modifier
+                    .height(28.dp)
+                    .focusProperties { canFocus = false },
+            ) {
+                Text("+ Bar", fontSize = 11.sp, color = toolbarText)
+            }
+
+            TextButton(
+                onClick = {
+                    val before = score.measures.toList()
+                    val after = ScoreEditing.clearToSingleEmptyMeasure()
+                    selectedLocations = emptySet()
+                    activePitchText = null
+                    postCommand(ReplaceScoreMeasuresCommand(score, before, after))
+                },
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                modifier = Modifier
+                    .height(28.dp)
+                    .focusProperties { canFocus = false },
+            ) {
+                Text("Clear", fontSize = 11.sp, color = toolbarText)
+            }
 
             Text("|", color = borderMuted)
 
@@ -124,7 +577,9 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 value = staffSpaceDp,
                 onValueChange = { staffSpaceDp = it },
                 valueRange = 6f..18f,
-                modifier = Modifier.width(100.dp),
+                modifier = Modifier
+                    .width(84.dp)
+                    .focusProperties { canFocus = false },
                 colors = SliderDefaults.colors(
                     thumbColor = if (isDark) Color.White else Color.DarkGray,
                     activeTrackColor = if (isDark) Color.Yellow else Color(0xFFF59E0B),
@@ -134,42 +589,482 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         }
 
         // Scrollable single-stave score canvas
+        // Note: horizontalScroll MUST wrap an inner container rather than BoxWithConstraints itself,
+        // otherwise horizontalScroll passes maxWidth=Infinity into BoxWithConstraints and collapses
+        // the canvas hit-test bounds.
         BoxWithConstraints(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
                 .clipToBounds()
-                .horizontalScroll(scrollState)
         ) {
+            val viewportWidth = maxWidth
+            val viewportHeight = maxHeight
             val staffSpacePx = with(density) { staffSpaceDp.dp.toPx() }
-            val minWidthPx = constraints.minWidth.toFloat().coerceAtLeast(600f)
+            val minWidthPx = with(density) { viewportWidth.toPx() }.coerceAtLeast(600f)
+            val measuresSnapshot = score.measures.toList()
+            val layout = remember(
+                measuresSnapshot,
+                score.clef,
+                score.keySignature,
+                score.timeSignature,
+                staffSpacePx,
+                minWidthPx,
+            ) {
+                ScoreRenderer.computeLayout(
+                    score = score,
+                    staffSpacePx = staffSpacePx,
+                    minWidthPx = minWidthPx,
+                    measureGlyphWidth = measureGlyphWidth,
+                )
+            }
+            val currentLayout by rememberUpdatedState(layout)
+            val currentStaffSpacePx by rememberUpdatedState(staffSpacePx)
+
             val canvasWidthDp = maxOf(
-                maxWidth,
-                with(density) { (staffSpacePx * 110f).toDp() }
+                viewportWidth,
+                with(density) { layout.totalWidthPx.toDp() },
             )
             val renderColors = ScoreRenderColors.forTheme(isDark)
 
-            Canvas(
-                modifier = Modifier
-                    .width(canvasWidthDp)
-                    .height(maxHeight)
+            val activeCursor = when {
+                dragState is ScoreDragState.PitchDrag -> moveCursor()
+                editorMode == ScoreEditMode.ENTRY -> scoreSymbolCursor(entryDuration, entryIsRest, isDark)
+                hoveringItem -> moveCursor()
+                else -> PointerIcon.Default
+            }
+
+            val ghostPreview = remember(
+                editorMode,
+                hoverPos,
+                dragState,
+                layout,
+                entryDuration,
+                entryIsRest,
+                pendingAccidental,
+                pendingStaccato,
             ) {
-                val target = ComposeScoreDrawTarget(
-                    drawScope = this,
-                    textMeasurer = textMeasurer,
-                    density = density,
-                    musicFontFamily = musicFontFamily,
-                )
-                ScoreRenderer.render(
-                    score = module.scoreData,
-                    target = target,
-                    staffSpacePx = staffSpacePx,
-                    minWidthPx = minWidthPx,
-                    colors = renderColors,
-                    activeItemGlobalIndex = module.activeItemIndex,
+                if (editorMode != ScoreEditMode.ENTRY || dragState != null) return@remember null
+                val pos = hoverPos ?: return@remember null
+                if (pos.x < layout.headerEndX - layout.staffSpacePx * 0.5f) return@remember null
+                val step = layout.stepAtY(pos.y)
+                ScoreGhostPreview(
+                    x = pos.x - layout.staffSpacePx * 0.65f,
+                    staffStep = step,
+                    duration = entryDuration,
+                    isRest = entryIsRest,
+                    accidental = if (entryIsRest) null else pendingAccidental,
+                    isStaccato = if (entryIsRest) false else pendingStaccato,
                 )
             }
+
+            val rubberBandState = dragState as? ScoreDragState.RubberBand
+            val rubberBand = rubberBandState?.let { rb ->
+                ScoreRubberBand(
+                    left = min(rb.start.x, rb.end.x),
+                    top = min(rb.start.y, rb.end.y),
+                    right = max(rb.start.x, rb.end.x),
+                    bottom = max(rb.start.y, rb.end.y),
+                )
+            }
+            val displayedSelectedLocations = if (rubberBandState != null && rubberBand != null) {
+                val liveHits = layout.itemsInRect(rubberBand.left, rubberBand.top, rubberBand.right, rubberBand.bottom)
+                if (rubberBandState.additive) rubberBandState.baseSelection + liveHits else liveHits
+            } else {
+                selectedLocations
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .horizontalScroll(scrollState)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(canvasWidthDp)
+                        .height(viewportHeight)
+                ) {
+                Canvas(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerHoverIcon(activeCursor)
+                        .pointerInput(Unit) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    when (event.type) {
+                                        PointerEventType.Move -> {
+                                            val pos = event.changes.firstOrNull()?.position
+                                            hoverPos = pos
+                                            hoveringItem = pos != null && currentLayout.itemAt(pos.x, pos.y) != null
+                                        }
+                                        PointerEventType.Exit -> {
+                                            hoverPos = null
+                                            hoveringItem = false
+                                        }
+                                        else -> {}
+                                    }
+                                }
+                            }
+                        }
+                        .pointerInput(Unit) {
+                            awaitEachGesture {
+                                val down = awaitFirstDown()
+                                focusRequester.requestFocus()
+                                down.consume()
+
+                                val downPos = down.position
+                                val isShift = currentEvent.keyboardModifiers.isShiftPressed
+                                val lyt = currentLayout
+                                val sp = currentStaffSpacePx
+                                val hit = lyt.itemAt(downPos.x, downPos.y)
+
+                                fun beginNoteDrag(
+                                    loc: ScoreItemLocation,
+                                    step: Int,
+                                    alter: Int,
+                                    beforeMeasures: List<ScoreMeasure>,
+                                    anchorX: Float,
+                                ) {
+                                    dragState = ScoreDragState.PitchDrag(
+                                        location = loc,
+                                        initialStep = step,
+                                        initialAlter = alter,
+                                        beforeMeasures = beforeMeasures,
+                                        downY = downPos.y,
+                                        lastStep = step,
+                                        anchorX = anchorX,
+                                        anchorY = lyt.yForStep(step),
+                                    )
+                                }
+
+                                if (editorMode == ScoreEditMode.SELECT) {
+                                    if (hit != null) {
+                                        if (isShift) {
+                                            selectedLocations = if (hit.location in selectedLocations) {
+                                                selectedLocations - hit.location
+                                            } else {
+                                                selectedLocations + hit.location
+                                            }
+                                            refreshPitchDisplayFromSelection()
+                                        } else {
+                                            selectedLocations = setOf(hit.location)
+                                            val item = hit.item
+                                            if (item is ScoreItem.Note) {
+                                                module.previewPitch(item.pitch.midiPitch.toDouble(), isStaccato = item.isStaccato)
+                                                activePitchText = item.pitch.pitchDisplay()
+                                                val step = hit.staffStep ?: score.clef.staffStepFromBottom(item.pitch)
+                                                beginNoteDrag(hit.location, step, item.pitch.alter, score.measures.toList(), hit.x)
+                                            } else {
+                                                activePitchText = null
+                                            }
+                                        }
+                                    } else {
+                                        if (!isShift) {
+                                            selectedLocations = emptySet()
+                                            activePitchText = null
+                                        }
+                                        dragState = ScoreDragState.RubberBand(
+                                            start = downPos,
+                                            additive = isShift,
+                                            baseSelection = selectedLocations,
+                                        )
+                                    }
+                                } else {
+                                    // ENTRY mode
+                                    val beforeMeasures = score.measures.toList()
+                                    if (hit != null) {
+                                        val isDifferentKindOrDuration =
+                                            (entryIsRest && hit.item is ScoreItem.Note) ||
+                                                (!entryIsRest && hit.item is ScoreItem.Rest) ||
+                                                (hit.item.duration != entryDuration)
+
+                                        if (isDifferentKindOrDuration) {
+                                            if (entryIsRest) {
+                                                val newRest = ScoreItem.Rest(entryDuration)
+                                                val after = ScoreEditing.replaceItem(beforeMeasures, hit.location, newRest)
+                                                selectedLocations = setOf(hit.location)
+                                                activePitchText = null
+                                                postCommand(ReplaceScoreMeasuresCommand(score, beforeMeasures, after))
+                                            } else {
+                                                val step = lyt.stepAtY(downPos.y)
+                                                val pitch = score.clef.pitchForStaffStep(
+                                                    stepFromBottom = step,
+                                                    keySignature = score.keySignature,
+                                                    alterOverride = pendingAccidental?.alter,
+                                                )
+                                                val newNote = ScoreItem.Note(
+                                                    pitch = pitch,
+                                                    duration = entryDuration,
+                                                    isStaccato = pendingStaccato,
+                                                )
+                                                pendingAccidental = null
+                                                val after = ScoreEditing.replaceItem(beforeMeasures, hit.location, newNote)
+                                                score.replaceMeasures(after)
+                                                selectedLocations = setOf(hit.location)
+                                                activePitchText = pitch.pitchDisplay()
+                                                module.previewPitch(pitch.midiPitch.toDouble(), isStaccato = newNote.isStaccato)
+                                                beginNoteDrag(hit.location, step, pitch.alter, beforeMeasures, hit.x)
+                                            }
+                                        } else {
+                                            selectedLocations = setOf(hit.location)
+                                            val item = hit.item
+                                            if (item is ScoreItem.Note) {
+                                                module.previewPitch(item.pitch.midiPitch.toDouble(), isStaccato = item.isStaccato)
+                                                activePitchText = item.pitch.pitchDisplay()
+                                                val step = hit.staffStep ?: score.clef.staffStepFromBottom(item.pitch)
+                                                beginNoteDrag(hit.location, step, item.pitch.alter, beforeMeasures, hit.x)
+                                            } else {
+                                                activePitchText = null
+                                            }
+                                        }
+                                    } else {
+                                        val target = lyt.insertionTargetAt(downPos.x)
+                                        if (target != null) {
+                                            if (entryIsRest) {
+                                                val newRest = ScoreItem.Rest(entryDuration)
+                                                val (after, newLoc) = ScoreEditing.insertItem(
+                                                    measures = beforeMeasures,
+                                                    measureIdx = target.measureIdx,
+                                                    itemIdx = target.itemIdx,
+                                                    item = newRest,
+                                                    appendNewMeasure = target.appendNewMeasure,
+                                                )
+                                                selectedLocations = setOf(newLoc)
+                                                activePitchText = null
+                                                postCommand(ReplaceScoreMeasuresCommand(score, beforeMeasures, after))
+                                            } else {
+                                                val step = lyt.stepAtY(downPos.y)
+                                                val pitch = score.clef.pitchForStaffStep(
+                                                    stepFromBottom = step,
+                                                    keySignature = score.keySignature,
+                                                    alterOverride = pendingAccidental?.alter,
+                                                )
+                                                val newNote = ScoreItem.Note(
+                                                    pitch = pitch,
+                                                    duration = entryDuration,
+                                                    isStaccato = pendingStaccato,
+                                                )
+                                                pendingAccidental = null
+                                                val (after, newLoc) = ScoreEditing.insertItem(
+                                                    measures = beforeMeasures,
+                                                    measureIdx = target.measureIdx,
+                                                    itemIdx = target.itemIdx,
+                                                    item = newNote,
+                                                    appendNewMeasure = target.appendNewMeasure,
+                                                )
+                                                score.replaceMeasures(after)
+                                                selectedLocations = setOf(newLoc)
+                                                activePitchText = pitch.pitchDisplay()
+                                                module.previewPitch(pitch.midiPitch.toDouble(), isStaccato = newNote.isStaccato)
+                                                beginNoteDrag(newLoc, step, pitch.alter, beforeMeasures, downPos.x)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Drag loop
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    val change = event.changes.find { it.id == down.id } ?: break
+                                    if (!change.pressed) break
+                                    val pos = change.position
+                                    hoverPos = pos
+
+                                    when (val drag = dragState) {
+                                        is ScoreDragState.PitchDrag -> {
+                                            val deltaSteps = ((drag.downY - pos.y) / (sp * 0.5f)).roundToInt()
+                                            val newStep = (drag.initialStep + deltaSteps).coerceIn(-12, 20)
+                                            if (newStep != drag.lastStep) {
+                                                drag.lastStep = newStep
+                                                val alterOverride = if (newStep == drag.initialStep) drag.initialAlter else null
+                                                val newPitch = score.clef.pitchForStaffStep(
+                                                    stepFromBottom = newStep,
+                                                    keySignature = score.keySignature,
+                                                    alterOverride = alterOverride,
+                                                )
+                                                val currentMeasures = score.measures.toList()
+                                                val updated = ScoreEditing.setNotePitch(currentMeasures, drag.location, newPitch)
+                                                score.replaceMeasures(updated)
+                                                drag.anchorY = lyt.yForStep(newStep)
+                                                activePitchText = newPitch.pitchDisplay()
+                                                val updatedNote = ScoreEditing.itemAt(updated, drag.location) as? ScoreItem.Note
+                                                module.previewPitch(
+                                                    newPitch.midiPitch.toDouble(),
+                                                    isStaccato = updatedNote?.isStaccato == true,
+                                                )
+                                            }
+                                        }
+                                        is ScoreDragState.RubberBand -> {
+                                            drag.end = pos
+                                        }
+                                        null -> {}
+                                    }
+                                    change.consume()
+                                }
+
+                                // Pointer up: commit drag command or rubber band selection
+                                when (val drag = dragState) {
+                                    is ScoreDragState.PitchDrag -> {
+                                        val afterMeasures = score.measures.toList()
+                                        if (afterMeasures != drag.beforeMeasures) {
+                                            val loc = drag.location
+                                            postCommand(
+                                                ReplaceScoreMeasuresCommand(score, drag.beforeMeasures, afterMeasures) { restored ->
+                                                    selectedLocations = if (ScoreEditing.itemAt(restored, loc) != null) {
+                                                        setOf(loc)
+                                                    } else {
+                                                        emptySet()
+                                                    }
+                                                    refreshPitchDisplayFromSelection(restored, selectedLocations)
+                                                }
+                                            )
+                                        }
+                                    }
+                                    is ScoreDragState.RubberBand -> {
+                                        val left = min(drag.start.x, drag.end.x)
+                                        val top = min(drag.start.y, drag.end.y)
+                                        val right = max(drag.start.x, drag.end.x)
+                                        val bottom = max(drag.start.y, drag.end.y)
+                                        val hits = lyt.itemsInRect(left, top, right, bottom)
+                                        selectedLocations = if (drag.additive) drag.baseSelection + hits else hits
+                                        refreshPitchDisplayFromSelection()
+                                    }
+                                    null -> {}
+                                }
+                                dragState = null
+                            }
+                        }
+                ) {
+                    val target = ComposeScoreDrawTarget(
+                        drawScope = this,
+                        textMeasurer = textMeasurer,
+                        density = density,
+                        musicFontFamily = musicFontFamily,
+                    )
+                    ScoreRenderer.render(
+                        score = score,
+                        target = target,
+                        staffSpacePx = staffSpacePx,
+                        minWidthPx = minWidthPx,
+                        colors = renderColors,
+                        activeItemGlobalIndex = module.activeItemIndex,
+                        selectedLocations = displayedSelectedLocations,
+                        ghostPreview = ghostPreview,
+                        rubberBand = rubberBand,
+                    )
+                }
+
+                // Floating pitch badge right next to the note being placed/dragged
+                val pitchDrag = dragState as? ScoreDragState.PitchDrag
+                val pitchLabel = activePitchText
+                if (pitchDrag != null && pitchLabel != null) {
+                    val badgeX = (pitchDrag.anchorX + 20f).roundToInt()
+                    val badgeY = (pitchDrag.anchorY - 34f).roundToInt().coerceAtLeast(4)
+                    Box(
+                        modifier = Modifier
+                            .offset { IntOffset(badgeX, badgeY) }
+                            .background(
+                                color = if (isDark) Color(0xE60F172A) else Color(0xE61E293B),
+                                shape = RoundedCornerShape(4.dp),
+                            )
+                            .border(1.dp, accentColor, RoundedCornerShape(4.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = pitchLabel,
+                            color = Color.White,
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                        )
+                    }
+                }
+                }
+            }
         }
+
+        // Bottom status bar with pitch display and shortcut reference
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(toolbarBg)
+                .padding(horizontal = 10.dp, vertical = 3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            val modeSummary = if (editorMode == ScoreEditMode.SELECT) {
+                "Mode: Select"
+            } else {
+                "Mode: ${entryDuration.displayLabel} ${if (entryIsRest) "Rest" else "Note"}"
+            }
+            Text(modeSummary, fontSize = 11.sp, color = toolbarText, fontWeight = FontWeight.Medium)
+
+            if (activePitchText != null) {
+                Spacer(modifier = Modifier.width(10.dp))
+                Box(
+                    modifier = Modifier
+                        .background(accentColor.copy(alpha = 0.16f), RoundedCornerShape(4.dp))
+                        .border(1.dp, accentColor.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                        .padding(horizontal = 6.dp, vertical = 1.dp)
+                ) {
+                    Text(
+                        text = activePitchText!!,
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isDark) Color.White else accentColor,
+                    )
+                }
+            } else if (selectedLocations.isNotEmpty()) {
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = "${selectedLocations.size} selected",
+                    fontSize = 11.sp,
+                    color = accentColor,
+                )
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            Text(
+                text = "Esc: Select | t s e q h w: Dur (2x=Rest) | 1: Stacc  2: b  3: #  4: Nat | Del: Delete",
+                fontSize = 10.sp,
+                color = toolbarText.copy(alpha = 0.8f),
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ToolbarToggleChip(
+    selected: Boolean,
+    accentColor: Color,
+    borderMuted: Color,
+    textColor: Color,
+    isDark: Boolean,
+    onClick: () -> Unit,
+    content: @Composable (Color) -> Unit,
+) {
+    val contentColor = if (selected) {
+        if (isDark) Color.White else accentColor
+    } else {
+        textColor
+    }
+    TextButton(
+        onClick = onClick,
+        contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+        modifier = Modifier
+            .defaultMinSize(minWidth = 26.dp, minHeight = 28.dp)
+            .height(28.dp)
+            .border(
+                width = 1.dp,
+                color = if (selected) accentColor else borderMuted,
+                shape = RoundedCornerShape(4.dp),
+            )
+            .focusProperties { canFocus = false },
+    ) {
+        content(contentColor)
     }
 }
 
@@ -183,8 +1078,9 @@ private fun ScoreKeySelector(
     Box {
         TextButton(
             onClick = { expanded = true },
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
             modifier = Modifier
-                .height(30.dp)
+                .height(28.dp)
                 .focusProperties { canFocus = false },
         ) {
             Text("Key: ${selected.label}", fontSize = 11.sp, color = textColor)
@@ -213,8 +1109,9 @@ private fun ScoreTimeSigSelector(
     Box {
         TextButton(
             onClick = { expanded = true },
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
             modifier = Modifier
-                .height(30.dp)
+                .height(28.dp)
                 .focusProperties { canFocus = false },
         ) {
             Text("Time: ${selected.label}", fontSize = 11.sp, color = textColor)

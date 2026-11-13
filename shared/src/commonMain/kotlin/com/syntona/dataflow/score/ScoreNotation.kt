@@ -41,6 +41,9 @@ data class SpelledPitch(
         }
         return "${letter.display}$suffix$octave"
     }
+
+    /** Formats pitch name and MIDI number, e.g. `"C#4, 61"`. */
+    fun pitchDisplay(): String = "${displayName()}, $midiPitch"
 }
 
 enum class Clef(
@@ -58,6 +61,19 @@ enum class Clef(
 
     /** Staff step offset relative to the bottom line (`0` = bottom line, `4` = middle line `B4`, `8` = top line `F5`). */
     fun staffStepFromBottom(pitch: SpelledPitch): Int = pitch.diatonicStep - bottomLineDiatonicStep
+
+    /** Converts a staff step offset relative to the bottom line into a [SpelledPitch]. */
+    fun pitchForStaffStep(
+        stepFromBottom: Int,
+        keySignature: KeySignature,
+        alterOverride: Int? = null,
+    ): SpelledPitch {
+        val diatonicStep = bottomLineDiatonicStep + stepFromBottom
+        val octave = diatonicStep.floorDiv(7)
+        val letter = NoteLetter.entries[diatonicStep.mod(7)]
+        val alter = alterOverride ?: keySignature.defaultAlter(letter)
+        return SpelledPitch(letter = letter, alter = alter, octave = octave)
+    }
 }
 
 enum class KeySignature(val fifths: Int, val label: String) {
@@ -124,6 +140,9 @@ enum class KeySignature(val fifths: Int, val label: String) {
 data class TimeSignature(val numerator: Int = 4, val denominator: Int = 4) {
     val label: String get() = "$numerator/$denominator"
 
+    /** Total ticks allowed in one measure for this time signature. */
+    val measureCapacityTicks: Int get() = (numerator * (PianoRollTiming.TPB * 4)) / denominator
+
     companion object {
         val COMMON_TIME = TimeSignature(4, 4)
         val THREE_FOUR = TimeSignature(3, 4)
@@ -136,15 +155,73 @@ data class TimeSignature(val numerator: Int = 4, val denominator: Int = 4) {
 enum class NoteDuration(
     val ticks: Int,
     val noteheadGlyph: String,
+    val noteSymbolGlyph: String,
     val restGlyph: String,
     val hasStem: Boolean,
     val flagCount: Int,
+    val shortcutChar: Char,
+    val displayLabel: String,
 ) {
-    WHOLE(PianoRollTiming.TPB * 4, SmuflGlyphs.NOTEHEAD_WHOLE, SmuflGlyphs.REST_WHOLE, false, 0),
-    HALF(PianoRollTiming.TPB * 2, SmuflGlyphs.NOTEHEAD_HALF, SmuflGlyphs.REST_HALF, true, 0),
-    QUARTER(PianoRollTiming.TPB, SmuflGlyphs.NOTEHEAD_BLACK, SmuflGlyphs.REST_QUARTER, true, 0),
-    EIGHTH(PianoRollTiming.TPB / 2, SmuflGlyphs.NOTEHEAD_BLACK, SmuflGlyphs.REST_8TH, true, 1),
-    SIXTEENTH(PianoRollTiming.TPB / 4, SmuflGlyphs.NOTEHEAD_BLACK, SmuflGlyphs.REST_16TH, true, 2);
+    WHOLE(
+        ticks = PianoRollTiming.TPB * 4,
+        noteheadGlyph = SmuflGlyphs.NOTEHEAD_WHOLE,
+        noteSymbolGlyph = SmuflGlyphs.NOTE_WHOLE,
+        restGlyph = SmuflGlyphs.REST_WHOLE,
+        hasStem = false,
+        flagCount = 0,
+        shortcutChar = 'w',
+        displayLabel = "Whole",
+    ),
+    HALF(
+        ticks = PianoRollTiming.TPB * 2,
+        noteheadGlyph = SmuflGlyphs.NOTEHEAD_HALF,
+        noteSymbolGlyph = SmuflGlyphs.NOTE_HALF_UP,
+        restGlyph = SmuflGlyphs.REST_HALF,
+        hasStem = true,
+        flagCount = 0,
+        shortcutChar = 'h',
+        displayLabel = "Half",
+    ),
+    QUARTER(
+        ticks = PianoRollTiming.TPB,
+        noteheadGlyph = SmuflGlyphs.NOTEHEAD_BLACK,
+        noteSymbolGlyph = SmuflGlyphs.NOTE_QUARTER_UP,
+        restGlyph = SmuflGlyphs.REST_QUARTER,
+        hasStem = true,
+        flagCount = 0,
+        shortcutChar = 'q',
+        displayLabel = "Quarter",
+    ),
+    EIGHTH(
+        ticks = PianoRollTiming.TPB / 2,
+        noteheadGlyph = SmuflGlyphs.NOTEHEAD_BLACK,
+        noteSymbolGlyph = SmuflGlyphs.NOTE_8TH_UP,
+        restGlyph = SmuflGlyphs.REST_8TH,
+        hasStem = true,
+        flagCount = 1,
+        shortcutChar = 'e',
+        displayLabel = "Eighth",
+    ),
+    SIXTEENTH(
+        ticks = PianoRollTiming.TPB / 4,
+        noteheadGlyph = SmuflGlyphs.NOTEHEAD_BLACK,
+        noteSymbolGlyph = SmuflGlyphs.NOTE_16TH_UP,
+        restGlyph = SmuflGlyphs.REST_16TH,
+        hasStem = true,
+        flagCount = 2,
+        shortcutChar = 's',
+        displayLabel = "16th",
+    ),
+    THIRTY_SECOND(
+        ticks = PianoRollTiming.TPB / 8,
+        noteheadGlyph = SmuflGlyphs.NOTEHEAD_BLACK,
+        noteSymbolGlyph = SmuflGlyphs.NOTE_32ND_UP,
+        restGlyph = SmuflGlyphs.REST_32ND,
+        hasStem = true,
+        flagCount = 3,
+        shortcutChar = 't',
+        displayLabel = "32nd",
+    );
 
     fun totalTicks(isDotted: Boolean): Int = if (isDotted) ticks + ticks / 2 else ticks
 }
@@ -160,6 +237,7 @@ sealed interface ScoreItem {
         override val duration: NoteDuration,
         override val isDotted: Boolean = false,
         val amplitude: Double = 0.25,
+        val isStaccato: Boolean = false,
     ) : ScoreItem
 
     data class Rest(
@@ -173,6 +251,137 @@ data class ScoreMeasure(
     val items: List<ScoreItem>,
 )
 
+/** Identifies an item slot by measure index and item index within that measure. */
+data class ScoreItemLocation(
+    val measureIdx: Int,
+    val itemIdx: Int,
+)
+
+/** Pure immutable helpers for editing [ScoreMeasure] lists. */
+object ScoreEditing {
+    fun renumber(measures: List<ScoreMeasure>): List<ScoreMeasure> {
+        val nonEmptyOrSingle = if (measures.isEmpty()) listOf(ScoreMeasure(1, emptyList())) else measures
+        return nonEmptyOrSingle.mapIndexed { idx, m ->
+            if (m.number == idx + 1) m else m.copy(number = idx + 1)
+        }
+    }
+
+    fun itemAt(measures: List<ScoreMeasure>, loc: ScoreItemLocation): ScoreItem? =
+        measures.getOrNull(loc.measureIdx)?.items?.getOrNull(loc.itemIdx)
+
+    fun insertItem(
+        measures: List<ScoreMeasure>,
+        measureIdx: Int,
+        itemIdx: Int,
+        item: ScoreItem,
+        appendNewMeasure: Boolean = false,
+    ): Pair<List<ScoreMeasure>, ScoreItemLocation> {
+        val updated = measures.toMutableList()
+        if (appendNewMeasure || updated.isEmpty() || measureIdx >= updated.size) {
+            val newMIdx = updated.size
+            updated.add(ScoreMeasure(newMIdx + 1, listOf(item)))
+            return renumber(updated) to ScoreItemLocation(newMIdx, 0)
+        }
+        val m = updated[measureIdx]
+        val clampedIdx = itemIdx.coerceIn(0, m.items.size)
+        val newItems = m.items.toMutableList().apply { add(clampedIdx, item) }
+        updated[measureIdx] = m.copy(items = newItems)
+        return renumber(updated) to ScoreItemLocation(measureIdx, clampedIdx)
+    }
+
+    fun replaceItem(
+        measures: List<ScoreMeasure>,
+        loc: ScoreItemLocation,
+        item: ScoreItem,
+    ): List<ScoreMeasure> {
+        val m = measures.getOrNull(loc.measureIdx) ?: return measures
+        if (loc.itemIdx !in m.items.indices) return measures
+        val newItems = m.items.toMutableList().apply { set(loc.itemIdx, item) }
+        return measures.toMutableList().apply { set(loc.measureIdx, m.copy(items = newItems)) }
+    }
+
+    fun setNotePitch(
+        measures: List<ScoreMeasure>,
+        loc: ScoreItemLocation,
+        newPitch: SpelledPitch,
+    ): List<ScoreMeasure> {
+        val note = itemAt(measures, loc) as? ScoreItem.Note ?: return measures
+        if (note.pitch == newPitch) return measures
+        return replaceItem(measures, loc, note.copy(pitch = newPitch))
+    }
+
+    fun setAccidentalOnSelection(
+        measures: List<ScoreMeasure>,
+        selection: Set<ScoreItemLocation>,
+        alter: Int,
+    ): List<ScoreMeasure> = mapSelectedNotes(measures, selection) { note ->
+        if (note.pitch.alter != alter) note.copy(pitch = note.pitch.copy(alter = alter)) else note
+    }
+
+    fun toggleStaccatoOnSelection(
+        measures: List<ScoreMeasure>,
+        selection: Set<ScoreItemLocation>,
+    ): List<ScoreMeasure> {
+        val selectedNotes = selection.mapNotNull { itemAt(measures, it) as? ScoreItem.Note }
+        if (selectedNotes.isEmpty()) return measures
+        val targetStaccato = !selectedNotes.all { it.isStaccato }
+        return mapSelectedNotes(measures, selection) { note ->
+            if (note.isStaccato != targetStaccato) note.copy(isStaccato = targetStaccato) else note
+        }
+    }
+
+    private inline fun mapSelectedNotes(
+        measures: List<ScoreMeasure>,
+        selection: Set<ScoreItemLocation>,
+        transform: (ScoreItem.Note) -> ScoreItem.Note,
+    ): List<ScoreMeasure> {
+        if (selection.isEmpty()) return measures
+        var anyChanged = false
+        val updated = measures.mapIndexed { mIdx, m ->
+            var measureChanged = false
+            val newItems = m.items.mapIndexed { iIdx, item ->
+                if (item is ScoreItem.Note && ScoreItemLocation(mIdx, iIdx) in selection) {
+                    val transformed = transform(item)
+                    if (transformed !== item && transformed != item) {
+                        measureChanged = true
+                        anyChanged = true
+                        transformed
+                    } else {
+                        item
+                    }
+                } else {
+                    item
+                }
+            }
+            if (measureChanged) m.copy(items = newItems) else m
+        }
+        return if (anyChanged) updated else measures
+    }
+
+    fun deleteItems(
+        measures: List<ScoreMeasure>,
+        selection: Set<ScoreItemLocation>,
+    ): List<ScoreMeasure> {
+        if (selection.isEmpty()) return measures
+        val byMeasure = selection.groupBy { it.measureIdx }
+        val updated = measures.mapIndexed { mIdx, m ->
+            val indicesToRemove = byMeasure[mIdx]?.map { it.itemIdx }?.toSet() ?: emptySet()
+            if (indicesToRemove.isEmpty()) {
+                m
+            } else {
+                m.copy(items = m.items.filterIndexed { idx, _ -> idx !in indicesToRemove })
+            }
+        }
+        return renumber(updated)
+    }
+
+    fun appendEmptyMeasure(measures: List<ScoreMeasure>): List<ScoreMeasure> =
+        renumber(measures + ScoreMeasure(measures.size + 1, emptyList()))
+
+    fun clearToSingleEmptyMeasure(): List<ScoreMeasure> =
+        listOf(ScoreMeasure(1, emptyList()))
+}
+
 /** Observable score document for Phase 1 single-stave notation rendering & playback. */
 class ScoreData {
     var clef by mutableStateOf(Clef.TREBLE)
@@ -182,6 +391,12 @@ class ScoreData {
 
     init {
         loadDefaultSample()
+    }
+
+    fun replaceMeasures(newMeasures: List<ScoreMeasure>) {
+        val normalized = ScoreEditing.renumber(newMeasures)
+        measures.clear()
+        measures.addAll(normalized)
     }
 
     fun loadDefaultSample() {

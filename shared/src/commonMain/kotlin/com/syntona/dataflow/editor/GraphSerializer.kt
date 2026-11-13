@@ -36,7 +36,12 @@ import kotlin.math.round
 import com.syntona.dataflow.modules.PianoRollModule
 import com.syntona.dataflow.modules.PianoRollNote
 import com.syntona.dataflow.score.KeySignature
+import com.syntona.dataflow.score.NoteDuration
+import com.syntona.dataflow.score.NoteLetter
+import com.syntona.dataflow.score.ScoreItem
+import com.syntona.dataflow.score.ScoreMeasure
 import com.syntona.dataflow.score.ScoreModule
+import com.syntona.dataflow.score.SpelledPitch
 import com.syntona.dataflow.score.TimeSignature
 import com.syntona.dataflow.modules.Ratio
 import com.syntona.dataflow.modules.KnobModule
@@ -554,6 +559,27 @@ object GraphSerializer {
                 module.windowY?.let { append(",\"windowY\":$it") }
                 module.windowWidth?.let { append(",\"windowWidth\":$it") }
                 module.windowHeight?.let { append(",\"windowHeight\":$it") }
+                append(",\"measures\":[")
+                module.scoreData.measures.forEachIndexed { mIdx, measure ->
+                    if (mIdx > 0) append(",")
+                    append("{\"num\":${measure.number},\"items\":[")
+                    measure.items.forEachIndexed { iIdx, item ->
+                        if (iIdx > 0) append(",")
+                        when (item) {
+                            is ScoreItem.Note -> {
+                                val dotted = if (item.isDotted) 1 else 0
+                                val staccato = if (item.isStaccato) 1 else 0
+                                append("[\"N\",\"${item.pitch.letter.name}\",${item.pitch.alter},${item.pitch.octave},\"${item.duration.name}\",$dotted,${item.amplitude},$staccato]")
+                            }
+                            is ScoreItem.Rest -> {
+                                val dotted = if (item.isDotted) 1 else 0
+                                append("[\"R\",\"${item.duration.name}\",$dotted]")
+                            }
+                        }
+                    }
+                    append("]}")
+                }
+                append("]")
             }
             if (module is EnvSegModule) {
                 val env = module.envelope
@@ -1520,6 +1546,50 @@ object GraphSerializer {
                 (obj?.map?.get("windowY") as? JsonValue.Num)?.value?.let { module.windowY = it.toFloat() }
                 (obj?.map?.get("windowWidth") as? JsonValue.Num)?.value?.let { module.windowWidth = it.toFloat() }
                 (obj?.map?.get("windowHeight") as? JsonValue.Num)?.value?.let { module.windowHeight = it.toFloat() }
+                val measuresArr = (obj?.map?.get("measures") as? JsonValue.Arr)?.items
+                if (measuresArr != null) {
+                    val loadedMeasures = mutableListOf<ScoreMeasure>()
+                    for ((mIdx, mVal) in measuresArr.withIndex()) {
+                        val mObj = mVal as? JsonValue.Obj ?: continue
+                        val mNum = (mObj.map["num"] as? JsonValue.Num)?.value?.toInt() ?: (mIdx + 1)
+                        val itemsArr = (mObj.map["items"] as? JsonValue.Arr)?.items ?: emptyList()
+                        val loadedItems = mutableListOf<ScoreItem>()
+                        for (itemVal in itemsArr) {
+                            val arr = (itemVal as? JsonValue.Arr)?.items ?: continue
+                            val kind = (arr.getOrNull(0) as? JsonValue.Str)?.value ?: continue
+                            when (kind) {
+                                "N" -> {
+                                    val letterName = (arr.getOrNull(1) as? JsonValue.Str)?.value ?: continue
+                                    val letter = NoteLetter.entries.firstOrNull { it.name == letterName } ?: continue
+                                    val alter = (arr.getOrNull(2) as? JsonValue.Num)?.value?.toInt()?.coerceIn(-1, 1) ?: 0
+                                    val octave = (arr.getOrNull(3) as? JsonValue.Num)?.value?.toInt()?.coerceIn(0, 9) ?: 4
+                                    val durName = (arr.getOrNull(4) as? JsonValue.Str)?.value ?: continue
+                                    val dur = NoteDuration.entries.firstOrNull { it.name == durName } ?: continue
+                                    val isDotted = ((arr.getOrNull(5) as? JsonValue.Num)?.value?.toInt() ?: 0) != 0
+                                    val amp = (arr.getOrNull(6) as? JsonValue.Num)?.value ?: 0.25
+                                    val isStaccato = ((arr.getOrNull(7) as? JsonValue.Num)?.value?.toInt() ?: 0) != 0
+                                    loadedItems.add(
+                                        ScoreItem.Note(
+                                            pitch = SpelledPitch(letter = letter, alter = alter, octave = octave),
+                                            duration = dur,
+                                            isDotted = isDotted,
+                                            amplitude = amp,
+                                            isStaccato = isStaccato,
+                                        )
+                                    )
+                                }
+                                "R" -> {
+                                    val durName = (arr.getOrNull(1) as? JsonValue.Str)?.value ?: continue
+                                    val dur = NoteDuration.entries.firstOrNull { it.name == durName } ?: continue
+                                    val isDotted = ((arr.getOrNull(2) as? JsonValue.Num)?.value?.toInt() ?: 0) != 0
+                                    loadedItems.add(ScoreItem.Rest(duration = dur, isDotted = isDotted))
+                                }
+                            }
+                        }
+                        loadedMeasures.add(ScoreMeasure(number = mNum, items = loadedItems))
+                    }
+                    module.scoreData.replaceMeasures(loadedMeasures)
+                }
             }
             created.add(module)
             succeeded.add(module)

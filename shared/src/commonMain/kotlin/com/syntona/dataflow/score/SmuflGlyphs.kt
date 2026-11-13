@@ -21,6 +21,14 @@ object SmuflGlyphs {
     fun timeSigNumber(value: Int): String =
         value.toString().map { timeSigDigit(it - '0') }.joinToString("")
 
+    // Precomposed note glyphs (used in toolbar icons)
+    const val NOTE_WHOLE = "\uE1D2"
+    const val NOTE_HALF_UP = "\uE1D3"
+    const val NOTE_QUARTER_UP = "\uE1D5"
+    const val NOTE_8TH_UP = "\uE1D7"
+    const val NOTE_16TH_UP = "\uE1D9"
+    const val NOTE_32ND_UP = "\uE1DB"
+
     // Noteheads
     const val NOTEHEAD_WHOLE = "\uE0A2"
     const val NOTEHEAD_HALF = "\uE0A3"
@@ -31,6 +39,13 @@ object SmuflGlyphs {
     const val FLAG_8TH_DOWN = "\uE241"
     const val FLAG_16TH_UP = "\uE242"
     const val FLAG_16TH_DOWN = "\uE243"
+    const val FLAG_32ND_UP = "\uE244"
+    const val FLAG_32ND_DOWN = "\uE245"
+
+    // Articulations
+    const val ARTIC_STACCATO_ABOVE = "\uE4A2"
+    const val ARTIC_STACCATO_BELOW = "\uE4A3"
+    const val ARTIC_STACCATO_WIDTH = 0.312f
 
     // Augmentation dot
     const val AUGMENTATION_DOT = "\uE1E7"
@@ -41,6 +56,7 @@ object SmuflGlyphs {
     const val REST_QUARTER = "\uE4E5"
     const val REST_8TH = "\uE4E6"
     const val REST_16TH = "\uE4E7"
+    const val REST_32ND = "\uE4E8"
 
     // Accidentals
     const val ACCIDENTAL_FLAT = "\uE260"
