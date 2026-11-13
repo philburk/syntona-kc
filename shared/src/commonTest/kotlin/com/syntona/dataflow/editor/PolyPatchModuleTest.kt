@@ -1678,7 +1678,7 @@ class PolyPatchModuleTest {
             outJack.connect(recorder.input)
         }
 
-        // 1. Plain NOTE_ON should dispatch duration = 1.0s, then amplitude, pitch, on
+        // 1. Plain NOTE_ON should dispatch default duration (0.3s), then amplitude, pitch, on
         polyPatch.voiceInputJack.receive(
             Message.VoiceMessage(
                 com.syntona.core.model.ScoreTime.Zero,
@@ -1690,9 +1690,9 @@ class PolyPatchModuleTest {
         )
         engine.generateNextBuffer()
         assertEquals(
-            listOf("duration" to 1.0, "amplitude" to 0.5, "pitch" to 60.0, "on" to 1.0),
+            listOf("duration" to PolyPatchModule.DEFAULT_NOTE_DURATION_SECONDS, "amplitude" to 0.5, "pitch" to 60.0, "on" to 1.0),
             log,
-            "NOTE_ON should dispatch duration(1.0), amplitude, pitch before on"
+            "NOTE_ON should dispatch default duration(0.3s), amplitude, pitch before on"
         )
 
         // 2. NOTE with duration = 0.15s should dispatch duration = 0.15s before on, and schedule noteOff

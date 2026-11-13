@@ -38,7 +38,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
 
     internal val auxMixers = mutableMapOf<String, PassThrough>()
 
-    internal var nextNoteDuration: Double = 1.0
+    internal var nextNoteDuration: Double = DEFAULT_NOTE_DURATION_SECONDS
 
     init {
         // Setup graphState lifecycle callbacks to sync edits to background voices
@@ -327,7 +327,7 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
                 when (msg.opcode) {
                     Message.VoiceOpcode.NOTE_ON -> {
                         pendingNoteOffs.remove(msg.tag)?.cancel()
-                        SynthKSyn.synth.queueCommand { nextNoteDuration = 1.0 }
+                        SynthKSyn.synth.queueCommand { nextNoteDuration = DEFAULT_NOTE_DURATION_SECONDS }
                         instrument.noteOn(msg.tag, msg.value, msg.extra, timeStamp)
                     }
                     Message.VoiceOpcode.NOTE_OFF -> {
@@ -1155,5 +1155,10 @@ class PolyPatchModule(name: String = "polyPatch") : PatchModule(name, "polyPatch
             voice.teardown()
         }
         super.teardown()
+    }
+
+    companion object {
+        /** Fallback duration (seconds) dispatched to voices on plain NOTE_ON commands. */
+        const val DEFAULT_NOTE_DURATION_SECONDS = 0.3
     }
 }
