@@ -79,18 +79,16 @@ Display pitch while editing.
 Allow selection and deleting of notes and rests.
 
 ### Phase 3
-Move the selector buttons for the notes and rests into a popup palette.
-The palette should show the glyph and its keyboard shortcut.
-Create a section at the left of the score editor that contains buttons that cause the palettes to popup.
-Add a "Notes/Rests" button that open the palette.
+Create a panel at the left edge of the score editor that contains buttons that cause palettes to popup.
+Move the current selector buttons for the notes and rests into a popup palette called "Notes/Rests"
+The palette should show the glyphs and their keyboard shortcuts.
 Later we will add other palettes.
 
 Add a horizontal scroll bar so that I can scroll to any measure of a long score.
 This would be like the pianoRoll scroll bar.
 
 ### Phase 4
-In selection mode, clicking in an empty measure, or at the end of a
-measure with room remaining, will place a vertical cursor.
+In selection mode, clicking in an empty measure, or between notes, will place a vertical cursor.
 
 Add a MIDI Voice input jack to the score.
 Add an icon that enables "step record" mode.
@@ -98,18 +96,43 @@ Add an icon that enables "step record" mode.
 When a MIDI note is played into the score's input jack, insert that note
 into the score at the cursor position with the current duration, eg. eighth note.
 
-### Phase 5
-Add other common clefs. Add ties and beams, repeating measure bars.
+Pressing ESC will exit step record mode.
 
-### Phase 6
+Pressing a note duration key, like 'q', will change the current duration
+but leave us in step record mode.
+
+### Phase ?
+
+Add a "dot" button to the Notes/Rests palette. Pressing 'd' will toggle dot mode.
+This can be used to make "dotted" notes, which have 3/2 the duration of an undotted noted.
+
+### Phase ? - Clefs, Keys
+Add other common clefs.
+Add ties and beams, repeating measure bars.
+
+Add a palette for setting the key for a selected measure. If multiple measures selected,
+set key for first measure and remove any key signatures from later selected measures.
+
+### Phase ? - Copy/Paste
+Add support for copying and pasting selected notes.
+Allow copying and pasting between score modules.
+
+### Phase ? - Multiple Instruments
 Add support for multiple instruments.
 Add new instruments with a "+" button.
 Each instrument has its own voice output jack.
 
-### Phase 7
+### Phase ? - Export
+Add MusicXML support. This will allow us to export a score to Notion or other notation editors.
+
+### Phase ?
+Add score modifications for selected notes. Include transpose, retrograde,
+increase duration 2*, decrease duration 0.5x,
+
+### Phase ?
 Add graphical scores, custom glyphs, textual scores.
 
-### Phase 8
+### Phase ?
 Add M2-123-UM compatible articulations.
 
 ## Design Considerations

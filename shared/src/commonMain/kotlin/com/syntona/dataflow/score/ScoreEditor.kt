@@ -1,8 +1,10 @@
 package com.syntona.dataflow.score
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -11,21 +13,27 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -34,6 +42,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -42,9 +51,12 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isMetaPressed
@@ -57,14 +69,21 @@ import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.isShiftPressed
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import com.syntona.dataflow.editor.CompactDropdownMenuItem
 import com.syntona.dataflow.editor.EditActionHandler
 import com.syntona.dataflow.editor.FileState
@@ -76,6 +95,7 @@ import com.syntona.dataflow.editor.scoreSymbolCursor
 import com.syntona.dataflow.engine.SyntonaCommand
 import com.syntona.ui.PlayIcon
 import com.syntona.ui.StopIcon
+import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.Font
 import syntonakc.shared.generated.resources.Res
 import syntonakc.shared.generated.resources.leland
@@ -113,15 +133,6 @@ private sealed interface ScoreDragState {
     }
 }
 
-private val TOOLBAR_DURATIONS = listOf(
-    NoteDuration.WHOLE,
-    NoteDuration.HALF,
-    NoteDuration.QUARTER,
-    NoteDuration.EIGHTH,
-    NoteDuration.SIXTEENTH,
-    NoteDuration.THIRTY_SECOND,
-)
-
 @Composable
 fun ScoreEditor(module: ScoreModule, state: GraphState) {
     val isDark = GraphViewSettings.isDarkMode
@@ -137,6 +148,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
     val density = LocalDensity.current
     val mdiState = LocalMdiState.current
     val focusRequester = remember { FocusRequester() }
+    val coroutineScope = rememberCoroutineScope()
 
     var staffSpaceDp by remember { mutableStateOf(10f) }
     val scrollState = rememberScrollState()
@@ -145,6 +157,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
     var editorMode by remember { mutableStateOf(ScoreEditMode.ENTRY) }
     var entryDuration by remember { mutableStateOf(NoteDuration.QUARTER) }
     var entryIsRest by remember { mutableStateOf(false) }
+    var openPalette by remember { mutableStateOf<ScorePaletteKind?>(null) }
     var pendingAccidental by remember { mutableStateOf<Accidental?>(null) }
     var pendingStaccato by remember { mutableStateOf(false) }
     var selectedLocations by remember { mutableStateOf<Set<ScoreItemLocation>>(emptySet()) }
@@ -307,6 +320,49 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         focusRequester.requestFocus()
     }
 
+    LaunchedEffect(openPalette) {
+        if (openPalette == null) {
+            focusRequester.requestFocus()
+        }
+    }
+
+    fun handleKeyEvent(event: KeyEvent): Boolean {
+        if (event.type != KeyEventType.KeyDown) return false
+        if (event.isMetaPressed || event.isCtrlPressed) return false
+        return when {
+            event.key == Key.Escape -> {
+                if (openPalette != null) {
+                    openPalette = null
+                } else {
+                    editorMode = ScoreEditMode.SELECT
+                    hoverPos = null
+                }
+                true
+            }
+            event.key == Key.Delete || event.key == Key.Backspace -> {
+                deleteSelection()
+                true
+            }
+            event.key == Key.Spacebar -> {
+                module.requestPlayToggle()
+                true
+            }
+            else -> when (event.utf16CodePoint.toChar().lowercaseChar()) {
+                't' -> { selectDuration(NoteDuration.THIRTY_SECOND); true }
+                's' -> { selectDuration(NoteDuration.SIXTEENTH); true }
+                'e' -> { selectDuration(NoteDuration.EIGHTH); true }
+                'q' -> { selectDuration(NoteDuration.QUARTER); true }
+                'h' -> { selectDuration(NoteDuration.HALF); true }
+                'w' -> { selectDuration(NoteDuration.WHOLE); true }
+                '1' -> { toggleStaccato(); true }
+                '2' -> { applyAccidental(Accidental.FLAT); true }
+                '3' -> { applyAccidental(Accidental.SHARP); true }
+                '4' -> { applyAccidental(Accidental.NATURAL); true }
+                else -> false
+            }
+        }
+    }
+
     val measureGlyphWidth = remember(textMeasurer, density, musicFontFamily) {
         { glyph: String, fontSizePx: Float ->
             val fontSizeSp = with(density) { fontSizePx.toSp() }
@@ -325,40 +381,9 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             .background(bgColor)
             .focusRequester(focusRequester)
             .focusable()
-            .onKeyEvent { event ->
-                if (event.type != KeyEventType.KeyDown) return@onKeyEvent false
-                if (event.isMetaPressed || event.isCtrlPressed) return@onKeyEvent false
-                when {
-                    event.key == Key.Escape -> {
-                        editorMode = ScoreEditMode.SELECT
-                        hoverPos = null
-                        true
-                    }
-                    event.key == Key.Delete || event.key == Key.Backspace -> {
-                        deleteSelection()
-                        true
-                    }
-                    event.key == Key.Spacebar -> {
-                        module.requestPlayToggle()
-                        true
-                    }
-                    else -> when (event.utf16CodePoint.toChar().lowercaseChar()) {
-                        't' -> { selectDuration(NoteDuration.THIRTY_SECOND); true }
-                        's' -> { selectDuration(NoteDuration.SIXTEENTH); true }
-                        'e' -> { selectDuration(NoteDuration.EIGHTH); true }
-                        'q' -> { selectDuration(NoteDuration.QUARTER); true }
-                        'h' -> { selectDuration(NoteDuration.HALF); true }
-                        'w' -> { selectDuration(NoteDuration.WHOLE); true }
-                        '1' -> { toggleStaccato(); true }
-                        '2' -> { applyAccidental(Accidental.FLAT); true }
-                        '3' -> { applyAccidental(Accidental.SHARP); true }
-                        '4' -> { applyAccidental(Accidental.NATURAL); true }
-                        else -> false
-                    }
-                }
-            }
+            .onKeyEvent(::handleKeyEvent)
     ) {
-        // Phase 2 toolbar
+        // Top toolbar
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -404,51 +429,6 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 },
             ) { color ->
                 Text("Select", fontSize = 11.sp, color = color)
-            }
-
-            // Duration palette (shows note or rest SMuFL glyph)
-            TOOLBAR_DURATIONS.forEach { dur ->
-                val isSelected = editorMode == ScoreEditMode.ENTRY && entryDuration == dur
-                ToolbarToggleChip(
-                    selected = isSelected,
-                    accentColor = accentColor,
-                    borderMuted = borderMuted,
-                    textColor = toolbarText,
-                    isDark = isDark,
-                    onClick = { selectDuration(dur) },
-                ) { color ->
-                    val glyph = if (entryIsRest) dur.restGlyph else dur.noteSymbolGlyph
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        Text(
-                            text = glyph,
-                            fontFamily = musicFontFamily,
-                            fontSize = if (entryIsRest) 15.sp else 18.sp,
-                            color = color,
-                        )
-                        Text(
-                            text = dur.shortcutChar.toString(),
-                            fontSize = 9.sp,
-                            color = color.copy(alpha = 0.75f),
-                        )
-                    }
-                }
-            }
-
-            ToolbarToggleChip(
-                selected = entryIsRest && editorMode == ScoreEditMode.ENTRY,
-                accentColor = accentColor,
-                borderMuted = borderMuted,
-                textColor = toolbarText,
-                isDark = isDark,
-                onClick = {
-                    editorMode = ScoreEditMode.ENTRY
-                    entryIsRest = !entryIsRest
-                },
-            ) { color ->
-                Text(if (entryIsRest) "Rest" else "Note", fontSize = 11.sp, color = color)
             }
 
             Text("|", color = borderMuted)
@@ -588,38 +568,106 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             )
         }
 
-        // Scrollable single-stave score canvas
-        // Note: horizontalScroll MUST wrap an inner container rather than BoxWithConstraints itself,
-        // otherwise horizontalScroll passes maxWidth=Infinity into BoxWithConstraints and collapses
-        // the canvas hit-test bounds.
-        BoxWithConstraints(
+        // Main area: left palette panel + scrollable score canvas + horizontal scrollbar
+        Row(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .clipToBounds()
         ) {
-            val viewportWidth = maxWidth
-            val viewportHeight = maxHeight
-            val staffSpacePx = with(density) { staffSpaceDp.dp.toPx() }
-            val minWidthPx = with(density) { viewportWidth.toPx() }.coerceAtLeast(600f)
-            val measuresSnapshot = score.measures.toList()
-            val layout = remember(
-                measuresSnapshot,
-                score.clef,
-                score.keySignature,
-                score.timeSignature,
-                staffSpacePx,
-                minWidthPx,
-            ) {
-                ScoreRenderer.computeLayout(
-                    score = score,
-                    staffSpacePx = staffSpacePx,
-                    minWidthPx = minWidthPx,
-                    measureGlyphWidth = measureGlyphWidth,
-                )
+            ScorePalettePanel(
+                openPalette = openPalette,
+                editorMode = editorMode,
+                entryDuration = entryDuration,
+                entryIsRest = entryIsRest,
+                toolbarBg = toolbarBg,
+                toolbarText = toolbarText,
+                accentColor = accentColor,
+                borderMuted = borderMuted,
+                isDark = isDark,
+                musicFontFamily = musicFontFamily,
+                textMeasurer = textMeasurer,
+                onTogglePalette = { kind ->
+                    openPalette = if (openPalette == kind) null else kind
+                },
+            ) { kind, buttonWidthPx ->
+                if (kind == openPalette && kind == ScorePaletteKind.NOTES_RESTS) {
+                    val gapPx = with(density) { 4.dp.roundToPx() }
+                    NotesRestsPalettePopup(
+                        offsetX = (buttonWidthPx + gapPx).coerceAtLeast(1),
+                        editorMode = editorMode,
+                        entryDuration = entryDuration,
+                        entryIsRest = entryIsRest,
+                        isDark = isDark,
+                        toolbarText = toolbarText,
+                        accentColor = accentColor,
+                        borderMuted = borderMuted,
+                        musicFontFamily = musicFontFamily,
+                        textMeasurer = textMeasurer,
+                        onSelectOption = { duration, isRest ->
+                            editorMode = ScoreEditMode.ENTRY
+                            entryDuration = duration
+                            entryIsRest = isRest
+                            openPalette = null
+                            focusRequester.requestFocus()
+                        },
+                        onDismiss = { openPalette = null },
+                        onKeyEvent = ::handleKeyEvent,
+                    )
+                }
             }
-            val currentLayout by rememberUpdatedState(layout)
-            val currentStaffSpacePx by rememberUpdatedState(staffSpacePx)
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+            ) {
+                // Scrollable single-stave score canvas
+                // Note: horizontalScroll MUST wrap an inner container rather than BoxWithConstraints itself,
+                // otherwise horizontalScroll passes maxWidth=Infinity into BoxWithConstraints and collapses
+                // the canvas hit-test bounds.
+                BoxWithConstraints(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .clipToBounds()
+                ) {
+                    val viewportWidth = maxWidth
+                    val viewportHeight = maxHeight
+                    val staffSpacePx = with(density) { staffSpaceDp.dp.toPx() }
+                    val minWidthPx = with(density) { viewportWidth.toPx() }.coerceAtLeast(600f)
+                    val measuresSnapshot = score.measures.toList()
+                    val layout = remember(
+                        measuresSnapshot,
+                        score.clef,
+                        score.keySignature,
+                        score.timeSignature,
+                        staffSpacePx,
+                        minWidthPx,
+                    ) {
+                        ScoreRenderer.computeLayout(
+                            score = score,
+                            staffSpacePx = staffSpacePx,
+                            minWidthPx = minWidthPx,
+                            measureGlyphWidth = measureGlyphWidth,
+                        )
+                    }
+                    val currentLayout by rememberUpdatedState(layout)
+                    val currentStaffSpacePx by rememberUpdatedState(staffSpacePx)
+
+                    LaunchedEffect(module.activeItemIndex, module.isPlaying) {
+                        if (!module.isPlaying) return@LaunchedEffect
+                        val activeIdx = module.activeItemIndex ?: return@LaunchedEffect
+                        val placed = currentLayout.placedMeasures.asSequence()
+                            .flatMap { it.items.asSequence() }
+                            .firstOrNull { it.globalIdx == activeIdx } ?: return@LaunchedEffect
+                        val vpW = with(density) { viewportWidth.toPx() }
+                        val curScroll = scrollState.value.toFloat()
+                        if (placed.boxRight > curScroll + vpW - 24f || placed.boxLeft < curScroll) {
+                            val target = (placed.boxLeft - vpW * 0.2f).roundToInt()
+                                .coerceIn(0, scrollState.maxValue)
+                            scrollState.animateScrollTo(target)
+                        }
+                    }
 
             val canvasWidthDp = maxOf(
                 viewportWidth,
@@ -984,6 +1032,18 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             }
         }
 
+                ScoreHorizontalScrollBar(
+                    scrollState = scrollState,
+                    toolbarBg = toolbarBg,
+                    accentColor = accentColor,
+                    isDark = isDark,
+                    onJumpTo = { targetPx ->
+                        coroutineScope.launch { scrollState.scrollTo(targetPx) }
+                    },
+                )
+            }
+        }
+
         // Bottom status bar with pitch display and shortcut reference
         Row(
             modifier = Modifier
@@ -1126,6 +1186,455 @@ private fun ScoreTimeSigSelector(
                     },
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun ScorePalettePanel(
+    openPalette: ScorePaletteKind?,
+    editorMode: ScoreEditMode,
+    entryDuration: NoteDuration,
+    entryIsRest: Boolean,
+    toolbarBg: Color,
+    toolbarText: Color,
+    accentColor: Color,
+    borderMuted: Color,
+    isDark: Boolean,
+    musicFontFamily: FontFamily,
+    textMeasurer: TextMeasurer,
+    onTogglePalette: (ScorePaletteKind) -> Unit,
+    popupContent: @Composable (ScorePaletteKind, Int) -> Unit,
+) {
+    val panelScrollState = rememberScrollState()
+    Row(
+        modifier = Modifier
+            .fillMaxHeight()
+            .background(toolbarBg)
+    ) {
+        Column(
+            modifier = Modifier
+                .width(68.dp)
+                .fillMaxHeight()
+                .verticalScroll(panelScrollState)
+                .padding(horizontal = 5.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            ScorePaletteKind.entries.forEach { kind ->
+                val isOpen = openPalette == kind
+                val isToolActive = when (kind) {
+                    ScorePaletteKind.NOTES_RESTS -> editorMode == ScoreEditMode.ENTRY
+                }
+                val highlighted = isOpen || isToolActive
+                val contentColor = if (highlighted) {
+                    if (isDark) Color.White else accentColor
+                } else {
+                    toolbarText
+                }
+                val tileBg = when {
+                    isOpen -> accentColor.copy(alpha = 0.24f)
+                    isToolActive -> accentColor.copy(alpha = 0.12f)
+                    else -> Color.Transparent
+                }
+                var buttonWidthPx by remember { mutableStateOf(0) }
+                Box(
+                    modifier = Modifier.onGloballyPositioned { coords ->
+                        buttonWidthPx = coords.size.width
+                    }
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(tileBg, RoundedCornerShape(6.dp))
+                            .border(
+                                width = 1.dp,
+                                color = if (highlighted) accentColor else borderMuted,
+                                shape = RoundedCornerShape(6.dp),
+                            )
+                            .pointerHoverIcon(PointerIcon.Hand)
+                            .clickable { onTogglePalette(kind) }
+                            .padding(horizontal = 4.dp, vertical = 6.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        when (kind) {
+                            ScorePaletteKind.NOTES_RESTS -> {
+                                val previewDur = if (editorMode == ScoreEditMode.ENTRY) {
+                                    entryDuration
+                                } else {
+                                    NoteDuration.QUARTER
+                                }
+                                val previewIsRest = editorMode == ScoreEditMode.ENTRY && entryIsRest
+                                val previewGlyph = if (previewIsRest) {
+                                    previewDur.restGlyph
+                                } else {
+                                    previewDur.noteSymbolGlyph
+                                }
+                                ScorePaletteGlyph(
+                                    glyph = previewGlyph,
+                                    isRest = previewIsRest,
+                                    duration = previewDur,
+                                    color = contentColor,
+                                    staffLineColor = borderMuted,
+                                    musicFontFamily = musicFontFamily,
+                                    textMeasurer = textMeasurer,
+                                    width = 36.dp,
+                                    height = 24.dp,
+                                    glyphSizeSp = 20f,
+                                )
+                            }
+                        }
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            Text(
+                                text = kind.buttonLabel,
+                                fontSize = 9.sp,
+                                lineHeight = 11.sp,
+                                color = contentColor,
+                                textAlign = TextAlign.Center,
+                                fontWeight = if (highlighted) FontWeight.SemiBold else FontWeight.Normal,
+                            )
+                            Text(
+                                text = "▸",
+                                fontSize = 9.sp,
+                                color = contentColor.copy(alpha = 0.8f),
+                            )
+                        }
+                    }
+                    popupContent(kind, buttonWidthPx)
+                }
+            }
+        }
+        Box(
+            modifier = Modifier
+                .width(1.dp)
+                .fillMaxHeight()
+                .background(borderMuted)
+        )
+    }
+}
+
+@Composable
+private fun NotesRestsPalettePopup(
+    offsetX: Int,
+    editorMode: ScoreEditMode,
+    entryDuration: NoteDuration,
+    entryIsRest: Boolean,
+    isDark: Boolean,
+    toolbarText: Color,
+    accentColor: Color,
+    borderMuted: Color,
+    musicFontFamily: FontFamily,
+    textMeasurer: TextMeasurer,
+    onSelectOption: (NoteDuration, Boolean) -> Unit,
+    onDismiss: () -> Unit,
+    onKeyEvent: (KeyEvent) -> Boolean,
+) {
+    val popupBg = if (isDark) Color(0xFF161832) else Color(0xFFFFFFFF)
+    val tileBg = if (isDark) Color(0xFF202446) else Color(0xFFF1F5F9)
+    val titleColor = if (isDark) Color(0xFFE2E8F0) else Color(0xFF0F172A)
+
+    Popup(
+        alignment = Alignment.TopStart,
+        offset = IntOffset(offsetX, 0),
+        properties = PopupProperties(
+            focusable = true,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true,
+        ),
+        onDismissRequest = onDismiss,
+    ) {
+        Surface(
+            color = popupBg,
+            shape = RoundedCornerShape(6.dp),
+            shadowElevation = 6.dp,
+            modifier = Modifier
+                .wrapContentSize()
+                .border(1.dp, accentColor.copy(alpha = 0.65f), RoundedCornerShape(6.dp))
+                .onKeyEvent(onKeyEvent),
+        ) {
+            Column(
+                modifier = Modifier
+                    .width(IntrinsicSize.Max)
+                    .padding(6.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = ScorePaletteKind.NOTES_RESTS.title,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = titleColor,
+                )
+
+                NotesRestsPaletteRow(
+                    rowLabel = "Notes",
+                    options = ScorePalettes.noteOptions,
+                    editorMode = editorMode,
+                    entryDuration = entryDuration,
+                    entryIsRest = entryIsRest,
+                    isDark = isDark,
+                    tileBg = tileBg,
+                    toolbarText = toolbarText,
+                    accentColor = accentColor,
+                    borderMuted = borderMuted,
+                    musicFontFamily = musicFontFamily,
+                    textMeasurer = textMeasurer,
+                    onSelectOption = onSelectOption,
+                )
+
+                NotesRestsPaletteRow(
+                    rowLabel = "Rests",
+                    options = ScorePalettes.restOptions,
+                    editorMode = editorMode,
+                    entryDuration = entryDuration,
+                    entryIsRest = entryIsRest,
+                    isDark = isDark,
+                    tileBg = tileBg,
+                    toolbarText = toolbarText,
+                    accentColor = accentColor,
+                    borderMuted = borderMuted,
+                    musicFontFamily = musicFontFamily,
+                    textMeasurer = textMeasurer,
+                    onSelectOption = onSelectOption,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun NotesRestsPaletteRow(
+    rowLabel: String,
+    options: List<ScoreNoteRestOption>,
+    editorMode: ScoreEditMode,
+    entryDuration: NoteDuration,
+    entryIsRest: Boolean,
+    isDark: Boolean,
+    tileBg: Color,
+    toolbarText: Color,
+    accentColor: Color,
+    borderMuted: Color,
+    musicFontFamily: FontFamily,
+    textMeasurer: TextMeasurer,
+    onSelectOption: (NoteDuration, Boolean) -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Text(
+            text = rowLabel,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Medium,
+            color = toolbarText,
+            modifier = Modifier.width(30.dp),
+        )
+        options.forEach { option ->
+            val selected = editorMode == ScoreEditMode.ENTRY &&
+                entryDuration == option.duration &&
+                entryIsRest == option.isRest
+            val contentColor = if (selected) {
+                if (isDark) Color.White else accentColor
+            } else {
+                toolbarText
+            }
+            val bg = if (selected) accentColor.copy(alpha = 0.22f) else tileBg
+            Column(
+                modifier = Modifier
+                    .width(30.dp)
+                    .background(bg, RoundedCornerShape(5.dp))
+                    .border(
+                        width = if (selected) 1.5.dp else 1.dp,
+                        color = if (selected) accentColor else borderMuted,
+                        shape = RoundedCornerShape(5.dp),
+                    )
+                    .pointerHoverIcon(PointerIcon.Hand)
+                    .clickable { onSelectOption(option.duration, option.isRest) }
+                    .padding(horizontal = 2.dp, vertical = 2.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(1.dp),
+            ) {
+                ScorePaletteGlyph(
+                    glyph = option.glyph,
+                    isRest = option.isRest,
+                    duration = option.duration,
+                    color = contentColor,
+                    staffLineColor = borderMuted,
+                    musicFontFamily = musicFontFamily,
+                    textMeasurer = textMeasurer,
+                    width = 24.dp,
+                    height = 20.dp,
+                    glyphSizeSp = if (option.isRest) 15f else 17f,
+                )
+                Text(
+                    text = option.shortcutChar.toString(),
+                    fontSize = 9.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                    color = contentColor.copy(alpha = if (selected) 1f else 0.8f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScorePaletteGlyph(
+    glyph: String,
+    isRest: Boolean,
+    duration: NoteDuration,
+    color: Color,
+    staffLineColor: Color,
+    musicFontFamily: FontFamily,
+    textMeasurer: TextMeasurer,
+    width: Dp,
+    height: Dp,
+    glyphSizeSp: Float,
+) {
+    Canvas(modifier = Modifier.size(width = width, height = height)) {
+        val measured = textMeasurer.measure(
+            text = glyph,
+            style = TextStyle(fontFamily = musicFontFamily, fontSize = glyphSizeSp.sp, color = color),
+            softWrap = false,
+            maxLines = 1,
+        )
+        val x = ((size.width - measured.size.width) * 0.5f).coerceAtLeast(0f)
+        val baselineY = when {
+            isRest && duration == NoteDuration.WHOLE -> size.height * 0.42f
+            isRest && duration == NoteDuration.HALF -> size.height * 0.62f
+            isRest -> size.height * 0.52f
+            duration == NoteDuration.WHOLE -> size.height * 0.58f
+            else -> size.height * 0.80f
+        }
+        if (isRest && (duration == NoteDuration.WHOLE || duration == NoteDuration.HALF)) {
+            val lineHalfW = size.width * 0.34f
+            val cx = size.width * 0.5f
+            drawLine(
+                color = staffLineColor,
+                start = Offset(cx - lineHalfW, baselineY),
+                end = Offset(cx + lineHalfW, baselineY),
+                strokeWidth = 1.dp.toPx(),
+            )
+        }
+        drawText(
+            textLayoutResult = measured,
+            color = color,
+            topLeft = Offset(x, baselineY - measured.firstBaseline),
+        )
+    }
+}
+
+@Composable
+private fun ScoreHorizontalScrollBar(
+    scrollState: ScrollState,
+    toolbarBg: Color,
+    accentColor: Color,
+    isDark: Boolean,
+    onJumpTo: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val currentScrollPx by rememberUpdatedState(scrollState.value.toFloat())
+    val currentMaxScrollPx by rememberUpdatedState(scrollState.maxValue.toFloat())
+    val currentOnJumpTo by rememberUpdatedState(onJumpTo)
+
+    Canvas(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(16.dp)
+            .background(toolbarBg)
+            .pointerHoverIcon(PointerIcon.Hand)
+            .pointerInput(scrollState) {
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    val trackWidth = size.width.toFloat()
+                    val maxScroll = currentMaxScrollPx
+                    if (trackWidth <= 0f || maxScroll <= 0f) return@awaitEachGesture
+
+                    val startScroll = currentScrollPx
+                    val metrics = ScoreScrollMath.computeThumbMetrics(
+                        trackWidthPx = trackWidth,
+                        scrollPx = startScroll,
+                        maxScrollPx = maxScroll,
+                    )
+                    val clickX = down.position.x
+                    val isInsideThumb = clickX >= metrics.thumbX &&
+                        clickX <= (metrics.thumbX + metrics.thumbWidth)
+
+                    fun applyPointerX(pointerX: Float) {
+                        val target = if (isInsideThumb) {
+                            ScoreScrollMath.scrollForThumbDrag(
+                                startScrollPx = startScroll,
+                                deltaX = pointerX - clickX,
+                                trackTravelPx = metrics.trackTravel,
+                                maxScrollPx = maxScroll,
+                            )
+                        } else {
+                            ScoreScrollMath.scrollForTrackClick(
+                                clickX = pointerX,
+                                thumbWidthPx = metrics.thumbWidth,
+                                trackTravelPx = metrics.trackTravel,
+                                maxScrollPx = maxScroll,
+                            )
+                        }
+                        currentOnJumpTo(target)
+                    }
+
+                    if (!isInsideThumb) {
+                        applyPointerX(clickX)
+                    }
+                    down.consume()
+
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.find { it.id == down.id } ?: break
+                        if (!change.pressed) break
+                        applyPointerX(change.position.x)
+                        change.consume()
+                    }
+                }
+            }
+    ) {
+        val trackWidth = size.width
+        val trackHeight = size.height
+        val trackLineColor = if (isDark) Color(0x18FFFFFF) else Color(0x22000000)
+
+        drawLine(
+            color = trackLineColor,
+            start = Offset(0f, 0f),
+            end = Offset(trackWidth, 0f),
+            strokeWidth = 1f,
+        )
+
+        val barHeight = 6.dp.toPx()
+        val barY = (trackHeight - barHeight) / 2f
+
+        drawRoundRect(
+            color = trackLineColor,
+            topLeft = Offset(0f, barY),
+            size = Size(trackWidth, barHeight),
+            cornerRadius = CornerRadius(barHeight / 2f),
+        )
+
+        val metrics = ScoreScrollMath.computeThumbMetrics(
+            trackWidthPx = trackWidth,
+            scrollPx = scrollState.value.toFloat(),
+            maxScrollPx = scrollState.maxValue.toFloat(),
+        )
+        if (metrics.thumbWidth > 0f) {
+            val thumbColor = if (metrics.maxScrollPx > 0f) {
+                accentColor
+            } else {
+                if (isDark) Color(0x4494A3B8) else Color(0x5564748B)
+            }
+            drawRoundRect(
+                color = thumbColor,
+                topLeft = Offset(metrics.thumbX, barY),
+                size = Size(metrics.thumbWidth, barHeight),
+                cornerRadius = CornerRadius(barHeight / 2f),
+            )
         }
     }
 }
