@@ -12,6 +12,7 @@ import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.registry.ModuleRegistry
 import kotlinx.coroutines.CoroutineScope
 import kotlin.coroutines.EmptyCoroutineContext
+import kotlin.math.roundToInt
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -497,5 +498,80 @@ class ScoreModuleTest {
         // 3 selection highlight boxes + 1 rubber-band rect
         assertEquals(4, target.rects.size)
         assertTrue(target.glyphs.any { it.color == colors.selectedNote })
+    }
+
+    @Test
+    fun testNotesRestsPaletteOptionsContainGlyphsAndShortcuts() {
+        assertEquals("Notes/Rests", ScorePaletteKind.NOTES_RESTS.title)
+
+        val expectedShortcuts = listOf('w', 'h', 'q', 'e', 's', 't')
+        assertEquals(6, ScorePalettes.noteOptions.size)
+        assertEquals(6, ScorePalettes.restOptions.size)
+        assertEquals(expectedShortcuts, ScorePalettes.noteOptions.map { it.shortcutChar })
+        assertEquals(expectedShortcuts, ScorePalettes.restOptions.map { it.shortcutChar })
+
+        assertTrue(ScorePalettes.noteOptions.all { !it.isRest && it.glyph == it.duration.noteSymbolGlyph })
+        assertTrue(ScorePalettes.restOptions.all { it.isRest && it.glyph == it.duration.restGlyph })
+        assertEquals(SmuflGlyphs.NOTE_QUARTER_UP, ScorePalettes.noteOptions[2].glyph)
+        assertEquals(SmuflGlyphs.REST_QUARTER, ScorePalettes.restOptions[2].glyph)
+    }
+
+    @Test
+    fun testHorizontalScrollbarMathForShortAndLongScores() {
+        // When everything fits in the viewport, thumb spans 100% and travel is 0
+        val shortMetrics = ScoreScrollMath.computeThumbMetrics(
+            trackWidthPx = 600f,
+            scrollPx = 0f,
+            maxScrollPx = 0f,
+        )
+        assertEquals(600f, shortMetrics.thumbWidth, 0.01f)
+        assertEquals(0f, shortMetrics.trackTravel, 0.01f)
+        assertEquals(0f, shortMetrics.thumbX, 0.01f)
+
+        // Long score: 24 measures exceeding a 600px viewport
+        val longScore = ScoreData()
+        longScore.replaceMeasures(
+            List(24) { idx ->
+                ScoreMeasure(
+                    number = idx + 1,
+                    items = listOf(
+                        ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 4), NoteDuration.QUARTER),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.D, 0, 4), NoteDuration.QUARTER),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.E, 0, 4), NoteDuration.QUARTER),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.F, 0, 4), NoteDuration.QUARTER),
+                    ),
+                )
+            }
+        )
+        val layout = ScoreRenderer.computeLayout(longScore, staffSpacePx = 10f, minWidthPx = 600f) { _, fs -> fs * 0.35f }
+        assertTrue(layout.totalWidthPx > 2000f)
+
+        val viewportWidth = 600f
+        val maxScroll = layout.totalWidthPx - viewportWidth
+        val midMetrics = ScoreScrollMath.computeThumbMetrics(
+            trackWidthPx = viewportWidth,
+            scrollPx = maxScroll * 0.5f,
+            maxScrollPx = maxScroll,
+        )
+        assertTrue(midMetrics.thumbWidth in (viewportWidth * ScoreScrollMath.MIN_THUMB_FRACTION)..viewportWidth)
+        assertEquals(midMetrics.trackTravel * 0.5f, midMetrics.thumbX, 0.5f)
+
+        // Dragging right by half the track travel advances scroll by half of maxScroll
+        val draggedScroll = ScoreScrollMath.scrollForThumbDrag(
+            startScrollPx = 0f,
+            deltaX = midMetrics.trackTravel * 0.5f,
+            trackTravelPx = midMetrics.trackTravel,
+            maxScrollPx = maxScroll,
+        )
+        assertTrue(draggedScroll in ((maxScroll * 0.5f).toInt() - 2)..((maxScroll * 0.5f).toInt() + 2))
+
+        // Clicking at the right end of the track scrolls to the final measures
+        val endScroll = ScoreScrollMath.scrollForTrackClick(
+            clickX = viewportWidth,
+            thumbWidthPx = midMetrics.thumbWidth,
+            trackTravelPx = midMetrics.trackTravel,
+            maxScrollPx = maxScroll,
+        )
+        assertEquals(maxScroll.roundToInt(), endScroll)
     }
 }
