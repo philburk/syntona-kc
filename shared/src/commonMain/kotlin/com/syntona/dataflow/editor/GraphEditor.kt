@@ -4677,24 +4677,6 @@ fun TrackHeaderView(
                         FileState.markDirty()
                     }
                 )
-                if (track is MidiTrack) {
-                    val isUnifiedNote = track.noteOutputMode == com.syntona.dataflow.modules.PianoRollModule.NoteOutputMode.NOTE
-                    TrackButton(
-                        text = if (isUnifiedNote) "N+" else "N",
-                        isActive = isUnifiedNote,
-                        activeColor = Color(0xFF4FC3F7),
-                        onClick = {
-                            module.runOnEngine {
-                                track.noteOutputMode = if (isUnifiedNote) {
-                                    com.syntona.dataflow.modules.PianoRollModule.NoteOutputMode.NOTE_ON_OFF
-                                } else {
-                                    com.syntona.dataflow.modules.PianoRollModule.NoteOutputMode.NOTE
-                                }
-                            }
-                            FileState.markDirty()
-                        }
-                    )
-                }
             } else if (onEditTrack != null) {
                 Box(
                     modifier = Modifier
@@ -5552,6 +5534,7 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
         }
         val prModule = midiData.pianoRoll
         prModule.name = "${track.name} : ${sec.name.ifEmpty { "Sec ${sec.id + 1}" }}"
+        prModule.noteOutputMode = track.noteOutputMode
         (state.engine ?: module.getEngine())?.let { prModule.setEngine(it) }
         prModule.tempo.setValue(module.getTempoBpm())
 
@@ -5566,7 +5549,20 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
             height = prModule.windowHeight?.dp ?: 500.dp,
             graphState = state,
             onClose = { state.clearSelection() },
-            content = { PianoRollEditor(prModule, state, showOutputModeSelector = false) }
+            content = {
+                PianoRollEditor(
+                    module = prModule,
+                    state = state,
+                    noteOutputMode = track.noteOutputMode,
+                    onNoteOutputModeChange = { mode ->
+                        module.runOnEngine {
+                            track.noteOutputMode = mode
+                            prModule.noteOutputMode = mode
+                        }
+                        FileState.markDirty()
+                    },
+                )
+            }
         )
         window.onGeometryChanged = {
             prModule.windowX = window.position.x / density.density
