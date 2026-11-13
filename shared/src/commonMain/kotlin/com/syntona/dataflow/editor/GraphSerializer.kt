@@ -35,6 +35,9 @@ import com.syntona.dataflow.modules.SEMITONES_PER_OCTAVE
 import kotlin.math.round
 import com.syntona.dataflow.modules.PianoRollModule
 import com.syntona.dataflow.modules.PianoRollNote
+import com.syntona.dataflow.score.KeySignature
+import com.syntona.dataflow.score.ScoreModule
+import com.syntona.dataflow.score.TimeSignature
 import com.syntona.dataflow.modules.Ratio
 import com.syntona.dataflow.modules.KnobModule
 import com.syntona.dataflow.modules.FaderModule
@@ -542,6 +545,15 @@ object GraphSerializer {
                     append("[${n.id},${n.startTicks},${n.durationTicks},${n.parentId},${n.ratio.n},${n.ratio.d},${n.rootPitch},${n.amplitude}]")
                 }
                 append("]")
+            }
+            if (module is ScoreModule) {
+                append(",\"key\":\"${module.scoreData.keySignature.name}\"")
+                append(",\"timeNum\":${module.scoreData.timeSignature.numerator}")
+                append(",\"timeDen\":${module.scoreData.timeSignature.denominator}")
+                module.windowX?.let { append(",\"windowX\":$it") }
+                module.windowY?.let { append(",\"windowY\":$it") }
+                module.windowWidth?.let { append(",\"windowWidth\":$it") }
+                module.windowHeight?.let { append(",\"windowHeight\":$it") }
             }
             if (module is EnvSegModule) {
                 val env = module.envelope
@@ -1491,6 +1503,23 @@ object GraphSerializer {
                     }
                     module.resetNextNoteId()
                 }
+            }
+            if (module is ScoreModule) {
+                val keyStr = (obj?.map?.get("key") as? JsonValue.Str)?.value
+                if (keyStr != null) {
+                    KeySignature.entries.firstOrNull { it.name == keyStr }?.let {
+                        module.scoreData.keySignature = it
+                    }
+                }
+                val num = (obj?.map?.get("timeNum") as? JsonValue.Num)?.value?.toInt()
+                val den = (obj?.map?.get("timeDen") as? JsonValue.Num)?.value?.toInt()
+                if (num != null && den != null && num in 1..16 && den in listOf(2, 4, 8, 16)) {
+                    module.scoreData.timeSignature = TimeSignature(num, den)
+                }
+                (obj?.map?.get("windowX") as? JsonValue.Num)?.value?.let { module.windowX = it.toFloat() }
+                (obj?.map?.get("windowY") as? JsonValue.Num)?.value?.let { module.windowY = it.toFloat() }
+                (obj?.map?.get("windowWidth") as? JsonValue.Num)?.value?.let { module.windowWidth = it.toFloat() }
+                (obj?.map?.get("windowHeight") as? JsonValue.Num)?.value?.let { module.windowHeight = it.toFloat() }
             }
             created.add(module)
             succeeded.add(module)
