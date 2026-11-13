@@ -94,11 +94,13 @@ import com.syntona.dataflow.editor.moveCursor
 import com.syntona.dataflow.editor.scoreSymbolCursor
 import com.syntona.dataflow.engine.SyntonaCommand
 import com.syntona.ui.PlayIcon
+import com.syntona.ui.RecordIcon
 import com.syntona.ui.StopIcon
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.Font
 import syntonakc.shared.generated.resources.Res
 import syntonakc.shared.generated.resources.leland
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -209,12 +211,20 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
     }
 
     fun selectDuration(duration: NoteDuration) {
+        if (module.isStepRecording) {
+            entryDuration = duration
+            entryIsRest = false
+            module.stepRecordDuration = duration
+            return
+        }
         if (editorMode == ScoreEditMode.ENTRY && entryDuration == duration) {
             entryIsRest = !entryIsRest
         } else {
             editorMode = ScoreEditMode.ENTRY
             entryDuration = duration
             entryIsRest = false
+            module.stepRecordDuration = duration
+            module.placeCursor(null)
         }
     }
 
@@ -250,6 +260,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             }
         } else {
             pendingStaccato = !pendingStaccato
+            module.stepRecordStaccato = pendingStaccato
         }
     }
 
@@ -326,6 +337,25 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         }
     }
 
+    LaunchedEffect(module.stepRecordRevision) {
+        if (module.stepRecordRevision > 0) {
+            state.markChanged()
+        }
+    }
+
+    fun toggleStepRecording() {
+        val nextEnabled = !module.isStepRecording
+        module.stepRecordDuration = entryDuration
+        module.stepRecordStaccato = pendingStaccato
+        module.setStepRecordingEnabled(nextEnabled)
+        if (nextEnabled) {
+            editorMode = ScoreEditMode.SELECT
+            selectedLocations = emptySet()
+            activePitchText = null
+            hoverPos = null
+        }
+    }
+
     fun handleKeyEvent(event: KeyEvent): Boolean {
         if (event.type != KeyEventType.KeyDown) return false
         if (event.isMetaPressed || event.isCtrlPressed) return false
@@ -333,6 +363,10 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             event.key == Key.Escape -> {
                 if (openPalette != null) {
                     openPalette = null
+                } else if (module.isStepRecording) {
+                    module.exitStepRecording()
+                    editorMode = ScoreEditMode.SELECT
+                    hoverPos = null
                 } else {
                     editorMode = ScoreEditMode.SELECT
                     hoverPos = null
@@ -418,17 +452,39 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             Text("|", color = borderMuted)
 
             ToolbarToggleChip(
-                selected = editorMode == ScoreEditMode.SELECT,
+                selected = editorMode == ScoreEditMode.SELECT && !module.isStepRecording,
                 accentColor = accentColor,
                 borderMuted = borderMuted,
                 textColor = toolbarText,
                 isDark = isDark,
                 onClick = {
+                    module.exitStepRecording()
                     editorMode = ScoreEditMode.SELECT
                     hoverPos = null
                 },
             ) { color ->
                 Text("Select", fontSize = 11.sp, color = color)
+            }
+
+            val stepColor = Color(0xFFEF4444)
+            ToolbarToggleChip(
+                selected = module.isStepRecording,
+                accentColor = stepColor,
+                borderMuted = borderMuted,
+                textColor = toolbarText,
+                isDark = isDark,
+                onClick = { toggleStepRecording() },
+            ) { color ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    RecordIcon(
+                        color = if (module.isStepRecording) stepColor else color,
+                        size = 9.dp,
+                    )
+                    Text("Step", fontSize = 11.sp, color = if (module.isStepRecording) stepColor else color)
+                }
             }
 
             Text("|", color = borderMuted)
@@ -577,6 +633,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             ScorePalettePanel(
                 openPalette = openPalette,
                 editorMode = editorMode,
+                isStepRecording = module.isStepRecording,
                 entryDuration = entryDuration,
                 entryIsRest = entryIsRest,
                 toolbarBg = toolbarBg,
@@ -595,6 +652,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     NotesRestsPalettePopup(
                         offsetX = (buttonWidthPx + gapPx).coerceAtLeast(1),
                         editorMode = editorMode,
+                        isStepRecording = module.isStepRecording,
                         entryDuration = entryDuration,
                         entryIsRest = entryIsRest,
                         isDark = isDark,
@@ -604,9 +662,16 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         musicFontFamily = musicFontFamily,
                         textMeasurer = textMeasurer,
                         onSelectOption = { duration, isRest ->
-                            editorMode = ScoreEditMode.ENTRY
                             entryDuration = duration
-                            entryIsRest = isRest
+                            module.stepRecordDuration = duration
+                            if (module.isStepRecording && !isRest) {
+                                entryIsRest = false
+                            } else {
+                                module.exitStepRecording()
+                                module.placeCursor(null)
+                                editorMode = ScoreEditMode.ENTRY
+                                entryIsRest = isRest
+                            }
                             openPalette = null
                             focusRequester.requestFocus()
                         },
@@ -669,6 +734,19 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         }
                     }
 
+                    LaunchedEffect(module.cursorPosition, module.isStepRecording) {
+                        val cursor = module.cursorPosition ?: return@LaunchedEffect
+                        if (!module.isStepRecording) return@LaunchedEffect
+                        val cursorX = currentLayout.cursorXFor(cursor) ?: return@LaunchedEffect
+                        val vpW = with(density) { viewportWidth.toPx() }
+                        val curScroll = scrollState.value.toFloat()
+                        if (cursorX > curScroll + vpW - 36f || cursorX < curScroll + 24f) {
+                            val target = (cursorX - vpW * 0.7f).roundToInt()
+                                .coerceIn(0, scrollState.maxValue)
+                            scrollState.animateScrollTo(target)
+                        }
+                    }
+
             val canvasWidthDp = maxOf(
                 viewportWidth,
                 with(density) { layout.totalWidthPx.toDp() },
@@ -677,13 +755,15 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
 
             val activeCursor = when {
                 dragState is ScoreDragState.PitchDrag -> moveCursor()
-                editorMode == ScoreEditMode.ENTRY -> scoreSymbolCursor(entryDuration, entryIsRest, isDark)
+                !module.isStepRecording && editorMode == ScoreEditMode.ENTRY ->
+                    scoreSymbolCursor(entryDuration, entryIsRest, isDark)
                 hoveringItem -> moveCursor()
                 else -> PointerIcon.Default
             }
 
             val ghostPreview = remember(
                 editorMode,
+                module.isStepRecording,
                 hoverPos,
                 dragState,
                 layout,
@@ -692,7 +772,9 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 pendingAccidental,
                 pendingStaccato,
             ) {
-                if (editorMode != ScoreEditMode.ENTRY || dragState != null) return@remember null
+                if (module.isStepRecording || editorMode != ScoreEditMode.ENTRY || dragState != null) {
+                    return@remember null
+                }
                 val pos = hoverPos ?: return@remember null
                 if (pos.x < layout.headerEndX - layout.staffSpacePx * 0.5f) return@remember null
                 val step = layout.stepAtY(pos.y)
@@ -786,8 +868,9 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                     )
                                 }
 
-                                if (editorMode == ScoreEditMode.SELECT) {
-                                    if (hit != null) {
+                                if (module.isStepRecording || editorMode == ScoreEditMode.SELECT) {
+                                    if (hit != null && !module.isStepRecording) {
+                                        module.placeCursor(null)
                                         if (isShift) {
                                             selectedLocations = if (hit.location in selectedLocations) {
                                                 selectedLocations - hit.location
@@ -807,6 +890,14 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                 activePitchText = null
                                             }
                                         }
+                                    } else if (module.isStepRecording && hit == null) {
+                                        selectedLocations = emptySet()
+                                        activePitchText = null
+                                        module.placeCursor(lyt.cursorPositionAt(downPos.x))
+                                    } else if (module.isStepRecording && hit != null) {
+                                        selectedLocations = emptySet()
+                                        activePitchText = null
+                                        module.placeCursor(lyt.cursorPositionAt(downPos.x))
                                     } else {
                                         if (!isShift) {
                                             selectedLocations = emptySet()
@@ -970,13 +1061,24 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                         }
                                     }
                                     is ScoreDragState.RubberBand -> {
-                                        val left = min(drag.start.x, drag.end.x)
-                                        val top = min(drag.start.y, drag.end.y)
-                                        val right = max(drag.start.x, drag.end.x)
-                                        val bottom = max(drag.start.y, drag.end.y)
-                                        val hits = lyt.itemsInRect(left, top, right, bottom)
-                                        selectedLocations = if (drag.additive) drag.baseSelection + hits else hits
-                                        refreshPitchDisplayFromSelection()
+                                        val isClick = abs(drag.end.x - drag.start.x) < 4f &&
+                                            abs(drag.end.y - drag.start.y) < 4f
+                                        if (isClick && !drag.additive) {
+                                            selectedLocations = emptySet()
+                                            activePitchText = null
+                                            module.placeCursor(lyt.cursorPositionAt(drag.start.x))
+                                        } else {
+                                            val left = min(drag.start.x, drag.end.x)
+                                            val top = min(drag.start.y, drag.end.y)
+                                            val right = max(drag.start.x, drag.end.x)
+                                            val bottom = max(drag.start.y, drag.end.y)
+                                            val hits = lyt.itemsInRect(left, top, right, bottom)
+                                            selectedLocations = if (drag.additive) drag.baseSelection + hits else hits
+                                            if (selectedLocations.isNotEmpty()) {
+                                                module.placeCursor(null)
+                                            }
+                                            refreshPitchDisplayFromSelection()
+                                        }
                                     }
                                     null -> {}
                                 }
@@ -1000,6 +1102,8 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         selectedLocations = displayedSelectedLocations,
                         ghostPreview = ghostPreview,
                         rubberBand = rubberBand,
+                        cursorPosition = module.cursorPosition,
+                        isStepRecording = module.isStepRecording,
                     )
                 }
 
@@ -1052,14 +1156,24 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 .padding(horizontal = 10.dp, vertical = 3.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            val modeSummary = if (editorMode == ScoreEditMode.SELECT) {
-                "Mode: Select"
-            } else {
-                "Mode: ${entryDuration.displayLabel} ${if (entryIsRest) "Rest" else "Note"}"
+            val modeSummary = when {
+                module.isStepRecording -> "Mode: Step Record (${entryDuration.displayLabel})"
+                editorMode == ScoreEditMode.SELECT -> "Mode: Select"
+                else -> "Mode: ${entryDuration.displayLabel} ${if (entryIsRest) "Rest" else "Note"}"
             }
-            Text(modeSummary, fontSize = 11.sp, color = toolbarText, fontWeight = FontWeight.Medium)
+            Text(
+                modeSummary,
+                fontSize = 11.sp,
+                color = if (module.isStepRecording) Color(0xFFEF4444) else toolbarText,
+                fontWeight = FontWeight.Medium,
+            )
 
-            if (activePitchText != null) {
+            val displayedPitchText = activePitchText ?: if (module.isStepRecording) {
+                module.lastStepRecordedText
+            } else {
+                null
+            }
+            if (displayedPitchText != null) {
                 Spacer(modifier = Modifier.width(10.dp))
                 Box(
                     modifier = Modifier
@@ -1068,7 +1182,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         .padding(horizontal = 6.dp, vertical = 1.dp)
                 ) {
                     Text(
-                        text = activePitchText!!,
+                        text = displayedPitchText,
                         fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
@@ -1194,6 +1308,7 @@ private fun ScoreTimeSigSelector(
 private fun ScorePalettePanel(
     openPalette: ScorePaletteKind?,
     editorMode: ScoreEditMode,
+    isStepRecording: Boolean,
     entryDuration: NoteDuration,
     entryIsRest: Boolean,
     toolbarBg: Color,
@@ -1224,7 +1339,8 @@ private fun ScorePalettePanel(
             ScorePaletteKind.entries.forEach { kind ->
                 val isOpen = openPalette == kind
                 val isToolActive = when (kind) {
-                    ScorePaletteKind.NOTES_RESTS -> editorMode == ScoreEditMode.ENTRY
+                    ScorePaletteKind.NOTES_RESTS ->
+                        (editorMode == ScoreEditMode.ENTRY && !isStepRecording) || isStepRecording
                 }
                 val highlighted = isOpen || isToolActive
                 val contentColor = if (highlighted) {
@@ -1260,12 +1376,15 @@ private fun ScorePalettePanel(
                     ) {
                         when (kind) {
                             ScorePaletteKind.NOTES_RESTS -> {
-                                val previewDur = if (editorMode == ScoreEditMode.ENTRY) {
+                                val showCurrentDuration = editorMode == ScoreEditMode.ENTRY || isStepRecording
+                                val previewDur = if (showCurrentDuration) {
                                     entryDuration
                                 } else {
                                     NoteDuration.QUARTER
                                 }
-                                val previewIsRest = editorMode == ScoreEditMode.ENTRY && entryIsRest
+                                val previewIsRest = editorMode == ScoreEditMode.ENTRY &&
+                                    !isStepRecording &&
+                                    entryIsRest
                                 val previewGlyph = if (previewIsRest) {
                                     previewDur.restGlyph
                                 } else {
@@ -1321,6 +1440,7 @@ private fun ScorePalettePanel(
 private fun NotesRestsPalettePopup(
     offsetX: Int,
     editorMode: ScoreEditMode,
+    isStepRecording: Boolean,
     entryDuration: NoteDuration,
     entryIsRest: Boolean,
     isDark: Boolean,
@@ -1373,6 +1493,7 @@ private fun NotesRestsPalettePopup(
                     rowLabel = "Notes",
                     options = ScorePalettes.noteOptions,
                     editorMode = editorMode,
+                    isStepRecording = isStepRecording,
                     entryDuration = entryDuration,
                     entryIsRest = entryIsRest,
                     isDark = isDark,
@@ -1389,6 +1510,7 @@ private fun NotesRestsPalettePopup(
                     rowLabel = "Rests",
                     options = ScorePalettes.restOptions,
                     editorMode = editorMode,
+                    isStepRecording = isStepRecording,
                     entryDuration = entryDuration,
                     entryIsRest = entryIsRest,
                     isDark = isDark,
@@ -1410,6 +1532,7 @@ private fun NotesRestsPaletteRow(
     rowLabel: String,
     options: List<ScoreNoteRestOption>,
     editorMode: ScoreEditMode,
+    isStepRecording: Boolean,
     entryDuration: NoteDuration,
     entryIsRest: Boolean,
     isDark: Boolean,
@@ -1433,9 +1556,10 @@ private fun NotesRestsPaletteRow(
             modifier = Modifier.width(30.dp),
         )
         options.forEach { option ->
-            val selected = editorMode == ScoreEditMode.ENTRY &&
+            val effectiveIsRest = !isStepRecording && entryIsRest
+            val selected = (editorMode == ScoreEditMode.ENTRY || isStepRecording) &&
                 entryDuration == option.duration &&
-                entryIsRest == option.isRest
+                effectiveIsRest == option.isRest
             val contentColor = if (selected) {
                 if (isDark) Color.White else accentColor
             } else {

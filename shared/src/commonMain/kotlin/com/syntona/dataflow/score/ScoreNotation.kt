@@ -44,6 +44,62 @@ data class SpelledPitch(
 
     /** Formats pitch name and MIDI number, e.g. `"C#4, 61"`. */
     fun pitchDisplay(): String = "${displayName()}, $midiPitch"
+
+    companion object {
+        private val NATURAL_BY_PC = mapOf(
+            0 to NoteLetter.C,
+            2 to NoteLetter.D,
+            4 to NoteLetter.E,
+            5 to NoteLetter.F,
+            7 to NoteLetter.G,
+            9 to NoteLetter.A,
+            11 to NoteLetter.B,
+        )
+        private val SHARP_PC_LETTERS = mapOf(
+            1 to NoteLetter.C,
+            3 to NoteLetter.D,
+            6 to NoteLetter.F,
+            8 to NoteLetter.G,
+            10 to NoteLetter.A,
+        )
+        private val FLAT_PC_LETTERS = mapOf(
+            1 to NoteLetter.D,
+            3 to NoteLetter.E,
+            6 to NoteLetter.G,
+            8 to NoteLetter.A,
+            10 to NoteLetter.B,
+        )
+
+        /**
+         * Maps an incoming MIDI pitch number (`0..127`) to a [SpelledPitch] guided by [keySignature].
+         * Prefers pitches in the key's diatonic scale first; falls back to naturals for white keys
+         * and sharps/flats matching the key signature direction for chromatic tones.
+         */
+        fun fromMidiPitch(midiPitch: Int, keySignature: KeySignature): SpelledPitch {
+            val clamped = midiPitch.coerceIn(0, 127)
+            val baseOctave = clamped / 12 - 1
+
+            for (oct in (baseOctave - 1)..(baseOctave + 1)) {
+                for (letter in NoteLetter.entries) {
+                    val alter = keySignature.defaultAlter(letter)
+                    val candidateMidi = (oct + 1) * 12 + letter.semitoneOffset + alter
+                    if (candidateMidi == clamped) {
+                        return SpelledPitch(letter = letter, alter = alter, octave = oct)
+                    }
+                }
+            }
+
+            val pc = clamped.mod(12)
+            NATURAL_BY_PC[pc]?.let { natural ->
+                return SpelledPitch(letter = natural, alter = 0, octave = baseOctave)
+            }
+            return if (keySignature.fifths < 0) {
+                SpelledPitch(letter = FLAT_PC_LETTERS.getValue(pc), alter = -1, octave = baseOctave)
+            } else {
+                SpelledPitch(letter = SHARP_PC_LETTERS.getValue(pc), alter = 1, octave = baseOctave)
+            }
+        }
+    }
 }
 
 enum class Clef(
@@ -380,7 +436,67 @@ object ScoreEditing {
 
     fun clearToSingleEmptyMeasure(): List<ScoreMeasure> =
         listOf(ScoreMeasure(1, emptyList()))
+
+    /** Default cursor placement when step record turns on with no cursor placed yet. */
+    fun defaultStepCursor(measures: List<ScoreMeasure>): ScoreCursorPosition {
+        if (measures.isEmpty()) return ScoreCursorPosition(0, 0)
+        val lastIdx = measures.lastIndex
+        return ScoreCursorPosition(lastIdx, measures[lastIdx].items.size)
+    }
+
+    /**
+     * Inserts [item] at [cursor] and advances the cursor cleanly.
+     * When appending reaches or exceeds [measureCapacityTicks], the cursor advances to the
+     * beginning of the next measure (appending a new empty measure if needed).
+     */
+    fun stepInsertItem(
+        measures: List<ScoreMeasure>,
+        cursor: ScoreCursorPosition,
+        item: ScoreItem,
+        measureCapacityTicks: Int,
+    ): ScoreStepInsertResult {
+        val normalized = renumber(measures)
+        val mIdx = cursor.measureIdx.coerceIn(0, normalized.lastIndex)
+        val iIdx = cursor.itemIdx.coerceIn(0, normalized[mIdx].items.size)
+        val (insertedMeasures, loc) = insertItem(normalized, mIdx, iIdx, item)
+        val measure = insertedMeasures[loc.measureIdx]
+        val measureTicks = measure.items.sumOf { it.totalTicks }
+        val atEndOfMeasure = loc.itemIdx == measure.items.lastIndex
+
+        return if (atEndOfMeasure && measureTicks >= measureCapacityTicks) {
+            val nextMeasureIdx = loc.measureIdx + 1
+            val finalMeasures = if (nextMeasureIdx >= insertedMeasures.size) {
+                appendEmptyMeasure(insertedMeasures)
+            } else {
+                insertedMeasures
+            }
+            ScoreStepInsertResult(
+                measures = finalMeasures,
+                insertedLocation = loc,
+                nextCursor = ScoreCursorPosition(nextMeasureIdx, 0),
+            )
+        } else {
+            ScoreStepInsertResult(
+                measures = insertedMeasures,
+                insertedLocation = loc,
+                nextCursor = ScoreCursorPosition(loc.measureIdx, loc.itemIdx + 1),
+            )
+        }
+    }
 }
+
+/** Insertion cursor identifying a measure slot (`itemIdx` in `0..measure.items.size`). */
+data class ScoreCursorPosition(
+    val measureIdx: Int,
+    val itemIdx: Int,
+)
+
+/** Result of [ScoreEditing.stepInsertItem]. */
+data class ScoreStepInsertResult(
+    val measures: List<ScoreMeasure>,
+    val insertedLocation: ScoreItemLocation,
+    val nextCursor: ScoreCursorPosition,
+)
 
 /** Observable score document for Phase 1 single-stave notation rendering & playback. */
 class ScoreData {

@@ -574,4 +574,167 @@ class ScoreModuleTest {
         )
         assertEquals(maxScroll.roundToInt(), endScroll)
     }
+
+    @Test
+    fun testMidiPitchSpellingInSharpFlatAndCKeys() {
+        // Sharp key (D major: F#, C#) spells pitch classes 6 and 1 as F#4 and C#5
+        assertEquals(SpelledPitch(NoteLetter.F, 1, 4), SpelledPitch.fromMidiPitch(66, KeySignature.D_MAJOR))
+        assertEquals(SpelledPitch(NoteLetter.C, 1, 5), SpelledPitch.fromMidiPitch(73, KeySignature.D_MAJOR))
+        assertEquals(SpelledPitch(NoteLetter.D, 0, 4), SpelledPitch.fromMidiPitch(62, KeySignature.D_MAJOR))
+
+        // Flat key (F major: Bb) spells pitch class 10 as Bb4 and pitch class 3 as Eb4
+        assertEquals(SpelledPitch(NoteLetter.B, -1, 4), SpelledPitch.fromMidiPitch(70, KeySignature.F_MAJOR))
+        assertEquals(SpelledPitch(NoteLetter.E, -1, 4), SpelledPitch.fromMidiPitch(63, KeySignature.F_MAJOR))
+
+        // C major defaults black keys to sharps
+        assertEquals(SpelledPitch(NoteLetter.F, 1, 4), SpelledPitch.fromMidiPitch(66, KeySignature.C_MAJOR))
+        assertEquals(66, SpelledPitch.fromMidiPitch(66, KeySignature.D_MAJOR).midiPitch)
+        assertEquals(70, SpelledPitch.fromMidiPitch(70, KeySignature.F_MAJOR).midiPitch)
+    }
+
+    @Test
+    fun testStepInsertCursorPlacementAndRendererCursor() {
+        val score = ScoreData()
+        score.timeSignature = TimeSignature.COMMON_TIME // 960 ticks per measure
+        score.replaceMeasures(ScoreEditing.clearToSingleEmptyMeasure())
+
+        val n1 = ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 4), NoteDuration.HALF)
+        val n2 = ScoreItem.Note(SpelledPitch(NoteLetter.E, 0, 4), NoteDuration.HALF)
+        val n3 = ScoreItem.Note(SpelledPitch(NoteLetter.G, 0, 4), NoteDuration.QUARTER)
+
+        // Insert half note at start of empty measure -> cursor moves to (0, 1)
+        val r1 = ScoreEditing.stepInsertItem(
+            measures = score.measures,
+            cursor = ScoreCursorPosition(0, 0),
+            item = n1,
+            measureCapacityTicks = score.timeSignature.measureCapacityTicks,
+        )
+        assertEquals(ScoreCursorPosition(0, 1), r1.nextCursor)
+        assertEquals(1, r1.measures.size)
+
+        // Insert second half note at (0, 1) -> measure is now full (960 ticks), appends measure 2 & advances cursor to (1, 0)
+        val r2 = ScoreEditing.stepInsertItem(
+            measures = r1.measures,
+            cursor = r1.nextCursor,
+            item = n2,
+            measureCapacityTicks = score.timeSignature.measureCapacityTicks,
+        )
+        assertEquals(2, r2.measures.size)
+        assertEquals(2, r2.measures[0].items.size)
+        assertTrue(r2.measures[1].items.isEmpty())
+        assertEquals(ScoreCursorPosition(1, 0), r2.nextCursor)
+
+        // Inserting between items at (0, 1) keeps cursor immediately after the inserted item at (0, 2)
+        val rMid = ScoreEditing.stepInsertItem(
+            measures = r2.measures,
+            cursor = ScoreCursorPosition(0, 1),
+            item = n3,
+            measureCapacityTicks = score.timeSignature.measureCapacityTicks,
+        )
+        assertEquals(listOf(n1, n3, n2), rMid.measures[0].items)
+        assertEquals(ScoreCursorPosition(0, 2), rMid.nextCursor)
+
+        score.replaceMeasures(r2.measures)
+        val target = RecordingDrawTarget()
+        val colors = ScoreRenderColors.forTheme(darkMode = false)
+        val layout = ScoreRenderer.render(
+            score = score,
+            target = target,
+            staffSpacePx = 10f,
+            minWidthPx = 600f,
+            colors = colors,
+            cursorPosition = ScoreCursorPosition(1, 0),
+            isStepRecording = true,
+        )
+
+        // Clicking inside empty measure 2 resolves to cursor (1, 0)
+        val m2 = layout.placedMeasures[1]
+        assertEquals(ScoreCursorPosition(1, 0), layout.cursorPositionAt(m2.startX + 12f))
+        // Clicking between items 0 and 1 in measure 1 resolves to (0, 1)
+        val m1 = layout.placedMeasures[0]
+        val betweenX = (m1.items[0].x + m1.items[0].width + m1.items[1].x) * 0.5f
+        assertEquals(ScoreCursorPosition(0, 1), layout.cursorPositionAt(betweenX))
+
+        val cursorX = layout.cursorXFor(ScoreCursorPosition(1, 0))
+        assertNotNull(cursorX)
+        assertTrue(target.lines.any { kotlin.math.abs(it.x1 - cursorX) < 0.01f && kotlin.math.abs(it.x2 - cursorX) < 0.01f })
+    }
+
+    @Test
+    fun testStepRecordingMidiInputDurationSwitchThruAndUndoRedo() {
+        val score = ScoreModule()
+        score.scoreData.keySignature = KeySignature.C_MAJOR
+        score.scoreData.timeSignature = TimeSignature.COMMON_TIME
+        score.scoreData.replaceMeasures(ScoreEditing.clearToSingleEmptyMeasure())
+
+        val receiver = VoiceReceiver()
+        score.output.connect(receiver.inJack)
+        val inputJack = score.inputs.firstOrNull { it.name == "in" }
+        assertNotNull(inputJack)
+
+        // MIDI note arriving while step recording is OFF is ignored
+        score.input.receive(
+            Message.VoiceMessage(ScoreTime(1L), Message.VoiceOpcode.NOTE_ON, tag = 60, value = 60.0, extra = 0.8)
+        )
+        assertTrue(score.scoreData.measures[0].items.isEmpty())
+
+        // Enable step recording and place cursor at measure 1 start
+        score.placeCursor(ScoreCursorPosition(0, 0))
+        score.stepRecordDuration = NoteDuration.EIGHTH
+        score.setStepRecordingEnabled(true)
+        assertTrue(score.isStepRecording)
+
+        // NOTE_ON inserts an eighth note at C4 and advances cursor, plus sends thru
+        score.input.receive(
+            Message.VoiceMessage(ScoreTime(2L), Message.VoiceOpcode.NOTE_ON, tag = 60, value = 60.0, extra = 0.75)
+        )
+        assertEquals(1, score.scoreData.measures[0].items.size)
+        val firstNote = score.scoreData.measures[0].items[0] as ScoreItem.Note
+        assertEquals(SpelledPitch(NoteLetter.C, 0, 4), firstNote.pitch)
+        assertEquals(NoteDuration.EIGHTH, firstNote.duration)
+        assertEquals(ScoreCursorPosition(0, 1), score.cursorPosition)
+        assertEquals(1, receiver.received.size)
+
+        // NOTE_OFF and NOTE_ON with velocity 0 do not insert notes, still forward thru
+        score.input.receive(
+            Message.VoiceMessage(ScoreTime(3L), Message.VoiceOpcode.NOTE_OFF, tag = 60, value = 60.0, extra = 0.0)
+        )
+        score.input.receive(
+            Message.VoiceMessage(ScoreTime(4L), Message.VoiceOpcode.NOTE_ON, tag = 60, value = 60.0, extra = 0.0)
+        )
+        assertEquals(1, score.scoreData.measures[0].items.size)
+        assertEquals(3, receiver.received.size)
+
+        // Changing duration while step recording stays armed and records next note with new duration
+        score.stepRecordDuration = NoteDuration.QUARTER
+        assertTrue(score.isStepRecording)
+        score.input.receive(
+            Message.VoiceMessage(ScoreTime(5L), Message.VoiceOpcode.NOTE, tag = 64, value = 64.0, extra = 0.9, duration = 0.4)
+        )
+        assertEquals(2, score.scoreData.measures[0].items.size)
+        val secondNote = score.scoreData.measures[0].items[1] as ScoreItem.Note
+        assertEquals(SpelledPitch(NoteLetter.E, 0, 4), secondNote.pitch)
+        assertEquals(NoteDuration.QUARTER, secondNote.duration)
+        assertEquals(ScoreCursorPosition(0, 2), score.cursorPosition)
+
+        // Undoable StepRecordScoreNoteCommand restores and re-applies recorded notes & cursor
+        val cmd3 = StepRecordScoreNoteCommand(score, midiPitch = 67, amplitude = 0.85)
+        cmd3.execute()
+        assertEquals(3, score.scoreData.measures[0].items.size)
+        assertEquals(ScoreCursorPosition(0, 3), score.cursorPosition)
+        cmd3.undo()
+        assertEquals(2, score.scoreData.measures[0].items.size)
+        assertEquals(ScoreCursorPosition(0, 2), score.cursorPosition)
+        cmd3.execute()
+        assertEquals(3, score.scoreData.measures[0].items.size)
+        assertEquals(ScoreCursorPosition(0, 3), score.cursorPosition)
+
+        // ESC / exitStepRecording disarms step recording without clearing the score
+        score.exitStepRecording()
+        assertFalse(score.isStepRecording)
+        score.input.receive(
+            Message.VoiceMessage(ScoreTime(6L), Message.VoiceOpcode.NOTE_ON, tag = 69, value = 69.0, extra = 0.8)
+        )
+        assertEquals(3, score.scoreData.measures[0].items.size)
+    }
 }
