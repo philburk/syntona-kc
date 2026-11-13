@@ -183,7 +183,8 @@ private sealed interface DragState {
 fun PianoRollEditor(
     module: PianoRollModule,
     state: GraphState,
-    showOutputModeSelector: Boolean = true,
+    noteOutputMode: PianoRollModule.NoteOutputMode = module.noteOutputMode,
+    onNoteOutputModeChange: ((PianoRollModule.NoteOutputMode) -> Unit)? = null,
 ) {
     val density = LocalDensity.current
     val mdiState = LocalMdiState.current
@@ -444,7 +445,11 @@ fun PianoRollEditor(
             onToolChange = { tool = it },
             defaultDurationTicks = defaultDurationTicks,
             onDefaultDurationChange = { defaultDurationTicks = it },
-            showOutputModeSelector = showOutputModeSelector,
+            noteOutputMode = noteOutputMode,
+            onNoteOutputModeChange = onNoteOutputModeChange ?: {
+                module.noteOutputMode = it
+                FileState.markDirty()
+            },
             zoom = view.zoom,
             onZoomChange = { newZoom ->
                 // Keep the center of the view stable while zooming.
@@ -970,7 +975,8 @@ private fun PianoRollToolbar(
     onToolChange: (PianoRollTool) -> Unit,
     defaultDurationTicks: Int,
     onDefaultDurationChange: (Int) -> Unit,
-    showOutputModeSelector: Boolean,
+    noteOutputMode: PianoRollModule.NoteOutputMode,
+    onNoteOutputModeChange: (PianoRollModule.NoteOutputMode) -> Unit,
     zoom: Float,
     onZoomChange: (Float) -> Unit,
 ) {
@@ -1029,15 +1035,10 @@ private fun PianoRollToolbar(
 
         DurationSelector(defaultDurationTicks, onDefaultDurationChange)
 
-        if (showOutputModeSelector) {
-            NoteModeSelector(
-                mode = module.noteOutputMode,
-                onChange = {
-                    module.noteOutputMode = it
-                    FileState.markDirty()
-                }
-            )
-        }
+        NoteModeSelector(
+            mode = noteOutputMode,
+            onChange = onNoteOutputModeChange,
+        )
 
         Text("|", color = borderMuted)
 
