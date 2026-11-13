@@ -4,33 +4,62 @@
 * Add a somewhat traditional staff notation editor to the Syntona dataflow graph.
 * Be able to compose complex pieces and control Syntona synthesizer voices.
 * Add UI features missing from the Notion app from Presonus.
+* Incorporate multiple notational systems into a single document with synchronized playback.
+* Include graphical and textual score elements.
+* Export to MusicXML and MIDI file.
+* Generate PDFs with combined staff, graphical and text notation.
 
 ## Basic Design
 
 Add a staff notation module similar to the Piano Roll editor except it uses traditional staff notation.
 
-Support multiple instruments. Each instrument has its own voice output jack.
+Support multiple instruments. Add new instruments with a "+" button.
+Each instrument has its own voice output jack.
+
+UI for placing a note.
+* When the user clicks down on an empty part of the staff, add a note with the current duration, eg. quarter note.
+* Play the note and display the note name and pitch number, eg. "C#, 60"
+* If the user drags up or down, change the pitch of the note play the new note, and update the name and value display.
+
+UI for moving a note.
+* If the user clicks down on a note, play the note, highlight the note and display the name and pitch value.
+* If the user drags up or down, change the pitch of the note play the new note, and update the name and value display.
 
 Provide feedback for the user when moving notes.
 * Play the note when it moves.
 * Display the note name and octave, eg. "F#4".
 
+## Code Organization
+
+The basic model should be shared with the Piano Roll editor and the TimelineModule MIDI track.
 Can be used as an alternative display mode for a MIDI track in a timeline. PianoRoll/Staff/Events
+
+The rendering should be through a shared drawing abstraction (ScoreDrawTarget):
+If the staff renderer draws through a thin interface (lines, filled rects, cubic Beziers
+for slurs/ties, and glyphs/text) implemented by both Compose DrawScope (screen)
+and a PDF backend (export), the printed score matches the screen layout at infinite vector resolution.
 
 ## Implementation Stages
 
-1. Add a note "on/off" or "play" or just NOTE with a duration field. Can also use the duration to implement ramps for control changes.
-1. Single staff with a key signature and time signature, basic notes and rests. Display pitch while editing. Play all simultaneous notes.
-1. Different clefs
-1. Add ties and beams, repeating measure bars.
-1. Add support for multiple instruments.
-1. Add M2-123-UM compatible articulations.
+### Phase 1
+Display a single stave with a key signature and time signature, and a few notes with different
+durations of notes and rests.
+Draw glyphs using a SMuFL font.
+
+### Phase 2
+Add note entry and editing.
+Display pitch while editing.
+
+### Phase 3
+Add other common clefs. Add ties and beams, repeating measure bars.
+### Phase 4
+Add support for multiple instruments.
+### Phase 5
+Add graphical scores, custom glyphs, textual scores.
+### Phase 5
+Add M2-123-UM compatible articulations.
 
 ## Design Considerations
-
-Should note duration be added to the Syntona Voice Message?
-
-A staccato note sounds different right from the start. It is not just a regular note that ends early.
 
 Pizzicato is required. Should articulations be implemented using:
 * a new parameter in the ChannelVoiceMessage
