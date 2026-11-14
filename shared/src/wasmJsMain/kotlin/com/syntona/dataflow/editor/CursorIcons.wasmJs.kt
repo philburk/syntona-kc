@@ -20,6 +20,7 @@ actual fun crosshairCursor(): PointerIcon = PointerIcon.fromKeyword("crosshair")
 private data class WasmCursorKey(
     val duration: NoteDuration,
     val isRest: Boolean,
+    val isDotted: Boolean,
     val isDarkMode: Boolean,
 )
 
@@ -29,13 +30,14 @@ private val wasmScoreCursorCache = mutableMapOf<WasmCursorKey, PointerIcon>()
 actual fun scoreSymbolCursor(
     duration: NoteDuration,
     isRest: Boolean,
+    isDotted: Boolean,
     isDarkMode: Boolean,
 ): PointerIcon {
-    val key = WasmCursorKey(duration, isRest, isDarkMode)
+    val key = WasmCursorKey(duration, isRest, isDotted, isDarkMode)
     wasmScoreCursorCache[key]?.let { return it }
     val fg = if (isDarkMode) "%23F8FAFC" else "%23111827"
     val halo = if (isDarkMode) "%230F172A" else "%23FFFFFF"
-    val body = svgSymbolBody(duration, isRest, fg, halo)
+    val body = svgSymbolBody(duration, isRest, isDotted, fg, halo)
     val svg = "<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'>$body</svg>"
     val encoded = svg
         .replace("<", "%3C")
@@ -50,6 +52,7 @@ actual fun scoreSymbolCursor(
 private fun svgSymbolBody(
     duration: NoteDuration,
     isRest: Boolean,
+    isDotted: Boolean,
     fg: String,
     halo: String,
 ): String {
@@ -74,27 +77,40 @@ private fun svgSymbolBody(
                 append("<path d='M14,$fy C19,${fy + 1.5} 20.5,${fy + 5.5} 17.5,${fy + 8.5}' fill='none' stroke-width='1.8' stroke-linecap='round'/>")
             }
         }
-        sb.append("<g stroke='$halo' fill='$halo' stroke-width='3.8'>$head$stem$flags</g>")
-        sb.append("<g stroke='$fg' fill='$fg'>$head$stem$flags</g>")
+        val dot = if (isDotted) "<circle cx='19.5' cy='22.5' r='2'/>" else ""
+        sb.append("<g stroke='$halo' fill='$halo' stroke-width='3.8'>$head$stem$flags$dot</g>")
+        sb.append("<g stroke='$fg' fill='$fg'>$head$stem$flags$dot</g>")
         return sb.toString()
     } else {
-        val inner = when (duration) {
-            NoteDuration.WHOLE ->
-                "<line x1='7' y1='13' x2='25' y2='13' stroke-width='1.5'/><rect x='11' y='13' width='10' height='4'/>"
-            NoteDuration.HALF ->
-                "<line x1='7' y1='18' x2='25' y2='18' stroke-width='1.5'/><rect x='11' y='14' width='10' height='4'/>"
-            NoteDuration.QUARTER ->
-                "<path d='M13,6 L18,12 L13.5,16.5 L18.5,22 C14.5,21.5 12.5,24.5 16.5,27' fill='none' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'/>"
-            NoteDuration.EIGHTH, NoteDuration.SIXTEENTH, NoteDuration.THIRTY_SECOND -> buildString {
-                val count = duration.flagCount
-                val startY = if (count >= 3) 6 else 8
-                append("<line x1='18.5' y1='$startY' x2='13.5' y2='25' stroke-width='1.8' stroke-linecap='round'/>")
-                for (i in 0 until count) {
-                    val by = startY + i * 4.5
-                    val bx = 18.5 - i * 1.1
-                    append("<path d='M$bx,$by C${bx - 4},${by + 2} ${bx - 6},${by + 1} ${bx - 6.5},${by - 0.5}' fill='none' stroke-width='1.8' stroke-linecap='round'/>")
-                    append("<circle cx='${bx - 7.5}' cy='$by' r='2.1'/>")
+        val inner = buildString {
+            append(
+                when (duration) {
+                    NoteDuration.WHOLE ->
+                        "<line x1='7' y1='13' x2='25' y2='13' stroke-width='1.5'/><rect x='11' y='13' width='10' height='4'/>"
+                    NoteDuration.HALF ->
+                        "<line x1='7' y1='18' x2='25' y2='18' stroke-width='1.5'/><rect x='11' y='14' width='10' height='4'/>"
+                    NoteDuration.QUARTER ->
+                        "<path d='M13,6 L18,12 L13.5,16.5 L18.5,22 C14.5,21.5 12.5,24.5 16.5,27' fill='none' stroke-width='2.3' stroke-linecap='round' stroke-linejoin='round'/>"
+                    NoteDuration.EIGHTH, NoteDuration.SIXTEENTH, NoteDuration.THIRTY_SECOND -> buildString {
+                        val count = duration.flagCount
+                        val startY = if (count >= 3) 6 else 8
+                        append("<line x1='18.5' y1='$startY' x2='13.5' y2='25' stroke-width='1.8' stroke-linecap='round'/>")
+                        for (i in 0 until count) {
+                            val by = startY + i * 4.5
+                            val bx = 18.5 - i * 1.1
+                            append("<path d='M$bx,$by C${bx - 4},${by + 2} ${bx - 6},${by + 1} ${bx - 6.5},${by - 0.5}' fill='none' stroke-width='1.8' stroke-linecap='round'/>")
+                            append("<circle cx='${bx - 7.5}' cy='$by' r='2.1'/>")
+                        }
+                    }
                 }
+            )
+            if (isDotted) {
+                val (dotX, dotY) = when (duration) {
+                    NoteDuration.WHOLE, NoteDuration.HALF -> 23.8 to 15.5
+                    NoteDuration.QUARTER -> 22.5 to 15.0
+                    else -> 22.5 to 14.5
+                }
+                append("<circle cx='$dotX' cy='$dotY' r='2'/>")
             }
         }
         return "<g stroke='$halo' fill='$halo' stroke-width='3.8'>$inner</g><g stroke='$fg' fill='$fg'>$inner</g>"

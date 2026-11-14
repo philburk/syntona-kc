@@ -152,6 +152,12 @@ private data class TimeSigEditSession(
     val anchorY: Float,
 )
 
+private enum class DurationEditPendingState {
+    AWAITING_DURATION,
+    AWAITING_DURATION_DOTTED,
+    AWAITING_OPTIONAL_DOT,
+}
+
 @Composable
 fun ScoreEditor(module: ScoreModule, state: GraphState) {
     val isDark = GraphViewSettings.isDarkMode
@@ -176,6 +182,9 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
     var editorMode by remember { mutableStateOf(ScoreEditMode.ENTRY) }
     var entryDuration by remember { mutableStateOf(NoteDuration.QUARTER) }
     var entryIsRest by remember { mutableStateOf(false) }
+    var entryIsDotted by remember { mutableStateOf(false) }
+    var durationEditState by remember { mutableStateOf<DurationEditPendingState?>(null) }
+    var durationEditLastDur by remember { mutableStateOf(NoteDuration.QUARTER) }
     var openPalette by remember { mutableStateOf<ScorePaletteKind?>(null) }
     var pendingAccidental by remember { mutableStateOf<Accidental?>(null) }
     var pendingStaccato by remember { mutableStateOf(false) }
@@ -240,6 +249,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
     }
 
     fun deleteSelection() {
+        durationEditState = null
         if (selectedLocations.isEmpty()) return
         val before = score.measures.toList()
         val prevSelection = selectedLocations
@@ -256,6 +266,30 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 refreshPitchDisplayFromSelection(restored, selectedLocations)
             }
         )
+    }
+
+    fun toggleDotMode() {
+        val next = !entryIsDotted
+        entryIsDotted = next
+        module.stepRecordDotted = next
+    }
+
+    fun applyDurationToSelection(duration: NoteDuration, isDotted: Boolean) {
+        if (selectedLocations.isEmpty()) return
+        val before = score.measures.toList()
+        val prevSelection = selectedLocations
+        val after = ScoreEditing.setDurationOnSelection(before, prevSelection, duration, isDotted)
+        if (after != before) {
+            postCommand(
+                ReplaceScoreMeasuresCommand(score, before, after) { restored ->
+                    selectedLocations = prevSelection.filterTo(linkedSetOf()) { loc ->
+                        ScoreEditing.pitchAt(restored, loc) != null ||
+                            (loc.chordNoteIdx == null && ScoreEditing.itemAt(restored, loc) != null)
+                    }
+                    refreshPitchDisplayFromSelection(restored, selectedLocations)
+                }
+            )
+        }
     }
 
     fun selectDuration(duration: NoteDuration) {
@@ -489,9 +523,11 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
     }
 
     fun toggleStepRecording() {
+        durationEditState = null
         val nextEnabled = !module.isStepRecording
         module.stepRecordDuration = entryDuration
         module.stepRecordStaccato = pendingStaccato
+        module.stepRecordDotted = entryIsDotted
         module.setStepRecordingEnabled(nextEnabled)
         if (nextEnabled) {
             editorMode = ScoreEditMode.SELECT
@@ -506,41 +542,100 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         if (editingTimeSig != null) return false
         if (event.type != KeyEventType.KeyDown) return false
         if (event.isMetaPressed || event.isCtrlPressed) return false
-        return when {
-            event.key == Key.Escape -> {
-                if (openPalette != null) {
-                    openPalette = null
-                } else if (module.isStepRecording) {
-                    module.exitStepRecording()
-                    editorMode = ScoreEditMode.SELECT
-                    hoverPos = null
-                } else {
-                    editorMode = ScoreEditMode.SELECT
-                    hoverPos = null
+        if (event.key == Key.Escape) {
+            if (openPalette != null) {
+                openPalette = null
+                durationEditState = null
+            } else if (
+                durationEditState == DurationEditPendingState.AWAITING_DURATION ||
+                durationEditState == DurationEditPendingState.AWAITING_DURATION_DOTTED
+            ) {
+                durationEditState = null
+            } else if (module.isStepRecording) {
+                durationEditState = null
+                module.exitStepRecording()
+                editorMode = ScoreEditMode.SELECT
+                hoverPos = null
+            } else {
+                durationEditState = null
+                editorMode = ScoreEditMode.SELECT
+                hoverPos = null
+            }
+            return true
+        }
+        if (event.key == Key.Delete || event.key == Key.Backspace) {
+            deleteSelection()
+            return true
+        }
+        if (event.key == Key.Spacebar) {
+            durationEditState = null
+            module.requestPlayToggle()
+            return true
+        }
+
+        val keyChar = event.utf16CodePoint.toChar().lowercaseChar()
+        val charDuration = when (keyChar) {
+            't' -> NoteDuration.THIRTY_SECOND
+            's' -> NoteDuration.SIXTEENTH
+            'e' -> NoteDuration.EIGHTH
+            'q' -> NoteDuration.QUARTER
+            'h' -> NoteDuration.HALF
+            'w' -> NoteDuration.WHOLE
+            else -> null
+        }
+
+        when (durationEditState) {
+            DurationEditPendingState.AWAITING_DURATION -> {
+                if (keyChar == 'd') {
+                    durationEditState = DurationEditPendingState.AWAITING_DURATION_DOTTED
+                    return true
+                }
+                if (charDuration != null) {
+                    applyDurationToSelection(charDuration, isDotted = false)
+                    durationEditLastDur = charDuration
+                    durationEditState = DurationEditPendingState.AWAITING_OPTIONAL_DOT
+                    return true
+                }
+                durationEditState = null
+                if (keyChar == '=') return true
+            }
+            DurationEditPendingState.AWAITING_DURATION_DOTTED -> {
+                if (charDuration != null) {
+                    applyDurationToSelection(charDuration, isDotted = true)
+                    durationEditState = null
+                    return true
+                }
+                durationEditState = null
+                if (keyChar == 'd') return true
+            }
+            DurationEditPendingState.AWAITING_OPTIONAL_DOT -> {
+                if (keyChar == 'd') {
+                    applyDurationToSelection(durationEditLastDur, isDotted = true)
+                    durationEditState = null
+                    return true
+                }
+                durationEditState = null
+            }
+            null -> {}
+        }
+
+        return when (keyChar) {
+            '=' -> {
+                if (selectedLocations.isNotEmpty()) {
+                    durationEditState = DurationEditPendingState.AWAITING_DURATION
                 }
                 true
             }
-            event.key == Key.Delete || event.key == Key.Backspace -> {
-                deleteSelection()
+            'd' -> { toggleDotMode(); true }
+            't', 's', 'e', 'q', 'h', 'w' -> {
+                selectDuration(charDuration!!)
                 true
             }
-            event.key == Key.Spacebar -> {
-                module.requestPlayToggle()
-                true
-            }
-            else -> when (event.utf16CodePoint.toChar().lowercaseChar()) {
-                't' -> { selectDuration(NoteDuration.THIRTY_SECOND); true }
-                's' -> { selectDuration(NoteDuration.SIXTEENTH); true }
-                'e' -> { selectDuration(NoteDuration.EIGHTH); true }
-                'q' -> { selectDuration(NoteDuration.QUARTER); true }
-                'h' -> { selectDuration(NoteDuration.HALF); true }
-                'w' -> { selectDuration(NoteDuration.WHOLE); true }
-                '1' -> { toggleStaccato(); true }
-                '2' -> { applyAccidental(Accidental.FLAT); true }
-                '3' -> { applyAccidental(Accidental.SHARP); true }
-                '4' -> { applyAccidental(Accidental.NATURAL); true }
-                else -> false
-            }
+            '1' -> { toggleStaccato(); true }
+            '2' -> { applyAccidental(Accidental.FLAT); true }
+            '3' -> { applyAccidental(Accidental.SHARP); true }
+            '4' -> { applyAccidental(Accidental.NATURAL); true }
+            else -> false
         }
     }
 
@@ -802,6 +897,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 isStepRecording = module.isStepRecording,
                 entryDuration = entryDuration,
                 entryIsRest = entryIsRest,
+                entryIsDotted = entryIsDotted,
                 activeKeySignature = activeTargetKey,
                 activeTimeSignature = activeTargetTime,
                 toolbarBg = toolbarBg,
@@ -824,6 +920,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         isStepRecording = module.isStepRecording,
                         entryDuration = entryDuration,
                         entryIsRest = entryIsRest,
+                        entryIsDotted = entryIsDotted,
                         isDark = isDark,
                         toolbarText = toolbarText,
                         accentColor = accentColor,
@@ -842,6 +939,10 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                 entryIsRest = isRest
                             }
                             openPalette = null
+                            focusRequester.requestFocus()
+                        },
+                        onToggleDot = {
+                            toggleDotMode()
                             focusRequester.requestFocus()
                         },
                         onDismiss = { openPalette = null },
@@ -950,7 +1051,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 dragState is ScoreDragState.PitchDrag -> moveCursor()
                 hoveringTimeSig -> PointerIcon.Hand
                 !module.isStepRecording && editorMode == ScoreEditMode.ENTRY ->
-                    scoreSymbolCursor(entryDuration, entryIsRest, isDark)
+                    scoreSymbolCursor(entryDuration, entryIsRest, entryIsDotted, isDark)
                 hoveringItem -> moveCursor()
                 else -> PointerIcon.Default
             }
@@ -963,6 +1064,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 layout,
                 entryDuration,
                 entryIsRest,
+                entryIsDotted,
                 pendingAccidental,
                 pendingStaccato,
                 editingTimeSig,
@@ -984,6 +1086,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     staffStep = step,
                     duration = entryDuration,
                     isRest = entryIsRest,
+                    isDotted = entryIsDotted,
                     accidental = if (entryIsRest) null else pendingAccidental,
                     isStaccato = if (entryIsRest) false else pendingStaccato,
                 )
@@ -1066,6 +1169,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                     return@awaitEachGesture
                                 }
                                 focusRequester.requestFocus()
+                                durationEditState = null
 
                                 val downPos = down.position
                                 val isShift = currentEvent.keyboardModifiers.isShiftPressed
@@ -1200,11 +1304,12 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                         val isDifferentKindOrDuration =
                                             (entryIsRest && hit.item !is ScoreItem.Rest) ||
                                                 (!entryIsRest && hit.item is ScoreItem.Rest) ||
-                                                (hit.item.duration != entryDuration)
+                                                (hit.item.duration != entryDuration) ||
+                                                (hit.item.isDotted != entryIsDotted)
 
                                         if (isDifferentKindOrDuration) {
                                             if (entryIsRest) {
-                                                val newRest = ScoreItem.Rest(entryDuration)
+                                                val newRest = ScoreItem.Rest(entryDuration, isDotted = entryIsDotted)
                                                 val after = ScoreEditing.replaceItem(beforeMeasures, hit.location, newRest)
                                                 selectedLocations = setOf(hit.location)
                                                 activePitchText = null
@@ -1225,6 +1330,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                 val newNote = ScoreItem.Note(
                                                     pitch = pitch,
                                                     duration = entryDuration,
+                                                    isDotted = entryIsDotted,
                                                     isStaccato = pendingStaccato,
                                                 )
                                                 pendingAccidental = null
@@ -1246,7 +1352,9 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                         val step = lyt.stepAtY(downPos.y)
                                         val existingCn = colItem.chordNotes.find { it.staffStep == step }
                                         if (existingCn != null) {
-                                            if (colItem.item is ScoreItem.Note && colItem.item.duration != entryDuration) {
+                                            if (colItem.item is ScoreItem.Note &&
+                                                (colItem.item.duration != entryDuration || colItem.item.isDotted != entryIsDotted)
+                                            ) {
                                                 val measureKey = ScoreEditing.effectiveKeyAtMeasure(
                                                     beforeMeasures,
                                                     score.keySignature,
@@ -1260,6 +1368,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                 val newNote = ScoreItem.Note(
                                                     pitch = pitch,
                                                     duration = entryDuration,
+                                                    isDotted = entryIsDotted,
                                                     isStaccato = pendingStaccato,
                                                 )
                                                 pendingAccidental = null
@@ -1311,7 +1420,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                         val target = lyt.insertionTargetAt(downPos.x)
                                         if (target != null) {
                                             if (entryIsRest) {
-                                                val newRest = ScoreItem.Rest(entryDuration)
+                                                val newRest = ScoreItem.Rest(entryDuration, isDotted = entryIsDotted)
                                                 val (after, newLoc) = ScoreEditing.insertItem(
                                                     measures = beforeMeasures,
                                                     measureIdx = target.measureIdx,
@@ -1338,6 +1447,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                 val newNote = ScoreItem.Note(
                                                     pitch = pitch,
                                                     duration = entryDuration,
+                                                    isDotted = entryIsDotted,
                                                     isStaccato = pendingStaccato,
                                                 )
                                                 pendingAccidental = null
@@ -1616,15 +1726,27 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 .padding(horizontal = 10.dp, vertical = 3.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            val dotPrefix = if (entryIsDotted) "Dotted " else ""
             val modeSummary = when {
-                module.isStepRecording -> "Mode: Step Record (${entryDuration.displayLabel})"
-                editorMode == ScoreEditMode.SELECT -> "Mode: Select"
-                else -> "Mode: ${entryDuration.displayLabel} ${if (entryIsRest) "Rest" else "Note"}"
+                durationEditState == DurationEditPendingState.AWAITING_DURATION ->
+                    "Set Duration: press t/s/e/q/h/w (or d for dotted), Esc to cancel"
+                durationEditState == DurationEditPendingState.AWAITING_DURATION_DOTTED ->
+                    "Set Dotted Duration: press t/s/e/q/h/w, Esc to cancel"
+                durationEditState == DurationEditPendingState.AWAITING_OPTIONAL_DOT ->
+                    "Duration: ${durationEditLastDur.displayLabel} (press d for dot)"
+                module.isStepRecording -> "Mode: Step Record ($dotPrefix${entryDuration.displayLabel})"
+                editorMode == ScoreEditMode.SELECT ->
+                    if (entryIsDotted) "Mode: Select (Dot On)" else "Mode: Select"
+                else -> "Mode: $dotPrefix${entryDuration.displayLabel} ${if (entryIsRest) "Rest" else "Note"}"
             }
             Text(
                 modeSummary,
                 fontSize = 11.sp,
-                color = if (module.isStepRecording) Color(0xFFEF4444) else toolbarText,
+                color = when {
+                    durationEditState != null -> accentColor
+                    module.isStepRecording -> Color(0xFFEF4444)
+                    else -> toolbarText
+                },
                 fontWeight = FontWeight.Medium,
             )
 
@@ -1679,7 +1801,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             Spacer(modifier = Modifier.weight(1f))
 
             Text(
-                text = "Esc: Select | t s e q h w: Dur (2x=Rest) | 1: Stacc  2: b  3: #  4: Nat | Del: Delete",
+                text = "Esc: Select | t s e q h w: Dur (2x=Rest) | d: Dot | =: Set Dur | 1: Stacc  2: b  3: #  4: Nat | Del: Delete",
                 fontSize = 10.sp,
                 color = toolbarText.copy(alpha = 0.8f),
                 maxLines = 1,
@@ -1789,6 +1911,7 @@ private fun ScorePalettePanel(
     isStepRecording: Boolean,
     entryDuration: NoteDuration,
     entryIsRest: Boolean,
+    entryIsDotted: Boolean,
     activeKeySignature: KeySignature,
     activeTimeSignature: TimeSignature,
     toolbarBg: Color,
@@ -1875,6 +1998,7 @@ private fun ScorePalettePanel(
                                     glyph = previewGlyph,
                                     isRest = previewIsRest,
                                     duration = previewDur,
+                                    isDotted = if (showCurrentDuration) entryIsDotted else false,
                                     color = contentColor,
                                     staffLineColor = borderMuted,
                                     musicFontFamily = musicFontFamily,
@@ -1937,6 +2061,7 @@ private fun NotesRestsPalettePopup(
     isStepRecording: Boolean,
     entryDuration: NoteDuration,
     entryIsRest: Boolean,
+    entryIsDotted: Boolean,
     isDark: Boolean,
     toolbarText: Color,
     accentColor: Color,
@@ -1944,6 +2069,7 @@ private fun NotesRestsPalettePopup(
     musicFontFamily: FontFamily,
     textMeasurer: TextMeasurer,
     onSelectOption: (NoteDuration, Boolean) -> Unit,
+    onToggleDot: () -> Unit,
     onDismiss: () -> Unit,
     onKeyEvent: (KeyEvent) -> Boolean,
 ) {
@@ -1976,12 +2102,58 @@ private fun NotesRestsPalettePopup(
                     .padding(6.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Text(
-                    text = ScorePaletteKind.NOTES_RESTS.title,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = titleColor,
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = ScorePaletteKind.NOTES_RESTS.title,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = titleColor,
+                    )
+                    val dotContentColor = if (entryIsDotted) {
+                        if (isDark) Color.White else accentColor
+                    } else {
+                        toolbarText
+                    }
+                    val dotBg = if (entryIsDotted) accentColor.copy(alpha = 0.22f) else tileBg
+                    Row(
+                        modifier = Modifier
+                            .background(dotBg, RoundedCornerShape(5.dp))
+                            .border(
+                                width = if (entryIsDotted) 1.5.dp else 1.dp,
+                                color = if (entryIsDotted) accentColor else borderMuted,
+                                shape = RoundedCornerShape(5.dp),
+                            )
+                            .pointerHoverIcon(PointerIcon.Hand)
+                            .clickable { onToggleDot() }
+                            .padding(horizontal = 7.dp, vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = SmuflGlyphs.AUGMENTATION_DOT,
+                            fontFamily = musicFontFamily,
+                            fontSize = 14.sp,
+                            color = dotContentColor,
+                        )
+                        Text(
+                            text = "Dot",
+                            fontSize = 10.sp,
+                            fontWeight = if (entryIsDotted) FontWeight.SemiBold else FontWeight.Medium,
+                            color = dotContentColor,
+                        )
+                        Text(
+                            text = "d",
+                            fontSize = 9.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = if (entryIsDotted) FontWeight.Bold else FontWeight.Medium,
+                            color = dotContentColor.copy(alpha = if (entryIsDotted) 1f else 0.8f),
+                        )
+                    }
+                }
 
                 NotesRestsPaletteRow(
                     rowLabel = "Notes",
@@ -1990,6 +2162,7 @@ private fun NotesRestsPalettePopup(
                     isStepRecording = isStepRecording,
                     entryDuration = entryDuration,
                     entryIsRest = entryIsRest,
+                    entryIsDotted = entryIsDotted,
                     isDark = isDark,
                     tileBg = tileBg,
                     toolbarText = toolbarText,
@@ -2007,6 +2180,7 @@ private fun NotesRestsPalettePopup(
                     isStepRecording = isStepRecording,
                     entryDuration = entryDuration,
                     entryIsRest = entryIsRest,
+                    entryIsDotted = entryIsDotted,
                     isDark = isDark,
                     tileBg = tileBg,
                     toolbarText = toolbarText,
@@ -2029,6 +2203,7 @@ private fun NotesRestsPaletteRow(
     isStepRecording: Boolean,
     entryDuration: NoteDuration,
     entryIsRest: Boolean,
+    entryIsDotted: Boolean,
     isDark: Boolean,
     tileBg: Color,
     toolbarText: Color,
@@ -2079,6 +2254,7 @@ private fun NotesRestsPaletteRow(
                     glyph = option.glyph,
                     isRest = option.isRest,
                     duration = option.duration,
+                    isDotted = entryIsDotted,
                     color = contentColor,
                     staffLineColor = borderMuted,
                     musicFontFamily = musicFontFamily,
@@ -2467,6 +2643,7 @@ private fun ScorePaletteGlyph(
     glyph: String,
     isRest: Boolean,
     duration: NoteDuration,
+    isDotted: Boolean = false,
     color: Color,
     staffLineColor: Color,
     musicFontFamily: FontFamily,
@@ -2482,7 +2659,19 @@ private fun ScorePaletteGlyph(
             softWrap = false,
             maxLines = 1,
         )
-        val x = ((size.width - measured.size.width) * 0.5f).coerceAtLeast(0f)
+        val dotMeasured = if (isDotted) {
+            textMeasurer.measure(
+                text = SmuflGlyphs.AUGMENTATION_DOT,
+                style = TextStyle(fontFamily = musicFontFamily, fontSize = glyphSizeSp.sp, color = color),
+                softWrap = false,
+                maxLines = 1,
+            )
+        } else {
+            null
+        }
+        val dotGap = if (dotMeasured != null) 1.5.dp.toPx() else 0f
+        val totalWidth = measured.size.width + dotGap + (dotMeasured?.size?.width ?: 0)
+        val x = ((size.width - totalWidth) * 0.5f).coerceAtLeast(0f)
         val baselineY = when {
             isRest && duration == NoteDuration.WHOLE -> size.height * 0.42f
             isRest && duration == NoteDuration.HALF -> size.height * 0.62f
@@ -2505,6 +2694,19 @@ private fun ScorePaletteGlyph(
             color = color,
             topLeft = Offset(x, baselineY - measured.firstBaseline),
         )
+        if (dotMeasured != null) {
+            val dotBaselineY = when {
+                isRest && duration == NoteDuration.WHOLE -> baselineY + glyphSizeSp.sp.toPx() * 0.10f
+                isRest && duration == NoteDuration.HALF -> baselineY - glyphSizeSp.sp.toPx() * 0.12f
+                else -> baselineY
+            }
+            val dotX = x + measured.size.width + dotGap
+            drawText(
+                textLayoutResult = dotMeasured,
+                color = color,
+                topLeft = Offset(dotX, dotBaselineY - dotMeasured.firstBaseline),
+            )
+        }
     }
 }
 

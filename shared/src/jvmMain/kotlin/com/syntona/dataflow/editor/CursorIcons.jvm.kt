@@ -25,6 +25,7 @@ actual fun crosshairCursor(): PointerIcon = PointerIcon(Cursor(Cursor.CROSSHAIR_
 private data class CursorCacheKey(
     val duration: NoteDuration,
     val isRest: Boolean,
+    val isDotted: Boolean,
     val isDarkMode: Boolean,
 )
 
@@ -33,12 +34,13 @@ private val scoreCursorCache = mutableMapOf<CursorCacheKey, PointerIcon>()
 actual fun scoreSymbolCursor(
     duration: NoteDuration,
     isRest: Boolean,
+    isDotted: Boolean,
     isDarkMode: Boolean,
 ): PointerIcon {
-    val key = CursorCacheKey(duration, isRest, isDarkMode)
+    val key = CursorCacheKey(duration, isRest, isDotted, isDarkMode)
     scoreCursorCache[key]?.let { return it }
     val created = try {
-        buildJvmScoreCursor(duration, isRest, isDarkMode)
+        buildJvmScoreCursor(duration, isRest, isDotted, isDarkMode)
     } catch (_: Throwable) {
         crosshairCursor()
     }
@@ -49,6 +51,7 @@ actual fun scoreSymbolCursor(
 private fun buildJvmScoreCursor(
     duration: NoteDuration,
     isRest: Boolean,
+    isDotted: Boolean,
     isDarkMode: Boolean,
 ): PointerIcon {
     val toolkit = Toolkit.getDefaultToolkit()
@@ -65,8 +68,8 @@ private fun buildJvmScoreCursor(
     val halo = if (isDarkMode) Color(0x0F, 0x17, 0x2A, 210) else Color(0xFF, 0xFF, 0xFF, 225)
 
     // Draw a subtle contrasting halo first, then crisp foreground
-    drawCursorSymbol(g, duration, isRest, halo, haloExpand = 2.2f)
-    drawCursorSymbol(g, duration, isRest, fg, haloExpand = 0f)
+    drawCursorSymbol(g, duration, isRest, isDotted, halo, haloExpand = 2.2f)
+    drawCursorSymbol(g, duration, isRest, isDotted, fg, haloExpand = 0f)
     g.dispose()
 
     val (rawHotX, rawHotY) = if (isRest) 16 to 16 else 10 to 23
@@ -74,7 +77,7 @@ private fun buildJvmScoreCursor(
     val awtCursor = toolkit.createCustomCursor(
         image,
         hotSpot,
-        "score_${duration.name}_${if (isRest) "rest" else "note"}",
+        "score_${duration.name}_${if (isRest) "rest" else "note"}${if (isDotted) "_dotted" else ""}",
     )
     return PointerIcon(awtCursor)
 }
@@ -83,6 +86,7 @@ private fun drawCursorSymbol(
     g: Graphics2D,
     duration: NoteDuration,
     isRest: Boolean,
+    isDotted: Boolean,
     color: Color,
     haloExpand: Float,
 ) {
@@ -170,6 +174,16 @@ private fun drawCursorSymbol(
                 }
             }
         }
+    }
+    if (isDotted) {
+        val (dotX, dotY) = when {
+            !isRest -> 19.5 to 22.5
+            duration == NoteDuration.WHOLE || duration == NoteDuration.HALF -> 23.8 to 15.5
+            duration == NoteDuration.QUARTER -> 22.5 to 15.0
+            else -> 22.5 to 14.5
+        }
+        val r = 2.0 + haloExpand * 0.45
+        g.fill(Ellipse2D.Double(dotX - r, dotY - r, r * 2, r * 2))
     }
     // Reset transform in case caller inspects it
     val _t = AffineTransform()

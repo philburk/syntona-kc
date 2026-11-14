@@ -126,6 +126,7 @@ data class ScoreGhostPreview(
     val staffStep: Int,
     val duration: NoteDuration,
     val isRest: Boolean,
+    val isDotted: Boolean = false,
     val accidental: Accidental? = null,
     val isStaccato: Boolean = false,
 )
@@ -927,11 +928,12 @@ object ScoreRenderer {
         // Optional ghost preview while hovering in entry mode
         if (ghostPreview != null) {
             val ghostItem = if (ghostPreview.isRest) {
-                ScoreItem.Rest(ghostPreview.duration)
+                ScoreItem.Rest(ghostPreview.duration, isDotted = ghostPreview.isDotted)
             } else {
                 ScoreItem.Note(
                     pitch = SpelledPitch(NoteLetter.C, 0, 4), // pitch unused because staffStep is passed explicitly
                     duration = ghostPreview.duration,
+                    isDotted = ghostPreview.isDotted,
                     isStaccato = ghostPreview.isStaccato,
                 )
             }

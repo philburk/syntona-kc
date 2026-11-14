@@ -1424,4 +1424,139 @@ class ScoreModuleTest {
         assertEquals(ScoreCursorPosition(measureIdx = 2, itemIdx = 0), scoreModule.cursorPosition)
         assertEquals(3, scoreModule.scoreData.measures.size)
     }
+
+    @Test
+    fun testSetDurationOnSelectionWithAndWithoutDots() {
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val e4 = SpelledPitch(NoteLetter.E, 0, 4)
+        val g4 = SpelledPitch(NoteLetter.G, 0, 4)
+        val measures = listOf(
+            ScoreMeasure(
+                1,
+                listOf(
+                    ScoreItem.Note(c4, NoteDuration.QUARTER, amplitude = 0.75, isStaccato = true),
+                    ScoreItem.Chord(listOf(c4, e4, g4), NoteDuration.QUARTER, amplitude = 0.9, isStaccato = false),
+                    ScoreItem.Rest(NoteDuration.QUARTER),
+                    ScoreItem.Note(g4, NoteDuration.WHOLE), // unselected
+                ),
+            ),
+        )
+        // Select note, middle note of chord, and rest -> set dotted 8th (180 ticks)
+        val sel = setOf(
+            ScoreItemLocation(0, 0),
+            ScoreItemLocation(0, 1, chordNoteIdx = 1),
+            ScoreItemLocation(0, 2),
+        )
+        val dottedEighths = ScoreEditing.setDurationOnSelection(measures, sel, NoteDuration.EIGHTH, isDotted = true)
+        val m1 = dottedEighths[0].items
+        val n0 = m1[0] as ScoreItem.Note
+        assertEquals(NoteDuration.EIGHTH, n0.duration)
+        assertTrue(n0.isDotted)
+        assertEquals(180, n0.totalTicks)
+        assertEquals(0.75, n0.amplitude)
+        assertTrue(n0.isStaccato)
+
+        val ch1 = m1[1] as ScoreItem.Chord
+        assertEquals(NoteDuration.EIGHTH, ch1.duration)
+        assertTrue(ch1.isDotted)
+        assertEquals(180, ch1.totalTicks)
+        assertEquals(listOf(c4, e4, g4), ch1.pitches)
+
+        val r2 = m1[2] as ScoreItem.Rest
+        assertEquals(NoteDuration.EIGHTH, r2.duration)
+        assertTrue(r2.isDotted)
+        assertEquals(180, r2.totalTicks)
+
+        val unselected = m1[3] as ScoreItem.Note
+        assertEquals(NoteDuration.WHOLE, unselected.duration)
+        assertFalse(unselected.isDotted)
+
+        // Dotted 32nd (30 + 15 = 45 ticks)
+        val dotted32nds = ScoreEditing.setDurationOnSelection(
+            dottedEighths,
+            setOf(ScoreItemLocation(0, 0)),
+            NoteDuration.THIRTY_SECOND,
+            isDotted = true,
+        )
+        assertEquals(45, dotted32nds[0].items[0].totalTicks)
+
+        // Change to undotted half note, then verify idempotent no-op returns exact input list
+        val undottedHalf = ScoreEditing.setDurationOnSelection(dottedEighths, sel, NoteDuration.HALF, isDotted = false)
+        assertEquals(NoteDuration.HALF, undottedHalf[0].items[0].duration)
+        assertFalse(undottedHalf[0].items[0].isDotted)
+        assertEquals(480, undottedHalf[0].items[0].totalTicks)
+        assertTrue(undottedHalf === ScoreEditing.setDurationOnSelection(undottedHalf, sel, NoteDuration.HALF, isDotted = false))
+    }
+
+    @Test
+    fun testStepRecordingDottedNotesAndMeasureAdvance() {
+        val scoreModule = ScoreModule()
+        scoreModule.scoreData.timeSignature = TimeSignature.THREE_FOUR // 720 ticks per measure
+        scoreModule.scoreData.replaceMeasures(listOf(ScoreMeasure(1, emptyList())))
+        scoreModule.stepRecordDuration = NoteDuration.HALF
+        scoreModule.stepRecordDotted = true
+        scoreModule.setStepRecordingEnabled(true)
+        scoreModule.placeCursor(ScoreCursorPosition(measureIdx = 0, itemIdx = 0))
+
+        // Dotted half (720 ticks) fills 3/4 measure completely -> cursor advances to M2
+        scoreModule.input.receive(
+            Message.VoiceMessage(ScoreTime(0L), Message.VoiceOpcode.NOTE_ON, tag = 0, value = 60.0, extra = 0.8)
+        )
+        val m1Note = scoreModule.scoreData.measures[0].items.single() as ScoreItem.Note
+        assertEquals(NoteDuration.HALF, m1Note.duration)
+        assertTrue(m1Note.isDotted)
+        assertEquals(720, m1Note.totalTicks)
+        assertEquals(ScoreCursorPosition(measureIdx = 1, itemIdx = 0), scoreModule.cursorPosition)
+
+        // Turn off dot mode and record an undotted quarter
+        scoreModule.stepRecordDotted = false
+        scoreModule.stepRecordDuration = NoteDuration.QUARTER
+        scoreModule.input.receive(
+            Message.VoiceMessage(ScoreTime(1L), Message.VoiceOpcode.NOTE_ON, tag = 1, value = 64.0, extra = 0.8)
+        )
+        val m2Note = scoreModule.scoreData.measures[1].items.single() as ScoreItem.Note
+        assertEquals(NoteDuration.QUARTER, m2Note.duration)
+        assertFalse(m2Note.isDotted)
+        assertEquals(240, m2Note.totalTicks)
+    }
+
+    @Test
+    fun testGhostPreviewDottedNoteAndRestRendering() {
+        val score = ScoreData().apply {
+            replaceMeasures(listOf(ScoreMeasure(1, emptyList())))
+        }
+        val noteTarget = RecordingDrawTarget()
+        ScoreRenderer.render(
+            score = score,
+            target = noteTarget,
+            staffSpacePx = 10f,
+            minWidthPx = 400f,
+            colors = ScoreRenderColors.forTheme(darkMode = false),
+            ghostPreview = ScoreGhostPreview(
+                x = 120f,
+                staffStep = 4,
+                duration = NoteDuration.QUARTER,
+                isRest = false,
+                isDotted = true,
+            ),
+        )
+        assertEquals(1, noteTarget.glyphs.count { it.glyph == SmuflGlyphs.AUGMENTATION_DOT })
+
+        val restTarget = RecordingDrawTarget()
+        ScoreRenderer.render(
+            score = score,
+            target = restTarget,
+            staffSpacePx = 10f,
+            minWidthPx = 400f,
+            colors = ScoreRenderColors.forTheme(darkMode = false),
+            ghostPreview = ScoreGhostPreview(
+                x = 120f,
+                staffStep = 4,
+                duration = NoteDuration.EIGHTH,
+                isRest = true,
+                isDotted = true,
+            ),
+        )
+        assertEquals(1, restTarget.glyphs.count { it.glyph == SmuflGlyphs.AUGMENTATION_DOT })
+    }
 }

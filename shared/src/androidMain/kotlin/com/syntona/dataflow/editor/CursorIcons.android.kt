@@ -15,5 +15,6 @@ actual fun crosshairCursor(): PointerIcon = PointerIcon.Crosshair
 actual fun scoreSymbolCursor(
     duration: NoteDuration,
     isRest: Boolean,
+    isDotted: Boolean,
     isDarkMode: Boolean,
 ): PointerIcon = PointerIcon.Crosshair
