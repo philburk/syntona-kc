@@ -2105,8 +2105,9 @@ object ScoreEditing {
 
     /**
      * Toggles beaming at [itemIdx] in [measure] per beaming-mode rules:
-     * - If [itemIdx] is currently beamed, un-beams that note (breaking its left and/or right beam links).
-     * - Otherwise, if both [itemIdx] and `itemIdx + 1` are flagged notes/chords, beams them together.
+     * - If [itemIdx] is beamed with the following note, un-beams `itemIdx -> itemIdx + 1` (ignoring preceding beams).
+     * - Otherwise, if `itemIdx + 1` is beamable, beams [itemIdx] with `itemIdx + 1`.
+     * - If there is no beamable following note and [itemIdx] is beamed from the left, un-beams that trailing note.
      */
     fun toggleBeamClick(
         measure: ScoreMeasure,
@@ -2120,15 +2121,14 @@ object ScoreEditing {
         val links = effectiveBeamLinks(measure, openingClef, timeSignature)
         val hasLeftLink = itemIdx > 0 && links[itemIdx - 1]
         val hasRightLink = itemIdx < links.size && links[itemIdx]
+        val canBeamForward = itemIdx < links.size && isBeamableItem(measure.items[itemIdx + 1])
 
         val desiredChanges = mutableMapOf<Int, Boolean>()
-        if (hasLeftLink || hasRightLink) {
-            if (hasLeftLink) desiredChanges[itemIdx - 1] = false
-            if (hasRightLink) desiredChanges[itemIdx] = false
-        } else if (itemIdx < links.size && isBeamableItem(measure.items[itemIdx + 1])) {
-            desiredChanges[itemIdx] = true
-        } else {
-            return measure
+        when {
+            hasRightLink -> desiredChanges[itemIdx] = false
+            canBeamForward -> desiredChanges[itemIdx] = true
+            hasLeftLink -> desiredChanges[itemIdx - 1] = false
+            else -> return measure
         }
 
         val nextOverrides = measure.beamOverrides.toMutableMap()

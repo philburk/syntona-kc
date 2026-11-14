@@ -2827,18 +2827,19 @@ class ScoreModuleTest {
     @Test
     fun manualBeamingTogglesUnbeamsAndBeamsAndSurvivesEditsAndSerialization() {
         fun e(letter: NoteLetter) = ScoreItem.Note(SpelledPitch(letter, 0, 5), NoteDuration.EIGHTH)
+        fun s(letter: NoteLetter) = ScoreItem.Note(SpelledPitch(letter, 0, 5), NoteDuration.SIXTEENTH)
 
         // Start in 3/4: [0,1] beamed, [2,3] beamed
         val initial = ScoreMeasure(1, listOf(e(NoteLetter.C), e(NoteLetter.D), e(NoteLetter.E), e(NoteLetter.F)))
-        // Clicking note 1 (currently beamed to 0) un-beams note 1
-        val afterUnbeam = ScoreEditing.toggleBeamClick(initial, Clef.TREBLE, TimeSignature.THREE_FOUR, 1)
+        // Clicking note 0 (beamed to following 1) un-beams 0->1
+        val afterUnbeam = ScoreEditing.toggleBeamClick(initial, Clef.TREBLE, TimeSignature.THREE_FOUR, 0)
         assertEquals(mapOf(0 to false), afterUnbeam.beamOverrides)
         assertEquals(
             listOf(listOf(2, 3)),
             ScoreEditing.computeBeamGroups(afterUnbeam, 0, Clef.TREBLE, TimeSignature.THREE_FOUR).map { it.itemIndices },
         )
 
-        // Clicking unbeamed note 1 now beams it with the following note (2 -> joining [1, 2, 3])
+        // Clicking note 1 (not beamed to following 2) beams 1->2 -> joining [1, 2, 3]
         val afterManualJoin = ScoreEditing.toggleBeamClick(afterUnbeam, Clef.TREBLE, TimeSignature.THREE_FOUR, 1)
         assertEquals(mapOf(0 to false, 1 to true), afterManualJoin.beamOverrides)
         assertEquals(
@@ -2846,12 +2847,39 @@ class ScoreModuleTest {
             ScoreEditing.computeBeamGroups(afterManualJoin, 0, Clef.TREBLE, TimeSignature.THREE_FOUR).map { it.itemIndices },
         )
 
-        // Clicking beamed interior note 2 un-beams only note 2 (separating [1] and [3])
-        val afterInteriorUnbeam = ScoreEditing.toggleBeamClick(afterManualJoin, Clef.TREBLE, TimeSignature.THREE_FOUR, 2)
+        // Clicking interior note 2 (beamed to following 3) breaks ONLY 2->3 (keeping [1, 2] beamed!)
+        val afterSplit = ScoreEditing.toggleBeamClick(afterManualJoin, Clef.TREBLE, TimeSignature.THREE_FOUR, 2)
+        assertEquals(
+            listOf(listOf(1, 2)),
+            ScoreEditing.computeBeamGroups(afterSplit, 0, Clef.TREBLE, TimeSignature.THREE_FOUR).map { it.itemIndices },
+        )
+
+        // Sequential restore repro: unbeam 4 sixteenths, then re-beam left-to-right (0, then 1, then 2)
+        var sixteenths = ScoreMeasure(1, listOf(s(NoteLetter.C), s(NoteLetter.D), s(NoteLetter.E), s(NoteLetter.F)))
+        for (idx in listOf(0, 1, 2)) {
+            sixteenths = ScoreEditing.toggleBeamClick(sixteenths, Clef.TREBLE, TimeSignature.COMMON_TIME, idx)
+        }
         assertEquals(
             emptyList<List<Int>>(),
-            ScoreEditing.computeBeamGroups(afterInteriorUnbeam, 0, Clef.TREBLE, TimeSignature.THREE_FOUR).map { it.itemIndices },
+            ScoreEditing.computeBeamGroups(sixteenths, 0, Clef.TREBLE, TimeSignature.COMMON_TIME).map { it.itemIndices },
         )
+        sixteenths = ScoreEditing.toggleBeamClick(sixteenths, Clef.TREBLE, TimeSignature.COMMON_TIME, 0)
+        assertEquals(
+            listOf(listOf(0, 1)),
+            ScoreEditing.computeBeamGroups(sixteenths, 0, Clef.TREBLE, TimeSignature.COMMON_TIME).map { it.itemIndices },
+        )
+        // Clicking note 1 (preceded by beamed note 0, not beamed to note 2) must beam [1, 2] -> [0, 1, 2]
+        sixteenths = ScoreEditing.toggleBeamClick(sixteenths, Clef.TREBLE, TimeSignature.COMMON_TIME, 1)
+        assertEquals(
+            listOf(listOf(0, 1, 2)),
+            ScoreEditing.computeBeamGroups(sixteenths, 0, Clef.TREBLE, TimeSignature.COMMON_TIME).map { it.itemIndices },
+        )
+        sixteenths = ScoreEditing.toggleBeamClick(sixteenths, Clef.TREBLE, TimeSignature.COMMON_TIME, 2)
+        assertEquals(
+            listOf(listOf(0, 1, 2, 3)),
+            ScoreEditing.computeBeamGroups(sixteenths, 0, Clef.TREBLE, TimeSignature.COMMON_TIME).map { it.itemIndices },
+        )
+        assertEquals(emptyMap(), sixteenths.beamOverrides)
 
         // Inserting an item at index 1 shifts overrides at >= 1; deleting shifts back / drops invalidated links
         val inserted = ScoreEditing.insertItem(listOf(afterManualJoin), 0, 0, e(NoteLetter.G)).first.first()
