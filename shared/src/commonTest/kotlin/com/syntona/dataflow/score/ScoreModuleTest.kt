@@ -17,6 +17,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class ScoreModuleTest {
@@ -1125,5 +1126,112 @@ class ScoreModuleTest {
         val reloaded = GraphSerializer.deserialize(GraphState(), json).filterIsInstance<ScoreModule>().single()
         val reloadedChord = reloaded.scoreData.measures[0].items[0] as ScoreItem.Chord
         assertEquals(chord, reloadedChord)
+    }
+
+    @Test
+    fun testPlaybackHonorsEmptyAndIncompleteMeasuresPerTimeSignature() {
+        val engine = TestEngine()
+        val scoreModule = ScoreModule()
+        scoreModule.setEngine(engine)
+        // 4/4 at default 120 BPM => 1 quarter = 0.5s, 1 measure = 2.0s.
+        scoreModule.scoreData.timeSignature = TimeSignature.COMMON_TIME
+        scoreModule.scoreData.replaceMeasures(
+            listOf(
+                ScoreMeasure(1, emptyList()),
+                ScoreMeasure(2, listOf(ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 4), NoteDuration.WHOLE))),
+                ScoreMeasure(3, emptyList()),
+                ScoreMeasure(4, listOf(ScoreItem.Note(SpelledPitch(NoteLetter.E, 0, 4), NoteDuration.WHOLE))),
+            )
+        )
+
+        val receiver = VoiceReceiver()
+        scoreModule.output.connect(receiver.inJack)
+        scoreModule.start.receive(Message.FloatValue(ScoreTime(0L), 1.0))
+
+        // Step through scheduled events in time order and verify activeItemIndex clears during empty M3.
+        val sorted = engine.scheduled.sortedBy { it.first.nanoseconds }
+        var sawClearedHighlightAtM3Start = false
+        for ((time, action) in sorted) {
+            action()
+            if (time.nanoseconds == 4_000_000_000L && scoreModule.activeItemIndex == null) {
+                sawClearedHighlightAtM3Start = true
+            }
+        }
+
+        assertTrue(sawClearedHighlightAtM3Start, "activeItemIndex should clear when entering empty measure 3")
+        assertEquals(2, receiver.received.size)
+        assertEquals(2_000_000_000L, receiver.received[0].time.nanoseconds)
+        assertEquals(6_000_000_000L, receiver.received[1].time.nanoseconds)
+        assertEquals(8_000_000_001L, sorted.last().first.nanoseconds)
+        assertFalse(scoreModule.isPlaying)
+    }
+
+    @Test
+    fun testPlaybackPadsIncompleteMeasuresAndTrailingEmptyMeasuresInThreeFour() {
+        val engine = TestEngine()
+        val scoreModule = ScoreModule()
+        scoreModule.setEngine(engine)
+        // 3/4 at default 120 BPM => 1 quarter = 0.5s, 1 measure = 1.5s.
+        scoreModule.scoreData.timeSignature = TimeSignature.THREE_FOUR
+        scoreModule.scoreData.replaceMeasures(
+            listOf(
+                ScoreMeasure(1, listOf(ScoreItem.Note(SpelledPitch(NoteLetter.G, 0, 4), NoteDuration.QUARTER))),
+                ScoreMeasure(2, listOf(ScoreItem.Note(SpelledPitch(NoteLetter.A, 0, 4), NoteDuration.HALF))),
+                ScoreMeasure(3, emptyList()),
+            )
+        )
+
+        val receiver = VoiceReceiver()
+        scoreModule.output.connect(receiver.inJack)
+        scoreModule.start.receive(Message.FloatValue(ScoreTime(0L), 1.0))
+
+        val sorted = engine.scheduled.sortedBy { it.first.nanoseconds }
+        var clearedAtImplicitRestInM1 = false
+        for ((time, action) in sorted) {
+            action()
+            if (time.nanoseconds == 500_000_000L) {
+                clearedAtImplicitRestInM1 = scoreModule.activeItemIndex == null
+            }
+        }
+
+        assertTrue(clearedAtImplicitRestInM1, "activeItemIndex should clear during missing rests in incomplete M1")
+        assertEquals(2, receiver.received.size)
+        assertEquals(0L, receiver.received[0].time.nanoseconds)
+        assertEquals(1_500_000_000L, receiver.received[1].time.nanoseconds)
+        assertEquals(4_500_000_001L, sorted.last().first.nanoseconds)
+        assertNull(scoreModule.activeItemIndex)
+        assertFalse(scoreModule.isPlaying)
+    }
+
+    @Test
+    fun testPlaybackDoesNotRewindOverfullMeasures() {
+        val engine = TestEngine()
+        val scoreModule = ScoreModule()
+        scoreModule.setEngine(engine)
+        // 4/4 at default 120 BPM => 5 quarter notes in M1 = 2.5s; M2 should start at 2.5s.
+        scoreModule.scoreData.timeSignature = TimeSignature.COMMON_TIME
+        scoreModule.scoreData.replaceMeasures(
+            listOf(
+                ScoreMeasure(
+                    1,
+                    List(5) { ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 4), NoteDuration.QUARTER) },
+                ),
+                ScoreMeasure(
+                    2,
+                    listOf(ScoreItem.Note(SpelledPitch(NoteLetter.D, 0, 4), NoteDuration.QUARTER)),
+                ),
+            )
+        )
+
+        val receiver = VoiceReceiver()
+        scoreModule.output.connect(receiver.inJack)
+        scoreModule.start.receive(Message.FloatValue(ScoreTime(0L), 1.0))
+        for ((_, action) in engine.scheduled.sortedBy { it.first.nanoseconds }) {
+            action()
+        }
+
+        assertEquals(6, receiver.received.size)
+        assertEquals(2_000_000_000L, receiver.received[4].time.nanoseconds)
+        assertEquals(2_500_000_000L, receiver.received[5].time.nanoseconds)
     }
 }
