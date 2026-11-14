@@ -105,6 +105,7 @@ import com.syntona.dataflow.editor.moveCursor
 import com.syntona.dataflow.editor.scoreBeamCursor
 import com.syntona.dataflow.editor.scoreDynamicCursor
 import com.syntona.dataflow.editor.scoreSymbolCursor
+import com.syntona.dataflow.editor.scoreTieCursor
 import com.syntona.dataflow.engine.SyntonaCommand
 import com.syntona.ui.PlayIcon
 import com.syntona.ui.RecordIcon
@@ -124,6 +125,7 @@ private enum class ScoreEditMode {
     ENTRY,
     DYNAMIC,
     BEAM,
+    TIE,
 }
 
 private sealed interface ScoreDragState {
@@ -327,6 +329,20 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             measures = before,
             initialClef = score.clef,
             initialTimeSignature = score.timeSignature,
+            slotLoc = loc,
+        )
+        if (after == before) return
+        postCommand(
+            ReplaceScoreMeasuresCommand(score, before, after) { restored ->
+                refreshPitchDisplayFromSelection(restored, selectedLocations)
+            }
+        )
+    }
+
+    fun toggleTieAt(loc: ScoreItemLocation) {
+        val before = score.measures.toList()
+        val after = ScoreEditing.toggleTieAt(
+            measures = before,
             slotLoc = loc,
         )
         if (after == before) return
@@ -827,7 +843,18 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 }
             }
             'd' -> { toggleDotMode(); true }
-            't', 's', 'e', 'q', 'h', 'w' -> {
+            't' -> {
+                if (event.isKeyShiftPressed && !module.isStepRecording) {
+                    openPalette = null
+                    pendingAccidental = null
+                    editorMode = ScoreEditMode.TIE
+                    module.placeCursor(null)
+                } else {
+                    selectDuration(NoteDuration.THIRTY_SECOND)
+                }
+                true
+            }
+            's', 'e', 'q', 'h', 'w' -> {
                 selectDuration(charDuration!!)
                 true
             }
@@ -1144,6 +1171,15 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                             hoverPos = null
                             focusRequester.requestFocus()
                         },
+                        onSelectTieTool = {
+                            module.exitStepRecording()
+                            openPalette = null
+                            pendingAccidental = null
+                            editorMode = ScoreEditMode.TIE
+                            module.placeCursor(null)
+                            hoverPos = null
+                            focusRequester.requestFocus()
+                        },
                         onDismiss = { openPalette = null },
                         onKeyEvent = ::handleKeyEvent,
                     )
@@ -1322,6 +1358,8 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     scoreDynamicCursor(activeDynamic.label, isDark)
                 !module.isStepRecording && editorMode == ScoreEditMode.BEAM ->
                     scoreBeamCursor(isDark)
+                !module.isStepRecording && editorMode == ScoreEditMode.TIE ->
+                    scoreTieCursor(isDark)
                 hoveringItem -> moveCursor()
                 else -> PointerIcon.Default
             }
@@ -1631,6 +1669,17 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                 } else if (editorMode == ScoreEditMode.BEAM) {
                                     if (hit != null) {
                                         toggleBeamAt(hit.location.slotLocation())
+                                    }
+                                    return@awaitEachGesture
+                                } else if (editorMode == ScoreEditMode.TIE) {
+                                    if (hit != null) {
+                                        val chordNote = lyt.chordNoteAt(hit, downPos.x, downPos.y)
+                                        val targetLoc = if (chordNote != null) {
+                                            hit.location.copy(chordNoteIdx = chordNote.noteIdx)
+                                        } else {
+                                            hit.location.slotLocation()
+                                        }
+                                        toggleTieAt(targetLoc)
                                     }
                                     return@awaitEachGesture
                                 } else {
@@ -2104,6 +2153,8 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     "Mode: Dynamic (${activeDynamic.label}) — click above/below stave"
                 editorMode == ScoreEditMode.BEAM ->
                     "Mode: Beam — click a note to beam/un-beam (Esc to exit)"
+                editorMode == ScoreEditMode.TIE ->
+                    "Mode: Tie — click a note to tie/untie to next note (Esc to exit)"
                 else -> "Mode: $dotPrefix${entryDuration.displayLabel} ${if (entryIsRest) "Rest" else "Note"}"
             }
             Text(
@@ -2312,7 +2363,7 @@ private fun ScorePalettePanel(
                 val isOpen = openPalette == kind
                 val isToolActive = when (kind) {
                     ScorePaletteKind.NOTES_RESTS ->
-                        ((editorMode == ScoreEditMode.ENTRY || editorMode == ScoreEditMode.BEAM) && !isStepRecording) ||
+                        ((editorMode == ScoreEditMode.ENTRY || editorMode == ScoreEditMode.BEAM || editorMode == ScoreEditMode.TIE) && !isStepRecording) ||
                             isStepRecording
                     ScorePaletteKind.DYNAMICS ->
                         editorMode == ScoreEditMode.DYNAMIC && !isStepRecording
@@ -2468,6 +2519,7 @@ private fun NotesRestsPalettePopup(
     onApplyAccidental: (Accidental) -> Unit,
     onToggleStaccato: () -> Unit,
     onSelectBeamTool: () -> Unit,
+    onSelectTieTool: () -> Unit,
     onDismiss: () -> Unit,
     onKeyEvent: (KeyEvent) -> Boolean,
 ) {
@@ -2740,6 +2792,41 @@ private fun NotesRestsPalettePopup(
                             fontFamily = FontFamily.Monospace,
                             fontWeight = if (beamSelected) FontWeight.Bold else FontWeight.Medium,
                             color = beamContentColor.copy(alpha = if (beamSelected) 1f else 0.8f),
+                        )
+                    }
+                    val tieSelected = editorMode == ScoreEditMode.TIE && !isStepRecording
+                    val tieContentColor = if (tieSelected) {
+                        if (isDark) Color.White else accentColor
+                    } else {
+                        toolbarText
+                    }
+                    val tieBg = if (tieSelected) accentColor.copy(alpha = 0.22f) else tileBg
+                    Row(
+                        modifier = Modifier
+                            .background(tieBg, RoundedCornerShape(5.dp))
+                            .border(
+                                width = if (tieSelected) 1.5.dp else 1.dp,
+                                color = if (tieSelected) accentColor else borderMuted,
+                                shape = RoundedCornerShape(5.dp),
+                            )
+                            .pointerHoverIcon(PointerIcon.Hand)
+                            .clickable { onSelectTieTool() }
+                            .padding(horizontal = 7.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = "Tie",
+                            fontSize = 10.sp,
+                            fontWeight = if (tieSelected) FontWeight.SemiBold else FontWeight.Medium,
+                            color = tieContentColor,
+                        )
+                        Text(
+                            text = "Shift+T",
+                            fontSize = 9.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = if (tieSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = tieContentColor.copy(alpha = if (tieSelected) 1f else 0.8f),
                         )
                     }
                 }

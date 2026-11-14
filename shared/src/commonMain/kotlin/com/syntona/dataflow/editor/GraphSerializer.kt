@@ -605,17 +605,23 @@ object GraphSerializer {
                             is ScoreItem.Note -> {
                                 val dotted = if (item.isDotted) 1 else 0
                                 val staccato = if (item.isStaccato) 1 else 0
-                                append("[\"N\",\"${item.pitch.letter.name}\",${item.pitch.alter},${item.pitch.octave},\"${item.duration.name}\",$dotted,${item.amplitude},$staccato]")
+                                val tiedSuffix = if (item.isTiedToNext) ",1" else ""
+                                append("[\"N\",\"${item.pitch.letter.name}\",${item.pitch.alter},${item.pitch.octave},\"${item.duration.name}\",$dotted,${item.amplitude},$staccato$tiedSuffix]")
                             }
                             is ScoreItem.Chord -> {
                                 val dotted = if (item.isDotted) 1 else 0
                                 val staccato = if (item.isStaccato) 1 else 0
+                                val tiedSuffix = if (item.tiedMidiPitches.isNotEmpty()) {
+                                    ",[" + item.tiedMidiPitches.sorted().joinToString(",") + "]"
+                                } else {
+                                    ""
+                                }
                                 append("[\"C\",[")
                                 item.pitches.forEachIndexed { pIdx, p ->
                                     if (pIdx > 0) append(",")
                                     append("[\"${p.letter.name}\",${p.alter},${p.octave}]")
                                 }
-                                append("],\"${item.duration.name}\",$dotted,${item.amplitude},$staccato]")
+                                append("],\"${item.duration.name}\",$dotted,${item.amplitude},$staccato$tiedSuffix]")
                             }
                             is ScoreItem.Rest -> {
                                 val dotted = if (item.isDotted) 1 else 0
@@ -1678,6 +1684,7 @@ object GraphSerializer {
                                     val isDotted = ((arr.getOrNull(5) as? JsonValue.Num)?.value?.toInt() ?: 0) != 0
                                     val amp = (arr.getOrNull(6) as? JsonValue.Num)?.value ?: 0.25
                                     val isStaccato = ((arr.getOrNull(7) as? JsonValue.Num)?.value?.toInt() ?: 0) != 0
+                                    val isTiedToNext = ((arr.getOrNull(8) as? JsonValue.Num)?.value?.toInt() ?: 0) != 0
                                     loadedItems.add(
                                         ScoreItem.Note(
                                             pitch = SpelledPitch(letter = letter, alter = alter, octave = octave),
@@ -1685,6 +1692,7 @@ object GraphSerializer {
                                             isDotted = isDotted,
                                             amplitude = amp,
                                             isStaccato = isStaccato,
+                                            isTiedToNext = isTiedToNext,
                                         )
                                     )
                                 }
@@ -1704,12 +1712,18 @@ object GraphSerializer {
                                     val isDotted = ((arr.getOrNull(3) as? JsonValue.Num)?.value?.toInt() ?: 0) != 0
                                     val amp = (arr.getOrNull(4) as? JsonValue.Num)?.value ?: 0.25
                                     val isStaccato = ((arr.getOrNull(5) as? JsonValue.Num)?.value?.toInt() ?: 0) != 0
+                                    val tiedArr = (arr.getOrNull(6) as? JsonValue.Arr)?.items
+                                    val tiedMidis = tiedArr
+                                        ?.mapNotNull { (it as? JsonValue.Num)?.value?.toInt() }
+                                        ?.toSet()
+                                        ?: emptySet()
                                     ScoreEditing.itemFromPitches(
                                         pitches = chordPitches,
                                         duration = dur,
                                         isDotted = isDotted,
                                         amplitude = amp,
                                         isStaccato = isStaccato,
+                                        tiedMidiPitches = tiedMidis,
                                     )?.let { loadedItems.add(it) }
                                 }
                                 "R" -> {

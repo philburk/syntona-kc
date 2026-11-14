@@ -3001,4 +3001,251 @@ class ScoreModuleTest {
         assertEquals(normalTimes, overriddenTimes)
         assertEquals(normalNotes, overriddenNotes)
     }
+
+    @Test
+    fun toggleTieSameMeasureCrossMeasureAndChord() {
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val e4 = SpelledPitch(NoteLetter.E, 0, 4)
+        val g4 = SpelledPitch(NoteLetter.G, 0, 4)
+        val d4 = SpelledPitch(NoteLetter.D, 0, 4)
+
+        val measures = listOf(
+            ScoreMeasure(
+                1,
+                listOf(
+                    ScoreItem.Note(c4, NoteDuration.QUARTER),
+                    ScoreItem.Note(c4, NoteDuration.QUARTER),
+                    ScoreItem.Note(d4, NoteDuration.QUARTER),
+                    ScoreItem.Chord(listOf(c4, e4), NoteDuration.QUARTER),
+                ),
+            ),
+            ScoreMeasure(
+                2,
+                listOf(
+                    ScoreItem.Chord(listOf(c4, g4), NoteDuration.HALF),
+                    ScoreItem.Rest(NoteDuration.HALF),
+                ),
+            ),
+        )
+
+        // Mismatch pitch (C4 -> D4) does not toggle on
+        val unchangedMismatch = ScoreEditing.toggleTieAt(measures, ScoreItemLocation(0, 1))
+        assertEquals(measures, unchangedMismatch)
+
+        // Note 0 -> Note 1 (same pitch C4): toggles ON then OFF
+        val tiedSameBar = ScoreEditing.toggleTieAt(measures, ScoreItemLocation(0, 0))
+        assertTrue((tiedSameBar[0].items[0] as ScoreItem.Note).isTiedToNext)
+        assertTrue(ScoreEditing.hasActiveTieForPitch(tiedSameBar, 0, 0, c4.midiPitch))
+        val untiedSameBar = ScoreEditing.toggleTieAt(tiedSameBar, ScoreItemLocation(0, 0))
+        assertFalse((untiedSameBar[0].items[0] as ScoreItem.Note).isTiedToNext)
+
+        // Cross-measure chord notehead tie: C4 (index 0) ties across barline, E4 (index 1) has no match
+        val crossBarChordTie = ScoreEditing.toggleTieAt(measures, ScoreItemLocation(0, 3, chordNoteIdx = 0))
+        val tiedChord = crossBarChordTie[0].items[3] as ScoreItem.Chord
+        assertEquals(setOf(c4.midiPitch), tiedChord.tiedMidiPitches)
+        assertTrue(ScoreEditing.hasActiveTieForPitch(crossBarChordTie, 0, 3, c4.midiPitch))
+        assertEquals(crossBarChordTie, ScoreEditing.toggleTieAt(crossBarChordTie, ScoreItemLocation(0, 3, chordNoteIdx = 1)))
+
+        // Removing untied top chord note preserves C4's outgoing tie on remaining Note
+        val deletedE4 = ScoreEditing.deleteItems(crossBarChordTie, setOf(ScoreItemLocation(0, 3, chordNoteIdx = 1)))
+        val remainingNote = deletedE4[0].items[3] as ScoreItem.Note
+        assertEquals(c4, remainingNote.pitch)
+        assertTrue(remainingNote.isTiedToNext)
+    }
+
+    @Test
+    fun playbackCombinesTiedDurationsAcrossMeasureBoundaryAndCursorStart() {
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val e4 = SpelledPitch(NoteLetter.E, 0, 4)
+        val g4 = SpelledPitch(NoteLetter.G, 0, 4)
+        val d4 = SpelledPitch(NoteLetter.D, 0, 4)
+
+        val engine = TestEngine()
+        val module = ScoreModule()
+        module.setEngine(engine)
+        val receiver = VoiceReceiver()
+        module.output.connect(receiver.inJack)
+
+        // Bar 1: Half rest + Half C4 (tied across barline) -> Bar 2: Quarter C4 + Quarter D4
+        val noteMeasures = listOf(
+            ScoreMeasure(
+                1,
+                listOf(
+                    ScoreItem.Rest(NoteDuration.HALF),
+                    ScoreItem.Note(c4, NoteDuration.HALF, isTiedToNext = true),
+                ),
+            ),
+            ScoreMeasure(
+                2,
+                listOf(
+                    ScoreItem.Note(c4, NoteDuration.QUARTER),
+                    ScoreItem.Note(d4, NoteDuration.QUARTER),
+                ),
+            ),
+        )
+        module.scoreData.replaceMeasures(noteMeasures)
+        module.start.receive(Message.FloatValue(ScoreTime(0L), 1.0))
+
+        val activeIndices = mutableListOf<Int?>()
+        for ((_, action) in engine.scheduled) {
+            action()
+            activeIndices.add(module.activeItemIndex)
+        }
+        val notes = receiver.received.filter { it.opcode == Message.VoiceOpcode.NOTE }
+        // Only C4 (at bar 1 beat 3, duration = 1.0s + 0.5s = 1.5s) and D4 (duration = 0.5s)
+        assertEquals(2, notes.size)
+        assertEquals(c4.midiPitch.toDouble(), notes[0].value, 1e-6)
+        assertEquals(1.5, notes[0].duration, 1e-3)
+        assertEquals(d4.midiPitch.toDouble(), notes[1].value, 1e-6)
+        assertEquals(0.5, notes[1].duration, 1e-3)
+        // Visual highlight still steps across all 4 slots (0, 1, 2, 3) before clearing
+        assertTrue(listOf(0, 1, 2, 3).all { it in activeIndices })
+
+        // Play from Cursor starting at Bar 2 slot 0 (mid-tie target) SHOULD sound C4 for 0.5s
+        engine.scheduled.clear()
+        receiver.received.clear()
+        module.placeCursor(ScoreCursorPosition(1, 0))
+        module.startPlaybackFromCursor()
+        for ((_, action) in engine.scheduled) action()
+        val cursorNotes = receiver.received.filter { it.opcode == Message.VoiceOpcode.NOTE }
+        assertEquals(2, cursorNotes.size)
+        assertEquals(c4.midiPitch.toDouble(), cursorNotes[0].value, 1e-6)
+        assertEquals(0.5, cursorNotes[0].duration, 1e-3)
+
+        // Partial chord tie: [C4(tied), E4] -> [C4, G4]
+        engine.scheduled.clear()
+        receiver.received.clear()
+        module.placeCursor(null)
+        module.scoreData.replaceMeasures(
+            listOf(
+                ScoreMeasure(
+                    1,
+                    listOf(
+                        ScoreItem.Chord(listOf(c4, e4), NoteDuration.QUARTER, tiedMidiPitches = setOf(c4.midiPitch)),
+                        ScoreItem.Chord(listOf(c4, g4), NoteDuration.QUARTER),
+                    ),
+                )
+            )
+        )
+        module.start.receive(Message.FloatValue(ScoreTime(0L), 1.0))
+        for ((_, action) in engine.scheduled) action()
+        val chordNotes = receiver.received.filter { it.opcode == Message.VoiceOpcode.NOTE }
+        assertEquals(3, chordNotes.size)
+        assertEquals(c4.midiPitch.toDouble(), chordNotes[0].value, 1e-6)
+        assertEquals(1.0, chordNotes[0].duration, 1e-3)
+        assertEquals(e4.midiPitch.toDouble(), chordNotes[1].value, 1e-6)
+        assertEquals(0.5, chordNotes[1].duration, 1e-3)
+        assertEquals(g4.midiPitch.toDouble(), chordNotes[2].value, 1e-6)
+        assertEquals(0.5, chordNotes[2].duration, 1e-3)
+    }
+
+    @Test
+    fun rendererDrawsTiesWithinAndAcrossMeasuresAndSkipsDanglingTie() {
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val e4 = SpelledPitch(NoteLetter.E, 0, 4)
+        val target = RecordingDrawTarget()
+        val score = ScoreData()
+        score.replaceMeasures(
+            listOf(
+                ScoreMeasure(
+                    1,
+                    listOf(
+                        ScoreItem.Note(c4, NoteDuration.QUARTER, isTiedToNext = true),
+                        ScoreItem.Note(c4, NoteDuration.HALF),
+                        ScoreItem.Note(c4, NoteDuration.QUARTER, isTiedToNext = true),
+                    ),
+                ),
+                ScoreMeasure(
+                    2,
+                    listOf(
+                        ScoreItem.Note(c4, NoteDuration.QUARTER),
+                        // Dangling tie into mismatched pitch should not draw
+                        ScoreItem.Note(c4, NoteDuration.QUARTER, isTiedToNext = true),
+                        ScoreItem.Note(e4, NoteDuration.HALF),
+                    ),
+                ),
+            )
+        )
+
+        val layout = ScoreRenderer.render(
+            score = score,
+            target = target,
+            staffSpacePx = 12f,
+            minWidthPx = 800f,
+            colors = ScoreRenderColors.forTheme(false),
+        )
+        assertEquals(2, target.beziers.size)
+        val bar1LastX = layout.placedMeasures[0].items[2].x
+        val bar2FirstX = layout.placedMeasures[1].items[0].x
+        val crossTie = target.beziers[1]
+        assertTrue(crossTie.x0 > bar1LastX && crossTie.x3 <= bar2FirstX)
+    }
+
+    @Test
+    fun tiesSurviveCopyPasteAndGraphSerializerRoundTrip() {
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val e4 = SpelledPitch(NoteLetter.E, 0, 4)
+        val m1 = ScoreMeasure(
+            1,
+            listOf(
+                ScoreItem.Note(c4, NoteDuration.QUARTER, isTiedToNext = true),
+                ScoreItem.Note(c4, NoteDuration.QUARTER),
+                ScoreItem.Chord(listOf(c4, e4), NoteDuration.HALF, tiedMidiPitches = setOf(c4.midiPitch)),
+            ),
+        )
+        val m2 = ScoreMeasure(
+            2,
+            listOf(ScoreItem.Chord(listOf(c4, e4), NoteDuration.WHOLE)),
+        )
+        val measures = listOf(m1, m2)
+
+        // ItemSelection copy/paste
+        val itemClipboard = ScoreEditing.copySelectionContent(
+            measures = measures,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            selectedLocations = setOf(ScoreItemLocation(0, 0), ScoreItemLocation(0, 1), ScoreItemLocation(0, 2)),
+        )!!
+        val pastedItems = ScoreEditing.pasteClipboardContent(
+            measures = listOf(ScoreMeasure(1, emptyList())),
+            content = itemClipboard,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            cursorPosition = ScoreCursorPosition(0, 0),
+        )!!
+        assertTrue((pastedItems.measures[0].items[0] as ScoreItem.Note).isTiedToNext)
+        assertEquals(setOf(c4.midiPitch), (pastedItems.measures[0].items[2] as ScoreItem.Chord).tiedMidiPitches)
+
+        // MeasureRange copy/paste
+        val measureClipboard = ScoreEditing.copySelectionContent(
+            measures = measures,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            selectedMeasures = setOf(0, 1),
+        )!!
+        val pastedMeasures = ScoreEditing.pasteClipboardContent(
+            measures = listOf(ScoreMeasure(1, emptyList())),
+            content = measureClipboard,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            selectedMeasures = setOf(0),
+        )!!
+        assertTrue((pastedMeasures.measures[0].items[0] as ScoreItem.Note).isTiedToNext)
+        assertEquals(setOf(c4.midiPitch), (pastedMeasures.measures[0].items[2] as ScoreItem.Chord).tiedMidiPitches)
+
+        // GraphSerializer JSON round-trip
+        val graph = GraphState()
+        val module = ScoreModule()
+        module.scoreData.replaceMeasures(measures)
+        graph.addModule(module, Offset.Zero)
+        val json = GraphSerializer.serialize(graph, graph.modules)
+        val loadedScore = GraphSerializer.deserialize(GraphState(), json).filterIsInstance<ScoreModule>().single().scoreData.measures
+        assertTrue((loadedScore[0].items[0] as ScoreItem.Note).isTiedToNext)
+        assertFalse((loadedScore[0].items[1] as ScoreItem.Note).isTiedToNext)
+        assertEquals(setOf(c4.midiPitch), (loadedScore[0].items[2] as ScoreItem.Chord).tiedMidiPitches)
+    }
 }

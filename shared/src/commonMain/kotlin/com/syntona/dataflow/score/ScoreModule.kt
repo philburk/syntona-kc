@@ -200,9 +200,23 @@ class ScoreModule : Module("score"), EngineAware {
         var startTick: Long? = if (targetCursor == null) 0L else null
         var globalIdx = 0
         var nextVoiceTag = 0
-        var hasActiveHighlight = false
+
+        data class PlaybackSlot(
+            val loc: ScoreItemLocation,
+            val itemIdx: Int,
+            val item: ScoreItem,
+            val onsetTick: Long,
+            val endTick: Long,
+            val attackDyn: DynamicMark?,
+            val startsHighlight: Boolean,
+        )
+
+        val slots = ArrayList<PlaybackSlot>()
+        val slotByLoc = HashMap<ScoreItemLocation, PlaybackSlot>()
+        val trailingRestTicks = ArrayList<Long>()
 
         var sustainedDynamic: DynamicMark? = null
+        var hasActiveHighlight = false
         for ((mIdx, measure) in measures.withIndex()) {
             if (mIdx > 0) {
                 measure.timeSignature?.let { effectiveTime = it }
@@ -213,7 +227,6 @@ class ScoreModule : Module("score"), EngineAware {
                 if (startTick == null && targetCursor != null && mIdx == targetCursor.measureIdx && slotIdx >= targetCursor.itemIdx) {
                     startTick = tickCursor
                 }
-                val resolvedStart = startTick
                 val (attackDyn, nextSustained) = ScoreEditing.resolvePlaybackDynamicStep(
                     measure.dynamics[slotIdx],
                     sustainedDynamic,
@@ -221,53 +234,21 @@ class ScoreModule : Module("score"), EngineAware {
                 sustainedDynamic = nextSustained
                 val itemIdx = globalIdx++
                 val itemTicks = item.totalTicks.toLong()
-                if (resolvedStart != null) {
-                    val relStartTick = tickCursor - resolvedStart
-                    val onTime = now + ScoreTime((relStartTick * nsPerTick).roundToLong())
-                    val offTime = now + ScoreTime(((relStartTick + itemTicks) * nsPerTick).roundToLong())
-                    val fullDurSec = (offTime.nanoseconds - onTime.nanoseconds).coerceAtLeast(0L) / 1_000_000_000.0
-                    val soundingPitches = item.soundingPitches()
-                    val soundingDurSec = if (soundingPitches.isNotEmpty() && item.noteStaccato()) {
-                        minOf(fullDurSec * STACCATO_DURATION_FRACTION, MAX_STACCATO_SECONDS)
-                            .coerceAtLeast(minOf(MIN_STACCATO_SECONDS, fullDurSec))
-                    } else {
-                        fullDurSec
-                    }
-                    val soundingOffTime = onTime + ScoreTime((soundingDurSec * 1_000_000_000.0).roundToLong())
-                    val voiceTags = List(soundingPitches.size) { nextVoiceTag++ }
-                    val effectiveAmp = if (attackDyn != null) {
-                        ((item.noteAmplitude() / 0.25) * attackDyn.amplitude).coerceIn(0.0, 1.0)
-                    } else {
-                        item.noteAmplitude()
-                    }
-
-                    scheduledEvents.add(e.schedule(onTime) {
-                        activeItemIndex = itemIdx
-                        if (soundingPitches.isNotEmpty()) {
-                            soundingPitches.forEachIndexed { idx, spelled ->
-                                val pitch = spelled.midiPitch.toDouble()
-                                val tag = voiceTags[idx]
-                                output.send(
-                                    Message.VoiceMessage(
-                                        time = onTime,
-                                        opcode = Message.VoiceOpcode.NOTE,
-                                        tag = tag,
-                                        value = pitch,
-                                        extra = effectiveAmp,
-                                        duration = soundingDurSec,
-                                    )
-                                )
-                                soundingNotes[tag] = pitch
-                            }
-                        }
-                    })
-                    if (soundingPitches.isNotEmpty()) {
-                        scheduledEvents.add(e.schedule(soundingOffTime) {
-                            voiceTags.forEach { soundingNotes.remove(it) }
-                        })
-                    }
+                val inPlaybackRange = startTick != null
+                if (inPlaybackRange) {
                     hasActiveHighlight = true
                 }
+                val slot = PlaybackSlot(
+                    loc = ScoreItemLocation(mIdx, slotIdx),
+                    itemIdx = itemIdx,
+                    item = item,
+                    onsetTick = tickCursor,
+                    endTick = tickCursor + itemTicks,
+                    attackDyn = attackDyn,
+                    startsHighlight = inPlaybackRange,
+                )
+                slots.add(slot)
+                slotByLoc[slot.loc] = slot
                 tickCursor += itemTicks
             }
             if (startTick == null && targetCursor != null && mIdx == targetCursor.measureIdx && targetCursor.itemIdx >= measure.items.size) {
@@ -283,10 +264,7 @@ class ScoreModule : Module("score"), EngineAware {
             val measureTicks = tickCursor - measureStartTick
             if (measureTicks < measureCapacityTicks) {
                 if (hasActiveHighlight && startTick != null) {
-                    val restStartTime = now + ScoreTime(((tickCursor - startTick) * nsPerTick).roundToLong())
-                    scheduledEvents.add(e.schedule(restStartTime) {
-                        activeItemIndex = null
-                    })
+                    trailingRestTicks.add(tickCursor)
                     hasActiveHighlight = false
                 }
                 tickCursor = measureStartTick + measureCapacityTicks
@@ -294,6 +272,89 @@ class ScoreModule : Module("score"), EngineAware {
         }
 
         val resolvedStartTick = startTick ?: 0L
+        val continuedPitchesByLoc = HashMap<ScoreItemLocation, MutableSet<Int>>()
+
+        for (slot in slots) {
+            if (!slot.startsHighlight) continue
+            val item = slot.item
+            val relStartTick = slot.onsetTick - resolvedStartTick
+            val onTime = now + ScoreTime((relStartTick * nsPerTick).roundToLong())
+            val continuedMidis = continuedPitchesByLoc[slot.loc].orEmpty()
+            val attackPitches = item.soundingPitches().filter { it.midiPitch !in continuedMidis }
+
+            val effectiveAmp = if (slot.attackDyn != null) {
+                ((item.noteAmplitude() / 0.25) * slot.attackDyn.amplitude).coerceIn(0.0, 1.0)
+            } else {
+                item.noteAmplitude()
+            }
+
+            data class PitchAttackSpec(
+                val midiPitch: Double,
+                val tag: Int,
+                val soundingDurSec: Double,
+                val soundingOffTime: ScoreTime,
+            )
+
+            val attackSpecs = attackPitches.map { spelled ->
+                val targetMidi = spelled.midiPitch
+                var endSlot = slot
+                var curLoc = slot.loc
+                while (ScoreEditing.hasActiveTieForPitch(measures, curLoc.measureIdx, curLoc.itemIdx, targetMidi)) {
+                    val nextLoc = ScoreEditing.nextItemLocation(measures, curLoc.measureIdx, curLoc.itemIdx) ?: break
+                    val nextSlot = slotByLoc[nextLoc] ?: break
+                    continuedPitchesByLoc.getOrPut(nextLoc) { mutableSetOf() }.add(targetMidi)
+                    endSlot = nextSlot
+                    curLoc = nextLoc
+                }
+                val sustainDurSec = ((endSlot.endTick - slot.onsetTick).coerceAtLeast(0L) * nsPerTick) / 1_000_000_000.0
+                val soundingDurSec = if (endSlot.item.noteStaccato()) {
+                    val leadSec = ((endSlot.onsetTick - slot.onsetTick).coerceAtLeast(0L) * nsPerTick) / 1_000_000_000.0
+                    val lastNoteFullSec = ((endSlot.endTick - endSlot.onsetTick).coerceAtLeast(0L) * nsPerTick) / 1_000_000_000.0
+                    val staccatoTailSec = minOf(lastNoteFullSec * STACCATO_DURATION_FRACTION, MAX_STACCATO_SECONDS)
+                        .coerceAtLeast(minOf(MIN_STACCATO_SECONDS, lastNoteFullSec))
+                    leadSec + staccatoTailSec
+                } else {
+                    sustainDurSec
+                }
+                val soundingOffTime = onTime + ScoreTime((soundingDurSec * 1_000_000_000.0).roundToLong())
+                PitchAttackSpec(
+                    midiPitch = targetMidi.toDouble(),
+                    tag = nextVoiceTag++,
+                    soundingDurSec = soundingDurSec,
+                    soundingOffTime = soundingOffTime,
+                )
+            }
+
+            scheduledEvents.add(e.schedule(onTime) {
+                activeItemIndex = slot.itemIdx
+                for (spec in attackSpecs) {
+                    output.send(
+                        Message.VoiceMessage(
+                            time = onTime,
+                            opcode = Message.VoiceOpcode.NOTE,
+                            tag = spec.tag,
+                            value = spec.midiPitch,
+                            extra = effectiveAmp,
+                            duration = spec.soundingDurSec,
+                        )
+                    )
+                    soundingNotes[spec.tag] = spec.midiPitch
+                }
+            })
+            for (spec in attackSpecs) {
+                scheduledEvents.add(e.schedule(spec.soundingOffTime) {
+                    soundingNotes.remove(spec.tag)
+                })
+            }
+        }
+
+        for (restTick in trailingRestTicks) {
+            val restStartTime = now + ScoreTime(((restTick - resolvedStartTick) * nsPerTick).roundToLong())
+            scheduledEvents.add(e.schedule(restStartTime) {
+                activeItemIndex = null
+            })
+        }
+
         val endTime = now + ScoreTime(((tickCursor - resolvedStartTick).coerceAtLeast(0L) * nsPerTick).roundToLong()) + ScoreTime(1L)
         scheduledEvents.add(e.schedule(endTime) {
             activeItemIndex = null
