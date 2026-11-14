@@ -532,6 +532,12 @@ class ScoreModuleTest {
         assertTrue(ScorePalettes.restOptions.all { it.isRest && it.glyph == it.duration.restGlyph })
         assertEquals(SmuflGlyphs.NOTE_QUARTER_UP, ScorePalettes.noteOptions[2].glyph)
         assertEquals(SmuflGlyphs.REST_QUARTER, ScorePalettes.restOptions[2].glyph)
+
+        assertEquals(
+            listOf(Accidental.FLAT, Accidental.SHARP, Accidental.NATURAL),
+            ScorePalettes.accidentalOptions.map { it.accidental },
+        )
+        assertEquals(listOf('2', '3', '4'), ScorePalettes.accidentalOptions.map { it.shortcutChar })
     }
 
     @Test

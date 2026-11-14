@@ -933,24 +933,6 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 Text("Select", fontSize = 11.sp, color = color)
             }
 
-            ToolbarToggleChip(
-                selected = editorMode == ScoreEditMode.BEAM && !module.isStepRecording,
-                accentColor = accentColor,
-                borderMuted = borderMuted,
-                textColor = toolbarText,
-                isDark = isDark,
-                onClick = {
-                    module.exitStepRecording()
-                    openPalette = null
-                    pendingAccidental = null
-                    editorMode = ScoreEditMode.BEAM
-                    module.placeCursor(null)
-                    hoverPos = null
-                },
-            ) { color ->
-                Text("Beam", fontSize = 11.sp, color = color)
-            }
-
             val stepColor = Color(0xFFEF4444)
             ToolbarToggleChip(
                 selected = module.isStepRecording,
@@ -969,86 +951,6 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         size = 9.dp,
                     )
                     Text("Step", fontSize = 11.sp, color = if (module.isStepRecording) stepColor else color)
-                }
-            }
-
-            Text("|", color = borderMuted)
-
-            val selectedSlotItems = selectedLocations
-                .mapNotNull { loc -> ScoreEditing.itemAt(score.measures, loc) }
-                .filter { it.soundingPitches().isNotEmpty() }
-            val staccatoActive = if (selectedSlotItems.isNotEmpty()) {
-                selectedSlotItems.all { it.noteStaccato() }
-            } else {
-                pendingStaccato
-            }
-            val selectedPitchesForToolbar = selectedLocations.flatMap { loc ->
-                when (val item = ScoreEditing.itemAt(score.measures, loc)) {
-                    is ScoreItem.Note -> listOf(item.pitch)
-                    is ScoreItem.Chord -> if (loc.chordNoteIdx != null) {
-                        listOfNotNull(item.pitches.getOrNull(loc.chordNoteIdx))
-                    } else {
-                        item.pitches
-                    }
-                    else -> emptyList()
-                }
-            }
-            val activeAlter = if (selectedPitchesForToolbar.isNotEmpty()) {
-                selectedPitchesForToolbar.map { it.alter }.distinct().singleOrNull()
-            } else {
-                pendingAccidental?.alter
-            }
-
-            ToolbarToggleChip(
-                selected = staccatoActive,
-                accentColor = accentColor,
-                borderMuted = borderMuted,
-                textColor = toolbarText,
-                isDark = isDark,
-                onClick = { toggleStaccato() },
-            ) { color ->
-                Text("1·", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = color)
-            }
-
-            ToolbarToggleChip(
-                selected = activeAlter == Accidental.FLAT.alter,
-                accentColor = accentColor,
-                borderMuted = borderMuted,
-                textColor = toolbarText,
-                isDark = isDark,
-                onClick = { applyAccidental(Accidental.FLAT) },
-            ) { color ->
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(1.dp)) {
-                    Text("2", fontSize = 9.sp, color = color.copy(alpha = 0.75f))
-                    Text(SmuflGlyphs.ACCIDENTAL_FLAT, fontFamily = musicFontFamily, fontSize = 15.sp, color = color)
-                }
-            }
-
-            ToolbarToggleChip(
-                selected = activeAlter == Accidental.SHARP.alter,
-                accentColor = accentColor,
-                borderMuted = borderMuted,
-                textColor = toolbarText,
-                isDark = isDark,
-                onClick = { applyAccidental(Accidental.SHARP) },
-            ) { color ->
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(1.dp)) {
-                    Text("3", fontSize = 9.sp, color = color.copy(alpha = 0.75f))
-                    Text(SmuflGlyphs.ACCIDENTAL_SHARP, fontFamily = musicFontFamily, fontSize = 15.sp, color = color)
-                }
-            }
-
-            ToolbarToggleChip(
-                selected = activeAlter == Accidental.NATURAL.alter,
-                accentColor = accentColor,
-                borderMuted = borderMuted,
-                textColor = toolbarText,
-                isDark = isDark,
-                onClick = { applyAccidental(Accidental.NATURAL) },
-            ) { color ->
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(1.dp)) {
-                    Text("4", fontSize = 9.sp, color = color.copy(alpha = 0.75f))
-                    Text(SmuflGlyphs.ACCIDENTAL_NATURAL, fontFamily = musicFontFamily, fontSize = 15.sp, color = color)
                 }
             }
 
@@ -1143,6 +1045,30 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             )
             val canRemoveClefChange = (clefTargetLoc.measureIdx > 0 || clefTargetLoc.itemIdx > 0) &&
                 ScoreEditing.hasExplicitClefChangeAt(score.measures, clefTargetLoc)
+            val selectedSlotItems = selectedLocations
+                .mapNotNull { loc -> ScoreEditing.itemAt(score.measures, loc) }
+                .filter { it.soundingPitches().isNotEmpty() }
+            val staccatoActive = if (selectedSlotItems.isNotEmpty()) {
+                selectedSlotItems.all { it.noteStaccato() }
+            } else {
+                pendingStaccato
+            }
+            val selectedPitchesForPalette = selectedLocations.flatMap { loc ->
+                when (val item = ScoreEditing.itemAt(score.measures, loc)) {
+                    is ScoreItem.Note -> listOf(item.pitch)
+                    is ScoreItem.Chord -> if (loc.chordNoteIdx != null) {
+                        listOfNotNull(item.pitches.getOrNull(loc.chordNoteIdx))
+                    } else {
+                        item.pitches
+                    }
+                    else -> emptyList()
+                }
+            }
+            val activeAlter = if (selectedPitchesForPalette.isNotEmpty()) {
+                selectedPitchesForPalette.map { it.alter }.distinct().singleOrNull()
+            } else {
+                pendingAccidental?.alter
+            }
             ScorePalettePanel(
                 openPalette = openPalette,
                 editorMode = editorMode,
@@ -1175,6 +1101,8 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         entryDuration = entryDuration,
                         entryIsRest = entryIsRest,
                         entryIsDotted = entryIsDotted,
+                        activeAlter = activeAlter,
+                        staccatoActive = staccatoActive,
                         isDark = isDark,
                         toolbarText = toolbarText,
                         accentColor = accentColor,
@@ -1197,6 +1125,23 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         },
                         onToggleDot = {
                             toggleDotMode()
+                            focusRequester.requestFocus()
+                        },
+                        onApplyAccidental = { acc ->
+                            applyAccidental(acc)
+                            focusRequester.requestFocus()
+                        },
+                        onToggleStaccato = {
+                            toggleStaccato()
+                            focusRequester.requestFocus()
+                        },
+                        onSelectBeamTool = {
+                            module.exitStepRecording()
+                            openPalette = null
+                            pendingAccidental = null
+                            editorMode = ScoreEditMode.BEAM
+                            module.placeCursor(null)
+                            hoverPos = null
                             focusRequester.requestFocus()
                         },
                         onDismiss = { openPalette = null },
@@ -2367,7 +2312,8 @@ private fun ScorePalettePanel(
                 val isOpen = openPalette == kind
                 val isToolActive = when (kind) {
                     ScorePaletteKind.NOTES_RESTS ->
-                        (editorMode == ScoreEditMode.ENTRY && !isStepRecording) || isStepRecording
+                        ((editorMode == ScoreEditMode.ENTRY || editorMode == ScoreEditMode.BEAM) && !isStepRecording) ||
+                            isStepRecording
                     ScorePaletteKind.DYNAMICS ->
                         editorMode == ScoreEditMode.DYNAMIC && !isStepRecording
                     ScorePaletteKind.KEY_SIGNATURES, ScorePaletteKind.CLEFS -> false
@@ -2509,6 +2455,8 @@ private fun NotesRestsPalettePopup(
     entryDuration: NoteDuration,
     entryIsRest: Boolean,
     entryIsDotted: Boolean,
+    activeAlter: Int?,
+    staccatoActive: Boolean,
     isDark: Boolean,
     toolbarText: Color,
     accentColor: Color,
@@ -2517,6 +2465,9 @@ private fun NotesRestsPalettePopup(
     textMeasurer: TextMeasurer,
     onSelectOption: (NoteDuration, Boolean) -> Unit,
     onToggleDot: () -> Unit,
+    onApplyAccidental: (Accidental) -> Unit,
+    onToggleStaccato: () -> Unit,
+    onSelectBeamTool: () -> Unit,
     onDismiss: () -> Unit,
     onKeyEvent: (KeyEvent) -> Boolean,
 ) {
@@ -2637,6 +2588,161 @@ private fun NotesRestsPalettePopup(
                     textMeasurer = textMeasurer,
                     onSelectOption = onSelectOption,
                 )
+
+                // Accidentals row
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    Text(
+                        text = "Accidentals",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = toolbarText,
+                        modifier = Modifier.width(62.dp),
+                    )
+                    ScorePalettes.accidentalOptions.forEach { option ->
+                        val selected = activeAlter == option.accidental.alter
+                        val contentColor = if (selected) {
+                            if (isDark) Color.White else accentColor
+                        } else {
+                            toolbarText
+                        }
+                        val bg = if (selected) accentColor.copy(alpha = 0.22f) else tileBg
+                        Column(
+                            modifier = Modifier
+                                .width(30.dp)
+                                .background(bg, RoundedCornerShape(5.dp))
+                                .border(
+                                    width = if (selected) 1.5.dp else 1.dp,
+                                    color = if (selected) accentColor else borderMuted,
+                                    shape = RoundedCornerShape(5.dp),
+                                )
+                                .pointerHoverIcon(PointerIcon.Hand)
+                                .clickable { onApplyAccidental(option.accidental) }
+                                .padding(horizontal = 2.dp, vertical = 2.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(1.dp),
+                        ) {
+                            Text(
+                                text = option.glyph,
+                                fontFamily = musicFontFamily,
+                                fontSize = 15.sp,
+                                color = contentColor,
+                            )
+                            Text(
+                                text = option.shortcutChar.toString(),
+                                fontSize = 9.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                color = contentColor.copy(alpha = if (selected) 1f else 0.8f),
+                            )
+                        }
+                    }
+                }
+
+                // Articulations row
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    Text(
+                        text = "Articulations",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = toolbarText,
+                        modifier = Modifier.width(62.dp),
+                    )
+                    val staccContentColor = if (staccatoActive) {
+                        if (isDark) Color.White else accentColor
+                    } else {
+                        toolbarText
+                    }
+                    val staccBg = if (staccatoActive) accentColor.copy(alpha = 0.22f) else tileBg
+                    Row(
+                        modifier = Modifier
+                            .background(staccBg, RoundedCornerShape(5.dp))
+                            .border(
+                                width = if (staccatoActive) 1.5.dp else 1.dp,
+                                color = if (staccatoActive) accentColor else borderMuted,
+                                shape = RoundedCornerShape(5.dp),
+                            )
+                            .pointerHoverIcon(PointerIcon.Hand)
+                            .clickable { onToggleStaccato() }
+                            .padding(horizontal = 7.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = "·",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = staccContentColor,
+                        )
+                        Text(
+                            text = "Staccato",
+                            fontSize = 10.sp,
+                            fontWeight = if (staccatoActive) FontWeight.SemiBold else FontWeight.Medium,
+                            color = staccContentColor,
+                        )
+                        Text(
+                            text = "1",
+                            fontSize = 9.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = if (staccatoActive) FontWeight.Bold else FontWeight.Medium,
+                            color = staccContentColor.copy(alpha = if (staccatoActive) 1f else 0.8f),
+                        )
+                    }
+                }
+
+                // Tools row
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    Text(
+                        text = "Tools",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = toolbarText,
+                        modifier = Modifier.width(62.dp),
+                    )
+                    val beamSelected = editorMode == ScoreEditMode.BEAM && !isStepRecording
+                    val beamContentColor = if (beamSelected) {
+                        if (isDark) Color.White else accentColor
+                    } else {
+                        toolbarText
+                    }
+                    val beamBg = if (beamSelected) accentColor.copy(alpha = 0.22f) else tileBg
+                    Row(
+                        modifier = Modifier
+                            .background(beamBg, RoundedCornerShape(5.dp))
+                            .border(
+                                width = if (beamSelected) 1.5.dp else 1.dp,
+                                color = if (beamSelected) accentColor else borderMuted,
+                                shape = RoundedCornerShape(5.dp),
+                            )
+                            .pointerHoverIcon(PointerIcon.Hand)
+                            .clickable { onSelectBeamTool() }
+                            .padding(horizontal = 7.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = "Beam",
+                            fontSize = 10.sp,
+                            fontWeight = if (beamSelected) FontWeight.SemiBold else FontWeight.Medium,
+                            color = beamContentColor,
+                        )
+                        Text(
+                            text = "Shift+B",
+                            fontSize = 9.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = if (beamSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = beamContentColor.copy(alpha = if (beamSelected) 1f else 0.8f),
+                        )
+                    }
+                }
             }
         }
     }
@@ -2669,7 +2775,7 @@ private fun NotesRestsPaletteRow(
             fontSize = 9.sp,
             fontWeight = FontWeight.Medium,
             color = toolbarText,
-            modifier = Modifier.width(30.dp),
+            modifier = Modifier.width(62.dp),
         )
         options.forEach { option ->
             val effectiveIsRest = !isStepRecording && entryIsRest

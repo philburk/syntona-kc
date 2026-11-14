@@ -179,7 +179,7 @@ When Playback is started using the play button or space bar, play from the curso
 Add a Rewind button next to the Play button that positions the cursor at the beginning.
 When playback is initiated from the "Start" jack, start at the beginning.
 
-### Phase ? - Beams
+### Phase 13 - Beams
 
 Add beams. Beams do not change the playback.
 
@@ -189,16 +189,37 @@ Pressing SHIFT+B will enter beaming mode.
 When the user clicks on a note it will be beamed with the following note.
 If the user clicks on a note that is currently beamed then it will un-beam that note.
 
-### Phase ? - Ties
+### Phase 14 - Reorganize
+
+Move the Flat, Sharp and Natural buttons into the Notes palette under the category "Accidentals".
+Move the Staccato button into the Notes palette under "Articulations".
+Move the Beam button into the Notes palette under "Tools".
+
+### Phase 15 - Ties
 
 Ties will combine note durations and is often used to hold a note across a measure boundary.
 
 Pressing SHIFT+T will enter Tie mode.
 Click on a note with the Tie cursor to make it tie to the next note.
 
+
 ### Phase ? - Multiple Instruments
 Add support for multiple instruments.
 Add new instruments with a "+" button.
+After clicking a +, a new instrument dialog will appear with some options.
+
+One can enter a note range. The default will be the range of an 88 key piano.
+This will help composers avoid scoring notes that are impossible to play on, for example, a violin.
+Notes that are out of range can be entered but will display in red.
+
+The note range will determine the default clef and whether two staves are needed.
+
+One can enter an instrument type. This will determine the articulations available, for example pizzicato.
+(We don't currently support pizzicato but will some day.)
+Types are: plucked strings, bowed string, brass, woodwind, keyboards, percussive, electronic.
+
+Presets are: violin, viola, cello, guitar, piano, trumpet
+
 Each instrument has its own voice output jack.
 
 ### Phase ? - Document Name, Composer, Date and other fields

@@ -40,6 +40,16 @@ data class ScoreNoteRestOption(
 )
 
 /**
+ * A selectable accidental entry inside the Notes/Rests popup palette ("Accidentals" row).
+ */
+data class ScoreAccidentalOption(
+    val accidental: Accidental,
+    val glyph: String,
+    val shortcutChar: Char,
+    val label: String,
+)
+
+/**
  * A selectable entry inside the Key Signatures popup palette.
  */
 data class ScoreKeyOption(
@@ -105,6 +115,12 @@ object ScorePalettes {
             label = "${dur.displayLabel} Rest",
         )
     }
+
+    val accidentalOptions: List<ScoreAccidentalOption> = listOf(
+        ScoreAccidentalOption(Accidental.FLAT, Accidental.FLAT.glyph, '2', "Flat"),
+        ScoreAccidentalOption(Accidental.SHARP, Accidental.SHARP.glyph, '3', "Sharp"),
+        ScoreAccidentalOption(Accidental.NATURAL, Accidental.NATURAL.glyph, '4', "Natural"),
+    )
 
     val sharpKeyOptions: List<ScoreKeyOption> = listOf(
         ScoreKeyOption(KeySignature.C_MAJOR, "C", "0"),
