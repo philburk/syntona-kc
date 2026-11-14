@@ -1026,6 +1026,476 @@ object ScoreEditing {
     }
 
     /**
+     * Captures the currently selected notes, chords, and rests in score order along with each
+     * item's measure offset relative to the first selected measure (and any explicit clef at that
+     * slot) so pasting preserves bar boundaries and mid-score clefs.
+     * When only specific noteheads of a [ScoreItem.Chord] are selected, copies only
+     * those pitches rather than the entire chord.
+     */
+    fun copySelectedEntries(
+        measures: List<ScoreMeasure>,
+        selection: Set<ScoreItemLocation>,
+    ): List<ScoreClipboardItem> {
+        if (selection.isEmpty()) return emptyList()
+        val bySlot = selection.groupBy { it.slotLocation() }
+        val sortedSlots = bySlot.keys.sortedWith(compareBy<ScoreItemLocation> { it.measureIdx }.thenBy { it.itemIdx })
+        val firstMeasureIdx = sortedSlots.firstOrNull { itemAt(measures, it) != null }?.measureIdx ?: return emptyList()
+        val copied = mutableListOf<ScoreClipboardItem>()
+        for (slot in sortedSlots) {
+            val item = itemAt(measures, slot) ?: continue
+            val relMeasure = slot.measureIdx - firstMeasureIdx
+            val clefBefore = measures
+                .getOrNull(slot.measureIdx)
+                ?.clefChanges
+                ?.get(slot.itemIdx)
+                ?.takeIf { slot.itemIdx > 0 || slot.measureIdx > 0 }
+            val locs = bySlot.getValue(slot)
+            if (item is ScoreItem.Chord && locs.none { it.chordNoteIdx == null }) {
+                val selectedIndices = locs
+                    .mapNotNull { it.chordNoteIdx }
+                    .filter { it in item.pitches.indices }
+                    .distinct()
+                    .sorted()
+                val pitches = selectedIndices.map { item.pitches[it] }
+                itemFromPitches(
+                    pitches = pitches,
+                    duration = item.duration,
+                    isDotted = item.isDotted,
+                    amplitude = item.amplitude,
+                    isStaccato = item.isStaccato,
+                )?.let { copied.add(ScoreClipboardItem(it, relMeasure, clefBefore)) }
+            } else {
+                copied.add(ScoreClipboardItem(item, relMeasure, clefBefore))
+            }
+        }
+        return copied
+    }
+
+    /**
+     * Builds a typed [ScoreClipboardContent] snapshot from the active editor selection:
+     * - Highlighted measures ([selectedMeasures] non-empty) capture every measure's items,
+     *   effective opening key/time/clef, and mid-measure/trailing clefs.
+     * - Item selections ([selectedLocations] non-empty) capture items + measure offsets + attached clefs.
+     * - Standalone clef selection ([selectedClefChange] non-null) captures [ScoreClipboardContent.ClefOnly].
+     */
+    fun copySelectionContent(
+        measures: List<ScoreMeasure>,
+        initialClef: Clef,
+        initialKeySignature: KeySignature,
+        initialTimeSignature: TimeSignature,
+        selectedLocations: Set<ScoreItemLocation> = emptySet(),
+        selectedMeasures: Set<Int> = emptySet(),
+        selectedClefChange: ScoreClefLocation? = null,
+    ): ScoreClipboardContent? {
+        val validMeasures = selectedMeasures.filter { it in measures.indices }.sorted()
+        if (validMeasures.isNotEmpty()) {
+            val range = validMeasures.min()..validMeasures.max()
+            val copiedMeasures = range.map { mIdx ->
+                val m = measures[mIdx]
+                ScoreClipboardMeasure(
+                    measure = m.copy(
+                        items = m.items.toList(),
+                        clefChanges = m.clefChanges.toMap(),
+                    ),
+                    openingKey = effectiveKeyAtMeasure(measures, initialKeySignature, mIdx),
+                    openingTime = effectiveTimeAtMeasure(measures, initialTimeSignature, mIdx),
+                    openingClef = effectiveClefAt(measures, initialClef, mIdx, itemIdx = 0),
+                )
+            }
+            return ScoreClipboardContent.MeasureRange(copiedMeasures)
+        }
+        if (selectedLocations.isNotEmpty()) {
+            val entries = copySelectedEntries(measures, selectedLocations)
+            if (entries.isNotEmpty()) {
+                return ScoreClipboardContent.ItemSelection(entries)
+            }
+        }
+        if (selectedClefChange != null) {
+            val clef = effectiveClefAt(measures, initialClef, selectedClefChange.measureIdx, selectedClefChange.itemIdx)
+            return ScoreClipboardContent.ClefOnly(clef)
+        }
+        return null
+    }
+
+    /** Convenience helper returning just the copied [ScoreItem]s without measure offsets. */
+    fun copySelectedItems(
+        measures: List<ScoreMeasure>,
+        selection: Set<ScoreItemLocation>,
+    ): List<ScoreItem> = copySelectedEntries(measures, selection).map { it.item }
+
+    /**
+     * Inserts flat [itemsToPaste] into [measures] (treating all items as contiguous from the
+     * target slot while wrapping across full measures per time signature).
+     */
+    fun pasteItems(
+        measures: List<ScoreMeasure>,
+        itemsToPaste: List<ScoreItem>,
+        initialTimeSignature: TimeSignature,
+        selectedLocations: Set<ScoreItemLocation> = emptySet(),
+        cursorPosition: ScoreCursorPosition? = null,
+        selectedMeasures: Set<Int> = emptySet(),
+        appendMeasureOnFull: Boolean = false,
+    ): ScorePasteResult? = pasteClipboardItems(
+        measures = measures,
+        entries = itemsToPaste.map { ScoreClipboardItem(it, 0) },
+        initialTimeSignature = initialTimeSignature,
+        selectedLocations = selectedLocations,
+        cursorPosition = cursorPosition,
+        selectedMeasures = selectedMeasures,
+        appendMeasureOnFull = appendMeasureOnFull,
+    )
+
+    /**
+     * Inserts measure-aware [entries] into [measures] starting at the active [cursorPosition],
+     * after the last item in [selectedLocations], into [selectedMeasures], or at the end of
+     * existing content (falling back to measure 1 beat 1 if all measures are empty).
+     * Measure jumps in [entries] advance to corresponding target measures so incomplete measures
+     * (missing rests) preserve their bar alignment and timing, while contiguous items that exceed
+     * a measure's capacity still wrap across barlines according to each measure's time signature.
+     */
+    fun pasteClipboardItems(
+        measures: List<ScoreMeasure>,
+        entries: List<ScoreClipboardItem>,
+        initialTimeSignature: TimeSignature,
+        selectedLocations: Set<ScoreItemLocation> = emptySet(),
+        cursorPosition: ScoreCursorPosition? = null,
+        selectedMeasures: Set<Int> = emptySet(),
+        appendMeasureOnFull: Boolean = false,
+        initialClef: Clef = Clef.TREBLE,
+    ): ScorePasteResult? {
+        if (entries.isEmpty()) return null
+        var current = renumber(measures)
+        var afterClef = initialClef
+        val (startMIdx, startIIdx) = when {
+            cursorPosition != null -> {
+                if (current.isEmpty()) {
+                    0 to 0
+                } else {
+                    val m = cursorPosition.measureIdx.coerceIn(0, current.lastIndex)
+                    m to cursorPosition.itemIdx.coerceIn(0, current[m].items.size)
+                }
+            }
+            selectedLocations.isNotEmpty() -> {
+                val lastSel = selectedLocations
+                    .map { it.slotLocation() }
+                    .maxWith(compareBy<ScoreItemLocation> { it.measureIdx }.thenBy { it.itemIdx })
+                if (current.isEmpty()) {
+                    0 to 0
+                } else {
+                    val m = lastSel.measureIdx.coerceIn(0, current.lastIndex)
+                    val i = (lastSel.itemIdx + 1).coerceIn(0, current[m].items.size)
+                    m to i
+                }
+            }
+            selectedMeasures.isNotEmpty() -> {
+                if (current.isEmpty()) {
+                    0 to 0
+                } else {
+                    val m = selectedMeasures.min().coerceIn(0, current.lastIndex)
+                    m to current[m].items.size
+                }
+            }
+            else -> {
+                val lastNonEmpty = current.indexOfLast { it.items.isNotEmpty() }
+                if (lastNonEmpty >= 0) {
+                    lastNonEmpty to current[lastNonEmpty].items.size
+                } else {
+                    0 to 0
+                }
+            }
+        }
+
+        var mIdx = startMIdx
+        var iIdx = startIIdx
+        var prevRelMeasure = entries.first().relativeMeasureOffset
+        val pastedLocs = linkedSetOf<ScoreItemLocation>()
+        var lastInsertedLoc = ScoreItemLocation(0, 0)
+
+        for (entry in entries) {
+            val barJump = (entry.relativeMeasureOffset - prevRelMeasure).coerceAtLeast(0)
+            if (barJump > 0) {
+                mIdx += barJump
+                iIdx = 0
+                prevRelMeasure = entry.relativeMeasureOffset
+            }
+            while (mIdx >= current.size) {
+                current = appendEmptyMeasure(current)
+                iIdx = 0
+            }
+            val curMeasure = current[mIdx]
+            if (iIdx >= curMeasure.items.size && curMeasure.items.isNotEmpty()) {
+                val capTicks = effectiveTimeAtMeasure(current, initialTimeSignature, mIdx).measureCapacityTicks
+                val curTicks = curMeasure.items.sumOf { it.totalTicks }
+                if (curTicks + entry.item.totalTicks > capTicks) {
+                    mIdx++
+                    iIdx = 0
+                    if (mIdx >= current.size) {
+                        current = appendEmptyMeasure(current)
+                    }
+                }
+            }
+            val (next, loc) = insertItem(
+                current,
+                mIdx,
+                iIdx,
+                entry.item,
+                appendNewMeasure = mIdx >= current.size,
+                shiftClefAtIndex = true,
+            )
+            current = next
+            if (entry.clefBefore != null && (loc.measureIdx > 0 || loc.itemIdx > 0)) {
+                val (updatedClef, updatedMeasures) = setClefChange(
+                    afterClef,
+                    current,
+                    ScoreClefLocation(loc.measureIdx, loc.itemIdx),
+                    entry.clefBefore,
+                )
+                afterClef = updatedClef
+                current = updatedMeasures
+            }
+            pastedLocs.add(loc)
+            lastInsertedLoc = loc
+            mIdx = loc.measureIdx
+            iIdx = loc.itemIdx + 1
+        }
+
+        val finalMeasure = current[lastInsertedLoc.measureIdx]
+        val finalCap = effectiveTimeAtMeasure(current, initialTimeSignature, lastInsertedLoc.measureIdx).measureCapacityTicks
+        val atEndOfMeasure = lastInsertedLoc.itemIdx == finalMeasure.items.lastIndex
+        val nextCursor = if (atEndOfMeasure && finalMeasure.items.sumOf { it.totalTicks } >= finalCap) {
+            val nextM = lastInsertedLoc.measureIdx + 1
+            if (nextM < current.size) {
+                ScoreCursorPosition(nextM, 0)
+            } else if (appendMeasureOnFull) {
+                current = appendEmptyMeasure(current)
+                ScoreCursorPosition(nextM, 0)
+            } else {
+                ScoreCursorPosition(lastInsertedLoc.measureIdx, finalMeasure.items.size)
+            }
+        } else {
+            ScoreCursorPosition(lastInsertedLoc.measureIdx, lastInsertedLoc.itemIdx + 1)
+        }
+
+        return ScorePasteResult(
+            measures = current,
+            pastedLocations = pastedLocs,
+            nextCursor = nextCursor,
+            initialClef = afterClef,
+        )
+    }
+
+    /**
+     * Pastes any [ScoreClipboardContent] (whole [ScoreClipboardContent.MeasureRange] with key
+     * signatures, time signatures, clefs, items, and empty bars, or [ScoreClipboardContent.ItemSelection])
+     * into the score document starting at the active cursor or selection.
+     * Standalone [ScoreClipboardContent.ClefOnly] is handled by [setClefChange] at the target clef location.
+     */
+    fun pasteClipboardContent(
+        measures: List<ScoreMeasure>,
+        content: ScoreClipboardContent,
+        initialClef: Clef,
+        initialKeySignature: KeySignature,
+        initialTimeSignature: TimeSignature,
+        selectedLocations: Set<ScoreItemLocation> = emptySet(),
+        cursorPosition: ScoreCursorPosition? = null,
+        selectedMeasures: Set<Int> = emptySet(),
+        appendMeasureOnFull: Boolean = false,
+    ): ScorePasteResult? = when (content) {
+        is ScoreClipboardContent.MeasureRange -> pasteMeasureRange(
+            measures = measures,
+            copiedMeasures = content.measures,
+            initialClef = initialClef,
+            initialKeySignature = initialKeySignature,
+            initialTimeSignature = initialTimeSignature,
+            selectedLocations = selectedLocations,
+            cursorPosition = cursorPosition,
+            selectedMeasures = selectedMeasures,
+            appendMeasureOnFull = appendMeasureOnFull,
+        )
+        is ScoreClipboardContent.ItemSelection -> pasteClipboardItems(
+            measures = measures,
+            entries = content.items,
+            initialTimeSignature = initialTimeSignature,
+            selectedLocations = selectedLocations,
+            cursorPosition = cursorPosition,
+            selectedMeasures = selectedMeasures,
+            appendMeasureOnFull = appendMeasureOnFull,
+            initialClef = initialClef,
+        )?.copy(
+            initialKeySignature = initialKeySignature,
+            initialTimeSignature = initialTimeSignature,
+        )
+        is ScoreClipboardContent.ClefOnly -> null
+    }
+
+    private fun pasteMeasureRange(
+        measures: List<ScoreMeasure>,
+        copiedMeasures: List<ScoreClipboardMeasure>,
+        initialClef: Clef,
+        initialKeySignature: KeySignature,
+        initialTimeSignature: TimeSignature,
+        selectedLocations: Set<ScoreItemLocation>,
+        cursorPosition: ScoreCursorPosition?,
+        selectedMeasures: Set<Int>,
+        appendMeasureOnFull: Boolean,
+    ): ScorePasteResult? {
+        if (copiedMeasures.isEmpty()) return null
+        var current = renumber(measures)
+        var afterClef = initialClef
+        var afterKey = initialKeySignature
+        var afterTime = initialTimeSignature
+
+        val (startMIdx, startIIdx) = when {
+            cursorPosition != null -> {
+                if (current.isEmpty()) {
+                    0 to 0
+                } else {
+                    val m = cursorPosition.measureIdx.coerceIn(0, current.lastIndex)
+                    val i = cursorPosition.itemIdx.coerceIn(0, current[m].items.size)
+                    // When the cursor sits after the last item of a non-empty bar (or past the final
+                    // barline), start the pasted measure range on the following measure so copied bar 1
+                    // retains its key/time/clef headers and new trailing bars are appended automatically.
+                    if (i > 0 && i == current[m].items.size) (m + 1) to 0 else m to i
+                }
+            }
+            selectedLocations.isNotEmpty() -> {
+                if (current.isEmpty()) {
+                    0 to 0
+                } else {
+                    val lastM = maxOf(
+                        selectedLocations.maxOf { it.measureIdx },
+                        selectedMeasures.maxOrNull() ?: -1,
+                    ).coerceIn(0, current.lastIndex)
+                    (lastM + 1) to 0
+                }
+            }
+            selectedMeasures.isNotEmpty() -> {
+                selectedMeasures.min().coerceAtLeast(0) to 0
+            }
+            else -> {
+                val lastNonEmpty = current.indexOfLast {
+                    it.items.isNotEmpty() ||
+                        it.keySignature != null ||
+                        it.timeSignature != null ||
+                        it.clefChanges.isNotEmpty()
+                }
+                if (lastNonEmpty >= 0) (lastNonEmpty + 1) to 0 else 0 to 0
+            }
+        }
+
+        val pastedLocs = linkedSetOf<ScoreItemLocation>()
+        val pastedMeasureSet = linkedSetOf<Int>()
+
+        for ((offset, cm) in copiedMeasures.withIndex()) {
+            val targetMIdx = startMIdx + offset
+            while (targetMIdx >= current.size) {
+                current = appendEmptyMeasure(current)
+            }
+            val insertIIdx = if (offset == 0) startIIdx else 0
+            val dest = current[targetMIdx]
+            val insertedCount = cm.measure.items.size
+            val beforeItems = dest.items.take(insertIIdx)
+            val afterItems = dest.items.drop(insertIIdx)
+            val mergedItems = beforeItems + cm.measure.items + afterItems
+            for (i in 0 until insertedCount) {
+                pastedLocs.add(ScoreItemLocation(targetMIdx, insertIIdx + i))
+            }
+
+            val mergedClefs = mutableMapOf<Int, Clef>()
+            for ((k, clef) in dest.clefChanges) {
+                when {
+                    k < insertIIdx -> mergedClefs[k] = clef
+                    k > 0 || insertIIdx > 0 -> mergedClefs[k + insertedCount] = clef
+                }
+            }
+            for ((k, clef) in cm.measure.clefChanges) {
+                if (k > 0) {
+                    mergedClefs[insertIIdx + k] = clef
+                }
+            }
+
+            val mergedKey: KeySignature?
+            val mergedTime: TimeSignature?
+            if (insertIIdx == 0) {
+                if (targetMIdx == 0) {
+                    afterKey = cm.openingKey
+                    afterTime = cm.openingTime
+                    afterClef = cm.openingClef
+                    mergedKey = null
+                    mergedTime = null
+                    mergedClefs.remove(0)
+                } else {
+                    val prevKey = effectiveKeyAtMeasure(current, afterKey, targetMIdx - 1)
+                    val prevTime = effectiveTimeAtMeasure(current, afterTime, targetMIdx - 1)
+                    val prevClef = effectiveClefAt(current, afterClef, targetMIdx - 1, Int.MAX_VALUE)
+                    mergedKey = cm.openingKey.takeIf { it != prevKey }
+                    mergedTime = cm.openingTime.takeIf { it != prevTime }
+                    if (cm.openingClef != prevClef) {
+                        mergedClefs[0] = cm.openingClef
+                    } else {
+                        mergedClefs.remove(0)
+                    }
+                }
+            } else {
+                mergedKey = dest.keySignature
+                mergedTime = dest.timeSignature
+                val prevClef = effectiveClefAt(current, afterClef, targetMIdx, insertIIdx - 1)
+                if (cm.openingClef != prevClef) {
+                    mergedClefs[insertIIdx] = cm.openingClef
+                }
+            }
+
+            current = current.toMutableList().apply {
+                set(
+                    targetMIdx,
+                    dest.copy(
+                        items = mergedItems,
+                        keySignature = mergedKey,
+                        timeSignature = mergedTime,
+                        clefChanges = mergedClefs,
+                    )
+                )
+            }
+            pastedMeasureSet.add(targetMIdx)
+        }
+
+        current = renumber(current)
+        val lastM = startMIdx + copiedMeasures.lastIndex
+        val lastCopiedCount = copiedMeasures.last().measure.items.size
+        val nextCursor = if (lastCopiedCount == 0) {
+            ScoreCursorPosition(lastM, 0)
+        } else {
+            val lastItemIdx = if (copiedMeasures.size == 1) startIIdx + lastCopiedCount - 1 else lastCopiedCount - 1
+            val finalMeasure = current[lastM]
+            val finalCap = effectiveTimeAtMeasure(current, afterTime, lastM).measureCapacityTicks
+            val atEndOfMeasure = lastItemIdx == finalMeasure.items.lastIndex
+            if (atEndOfMeasure && finalMeasure.items.sumOf { it.totalTicks } >= finalCap) {
+                val nextM = lastM + 1
+                if (nextM < current.size) {
+                    ScoreCursorPosition(nextM, 0)
+                } else if (appendMeasureOnFull) {
+                    current = appendEmptyMeasure(current)
+                    ScoreCursorPosition(nextM, 0)
+                } else {
+                    ScoreCursorPosition(lastM, finalMeasure.items.size)
+                }
+            } else {
+                ScoreCursorPosition(lastM, lastItemIdx + 1)
+            }
+        }
+
+        return ScorePasteResult(
+            measures = current,
+            pastedLocations = pastedLocs,
+            nextCursor = nextCursor,
+            initialClef = afterClef,
+            initialKeySignature = afterKey,
+            initialTimeSignature = afterTime,
+            pastedMeasures = pastedMeasureSet,
+        )
+    }
+
+    /**
      * Resolves the target [ScoreClefLocation] from editor selection/cursor state.
      * Priority: explicit selected clef change, first selected item, active insertion cursor
      * (so a mid-measure cursor is not shadowed by single-measure click highlight), selected
@@ -1097,6 +1567,84 @@ data class ScoreStepInsertResult(
     val insertedLocation: ScoreItemLocation,
     val nextCursor: ScoreCursorPosition,
 )
+
+/** Single entry stored in [ScoreClipboard], retaining its relative measure offset and optional clef before it. */
+data class ScoreClipboardItem(
+    val item: ScoreItem,
+    val relativeMeasureOffset: Int = 0,
+    val clefBefore: Clef? = null,
+)
+
+/** Snapshot of a single copied measure, including its effective opening key/time/clef and internal clefs. */
+data class ScoreClipboardMeasure(
+    val measure: ScoreMeasure,
+    val openingKey: KeySignature,
+    val openingTime: TimeSignature,
+    val openingClef: Clef,
+)
+
+/** Typed payload stored in [ScoreClipboard] covering whole measures, selected items, or a standalone clef. */
+sealed interface ScoreClipboardContent {
+    data class MeasureRange(val measures: List<ScoreClipboardMeasure>) : ScoreClipboardContent
+    data class ItemSelection(val items: List<ScoreClipboardItem>) : ScoreClipboardContent
+    data class ClefOnly(val clef: Clef) : ScoreClipboardContent
+}
+
+/** Result of [ScoreEditing.pasteItems], [ScoreEditing.pasteClipboardItems], or [ScoreEditing.pasteClipboardContent]. */
+data class ScorePasteResult(
+    val measures: List<ScoreMeasure>,
+    val pastedLocations: Set<ScoreItemLocation>,
+    val nextCursor: ScoreCursorPosition,
+    val initialClef: Clef? = null,
+    val initialKeySignature: KeySignature? = null,
+    val initialTimeSignature: TimeSignature? = null,
+    val pastedMeasures: Set<Int> = emptySet(),
+)
+
+/** Shared clipboard across all [ScoreModule] editors so notes, measures, clefs, and signatures can be copied and pasted between scores. */
+internal object ScoreClipboard {
+    var content by mutableStateOf<ScoreClipboardContent?>(null)
+        private set
+
+    val items: List<ScoreClipboardItem>
+        get() = when (val c = content) {
+            is ScoreClipboardContent.ItemSelection -> c.items
+            is ScoreClipboardContent.MeasureRange -> c.measures.flatMapIndexed { idx, cm ->
+                cm.measure.items.map { ScoreClipboardItem(it, idx) }
+            }
+            is ScoreClipboardContent.ClefOnly, null -> emptyList()
+        }
+
+    val isNotEmpty: Boolean
+        get() = when (val c = content) {
+            is ScoreClipboardContent.MeasureRange -> c.measures.isNotEmpty()
+            is ScoreClipboardContent.ItemSelection -> c.items.isNotEmpty()
+            is ScoreClipboardContent.ClefOnly -> true
+            null -> false
+        }
+
+    fun copy(copied: List<ScoreClipboardItem>) {
+        if (copied.isNotEmpty()) {
+            content = ScoreClipboardContent.ItemSelection(copied.toList())
+        }
+    }
+
+    fun copyContent(newContent: ScoreClipboardContent?) {
+        if (newContent == null) return
+        val nonEmpty = when (newContent) {
+            is ScoreClipboardContent.MeasureRange -> newContent.measures.isNotEmpty()
+            is ScoreClipboardContent.ItemSelection -> newContent.items.isNotEmpty()
+            is ScoreClipboardContent.ClefOnly -> true
+        }
+        if (nonEmpty) {
+            content = newContent
+        }
+    }
+
+    fun clear() {
+        content = null
+    }
+}
 
 /** Observable score document for Phase 1 single-stave notation rendering & playback. */
 class ScoreData {

@@ -3,8 +3,12 @@ package com.syntona.dataflow.score
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import com.syntona.core.model.ScoreTime
+import com.syntona.dataflow.editor.EditActionHandler
+import com.syntona.dataflow.editor.EditActions
 import com.syntona.dataflow.editor.GraphSerializer
 import com.syntona.dataflow.editor.GraphState
+import com.syntona.dataflow.editor.MdiState
+import com.syntona.dataflow.editor.MdiWindowInfo
 import com.syntona.dataflow.engine.DataFlowEngine
 import com.syntona.dataflow.engine.ScheduledEvent
 import com.syntona.dataflow.model.Message
@@ -1846,5 +1850,570 @@ class ScoreModuleTest {
                 selectedMeasures = emptySet(),
             ),
         )
+    }
+
+    @Test
+    fun testCopyAndPasteSelectedNotesAcrossMeasuresAndTimeSignatures() {
+        val c4 = ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 4), NoteDuration.QUARTER)
+        val d4 = ScoreItem.Note(SpelledPitch(NoteLetter.D, 0, 4), NoteDuration.QUARTER)
+        val e4g4 = ScoreItem.Chord(
+            pitches = listOf(SpelledPitch(NoteLetter.E, 0, 4), SpelledPitch(NoteLetter.G, 0, 4)),
+            duration = NoteDuration.QUARTER,
+            isDotted = true,
+            isStaccato = true,
+        )
+        val qRest = ScoreItem.Rest(NoteDuration.QUARTER)
+        val sourceMeasures = listOf(
+            ScoreMeasure(1, listOf(c4, d4, e4g4, qRest)),
+        )
+
+        // Copying out-of-order selection sorts by measure/item and extracts single chord notehead when specified
+        val partialCopied = ScoreEditing.copySelectedItems(
+            measures = sourceMeasures,
+            selection = setOf(
+                ScoreItemLocation(0, 2, chordNoteIdx = 1), // G4 only
+                ScoreItemLocation(0, 0), // C4
+            ),
+        )
+        assertEquals(2, partialCopied.size)
+        assertEquals(c4, partialCopied[0])
+        val extractedG4 = partialCopied[1] as ScoreItem.Note
+        assertEquals(SpelledPitch(NoteLetter.G, 0, 4), extractedG4.pitch)
+        assertEquals(NoteDuration.QUARTER, extractedG4.duration)
+        assertTrue(extractedG4.isDotted)
+        assertTrue(extractedG4.isStaccato)
+
+        // Full bar copy preserves chord, note, rest, and order
+        val fullCopied = ScoreEditing.copySelectedItems(
+            measures = sourceMeasures,
+            selection = setOf(
+                ScoreItemLocation(0, 0),
+                ScoreItemLocation(0, 1),
+                ScoreItemLocation(0, 2),
+                ScoreItemLocation(0, 3),
+            ),
+        )
+        assertEquals(listOf(c4, d4, e4g4, qRest), fullCopied)
+
+        // Pasting 4 quarter-or-longer items into an all-empty 2-bar 3/4 score starts at M1 beat 1 and wraps at barline
+        val emptyThreeFour = listOf(
+            ScoreMeasure(1, emptyList()),
+            ScoreMeasure(2, emptyList()),
+        )
+        val wrapResult = ScoreEditing.pasteItems(
+            measures = emptyThreeFour,
+            itemsToPaste = listOf(c4, d4, c4, d4),
+            initialTimeSignature = TimeSignature.THREE_FOUR,
+        )
+        assertNotNull(wrapResult)
+        assertEquals(2, wrapResult.measures.size)
+        assertEquals(listOf(c4, d4, c4), wrapResult.measures[0].items)
+        assertEquals(listOf(d4), wrapResult.measures[1].items)
+        assertEquals(
+            setOf(
+                ScoreItemLocation(0, 0),
+                ScoreItemLocation(0, 1),
+                ScoreItemLocation(0, 2),
+                ScoreItemLocation(1, 0),
+            ),
+            wrapResult.pastedLocations,
+        )
+
+        // Pasting at a mid-measure cursor inserts right at the cursor
+        val midCursorResult = ScoreEditing.pasteItems(
+            measures = listOf(ScoreMeasure(1, listOf(c4, qRest))),
+            itemsToPaste = listOf(d4),
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            cursorPosition = ScoreCursorPosition(0, 1),
+            selectedMeasures = setOf(0),
+        )
+        assertNotNull(midCursorResult)
+        assertEquals(listOf(c4, d4, qRest), midCursorResult.measures[0].items)
+        assertEquals(setOf(ScoreItemLocation(0, 1)), midCursorResult.pastedLocations)
+        assertEquals(ScoreCursorPosition(0, 2), midCursorResult.nextCursor)
+    }
+
+    @Test
+    fun testCopyAndPasteBetweenScoreModulesViaEditActions() {
+        ScoreClipboard.clear()
+        try {
+            val engine = TestEngine()
+            val score1 = ScoreModule().apply { setEngine(engine) }
+            val score2 = ScoreModule().apply { setEngine(engine) }
+            val fSharp4 = ScoreItem.Note(SpelledPitch(NoteLetter.F, 1, 4), NoteDuration.QUARTER)
+            val a4 = ScoreItem.Note(SpelledPitch(NoteLetter.A, 0, 4), NoteDuration.HALF)
+            score1.scoreData.replaceMeasures(listOf(ScoreMeasure(1, listOf(fSharp4, a4))))
+            score2.scoreData.replaceMeasures(listOf(ScoreMeasure(1, emptyList())))
+
+            var sel1 = setOf(ScoreItemLocation(0, 0), ScoreItemLocation(0, 1))
+            var sel2 = emptySet<ScoreItemLocation>()
+            score2.placeCursor(ScoreCursorPosition(0, 0))
+
+            fun makeHandler(mod: ScoreModule, getSel: () -> Set<ScoreItemLocation>, setSel: (Set<ScoreItemLocation>) -> Unit) =
+                object : EditActionHandler {
+                    override fun canCopy() = getSel().isNotEmpty()
+                    override fun canCut() = getSel().isNotEmpty()
+                    override fun canPaste() = ScoreClipboard.items.isNotEmpty()
+                    override fun canDelete() = getSel().isNotEmpty()
+                    override fun copy() {
+                        val copied = ScoreEditing.copySelectedEntries(mod.scoreData.measures, getSel())
+                        if (copied.isNotEmpty()) ScoreClipboard.copy(copied)
+                    }
+                    override fun cut() {
+                        copy()
+                        delete()
+                    }
+                    override fun paste() {
+                        val clip = ScoreClipboard.items
+                        val before = mod.scoreData.measures.toList()
+                        val res = ScoreEditing.pasteClipboardItems(
+                            measures = before,
+                            entries = clip,
+                            initialTimeSignature = mod.scoreData.timeSignature,
+                            selectedLocations = getSel(),
+                            cursorPosition = mod.cursorPosition,
+                        ) ?: return
+                        mod.placeCursor(null)
+                        setSel(res.pastedLocations)
+                        mod.scoreData.replaceMeasures(res.measures)
+                    }
+                    override fun delete() {
+                        val after = ScoreEditing.deleteItems(mod.scoreData.measures, getSel())
+                        setSel(emptySet())
+                        mod.scoreData.replaceMeasures(after)
+                    }
+                }
+
+            val mdi = MdiState()
+            val win1 = MdiWindowInfo(id = score1, title = "Score 1", content = {}).also {
+                it.editHandler = makeHandler(score1, { sel1 }, { sel1 = it })
+            }
+            val win2 = MdiWindowInfo(id = score2, title = "Score 2", content = {}).also {
+                it.editHandler = makeHandler(score2, { sel2 }, { sel2 = it })
+            }
+            mdi.open(win1)
+            mdi.open(win2)
+
+            // Copy from Score 1 (frontmost)
+            mdi.bringToFront(win1)
+            assertTrue(EditActions.canCopy(mdi))
+            assertFalse(EditActions.canPaste(mdi))
+            EditActions.copy(mdi)
+
+            // Switch to Score 2 and paste
+            mdi.bringToFront(win2)
+            assertTrue(EditActions.canPaste(mdi))
+            EditActions.paste(mdi)
+            assertEquals(listOf(fSharp4, a4), score2.scoreData.measures[0].items)
+            assertEquals(setOf(ScoreItemLocation(0, 0), ScoreItemLocation(0, 1)), sel2)
+            // Score 1 stays intact
+            assertEquals(listOf(fSharp4, a4), score1.scoreData.measures[0].items)
+
+            // Cut from Score 2 removes items from Score 2 and updates clipboard
+            sel2 = setOf(ScoreItemLocation(0, 1))
+            EditActions.cut(mdi)
+            assertEquals(listOf(fSharp4), score2.scoreData.measures[0].items)
+            assertEquals(listOf(ScoreClipboardItem(a4, 0)), ScoreClipboard.items)
+        } finally {
+            ScoreClipboard.clear()
+        }
+    }
+
+    @Test
+    fun testCopyAndPastePreservesIncompleteMeasureTiming() {
+        val q1 = ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 4), NoteDuration.QUARTER)
+        val q2 = ScoreItem.Note(SpelledPitch(NoteLetter.D, 0, 4), NoteDuration.QUARTER)
+        val q3 = ScoreItem.Note(SpelledPitch(NoteLetter.E, 0, 4), NoteDuration.QUARTER)
+        val q4 = ScoreItem.Note(SpelledPitch(NoteLetter.F, 0, 4), NoteDuration.QUARTER)
+
+        // 4/4 staff: M1 empty, M2 has 2 quarters (missing half rest), M3 has 2 quarters (missing half rest), M4 empty
+        val measures = listOf(
+            ScoreMeasure(1, emptyList()),
+            ScoreMeasure(2, listOf(q1, q2)),
+            ScoreMeasure(3, listOf(q3, q4)),
+            ScoreMeasure(4, emptyList()),
+        )
+        val entries = ScoreEditing.copySelectedEntries(
+            measures = measures,
+            selection = setOf(
+                ScoreItemLocation(1, 0),
+                ScoreItemLocation(1, 1),
+                ScoreItemLocation(2, 0),
+                ScoreItemLocation(2, 1),
+            ),
+        )
+        assertEquals(
+            listOf(
+                ScoreClipboardItem(q1, 0),
+                ScoreClipboardItem(q2, 0),
+                ScoreClipboardItem(q3, 1),
+                ScoreClipboardItem(q4, 1),
+            ),
+            entries,
+        )
+
+        // Pasting into M4 preserves separate incomplete measures M4 and M5 instead of collapsing into 1 bar
+        val pasted = ScoreEditing.pasteClipboardItems(
+            measures = measures,
+            entries = entries,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            cursorPosition = ScoreCursorPosition(measureIdx = 3, itemIdx = 0),
+        )
+        assertNotNull(pasted)
+        assertEquals(5, pasted.measures.size)
+        assertEquals(listOf(q1, q2), pasted.measures[3].items)
+        assertEquals(listOf(q3, q4), pasted.measures[4].items)
+
+        // An empty skipped bar between selected notes (e.g. M2 and M4 with M3 empty) also preserves the 1-bar gap
+        val gappedEntries = ScoreEditing.copySelectedEntries(
+            measures = listOf(
+                ScoreMeasure(1, emptyList()),
+                ScoreMeasure(2, listOf(q1)),
+                ScoreMeasure(3, emptyList()),
+                ScoreMeasure(4, listOf(q2)),
+            ),
+            selection = setOf(ScoreItemLocation(1, 0), ScoreItemLocation(3, 0)),
+        )
+        val gappedPaste = ScoreEditing.pasteClipboardItems(
+            measures = listOf(ScoreMeasure(1, emptyList())),
+            entries = gappedEntries,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            cursorPosition = ScoreCursorPosition(0, 0),
+        )
+        assertNotNull(gappedPaste)
+        assertEquals(3, gappedPaste.measures.size)
+        assertEquals(listOf(q1), gappedPaste.measures[0].items)
+        assertTrue(gappedPaste.measures[1].items.isEmpty())
+        assertEquals(listOf(q2), gappedPaste.measures[2].items)
+    }
+
+    @Test
+    fun testCopyAndPasteTenMeasuresPreservesAllNotationTricks() {
+        val dottedStaccato = ScoreItem.Note(
+            pitch = SpelledPitch(NoteLetter.F, 1, 3),
+            duration = NoteDuration.QUARTER,
+            isDotted = true,
+            isStaccato = true,
+        )
+        val chordItem = ScoreItem.Chord(
+            pitches = listOf(SpelledPitch(NoteLetter.C, 0, 4), SpelledPitch(NoteLetter.E, 0, 4), SpelledPitch(NoteLetter.G, 0, 4)),
+            duration = NoteDuration.QUARTER,
+        )
+        val bFlatNote = ScoreItem.Note(SpelledPitch(NoteLetter.B, -1, 3), NoteDuration.QUARTER, isDotted = true)
+        val staccatoNote = ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 3), NoteDuration.QUARTER, isStaccato = true)
+        val eighthRest = ScoreItem.Rest(NoteDuration.EIGHTH)
+        val sixEightDotted = ScoreItem.Note(SpelledPitch(NoteLetter.G, 1, 4), NoteDuration.QUARTER, isDotted = true)
+        val accidentalNote = ScoreItem.Note(SpelledPitch(NoteLetter.D, 1, 4), NoteDuration.EIGHTH)
+
+        // 10 measures exercising opening signatures, mid-score key/time/beat-1/mid-measure/trailing clefs,
+        // chords, dots, staccato, accidentals, incomplete bars, and completely empty bars.
+        val sourceInitialClef = Clef.BASS
+        val sourceInitialKey = KeySignature.G_MAJOR
+        val sourceInitialTime = TimeSignature(3, 4)
+        val sourceMeasures = listOf(
+            // M1: inherits BASS / G_MAJOR / 3_4
+            ScoreMeasure(1, listOf(dottedStaccato, eighthRest)),
+            // M2: completely empty bar
+            ScoreMeasure(2, emptyList()),
+            // M3: changes to F_MAJOR / 4_4 / TREBLE on beat 1, then ALTO mid-measure at item 2
+            ScoreMeasure(
+                number = 3,
+                items = listOf(chordItem, bFlatNote, staccatoNote, eighthRest),
+                keySignature = KeySignature.F_MAJOR,
+                timeSignature = TimeSignature.COMMON_TIME,
+                clefChanges = mapOf(0 to Clef.TREBLE, 2 to Clef.ALTO),
+            ),
+            // M4: inherits F_MAJOR / 4_4 / ALTO
+            ScoreMeasure(4, listOf(chordItem)),
+            // M5: inherits F_MAJOR / 4_4 / ALTO, trailing clef TENOR after item 2
+            ScoreMeasure(5, listOf(staccatoNote, bFlatNote), clefChanges = mapOf(2 to Clef.TENOR)),
+            // M6: inherits TENOR from M5 trailing clef, changes to 6/8 & E_MAJOR
+            ScoreMeasure(
+                number = 6,
+                items = listOf(sixEightDotted, accidentalNote),
+                keySignature = KeySignature.E_MAJOR,
+                timeSignature = TimeSignature(6, 8),
+            ),
+            // M7: empty bar in E_MAJOR / 6_8 / TENOR
+            ScoreMeasure(7, emptyList()),
+            // M8: beat-1 BASS clef, single staccato note
+            ScoreMeasure(8, listOf(staccatoNote), clefChanges = mapOf(0 to Clef.BASS)),
+            // M9: mid-measure TREBLE clef at item 1, incomplete bar
+            ScoreMeasure(9, listOf(dottedStaccato, accidentalNote), clefChanges = mapOf(1 to Clef.TREBLE)),
+            // M10: chord + trailing ALTO clef
+            ScoreMeasure(10, listOf(chordItem), clefChanges = mapOf(1 to Clef.ALTO)),
+        )
+
+        val clipContent = ScoreEditing.copySelectionContent(
+            measures = sourceMeasures,
+            initialClef = sourceInitialClef,
+            initialKeySignature = sourceInitialKey,
+            initialTimeSignature = sourceInitialTime,
+            selectedLocations = setOf(ScoreItemLocation(0, 0), ScoreItemLocation(9, 0)),
+            selectedMeasures = (0..9).toSet(),
+        )
+        assertTrue(clipContent is ScoreClipboardContent.MeasureRange)
+        assertEquals(10, clipContent.measures.size)
+
+        // Case A: Paste all 10 measures into a blank C-major 4/4 Treble score at M1
+        val targetPaste = ScoreEditing.pasteClipboardContent(
+            measures = listOf(ScoreMeasure(1, emptyList())),
+            content = clipContent,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            cursorPosition = ScoreCursorPosition(0, 0),
+        )
+        assertNotNull(targetPaste)
+        val outClef = targetPaste.initialClef ?: Clef.TREBLE
+        val outKey = targetPaste.initialKeySignature ?: KeySignature.C_MAJOR
+        val outTime = targetPaste.initialTimeSignature ?: TimeSignature.COMMON_TIME
+        assertEquals(sourceInitialClef, outClef)
+        assertEquals(sourceInitialKey, outKey)
+        assertEquals(sourceInitialTime, outTime)
+        assertEquals(10, targetPaste.measures.size)
+        for (i in 0 until 10) {
+            assertEquals(sourceMeasures[i].items, targetPaste.measures[i].items, "items mismatch at M${i + 1}")
+            assertEquals(
+                ScoreEditing.effectiveKeyAtMeasure(sourceMeasures, sourceInitialKey, i),
+                ScoreEditing.effectiveKeyAtMeasure(targetPaste.measures, outKey, i),
+                "effective key mismatch at M${i + 1}",
+            )
+            assertEquals(
+                ScoreEditing.effectiveTimeAtMeasure(sourceMeasures, sourceInitialTime, i),
+                ScoreEditing.effectiveTimeAtMeasure(targetPaste.measures, outTime, i),
+                "effective time mismatch at M${i + 1}",
+            )
+            assertEquals(
+                ScoreEditing.effectiveClefAt(sourceMeasures, sourceInitialClef, i, 0),
+                ScoreEditing.effectiveClefAt(targetPaste.measures, outClef, i, 0),
+                "opening clef mismatch at M${i + 1}",
+            )
+            assertEquals(
+                ScoreEditing.effectiveClefAt(sourceMeasures, sourceInitialClef, i, Int.MAX_VALUE),
+                ScoreEditing.effectiveClefAt(targetPaste.measures, outClef, i, Int.MAX_VALUE),
+                "ending clef mismatch at M${i + 1}",
+            )
+            assertEquals(
+                sourceMeasures[i].clefChanges.filterKeys { it > 0 },
+                targetPaste.measures[i].clefChanges.filterKeys { it > 0 },
+                "mid-measure/trailing clefs mismatch at M${i + 1}",
+            )
+        }
+
+        // Case B: Copy M4..M5 (which only inherited F_MAJOR / 4_4 / ALTO) and paste into M2 of a C_MAJOR / 4_4 / TREBLE score.
+        // Pasted M2 must receive F_MAJOR and beat-1 ALTO clef, while omitting redundant 4/4 time signature.
+        val inheritedRange = ScoreEditing.copySelectionContent(
+            measures = sourceMeasures,
+            initialClef = sourceInitialClef,
+            initialKeySignature = sourceInitialKey,
+            initialTimeSignature = sourceInitialTime,
+            selectedMeasures = setOf(3, 4),
+        )
+        assertTrue(inheritedRange is ScoreClipboardContent.MeasureRange)
+        val splicedPaste = ScoreEditing.pasteClipboardContent(
+            measures = listOf(ScoreMeasure(1, listOf(chordItem)), ScoreMeasure(2, emptyList())),
+            content = inheritedRange,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            cursorPosition = ScoreCursorPosition(1, 0),
+        )
+        assertNotNull(splicedPaste)
+        assertEquals(3, splicedPaste.measures.size)
+        assertEquals(KeySignature.F_MAJOR, splicedPaste.measures[1].keySignature)
+        assertNull(splicedPaste.measures[1].timeSignature)
+        assertEquals(Clef.ALTO, splicedPaste.measures[1].clefChanges[0])
+        assertEquals(mapOf(2 to Clef.TENOR), splicedPaste.measures[2].clefChanges)
+    }
+
+    @Test
+    fun testCopyAndPasteStandaloneClefAndMidMeasureItemClef() {
+        val q1 = ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 4), NoteDuration.QUARTER)
+        val q2 = ScoreItem.Note(SpelledPitch(NoteLetter.D, 0, 4), NoteDuration.QUARTER)
+        val q3 = ScoreItem.Note(SpelledPitch(NoteLetter.E, 0, 4), NoteDuration.QUARTER)
+        val measures = listOf(
+            ScoreMeasure(1, listOf(q1)),
+            ScoreMeasure(2, listOf(q1, q2, q3), clefChanges = mapOf(1 to Clef.ALTO)),
+            ScoreMeasure(3, listOf(q1), clefChanges = mapOf(0 to Clef.TREBLE)),
+        )
+
+        // Standalone mid-measure clef selection copy -> ClefOnly
+        val clefClip = ScoreEditing.copySelectionContent(
+            measures = measures,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            selectedClefChange = ScoreClefLocation(1, 1),
+        )
+        assertEquals(ScoreClipboardContent.ClefOnly(Clef.ALTO), clefClip)
+        ScoreClipboard.copyContent(clefClip)
+        assertTrue(ScoreClipboard.isNotEmpty)
+        val (clefAfter, updatedClefMeasures) = ScoreEditing.setClefChange(
+            initialClef = Clef.TREBLE,
+            measures = measures,
+            location = ScoreClefLocation(2, 1),
+            newClef = (ScoreClipboard.content as ScoreClipboardContent.ClefOnly).clef,
+        )
+        assertEquals(Clef.TREBLE, clefAfter)
+        assertEquals(Clef.ALTO, updatedClefMeasures[2].clefChanges[1])
+
+        // ItemSelection spanning a mid-measure clef captures clefBefore and re-applies it on paste
+        val itemClip = ScoreEditing.copySelectionContent(
+            measures = measures,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            selectedLocations = setOf(ScoreItemLocation(1, 0), ScoreItemLocation(1, 1)),
+        )
+        assertTrue(itemClip is ScoreClipboardContent.ItemSelection)
+        assertEquals(
+            listOf(
+                ScoreClipboardItem(q1, 0, clefBefore = null),
+                ScoreClipboardItem(q2, 0, clefBefore = Clef.ALTO),
+            ),
+            itemClip.items,
+        )
+        val itemPaste = ScoreEditing.pasteClipboardContent(
+            measures = measures,
+            content = itemClip,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            cursorPosition = ScoreCursorPosition(2, 0),
+        )
+        assertNotNull(itemPaste)
+        assertEquals(listOf(q1, q2, q1), itemPaste.measures[2].items)
+        assertEquals(Clef.ALTO, itemPaste.measures[2].clefChanges[1])
+    }
+
+    @Test
+    fun testReplaceScoreDocumentCommandUndoRedo() {
+        val scoreData = ScoreData().apply {
+            clef = Clef.TREBLE
+            keySignature = KeySignature.C_MAJOR
+            timeSignature = TimeSignature.COMMON_TIME
+            replaceMeasures(listOf(ScoreMeasure(1, emptyList())))
+        }
+        val beforeMeasures = scoreData.measures.toList()
+        val note = ScoreItem.Note(SpelledPitch(NoteLetter.E, 0, 3), NoteDuration.HALF)
+        val afterMeasures = listOf(ScoreMeasure(1, listOf(note)))
+
+        val cmd = ReplaceScoreDocumentCommand(
+            scoreData = scoreData,
+            beforeInitialClef = Clef.TREBLE,
+            beforeInitialKey = KeySignature.C_MAJOR,
+            beforeInitialTime = TimeSignature.COMMON_TIME,
+            beforeMeasures = beforeMeasures,
+            afterInitialClef = Clef.BASS,
+            afterInitialKey = KeySignature.F_MAJOR,
+            afterInitialTime = TimeSignature(3, 4),
+            afterMeasures = afterMeasures,
+        )
+        cmd.execute()
+        assertEquals(Clef.BASS, scoreData.clef)
+        assertEquals(KeySignature.F_MAJOR, scoreData.keySignature)
+        assertEquals(TimeSignature(3, 4), scoreData.timeSignature)
+        assertEquals(afterMeasures, scoreData.measures.toList())
+
+        cmd.undo()
+        assertEquals(Clef.TREBLE, scoreData.clef)
+        assertEquals(KeySignature.C_MAJOR, scoreData.keySignature)
+        assertEquals(TimeSignature.COMMON_TIME, scoreData.timeSignature)
+        assertEquals(beforeMeasures, scoreData.measures.toList())
+
+        cmd.execute()
+        assertEquals(Clef.BASS, scoreData.clef)
+        assertEquals(KeySignature.F_MAJOR, scoreData.keySignature)
+        assertEquals(TimeSignature(3, 4), scoreData.timeSignature)
+        assertEquals(afterMeasures, scoreData.measures.toList())
+    }
+
+    @Test
+    fun testPasteExtendingPastLastBarAddsEnoughMeasures() {
+        val c4 = ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 4), NoteDuration.QUARTER)
+        val d4 = ScoreItem.Note(SpelledPitch(NoteLetter.D, 0, 4), NoteDuration.QUARTER)
+        val e4 = ScoreItem.Note(SpelledPitch(NoteLetter.E, 0, 4), NoteDuration.QUARTER)
+        val f4 = ScoreItem.Note(SpelledPitch(NoteLetter.F, 0, 4), NoteDuration.QUARTER)
+
+        // Destination has 2 non-empty measures (4/4, C_MAJOR, TREBLE)
+        val destMeasures = listOf(
+            ScoreMeasure(1, listOf(c4, d4, e4, f4)),
+            ScoreMeasure(2, listOf(c4, d4, e4, f4)),
+        )
+        // Copied 3-measure range starts in G_MAJOR / 3_4 / BASS and ends on a trailing empty bar
+        val clipRange = ScoreEditing.copySelectionContent(
+            measures = listOf(
+                ScoreMeasure(1, listOf(c4, d4, e4), clefChanges = mapOf(1 to Clef.ALTO)),
+                ScoreMeasure(2, listOf(f4)),
+                ScoreMeasure(3, emptyList()),
+            ),
+            initialClef = Clef.BASS,
+            initialKeySignature = KeySignature.G_MAJOR,
+            initialTimeSignature = TimeSignature(3, 4),
+            selectedMeasures = setOf(0, 1, 2),
+        )
+        assertTrue(clipRange is ScoreClipboardContent.MeasureRange)
+
+        // Pasting with cursor at the end of the last non-empty measure (1, 4) keeps M2 intact and
+        // automatically adds M3..M5 with M3's opening key/time/clef preserved.
+        val pastedPastEnd = ScoreEditing.pasteClipboardContent(
+            measures = destMeasures,
+            content = clipRange,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            cursorPosition = ScoreCursorPosition(1, 4),
+        )
+        assertNotNull(pastedPastEnd)
+        assertEquals(5, pastedPastEnd.measures.size)
+        assertEquals(listOf(c4, d4, e4, f4), pastedPastEnd.measures[1].items)
+        assertEquals(listOf(c4, d4, e4), pastedPastEnd.measures[2].items)
+        assertEquals(KeySignature.G_MAJOR, pastedPastEnd.measures[2].keySignature)
+        assertEquals(TimeSignature(3, 4), pastedPastEnd.measures[2].timeSignature)
+        assertEquals(Clef.BASS, pastedPastEnd.measures[2].clefChanges[0])
+        assertEquals(Clef.ALTO, pastedPastEnd.measures[2].clefChanges[1])
+        assertEquals(listOf(f4), pastedPastEnd.measures[3].items)
+        assertTrue(pastedPastEnd.measures[4].items.isEmpty())
+
+        // Consecutive paste when selection includes the trailing empty bar (M5) starts at M6 (M6..M8)
+        val secondPaste = ScoreEditing.pasteClipboardContent(
+            measures = pastedPastEnd.measures,
+            content = clipRange,
+            initialClef = pastedPastEnd.initialClef ?: Clef.TREBLE,
+            initialKeySignature = pastedPastEnd.initialKeySignature ?: KeySignature.C_MAJOR,
+            initialTimeSignature = pastedPastEnd.initialTimeSignature ?: TimeSignature.COMMON_TIME,
+            selectedLocations = pastedPastEnd.pastedLocations,
+            selectedMeasures = pastedPastEnd.pastedMeasures,
+        )
+        assertNotNull(secondPaste)
+        assertEquals(8, secondPaste.measures.size)
+        assertEquals(listOf(c4, d4, e4), secondPaste.measures[5].items)
+        assertEquals(listOf(f4), secondPaste.measures[6].items)
+        assertTrue(secondPaste.measures[7].items.isEmpty())
+
+        // ItemSelection extending across multiple full bars past the last measure also appends all needed bars
+        val itemSelection = ScoreClipboardContent.ItemSelection(
+            listOf(
+                ScoreClipboardItem(c4, 0),
+                ScoreClipboardItem(d4, 0),
+                ScoreClipboardItem(e4, 0),
+                ScoreClipboardItem(f4, 0),
+                ScoreClipboardItem(c4, 1),
+                ScoreClipboardItem(d4, 1),
+            )
+        )
+        val itemsPastEnd = ScoreEditing.pasteClipboardContent(
+            measures = destMeasures,
+            content = itemSelection,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            cursorPosition = ScoreCursorPosition(1, 4),
+        )
+        assertNotNull(itemsPastEnd)
+        assertEquals(4, itemsPastEnd.measures.size)
+        assertEquals(listOf(c4, d4, e4, f4), itemsPastEnd.measures[2].items)
+        assertEquals(listOf(c4, d4), itemsPastEnd.measures[3].items)
     }
 }
