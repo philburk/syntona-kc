@@ -48,6 +48,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
@@ -113,10 +114,6 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
-
-private object ScoreClipboard {
-    var items: List<ScoreItem> = emptyList()
-}
 
 private enum class ScoreEditMode {
     SELECT,
@@ -198,6 +195,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
     var hoveringTimeSig by remember { mutableStateOf(false) }
     var hoveringClef by remember { mutableStateOf(false) }
     var dragState by remember { mutableStateOf<ScoreDragState?>(null) }
+    var pendingScrollMeasures by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var editingTimeSig by remember { mutableStateOf<TimeSigEditSession?>(null) }
     var timeSigInputValue by remember { mutableStateOf(TextFieldValue("")) }
     var timeSigHadFocus by remember { mutableStateOf(false) }
@@ -474,43 +472,80 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
     }
 
     fun copySelection() {
-        val sorted = selectedLocations
-            .map { it.slotLocation() }
-            .distinct()
-            .sortedWith(compareBy<ScoreItemLocation> { it.measureIdx }.thenBy { it.itemIdx })
-        val copied = sorted.mapNotNull { ScoreEditing.itemAt(score.measures, it) }
-        if (copied.isNotEmpty()) {
-            ScoreClipboard.items = copied
-        }
+        val content = ScoreEditing.copySelectionContent(
+            measures = score.measures,
+            initialClef = score.clef,
+            initialKeySignature = score.keySignature,
+            initialTimeSignature = score.timeSignature,
+            selectedLocations = selectedLocations,
+            selectedMeasures = selectedMeasures,
+            selectedClefChange = selectedClefChange,
+        )
+        ScoreClipboard.copyContent(content)
     }
 
     fun pasteClipboard() {
-        val clip = ScoreClipboard.items
-        if (clip.isEmpty()) return
-        val before = score.measures.toList()
-        val lastSel = selectedLocations
-            .maxWithOrNull(compareBy<ScoreItemLocation> { it.measureIdx }.thenBy { it.itemIdx })
-        var targetMIdx = lastSel?.measureIdx ?: (before.lastIndex.coerceAtLeast(0))
-        var targetIIdx = if (lastSel != null) {
-            lastSel.itemIdx + 1
-        } else {
-            before.getOrNull(targetMIdx)?.items?.size ?: 0
+        val clipContent = ScoreClipboard.content ?: return
+        if (clipContent is ScoreClipboardContent.ClefOnly) {
+            applyClef(clipContent.clef, targetClefLocation())
+            return
         }
-        var current = before
-        val pastedLocs = linkedSetOf<ScoreItemLocation>()
-        for (item in clip) {
-            val (next, loc) = ScoreEditing.insertItem(current, targetMIdx, targetIIdx, item)
-            current = next
-            pastedLocs.add(loc)
-            targetMIdx = loc.measureIdx
-            targetIIdx = loc.itemIdx + 1
-        }
-        selectedLocations = pastedLocs
-        refreshPitchDisplayFromSelection(current, pastedLocs)
+        val beforeMeasures = score.measures.toList()
+        val beforeInitialClef = score.clef
+        val beforeInitialKey = score.keySignature
+        val beforeInitialTime = score.timeSignature
+        val beforeSelection = selectedLocations
+        val beforeSelectedMeasures = selectedMeasures
+        val beforeCursor = module.cursorPosition
+        val result = ScoreEditing.pasteClipboardContent(
+            measures = beforeMeasures,
+            content = clipContent,
+            initialClef = beforeInitialClef,
+            initialKeySignature = beforeInitialKey,
+            initialTimeSignature = beforeInitialTime,
+            selectedLocations = beforeSelection,
+            cursorPosition = beforeCursor,
+            selectedMeasures = beforeSelectedMeasures,
+            appendMeasureOnFull = module.isStepRecording,
+        ) ?: return
+        selectedClefChange = null
+        val afterInitialClef = result.initialClef ?: beforeInitialClef
+        val afterInitialKey = result.initialKeySignature ?: beforeInitialKey
+        val afterInitialTime = result.initialTimeSignature ?: beforeInitialTime
         postCommand(
-            ReplaceScoreMeasuresCommand(score, before, current) { restored ->
-                selectedLocations = pastedLocs.filterTo(linkedSetOf()) {
-                    ScoreEditing.itemAt(restored, it) != null
+            ReplaceScoreDocumentCommand(
+                scoreData = score,
+                beforeInitialClef = beforeInitialClef,
+                beforeInitialKey = beforeInitialKey,
+                beforeInitialTime = beforeInitialTime,
+                beforeMeasures = beforeMeasures,
+                afterInitialClef = afterInitialClef,
+                afterInitialKey = afterInitialKey,
+                afterInitialTime = afterInitialTime,
+                afterMeasures = result.measures,
+            ) { restored, isUndo ->
+                if (isUndo) {
+                    module.placeCursor(beforeCursor)
+                    selectedMeasures = beforeSelectedMeasures
+                    selectedLocations = beforeSelection.filterTo(linkedSetOf()) {
+                        ScoreEditing.itemAt(restored, it) != null
+                    }
+                } else if (module.isStepRecording) {
+                    module.placeCursor(result.nextCursor)
+                    selectedMeasures = emptySet()
+                    selectedLocations = emptySet()
+                    pendingScrollMeasures = result.pastedMeasures.ifEmpty {
+                        result.pastedLocations.mapTo(linkedSetOf()) { it.measureIdx }
+                    }
+                } else {
+                    module.placeCursor(null)
+                    selectedMeasures = result.pastedMeasures
+                    selectedLocations = result.pastedLocations.filterTo(linkedSetOf()) {
+                        ScoreEditing.itemAt(restored, it) != null
+                    }
+                    pendingScrollMeasures = result.pastedMeasures.ifEmpty {
+                        result.pastedLocations.mapTo(linkedSetOf()) { it.measureIdx }
+                    }
                 }
                 refreshPitchDisplayFromSelection(restored, selectedLocations)
             }
@@ -521,9 +556,15 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
     DisposableEffect(module) {
         val window = mdiState.windows.find { it.id == module }
         val handler = object : EditActionHandler {
-            override fun canCopy() = selectedLocations.isNotEmpty()
-            override fun canPaste() = ScoreClipboard.items.isNotEmpty()
-            override fun canDelete() = selectedLocations.isNotEmpty()
+            override fun canCopy() =
+                selectedLocations.isNotEmpty() || selectedMeasures.isNotEmpty() || selectedClefChange != null
+
+            override fun canCut() =
+                selectedLocations.isNotEmpty() ||
+                    selectedClefChange?.let { it.measureIdx > 0 || it.itemIdx > 0 } == true
+
+            override fun canPaste() = ScoreClipboard.isNotEmpty
+            override fun canDelete() = selectedLocations.isNotEmpty() || selectedClefChange != null
             override fun cut() {
                 copySelection()
                 deleteSelection()
@@ -1109,6 +1150,28 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         if (cursorX > curScroll + vpW - 36f || cursorX < curScroll + 24f) {
                             val target = (cursorX - vpW * 0.7f).roundToInt()
                                 .coerceIn(0, scrollState.maxValue)
+                            scrollState.animateScrollTo(target)
+                        }
+                    }
+
+                    LaunchedEffect(pendingScrollMeasures, layout) {
+                        val targetMeasures = pendingScrollMeasures
+                        if (targetMeasures.isEmpty()) return@LaunchedEffect
+                        val firstM = targetMeasures.min().coerceAtLeast(0)
+                        val lastM = targetMeasures.max().coerceAtLeast(0)
+                        val lastPm = layout.placedMeasures.getOrNull(lastM) ?: return@LaunchedEffect
+                        val firstPm = layout.placedMeasures.getOrNull(firstM) ?: lastPm
+                        pendingScrollMeasures = emptySet()
+                        withFrameNanos { }
+                        val vpW = with(density) { viewportWidth.toPx() }
+                        val curScroll = scrollState.value.toFloat()
+                        if (lastPm.barlineX > curScroll + vpW - 24f || firstPm.startX < curScroll) {
+                            val desired = if (lastPm.barlineX - firstPm.startX <= vpW - 48f) {
+                                (lastPm.barlineX - vpW + 48f).coerceAtLeast(firstPm.startX - 24f)
+                            } else {
+                                firstPm.startX - 24f
+                            }
+                            val target = desired.roundToInt().coerceIn(0, scrollState.maxValue)
                             scrollState.animateScrollTo(target)
                         }
                     }

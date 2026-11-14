@@ -190,3 +190,37 @@ class SetScoreClefCommand(
         FileState.markDirty()
     }
 }
+
+/** Atomically replaces opening clef/key/time signatures and all measures (e.g. score-wide paste). */
+class ReplaceScoreDocumentCommand(
+    private val scoreData: ScoreData,
+    private val beforeInitialClef: Clef,
+    private val beforeInitialKey: KeySignature,
+    private val beforeInitialTime: TimeSignature,
+    private val beforeMeasures: List<ScoreMeasure>,
+    private val afterInitialClef: Clef,
+    private val afterInitialKey: KeySignature,
+    private val afterInitialTime: TimeSignature,
+    private val afterMeasures: List<ScoreMeasure>,
+    private val onSync: ((List<ScoreMeasure>, Boolean) -> Unit)? = null,
+) : SyntonaCommand {
+    override val isUndoable = true
+
+    override fun execute() {
+        scoreData.clef = afterInitialClef
+        scoreData.keySignature = afterInitialKey
+        scoreData.timeSignature = afterInitialTime
+        scoreData.replaceMeasures(afterMeasures)
+        onSync?.invoke(afterMeasures, false)
+        FileState.markDirty()
+    }
+
+    override fun undo() {
+        scoreData.clef = beforeInitialClef
+        scoreData.keySignature = beforeInitialKey
+        scoreData.timeSignature = beforeInitialTime
+        scoreData.replaceMeasures(beforeMeasures)
+        onSync?.invoke(beforeMeasures, true)
+        FileState.markDirty()
+    }
+}
