@@ -589,6 +589,15 @@ object GraphSerializer {
                         }
                         append("]")
                     }
+                    if (measure.beamOverrides.isNotEmpty()) {
+                        append(",\"beams\":[")
+                        measure.beamOverrides.entries.sortedBy { it.key }.forEachIndexed { bIdx, (iIdx, beamed) ->
+                            if (bIdx > 0) append(",")
+                            val flag = if (beamed) 1 else 0
+                            append("[$iIdx,$flag]")
+                        }
+                        append("]")
+                    }
                     append(",\"items\":[")
                     measure.items.forEachIndexed { iIdx, item ->
                         if (iIdx > 0) append(",")
@@ -1636,6 +1645,23 @@ object GraphSerializer {
                         } else {
                             emptyMap()
                         }
+                        val beamsArr = (mObj.map["beams"] as? JsonValue.Arr)?.items
+                        val mBeams = if (beamsArr != null) {
+                            buildMap {
+                                for (bVal in beamsArr) {
+                                    val bPair = (bVal as? JsonValue.Arr)?.items ?: continue
+                                    val bIdx = (bPair.getOrNull(0) as? JsonValue.Num)?.value?.toInt() ?: continue
+                                    val bFlag = when (val raw = bPair.getOrNull(1)) {
+                                        is JsonValue.Num -> raw.value.toInt() != 0
+                                        is JsonValue.Bool -> raw.value
+                                        else -> continue
+                                    }
+                                    if (bIdx >= 0) put(bIdx, bFlag)
+                                }
+                            }
+                        } else {
+                            emptyMap()
+                        }
                         val itemsArr = (mObj.map["items"] as? JsonValue.Arr)?.items ?: emptyList()
                         val loadedItems = mutableListOf<ScoreItem>()
                         for (itemVal in itemsArr) {
@@ -1702,6 +1728,7 @@ object GraphSerializer {
                                 timeSignature = mTime,
                                 clefChanges = mClefs,
                                 dynamics = mDynamics,
+                                beamOverrides = mBeams,
                             )
                         )
                     }

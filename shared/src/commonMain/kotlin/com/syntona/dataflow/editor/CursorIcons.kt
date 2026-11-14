@@ -22,3 +22,7 @@ expect fun scoreDynamicCursor(
     label: String,
     isDarkMode: Boolean,
 ): PointerIcon
+
+expect fun scoreBeamCursor(
+    isDarkMode: Boolean,
+): PointerIcon

@@ -23,3 +23,7 @@ actual fun scoreDynamicCursor(
     label: String,
     isDarkMode: Boolean,
 ): PointerIcon = PointerIcon.Crosshair
+
+actual fun scoreBeamCursor(
+    isDarkMode: Boolean,
+): PointerIcon = PointerIcon.Crosshair
