@@ -18,3 +18,8 @@ actual fun scoreSymbolCursor(
     isDotted: Boolean,
     isDarkMode: Boolean,
 ): PointerIcon = PointerIcon.Crosshair
+
+actual fun scoreDynamicCursor(
+    label: String,
+    isDarkMode: Boolean,
+): PointerIcon = PointerIcon.Crosshair

@@ -67,6 +67,21 @@ object SmuflGlyphs {
     const val ACCIDENTAL_NATURAL = "\uE261"
     const val ACCIDENTAL_SHARP = "\uE262"
 
+    // Dynamics
+    const val DYNAMIC_P = "\uE520"
+    const val DYNAMIC_F = "\uE522"
+    const val DYNAMIC_PPPP = "\uE529"
+    const val DYNAMIC_PPP = "\uE52A"
+    const val DYNAMIC_PP = "\uE52B"
+    const val DYNAMIC_MP = "\uE52C"
+    const val DYNAMIC_MF = "\uE52D"
+    const val DYNAMIC_FF = "\uE52F"
+    const val DYNAMIC_FFF = "\uE530"
+    const val DYNAMIC_FFFF = "\uE531"
+    const val DYNAMIC_FP = "\uE534"
+    const val DYNAMIC_SF = "\uE536"
+    const val DYNAMIC_SFZ = "\uE539"
+
     // Engraving defaults from leland_metadata.json (in staff spaces)
     const val STAFF_LINE_THICKNESS = 0.11f
     const val STEM_THICKNESS = 0.10f

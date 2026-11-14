@@ -159,13 +159,19 @@ class ScoreModule : Module("score"), EngineAware {
         var nextVoiceTag = 0
         var hasActiveHighlight = false
 
+        var sustainedDynamic: DynamicMark? = null
         for ((mIdx, measure) in measures.withIndex()) {
             if (mIdx > 0) {
                 measure.timeSignature?.let { effectiveTime = it }
             }
             val measureCapacityTicks = effectiveTime.measureCapacityTicks.toLong().coerceAtLeast(0L)
             val measureStartTick = tickCursor
-            for (item in measure.items) {
+            for ((slotIdx, item) in measure.items.withIndex()) {
+                val (attackDyn, nextSustained) = ScoreEditing.resolvePlaybackDynamicStep(
+                    measure.dynamics[slotIdx],
+                    sustainedDynamic,
+                )
+                sustainedDynamic = nextSustained
                 val itemIdx = globalIdx++
                 val itemTicks = item.totalTicks.toLong()
                 val onTime = now + ScoreTime((tickCursor * nsPerTick).roundToLong())
@@ -180,11 +186,15 @@ class ScoreModule : Module("score"), EngineAware {
                 }
                 val soundingOffTime = onTime + ScoreTime((soundingDurSec * 1_000_000_000.0).roundToLong())
                 val voiceTags = List(soundingPitches.size) { nextVoiceTag++ }
+                val effectiveAmp = if (attackDyn != null) {
+                    ((item.noteAmplitude() / 0.25) * attackDyn.amplitude).coerceIn(0.0, 1.0)
+                } else {
+                    item.noteAmplitude()
+                }
 
                 scheduledEvents.add(e.schedule(onTime) {
                     activeItemIndex = itemIdx
                     if (soundingPitches.isNotEmpty()) {
-                        val amp = item.noteAmplitude()
                         soundingPitches.forEachIndexed { idx, spelled ->
                             val pitch = spelled.midiPitch.toDouble()
                             val tag = voiceTags[idx]
@@ -194,7 +204,7 @@ class ScoreModule : Module("score"), EngineAware {
                                     opcode = Message.VoiceOpcode.NOTE,
                                     tag = tag,
                                     value = pitch,
-                                    extra = amp,
+                                    extra = effectiveAmp,
                                     duration = soundingDurSec,
                                 )
                             )
@@ -212,6 +222,11 @@ class ScoreModule : Module("score"), EngineAware {
             }
 
             // Honor the time signature by treating missing space in empty/incomplete measures as rests.
+            for ((k, dyn) in measure.dynamics.entries.sortedBy { it.key }) {
+                if (k >= measure.items.size) {
+                    sustainedDynamic = ScoreEditing.resolvePlaybackDynamicStep(dyn, sustainedDynamic).second
+                }
+            }
             val measureTicks = tickCursor - measureStartTick
             if (measureTicks < measureCapacityTicks) {
                 if (hasActiveHighlight) {

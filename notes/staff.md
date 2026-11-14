@@ -169,10 +169,13 @@ Pressing 'f' will do the same for forte.
 SHIFT+P will select mezzo-pianissimo (mp)
 SHIFT+F will select mezzo-forte (mf)
 
-### Phase 12 - Ties and Beams
+To delete a dynamic marking, click on it select it then press DELETE or BACKSPACE.
 
-Add ties and beams and slurs. Beams and slurs do not change the playback.
-Ties will combine note durations and is often used to hold a note across a measure boundary.
+Dynamics can be copied and pasted.
+
+### Phase 12 - Beams
+
+Add beams. Beams do not change the playback.
 
 Note with flags should automatically be beamed together in a standard way.
 But the user may want to override the automatic beaming.
@@ -180,20 +183,23 @@ Pressing SHIFT+B will enter beaming mode.
 When the user clicks on a note it will be beamed with the following note.
 If the user clicks on a note that is currently beamed then it will un-beam that note.
 
+### Phase 13 - Ties
+
+Ties will combine note durations and is often used to hold a note across a measure boundary.
+
 Pressing SHIFT+T will enter Tie mode.
+Click on a note with the Tie cursor to make it tie to the next note.
 
-Pressing SHIFT+S will enter Slue mode.
-
-### Phase 13 - Multiple Instruments
+### Phase ? - Multiple Instruments
 Add support for multiple instruments.
 Add new instruments with a "+" button.
 Each instrument has its own voice output jack.
 
-### Phase 14 - Document Name, Composer, Date and other fields
+### Phase ? - Document Name, Composer, Date and other fields
 
 Allow the user to enter the score name, composer and a date.
 
-### Phase 14 - Export
+### Phase ? - Export
 Add MusicXML support. This will allow us to export a score to Notion or other notation editors.
 
 ### Phase - Save to PDF, All Together or as Parts

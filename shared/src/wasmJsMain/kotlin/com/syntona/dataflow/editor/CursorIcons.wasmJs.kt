@@ -116,3 +116,42 @@ private fun svgSymbolBody(
         return "<g stroke='$halo' fill='$halo' stroke-width='3.8'>$inner</g><g stroke='$fg' fill='$fg'>$inner</g>"
     }
 }
+
+private data class WasmDynamicCursorKey(
+    val label: String,
+    val isDarkMode: Boolean,
+)
+
+private val wasmDynamicCursorCache = mutableMapOf<WasmDynamicCursorKey, PointerIcon>()
+
+@OptIn(ExperimentalComposeUiApi::class)
+actual fun scoreDynamicCursor(
+    label: String,
+    isDarkMode: Boolean,
+): PointerIcon {
+    val key = WasmDynamicCursorKey(label, isDarkMode)
+    wasmDynamicCursorCache[key]?.let { return it }
+
+    val width = 36
+    val height = 28
+    val hotX = width / 2
+    val hotY = height / 2
+    val ink = if (isDarkMode) "#F8FAFC" else "#111827"
+    val halo = if (isDarkMode) "#0F172A" else "#FFFFFF"
+    val fontSize = when {
+        label.length >= 4 -> 12
+        label.length == 3 -> 14
+        else -> 16
+    }
+    val svg = """<svg xmlns="http://www.w3.org/2000/svg" width="$width" height="$height" viewBox="0 0 $width $height"><text x="$hotX" y="19" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-weight="bold" font-size="$fontSize" fill="$ink" stroke="$halo" stroke-width="2.5" paint-order="stroke">$label</text></svg>"""
+    val encoded = svg
+        .replace("%", "%25")
+        .replace("#", "%23")
+        .replace("\"", "'")
+        .replace("<", "%3C")
+        .replace(">", "%3E")
+        .replace(" ", "%20")
+    val icon = PointerIcon.fromKeyword("url(\"data:image/svg+xml,$encoded\") $hotX $hotY, crosshair")
+    wasmDynamicCursorCache[key] = icon
+    return icon
+}

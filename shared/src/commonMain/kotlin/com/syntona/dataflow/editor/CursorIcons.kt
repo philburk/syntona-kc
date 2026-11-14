@@ -17,3 +17,8 @@ expect fun scoreSymbolCursor(
     isDotted: Boolean = false,
     isDarkMode: Boolean,
 ): PointerIcon
+
+expect fun scoreDynamicCursor(
+    label: String,
+    isDarkMode: Boolean,
+): PointerIcon

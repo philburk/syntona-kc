@@ -36,9 +36,12 @@ import kotlin.math.round
 import com.syntona.dataflow.modules.PianoRollModule
 import com.syntona.dataflow.modules.PianoRollNote
 import com.syntona.dataflow.score.Clef
+import com.syntona.dataflow.score.DynamicMark
+import com.syntona.dataflow.score.DynamicPlacement
 import com.syntona.dataflow.score.KeySignature
 import com.syntona.dataflow.score.NoteDuration
 import com.syntona.dataflow.score.NoteLetter
+import com.syntona.dataflow.score.ScoreDynamicMarking
 import com.syntona.dataflow.score.ScoreEditing
 import com.syntona.dataflow.score.ScoreItem
 import com.syntona.dataflow.score.ScoreMeasure
@@ -575,6 +578,14 @@ object GraphSerializer {
                         measure.clefChanges.entries.sortedBy { it.key }.forEachIndexed { cIdx, (iIdx, clef) ->
                             if (cIdx > 0) append(",")
                             append("[$iIdx,\"${clef.name}\"]")
+                        }
+                        append("]")
+                    }
+                    if (measure.dynamics.isNotEmpty()) {
+                        append(",\"dynamics\":[")
+                        measure.dynamics.entries.sortedBy { it.key }.forEachIndexed { dIdx, (iIdx, dyn) ->
+                            if (dIdx > 0) append(",")
+                            append("[$iIdx,\"${dyn.mark.name}\",\"${dyn.placement.name}\"]")
                         }
                         append("]")
                     }
@@ -1607,6 +1618,24 @@ object GraphSerializer {
                         } else {
                             emptyMap()
                         }
+                        val dynArr = (mObj.map["dynamics"] as? JsonValue.Arr)?.items
+                        val mDynamics = if (dynArr != null) {
+                            buildMap {
+                                for (dVal in dynArr) {
+                                    val dTuple = (dVal as? JsonValue.Arr)?.items ?: continue
+                                    val dIdx = (dTuple.getOrNull(0) as? JsonValue.Num)?.value?.toInt() ?: continue
+                                    val markName = (dTuple.getOrNull(1) as? JsonValue.Str)?.value ?: continue
+                                    val mark = DynamicMark.entries.firstOrNull { it.name == markName } ?: continue
+                                    val placementName = (dTuple.getOrNull(2) as? JsonValue.Str)?.value
+                                    val placement = placementName?.let { p ->
+                                        DynamicPlacement.entries.firstOrNull { it.name == p }
+                                    } ?: DynamicPlacement.BELOW
+                                    if (dIdx >= 0) put(dIdx, ScoreDynamicMarking(mark, placement))
+                                }
+                            }
+                        } else {
+                            emptyMap()
+                        }
                         val itemsArr = (mObj.map["items"] as? JsonValue.Arr)?.items ?: emptyList()
                         val loadedItems = mutableListOf<ScoreItem>()
                         for (itemVal in itemsArr) {
@@ -1672,6 +1701,7 @@ object GraphSerializer {
                                 keySignature = mKey,
                                 timeSignature = mTime,
                                 clefChanges = mClefs,
+                                dynamics = mDynamics,
                             )
                         )
                     }

@@ -101,6 +101,20 @@ data class ScorePlacedClefChange(
     val location: ScoreClefLocation get() = ScoreClefLocation(measureIdx, itemIdx)
 }
 
+data class ScorePlacedDynamic(
+    val measureIdx: Int,
+    val itemIdx: Int,
+    val marking: ScoreDynamicMarking,
+    val x: Float,
+    val baselineY: Float,
+    val boxLeft: Float,
+    val boxTop: Float,
+    val boxRight: Float,
+    val boxBottom: Float,
+) {
+    val location: ScoreDynamicLocation get() = ScoreDynamicLocation(measureIdx, itemIdx)
+}
+
 data class ScorePlacedTimeSignature(
     val measureIdx: Int,
     val timeSignature: TimeSignature,
@@ -130,6 +144,7 @@ data class ScorePlacedMeasure(
     val barlineClefChange: ScorePlacedClefChange? = null,
     val activeOpeningClef: Clef = Clef.TREBLE,
     val activeClosingClef: Clef = Clef.TREBLE,
+    val dynamics: List<ScorePlacedDynamic> = emptyList(),
 )
 
 data class ScoreInsertionTarget(
@@ -168,6 +183,7 @@ data class ScoreLayout(
     val placedMeasures: List<ScorePlacedMeasure> = emptyList(),
     val placedTimeSignatures: List<ScorePlacedTimeSignature> = emptyList(),
     val placedClefChanges: List<ScorePlacedClefChange> = emptyList(),
+    val placedDynamics: List<ScorePlacedDynamic> = emptyList(),
 ) {
     fun yForStep(stepFromBottom: Int): Float = bottomStaffY - stepFromBottom * (staffSpacePx * 0.5f)
 
@@ -194,6 +210,68 @@ data class ScoreLayout(
             x >= ts.x - padX && x <= ts.x + ts.width + padX &&
                 y >= ts.topY - padY && y <= ts.bottomY + padY
         }
+    }
+
+    /** Returns the [ScorePlacedDynamic] under `(x, y)`, or `null` if none. */
+    fun dynamicAt(x: Float, y: Float): ScorePlacedDynamic? {
+        val sp = staffSpacePx
+        val padX = sp * 0.35f
+        val padY = sp * 0.35f
+        return placedDynamics.firstOrNull { dyn ->
+            x >= dyn.boxLeft - padX && x <= dyn.boxRight + padX &&
+                y >= dyn.boxTop - padY && y <= dyn.boxBottom + padY
+        }
+    }
+
+    /** Returns every [ScoreDynamicLocation] whose bounding box intersects the given rectangle. */
+    fun dynamicsInRect(left: Float, top: Float, right: Float, bottom: Float): Set<ScoreDynamicLocation> {
+        val minX = min(left, right)
+        val maxX = max(left, right)
+        val minY = min(top, bottom)
+        val maxY = max(top, bottom)
+        val hit = linkedSetOf<ScoreDynamicLocation>()
+        for (dyn in placedDynamics) {
+            if (dyn.boxRight >= minX && dyn.boxLeft <= maxX &&
+                dyn.boxBottom >= minY && dyn.boxTop <= maxY
+            ) {
+                hit.add(dyn.location)
+            }
+        }
+        return hit
+    }
+
+    /**
+     * Resolves a click at `(x, y)` into the target `(ScoreDynamicLocation, DynamicPlacement)` for
+     * placing a dynamic above or below the stave in a measure.
+     */
+    fun dynamicTargetAt(x: Float, y: Float): Pair<ScoreDynamicLocation, DynamicPlacement>? {
+        if (placedMeasures.isEmpty()) return null
+        val pm = placedMeasures.firstOrNull { x >= it.startX && x <= it.barlineX }
+            ?: placedMeasures.minByOrNull { m ->
+                when {
+                    x < m.startX -> m.startX - x
+                    x > m.barlineX -> x - m.barlineX
+                    else -> 0f
+                }
+            }
+            ?: return null
+        val placement = if (y < (topStaffY + bottomStaffY) * 0.5f) {
+            DynamicPlacement.ABOVE
+        } else {
+            DynamicPlacement.BELOW
+        }
+        val sp = staffSpacePx
+        val itemIdx = if (pm.items.isEmpty()) {
+            0
+        } else {
+            val last = pm.items.last()
+            if (x > last.boxRight + sp * 1.5f) {
+                pm.items.size
+            } else {
+                pm.items.minByOrNull { pi -> abs(x - (pi.x + pi.width * 0.5f)) }?.itemIdx ?: 0
+            }
+        }
+        return ScoreDynamicLocation(pm.measureIdx, itemIdx) to placement
     }
 
     /** Returns the [ScorePlacedItem] under `(x, y)`, preferring the nearest item center if boxes touch. */
@@ -504,6 +582,7 @@ object ScoreRenderer {
         var effectiveTime = openingTime
         val changeEmPx = emPx * CLEF_CHANGE_SCALE
         val allClefChanges = mutableListOf<ScorePlacedClefChange>()
+        val allDynamics = mutableListOf<ScorePlacedDynamic>()
 
         for ((mIdx, measure) in score.measures.withIndex()) {
             val mStartX = cursorX
@@ -811,6 +890,47 @@ object ScoreRenderer {
                 null
             }
             val barlineX = cursorX
+            val placedDynamicsForMeasure = if (measure.dynamics.isEmpty()) {
+                emptyList()
+            } else {
+                buildList {
+                    for ((dIdx, marking) in measure.dynamics.entries.sortedBy { it.key }) {
+                        val anchorItem = itemsInMeasure.getOrNull(dIdx)
+                        val rawX = when {
+                            anchorItem != null -> anchorItem.x
+                            itemsInMeasure.isNotEmpty() -> (itemsInMeasure.last().boxRight + sp * 1.1f)
+                                .coerceAtMost(barlineX - sp * 2.2f)
+                            else -> contentStartX + sp * 0.5f
+                        }
+                        val estWidth = max(sp * 1.5f, (marking.mark.label.length * 0.9f + 0.55f) * sp)
+                        val drawX = rawX - estWidth * 0.22f
+                        val baselineY = when (marking.placement) {
+                            DynamicPlacement.BELOW -> maxOf(
+                                bottomStaffY + sp * 3.1f,
+                                (anchorItem?.boxBottom ?: bottomStaffY) + sp * 2.0f,
+                            )
+                            DynamicPlacement.ABOVE -> minOf(
+                                topStaffY - sp * 2.0f,
+                                (anchorItem?.boxTop ?: topStaffY) - sp * 0.9f,
+                            )
+                        }
+                        add(
+                            ScorePlacedDynamic(
+                                measureIdx = mIdx,
+                                itemIdx = dIdx,
+                                marking = marking,
+                                x = drawX,
+                                baselineY = baselineY,
+                                boxLeft = drawX - sp * 0.15f,
+                                boxTop = baselineY - sp * 1.45f,
+                                boxRight = drawX + estWidth + sp * 0.15f,
+                                boxBottom = baselineY + sp * 0.45f,
+                            )
+                        )
+                    }
+                }
+            }
+            allDynamics.addAll(placedDynamicsForMeasure)
             placedMeasures.add(
                 ScorePlacedMeasure(
                     measureIdx = mIdx,
@@ -830,6 +950,7 @@ object ScoreRenderer {
                     barlineClefChange = barlineClefChange,
                     activeOpeningClef = measureOpeningClef,
                     activeClosingClef = measureClosingClef,
+                    dynamics = placedDynamicsForMeasure,
                 )
             )
             cursorX += sp * 0.6f
@@ -877,6 +998,7 @@ object ScoreRenderer {
             placedMeasures = placedMeasures,
             placedTimeSignatures = placedTimeSignatures,
             placedClefChanges = allClefChanges,
+            placedDynamics = allDynamics,
         )
         return header to layout
     }
@@ -903,6 +1025,7 @@ object ScoreRenderer {
         selectedLocations: Set<ScoreItemLocation> = emptySet(),
         selectedMeasureIndices: Set<Int> = emptySet(),
         selectedClefChange: ScoreClefLocation? = null,
+        selectedDynamics: Set<ScoreDynamicLocation> = emptySet(),
         ghostPreview: ScoreGhostPreview? = null,
         rubberBand: ScoreRubberBand? = null,
         cursorPosition: ScoreCursorPosition? = null,
@@ -1076,6 +1199,26 @@ object ScoreRenderer {
                 val clefColor = if (isClefSelected) colors.selectedNote else colors.ink
                 val clefY = layout.yForStep(cc.clef.glyphLineFromBottom * 2)
                 target.drawGlyph(cc.clef.glyph, cc.x, clefY, changeEmPx, clefColor)
+            }
+
+            // Dynamic markings attached to this measure
+            for (pd in pm.dynamics) {
+                val isDynSelected = pd.location in selectedDynamics
+                if (isDynSelected) {
+                    val pad = sp * 0.2f
+                    val rx = pd.boxLeft - pad
+                    val ry = pd.boxTop - pad
+                    val rw = (pd.boxRight - pd.boxLeft) + pad * 2f
+                    val rh = (pd.boxBottom - pd.boxTop) + pad * 2f
+                    target.fillRect(rx, ry, rw, rh, colors.selectedBoxFill)
+                    val borderThick = (sp * 0.12f).coerceAtLeast(1f)
+                    target.drawLine(rx, ry, rx + rw, ry, borderThick, colors.selectedBoxBorder)
+                    target.drawLine(rx, ry + rh, rx + rw, ry + rh, borderThick, colors.selectedBoxBorder)
+                    target.drawLine(rx, ry, rx, ry + rh, borderThick, colors.selectedBoxBorder)
+                    target.drawLine(rx + rw, ry, rx + rw, ry + rh, borderThick, colors.selectedBoxBorder)
+                }
+                val dynColor = if (isDynSelected) colors.selectedNote else colors.ink
+                target.drawGlyph(pd.marking.mark.glyph, pd.x, pd.baselineY, emPx, dynColor)
             }
 
             // Barline at end of measure

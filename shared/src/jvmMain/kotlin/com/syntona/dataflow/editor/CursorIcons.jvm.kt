@@ -188,3 +188,55 @@ private fun drawCursorSymbol(
     // Reset transform in case caller inspects it
     val _t = AffineTransform()
 }
+
+private data class DynamicCursorCacheKey(
+    val label: String,
+    val isDarkMode: Boolean,
+)
+
+private val dynamicCursorCache = mutableMapOf<DynamicCursorCacheKey, PointerIcon>()
+
+actual fun scoreDynamicCursor(
+    label: String,
+    isDarkMode: Boolean,
+): PointerIcon {
+    val key = DynamicCursorCacheKey(label, isDarkMode)
+    dynamicCursorCache[key]?.let { return it }
+
+    val width = 36
+    val height = 28
+    val img = BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB)
+    val g = img.createGraphics()
+    try {
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
+        val fontSize = when {
+            label.length >= 4 -> 12
+            label.length == 3 -> 14
+            else -> 16
+        }
+        g.font = java.awt.Font("Serif", java.awt.Font.BOLD or java.awt.Font.ITALIC, fontSize)
+        val fm = g.fontMetrics
+        val textW = fm.stringWidth(label)
+        val textX = ((width - textW) * 0.5f).toInt().coerceAtLeast(2)
+        val textY = ((height - fm.height) * 0.5f + fm.ascent).toInt()
+        val haloColor = if (isDarkMode) Color(15, 23, 42, 235) else Color(255, 255, 255, 235)
+        val inkColor = if (isDarkMode) Color(248, 250, 252, 255) else Color(17, 24, 39, 255)
+        g.color = haloColor
+        for (dx in -1..1) {
+            for (dy in -1..1) {
+                if (dx != 0 || dy != 0) {
+                    g.drawString(label, textX + dx, textY + dy)
+                }
+            }
+        }
+        g.color = inkColor
+        g.drawString(label, textX, textY)
+    } finally {
+        g.dispose()
+    }
+    val cursor = Toolkit.getDefaultToolkit().createCustomCursor(img, Point(width / 2, height / 2), "score-dynamic-$label")
+    val created = PointerIcon(cursor)
+    dynamicCursorCache[key] = created
+    return created
+}

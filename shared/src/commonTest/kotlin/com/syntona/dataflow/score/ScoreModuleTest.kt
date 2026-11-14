@@ -2416,4 +2416,264 @@ class ScoreModuleTest {
         assertEquals(listOf(c4, d4, e4, f4), itemsPastEnd.measures[2].items)
         assertEquals(listOf(c4, d4), itemsPastEnd.measures[3].items)
     }
+
+    @Test
+    fun testDynamicKeyboardCyclesAndPaletteOptions() {
+        assertTrue(ScorePaletteKind.DYNAMICS in ScorePaletteKind.entries)
+        val marks = ScorePalettes.dynamicOptions.map { it.mark }
+        assertTrue(DynamicMark.MF in marks)
+        assertTrue(DynamicMark.FF in marks)
+        assertTrue(DynamicMark.PPPP in marks)
+        assertTrue(DynamicMark.FFFF in marks)
+
+        // 'p' cycle: p -> pp -> ppp -> pppp -> mp -> p
+        assertEquals(DynamicMark.P, DynamicMark.nextPianoCycle(null))
+        assertEquals(DynamicMark.P, DynamicMark.nextPianoCycle(DynamicMark.MF))
+        assertEquals(DynamicMark.PP, DynamicMark.nextPianoCycle(DynamicMark.P))
+        assertEquals(DynamicMark.PPP, DynamicMark.nextPianoCycle(DynamicMark.PP))
+        assertEquals(DynamicMark.PPPP, DynamicMark.nextPianoCycle(DynamicMark.PPP))
+        assertEquals(DynamicMark.MP, DynamicMark.nextPianoCycle(DynamicMark.PPPP))
+        assertEquals(DynamicMark.P, DynamicMark.nextPianoCycle(DynamicMark.MP))
+
+        // 'f' cycle: f -> ff -> fff -> ffff -> mf -> f
+        assertEquals(DynamicMark.F, DynamicMark.nextForteCycle(null))
+        assertEquals(DynamicMark.F, DynamicMark.nextForteCycle(DynamicMark.P))
+        assertEquals(DynamicMark.FF, DynamicMark.nextForteCycle(DynamicMark.F))
+        assertEquals(DynamicMark.FFF, DynamicMark.nextForteCycle(DynamicMark.FF))
+        assertEquals(DynamicMark.FFFF, DynamicMark.nextForteCycle(DynamicMark.FFF))
+        assertEquals(DynamicMark.MF, DynamicMark.nextForteCycle(DynamicMark.FFFF))
+        assertEquals(DynamicMark.F, DynamicMark.nextForteCycle(DynamicMark.MF))
+
+        // Monotonic musical amplitude progression from pppp to ffff
+        val ordered = listOf(
+            DynamicMark.PPPP, DynamicMark.PPP, DynamicMark.PP, DynamicMark.P,
+            DynamicMark.MP, DynamicMark.MF, DynamicMark.F, DynamicMark.FF,
+            DynamicMark.FFF, DynamicMark.FFFF,
+        )
+        for (i in 0 until ordered.lastIndex) {
+            assertTrue(
+                ordered[i].amplitude < ordered[i + 1].amplitude,
+                "Expected ${ordered[i]} < ${ordered[i + 1]} amplitude",
+            )
+        }
+    }
+
+    @Test
+    fun testDynamicPlacementShiftingDeletionAndLayoutHitTesting() {
+        val c4 = ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 4), NoteDuration.QUARTER)
+        val d4 = ScoreItem.Note(SpelledPitch(NoteLetter.D, 0, 4), NoteDuration.QUARTER)
+        val e4 = ScoreItem.Note(SpelledPitch(NoteLetter.E, 0, 4), NoteDuration.QUARTER)
+        val initial = listOf(
+            ScoreMeasure(1, listOf(c4, d4)),
+            ScoreMeasure(2, emptyList()),
+        )
+
+        val (withBelow, loc0) = ScoreEditing.setDynamic(
+            initial,
+            ScoreDynamicLocation(0, 1),
+            ScoreDynamicMarking(DynamicMark.MF, DynamicPlacement.BELOW),
+        )
+        assertEquals(ScoreDynamicLocation(0, 1), loc0)
+        val (withAbove, loc1) = ScoreEditing.setDynamic(
+            withBelow,
+            ScoreDynamicLocation(1, 0),
+            ScoreDynamicMarking(DynamicMark.FF, DynamicPlacement.ABOVE),
+        )
+        assertEquals(ScoreDynamicLocation(1, 0), loc1)
+
+        // Inserting a note before index 1 shifts the MF dynamic to index 2
+        val (afterInsert, _) = ScoreEditing.insertItem(withAbove, 0, 0, e4, shiftClefAtIndex = true)
+        assertEquals(ScoreDynamicMarking(DynamicMark.MF, DynamicPlacement.BELOW), afterInsert[0].dynamics[2])
+        assertNull(afterInsert[0].dynamics[1])
+
+        // Deleting the inserted note shifts MF back to index 1
+        val afterItemDelete = ScoreEditing.deleteItems(afterInsert, setOf(ScoreItemLocation(0, 0)))
+        assertEquals(ScoreDynamicMarking(DynamicMark.MF, DynamicPlacement.BELOW), afterItemDelete[0].dynamics[1])
+
+        // Render and verify placement, hit-testing, rubber-band selection, and click-target resolution
+        val scoreData = ScoreData().apply {
+            clef = Clef.TREBLE
+            keySignature = KeySignature.C_MAJOR
+            timeSignature = TimeSignature.COMMON_TIME
+            replaceMeasures(afterItemDelete)
+        }
+        val target = RecordingDrawTarget()
+        val layout = ScoreRenderer.render(
+            score = scoreData,
+            target = target,
+            staffSpacePx = 10f,
+            minWidthPx = 600f,
+            colors = ScoreRenderColors.forTheme(false),
+            selectedDynamics = setOf(ScoreDynamicLocation(0, 1)),
+        )
+        assertEquals(2, layout.placedDynamics.size)
+        val mfPlaced = layout.placedDynamics.first { it.location == ScoreDynamicLocation(0, 1) }
+        val ffPlaced = layout.placedDynamics.first { it.location == ScoreDynamicLocation(1, 0) }
+        assertTrue(mfPlaced.baselineY > layout.bottomStaffY)
+        assertTrue(ffPlaced.baselineY < layout.topStaffY)
+        assertEquals(mfPlaced, layout.dynamicAt((mfPlaced.boxLeft + mfPlaced.boxRight) * 0.5f, (mfPlaced.boxTop + mfPlaced.boxBottom) * 0.5f))
+        assertTrue(target.glyphs.any { it.glyph == DynamicMark.MF.glyph })
+        assertTrue(target.glyphs.any { it.glyph == DynamicMark.FF.glyph })
+        assertEquals(
+            setOf(ScoreDynamicLocation(0, 1)),
+            layout.dynamicsInRect(mfPlaced.boxLeft, mfPlaced.boxTop, mfPlaced.boxRight, mfPlaced.boxBottom),
+        )
+
+        val aboveTarget = layout.dynamicTargetAt(layout.placedMeasures[0].items[0].x, layout.topStaffY - 25f)
+        assertNotNull(aboveTarget)
+        assertEquals(ScoreDynamicLocation(0, 0), aboveTarget.first)
+        assertEquals(DynamicPlacement.ABOVE, aboveTarget.second)
+
+        val belowTarget = layout.dynamicTargetAt(layout.placedMeasures[0].items[1].x, layout.bottomStaffY + 25f)
+        assertNotNull(belowTarget)
+        assertEquals(ScoreDynamicLocation(0, 1), belowTarget.first)
+        assertEquals(DynamicPlacement.BELOW, belowTarget.second)
+
+        // Explicit deletion removes only selected dynamics
+        val deleted = ScoreEditing.deleteDynamics(afterItemDelete, setOf(ScoreDynamicLocation(0, 1)))
+        assertTrue(deleted[0].dynamics.isEmpty())
+        assertEquals(ScoreDynamicMarking(DynamicMark.FF, DynamicPlacement.ABOVE), deleted[1].dynamics[0])
+    }
+
+    @Test
+    fun testDynamicCopyPasteAndSerialization() {
+        val c4 = ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 4), NoteDuration.QUARTER)
+        val d4 = ScoreItem.Note(SpelledPitch(NoteLetter.D, 0, 4), NoteDuration.QUARTER)
+        val m1Dyn = ScoreDynamicMarking(DynamicMark.P, DynamicPlacement.BELOW)
+        val m2Dyn = ScoreDynamicMarking(DynamicMark.FF, DynamicPlacement.ABOVE)
+        val sourceMeasures = listOf(
+            ScoreMeasure(1, listOf(c4, d4), dynamics = mapOf(0 to m1Dyn)),
+            ScoreMeasure(2, listOf(c4), dynamics = mapOf(0 to m2Dyn)),
+        )
+
+        // 1. Standalone dynamics copy & paste spanning past final bar appends bars
+        val clipDyns = ScoreEditing.copySelectionContent(
+            measures = sourceMeasures,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            selectedDynamics = setOf(ScoreDynamicLocation(0, 0), ScoreDynamicLocation(1, 0)),
+        )
+        assertTrue(clipDyns is ScoreClipboardContent.DynamicsOnly)
+        val pastedDyns = ScoreEditing.pasteClipboardContent(
+            measures = listOf(ScoreMeasure(1, listOf(c4)), ScoreMeasure(2, listOf(d4))),
+            content = clipDyns,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            cursorPosition = ScoreCursorPosition(1, 0),
+        )
+        assertNotNull(pastedDyns)
+        assertEquals(3, pastedDyns.measures.size)
+        assertEquals(m1Dyn, pastedDyns.measures[1].dynamics[0])
+        assertEquals(m2Dyn, pastedDyns.measures[2].dynamics[0])
+
+        // 2. MeasureRange copy & paste preserves dynamics
+        val clipRange = ScoreEditing.copySelectionContent(
+            measures = sourceMeasures,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            selectedMeasures = setOf(0, 1),
+        )
+        assertTrue(clipRange is ScoreClipboardContent.MeasureRange)
+        val pastedRange = ScoreEditing.pasteClipboardContent(
+            measures = listOf(ScoreMeasure(1, listOf(c4))),
+            content = clipRange,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            cursorPosition = ScoreCursorPosition(0, 1),
+        )
+        assertNotNull(pastedRange)
+        assertEquals(3, pastedRange.measures.size)
+        assertEquals(m1Dyn, pastedRange.measures[1].dynamics[0])
+        assertEquals(m2Dyn, pastedRange.measures[2].dynamics[0])
+
+        // 3. ItemSelection carries dynamic attached to copied note
+        val clipItem = ScoreEditing.copySelectionContent(
+            measures = sourceMeasures,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            selectedLocations = setOf(ScoreItemLocation(0, 0)),
+        )
+        assertTrue(clipItem is ScoreClipboardContent.ItemSelection)
+        val pastedItem = ScoreEditing.pasteClipboardContent(
+            measures = listOf(ScoreMeasure(1, listOf(d4))),
+            content = clipItem,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            cursorPosition = ScoreCursorPosition(0, 1),
+        )
+        assertNotNull(pastedItem)
+        assertEquals(m1Dyn, pastedItem.measures[0].dynamics[1])
+
+        // 4. GraphSerializer round-trip preserves dynamics and placements
+        val graph = GraphState()
+        val module = ScoreModule()
+        module.scoreData.replaceMeasures(sourceMeasures)
+        graph.addModule(module, Offset.Zero)
+        val json = GraphSerializer.serialize(graph, graph.modules)
+        val reloaded = GraphSerializer.deserialize(GraphState(), json).filterIsInstance<ScoreModule>().single()
+        assertEquals(m1Dyn, reloaded.scoreData.measures[0].dynamics[0])
+        assertEquals(m2Dyn, reloaded.scoreData.measures[1].dynamics[0])
+    }
+
+    @Test
+    fun testPlaybackAppliesDynamicsToNoteAmplitudes() {
+        val engine = TestEngine()
+        val score = ScoreModule()
+        score.setEngine(engine)
+        val receiver = VoiceReceiver()
+        score.output.connect(receiver.inJack)
+
+        val c4 = ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 4), NoteDuration.QUARTER)
+        val d4 = ScoreItem.Note(SpelledPitch(NoteLetter.D, 0, 4), NoteDuration.QUARTER)
+        val e4 = ScoreItem.Note(SpelledPitch(NoteLetter.E, 0, 4), NoteDuration.QUARTER)
+        val f4 = ScoreItem.Note(SpelledPitch(NoteLetter.F, 0, 4), NoteDuration.QUARTER)
+        score.scoreData.replaceMeasures(
+            listOf(
+                // Note 0: no dynamic (default 0.25)
+                // Note 1: p (0.21), persists to Note 2
+                // Note 3: ff (0.72)
+                ScoreMeasure(
+                    1,
+                    listOf(c4, d4, e4, f4),
+                    dynamics = mapOf(
+                        1 to ScoreDynamicMarking(DynamicMark.P, DynamicPlacement.BELOW),
+                        3 to ScoreDynamicMarking(DynamicMark.FF, DynamicPlacement.ABOVE),
+                    ),
+                ),
+                // Note 4 (Measure 2): ff carries over; Note 5: sfz accent (0.80); Note 6: ff still active; Note 7: fp -> F attack then P next
+                ScoreMeasure(
+                    2,
+                    listOf(c4, d4, e4, f4),
+                    dynamics = mapOf(
+                        1 to ScoreDynamicMarking(DynamicMark.SFZ, DynamicPlacement.BELOW),
+                        3 to ScoreDynamicMarking(DynamicMark.FP, DynamicPlacement.BELOW),
+                    ),
+                ),
+                ScoreMeasure(3, listOf(c4)),
+            )
+        )
+
+        score.start.receive(Message.FloatValue(ScoreTime(0L), 1.0))
+        for ((_, action) in engine.scheduled) {
+            action()
+        }
+
+        val amps = receiver.received.map { it.extra }
+        assertEquals(9, amps.size)
+        assertEquals(0.25, amps[0], 1e-6)
+        assertEquals(DynamicMark.P.amplitude, amps[1], 1e-6)
+        assertEquals(DynamicMark.P.amplitude, amps[2], 1e-6)
+        assertEquals(DynamicMark.FF.amplitude, amps[3], 1e-6)
+        assertEquals(DynamicMark.FF.amplitude, amps[4], 1e-6)
+        assertEquals(DynamicMark.SFZ.amplitude, amps[5], 1e-6)
+        assertEquals(DynamicMark.FF.amplitude, amps[6], 1e-6)
+        assertEquals(DynamicMark.F.amplitude, amps[7], 1e-6)
+        assertEquals(DynamicMark.P.amplitude, amps[8], 1e-6)
+    }
 }
