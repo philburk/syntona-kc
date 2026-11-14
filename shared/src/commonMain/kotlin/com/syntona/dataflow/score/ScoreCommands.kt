@@ -69,11 +69,16 @@ class StepRecordScoreNoteCommand(
                 amplitude = amplitude.coerceIn(0.05, 1.0),
                 isStaccato = module.stepRecordStaccato,
             )
+            val activeTime = ScoreEditing.effectiveTimeAtMeasure(
+                measures = prevMeasures,
+                initialTime = module.scoreData.timeSignature,
+                measureIdx = prevCursor.measureIdx,
+            )
             val result = ScoreEditing.stepInsertItem(
                 measures = prevMeasures,
                 cursor = prevCursor,
                 item = note,
-                measureCapacityTicks = module.scoreData.timeSignature.measureCapacityTicks,
+                measureCapacityTicks = activeTime.measureCapacityTicks,
             )
             beforeMeasures = prevMeasures
             beforeCursor = prevCursor
@@ -122,6 +127,34 @@ class SetScoreKeySignatureCommand(
 
     override fun undo() {
         scoreData.keySignature = beforeInitialKey
+        scoreData.replaceMeasures(beforeMeasures)
+        onSync?.invoke()
+        FileState.markDirty()
+    }
+}
+
+/**
+ * Undoable command updating the score's opening and/or per-measure time signatures.
+ */
+class SetScoreTimeSignatureCommand(
+    private val scoreData: ScoreData,
+    private val beforeInitialTime: TimeSignature,
+    private val beforeMeasures: List<ScoreMeasure>,
+    private val afterInitialTime: TimeSignature,
+    private val afterMeasures: List<ScoreMeasure>,
+    private val onSync: (() -> Unit)? = null,
+) : SyntonaCommand {
+    override val isUndoable = true
+
+    override fun execute() {
+        scoreData.timeSignature = afterInitialTime
+        scoreData.replaceMeasures(afterMeasures)
+        onSync?.invoke()
+        FileState.markDirty()
+    }
+
+    override fun undo() {
+        scoreData.timeSignature = beforeInitialTime
         scoreData.replaceMeasures(beforeMeasures)
         onSync?.invoke()
         FileState.markDirty()

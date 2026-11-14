@@ -15,8 +15,8 @@ enum class ScorePaletteKind(
         buttonLabel = "Notes/\nRests",
     ),
     KEY_SIGNATURES(
-        title = "Key Signatures",
-        buttonLabel = "Key",
+        title = "Keys/Times",
+        buttonLabel = "Keys/\nTimes",
     ),
 }
 
@@ -38,6 +38,14 @@ data class ScoreKeyOption(
     val keySignature: KeySignature,
     val shortName: String,
     val countLabel: String,
+)
+
+/**
+ * A selectable time signature entry inside the Key Signatures popup palette.
+ */
+data class ScoreTimeSigOption(
+    val timeSignature: TimeSignature,
+    val label: String = timeSignature.label,
 )
 
 /**
@@ -93,6 +101,8 @@ object ScorePalettes {
         ScoreKeyOption(KeySignature.G_FLAT, "Gb", "6b"),
         ScoreKeyOption(KeySignature.C_FLAT, "Cb", "7b"),
     )
+
+    val timeSignatureOptions: List<ScoreTimeSigOption> = TimeSignature.PRESETS.map { ScoreTimeSigOption(it) }
 }
 
 /**

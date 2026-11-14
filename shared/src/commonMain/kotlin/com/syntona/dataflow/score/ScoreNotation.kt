@@ -202,11 +202,42 @@ data class TimeSignature(val numerator: Int = 4, val denominator: Int = 4) {
     val measureCapacityTicks: Int get() = (numerator * (PianoRollTiming.TPB * 4)) / denominator
 
     companion object {
+        val VALID_DENOMINATORS = setOf(1, 2, 4, 8, 16, 32)
+        const val MIN_NUMERATOR = 1
+        const val MAX_NUMERATOR = 32
+
         val COMMON_TIME = TimeSignature(4, 4)
         val THREE_FOUR = TimeSignature(3, 4)
         val TWO_FOUR = TimeSignature(2, 4)
+        val TWO_TWO = TimeSignature(2, 2)
+        val FIVE_FOUR = TimeSignature(5, 4)
+        val THREE_EIGHT = TimeSignature(3, 8)
         val SIX_EIGHT = TimeSignature(6, 8)
-        val PRESETS = listOf(COMMON_TIME, THREE_FOUR, TWO_FOUR, SIX_EIGHT)
+        val NINE_EIGHT = TimeSignature(9, 8)
+        val TWELVE_EIGHT = TimeSignature(12, 8)
+        val PRESETS = listOf(
+            TWO_FOUR,
+            THREE_FOUR,
+            COMMON_TIME,
+            FIVE_FOUR,
+            TWO_TWO,
+            THREE_EIGHT,
+            SIX_EIGHT,
+            NINE_EIGHT,
+            TWELVE_EIGHT,
+        )
+
+        fun isValid(numerator: Int, denominator: Int): Boolean =
+            numerator in MIN_NUMERATOR..MAX_NUMERATOR && denominator in VALID_DENOMINATORS
+
+        /** Parses strings such as `"3/4"` or `"12/8"`; returns `null` when invalid. */
+        fun parse(text: String): TimeSignature? {
+            val parts = text.trim().split('/')
+            if (parts.size != 2) return null
+            val num = parts[0].trim().toIntOrNull() ?: return null
+            val den = parts[1].trim().toIntOrNull() ?: return null
+            return if (isValid(num, den)) TimeSignature(num, den) else null
+        }
     }
 }
 
@@ -335,6 +366,7 @@ data class ScoreMeasure(
     val number: Int,
     val items: List<ScoreItem>,
     val keySignature: KeySignature? = null,
+    val timeSignature: TimeSignature? = null,
 )
 
 /**
@@ -728,6 +760,47 @@ object ScoreEditing {
             }
         }
         return nextInitialKey to updated
+    }
+
+    /** Returns the [TimeSignature] in effect during [measureIdx] (`0`-based). */
+    fun effectiveTimeAtMeasure(
+        measures: List<ScoreMeasure>,
+        initialTime: TimeSignature,
+        measureIdx: Int,
+    ): TimeSignature {
+        var effective = measures.firstOrNull()?.timeSignature ?: initialTime
+        val limit = measureIdx.coerceAtMost(measures.lastIndex)
+        for (i in 1..limit) {
+            measures[i].timeSignature?.let { effective = it }
+        }
+        return effective
+    }
+
+    /**
+     * Inserts, updates, or removes (`newTime == null`) the time signature on the first measure in
+     * [selectedMeasureIndices]. Measure 0's opening time signature cannot be removed.
+     */
+    fun setTimeSignatureOnMeasures(
+        initialTime: TimeSignature,
+        measures: List<ScoreMeasure>,
+        selectedMeasureIndices: Set<Int>,
+        newTime: TimeSignature?,
+    ): Pair<TimeSignature, List<ScoreMeasure>> {
+        val normalized = renumber(measures)
+        val firstIdx = selectedMeasureIndices.filter { it in normalized.indices }.minOrNull()
+            ?: return initialTime to normalized
+        if (newTime == null && firstIdx == 0) {
+            return initialTime to normalized
+        }
+        val nextInitialTime = if (firstIdx == 0 && newTime != null) newTime else initialTime
+        val updated = normalized.mapIndexed { idx, measure ->
+            if (idx == firstIdx) {
+                measure.copy(timeSignature = if (idx == 0) null else newTime)
+            } else {
+                measure
+            }
+        }
+        return nextInitialTime to updated
     }
 
     /**

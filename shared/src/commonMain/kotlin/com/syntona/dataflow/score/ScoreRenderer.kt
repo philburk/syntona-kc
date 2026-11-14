@@ -88,6 +88,17 @@ data class ScorePlacedItem(
     val location: ScoreItemLocation get() = ScoreItemLocation(measureIdx, itemIdx)
 }
 
+data class ScorePlacedTimeSignature(
+    val measureIdx: Int,
+    val timeSignature: TimeSignature,
+    val x: Float,
+    val width: Float,
+    val numWidth: Float,
+    val denWidth: Float,
+    val topY: Float,
+    val bottomY: Float,
+)
+
 data class ScorePlacedMeasure(
     val measureIdx: Int,
     val measure: ScoreMeasure,
@@ -100,6 +111,8 @@ data class ScorePlacedMeasure(
     val keyChangeX: Float = startX,
     val keyChangeGlyphs: List<Pair<Int, Accidental>> = emptyList(),
     val activeKeySignature: KeySignature = KeySignature.C_MAJOR,
+    val timeChange: ScorePlacedTimeSignature? = null,
+    val activeTimeSignature: TimeSignature = TimeSignature.COMMON_TIME,
 )
 
 data class ScoreInsertionTarget(
@@ -133,11 +146,23 @@ data class ScoreLayout(
     val headerEndX: Float = 0f,
     val staffEndX: Float = 0f,
     val placedMeasures: List<ScorePlacedMeasure> = emptyList(),
+    val placedTimeSignatures: List<ScorePlacedTimeSignature> = emptyList(),
 ) {
     fun yForStep(stepFromBottom: Int): Float = bottomStaffY - stepFromBottom * (staffSpacePx * 0.5f)
 
     fun stepAtY(y: Float, minStep: Int = -12, maxStep: Int = 20): Int =
         ((bottomStaffY - y) / (staffSpacePx * 0.5f)).roundToInt().coerceIn(minStep, maxStep)
+
+    /** Returns the [ScorePlacedTimeSignature] under `(x, y)`, or `null` if none. */
+    fun timeSignatureAt(x: Float, y: Float): ScorePlacedTimeSignature? {
+        val sp = staffSpacePx
+        val padX = sp * 0.35f
+        val padY = sp * 0.4f
+        return placedTimeSignatures.firstOrNull { ts ->
+            x >= ts.x - padX && x <= ts.x + ts.width + padX &&
+                y >= ts.topY - padY && y <= ts.bottomY + padY
+        }
+    }
 
     /** Returns the [ScorePlacedItem] under `(x, y)`, preferring the nearest item center if boxes touch. */
     fun itemAt(x: Float, y: Float): ScorePlacedItem? {
@@ -339,6 +364,9 @@ object ScoreRenderer {
         val keyGlyph: String,
         val keyGlyphStepWidth: Float,
         val timeSigX: Float,
+        val timeSigWidth: Float,
+        val numWidth: Float,
+        val denWidth: Float,
         val numStr: String,
         val denStr: String,
         val headerEndX: Float,
@@ -381,20 +409,32 @@ object ScoreRenderer {
             cursorX += keySteps.size * keyGlyphStepWidth + sp * 0.7f
         }
 
-        val numStr = SmuflGlyphs.timeSigNumber(score.timeSignature.numerator)
-        val denStr = SmuflGlyphs.timeSigNumber(score.timeSignature.denominator)
+        val openingTime = score.measures.firstOrNull()?.timeSignature ?: score.timeSignature
+        val numStr = SmuflGlyphs.timeSigNumber(openingTime.numerator)
+        val denStr = SmuflGlyphs.timeSigNumber(openingTime.denominator)
         val timeSigX = cursorX
-        val timeSigWidth = max(
-            measureGlyphWidth(numStr, emPx),
-            measureGlyphWidth(denStr, emPx),
-        ).coerceAtLeast(sp * 1.6f)
+        val numWidth = measureGlyphWidth(numStr, emPx)
+        val denWidth = measureGlyphWidth(denStr, emPx)
+        val timeSigWidth = max(numWidth, denWidth).coerceAtLeast(sp * 1.6f)
         cursorX += timeSigWidth + sp * 1.6f
         val headerEndX = cursorX
 
-        val measureCapacity = score.timeSignature.measureCapacityTicks
         val placedMeasures = mutableListOf<ScorePlacedMeasure>()
+        val placedTimeSignatures = mutableListOf(
+            ScorePlacedTimeSignature(
+                measureIdx = 0,
+                timeSignature = openingTime,
+                x = timeSigX,
+                width = timeSigWidth,
+                numWidth = numWidth,
+                denWidth = denWidth,
+                topY = topStaffY,
+                bottomY = bottomStaffY,
+            )
+        )
         var globalIdx = 0
         var effectiveKey = openingKey
+        var effectiveTime = openingTime
 
         for ((mIdx, measure) in score.measures.withIndex()) {
             val mStartX = cursorX
@@ -410,6 +450,33 @@ object ScoreRenderer {
                 val (_, endKeyX) = keyChangeGlyphLayout(keyChangeX, keyChangeGlyphs, sp)
                 cursorX = endKeyX + sp * 0.45f
             }
+            val timeChange = if (mIdx > 0 && measure.timeSignature != null && measure.timeSignature != effectiveTime) {
+                measure.timeSignature.also { effectiveTime = it }
+            } else {
+                null
+            }
+            val placedTimeChange = if (timeChange != null) {
+                val tsX = cursorX
+                val cNumStr = SmuflGlyphs.timeSigNumber(timeChange.numerator)
+                val cDenStr = SmuflGlyphs.timeSigNumber(timeChange.denominator)
+                val cNumW = measureGlyphWidth(cNumStr, emPx)
+                val cDenW = measureGlyphWidth(cDenStr, emPx)
+                val tsWidth = max(cNumW, cDenW).coerceAtLeast(sp * 1.6f)
+                cursorX += tsWidth + sp * 0.6f
+                ScorePlacedTimeSignature(
+                    measureIdx = mIdx,
+                    timeSignature = timeChange,
+                    x = tsX,
+                    width = tsWidth,
+                    numWidth = cNumW,
+                    denWidth = cDenW,
+                    topY = topStaffY,
+                    bottomY = bottomStaffY,
+                ).also { placedTimeSignatures.add(it) }
+            } else {
+                null
+            }
+            val measureCapacity = effectiveTime.measureCapacityTicks
             val contentStartX = cursorX
             val activeAlters = mutableMapOf<Int, Int>()
             val itemsInMeasure = mutableListOf<ScorePlacedItem>()
@@ -620,6 +687,8 @@ object ScoreRenderer {
                     keyChangeX = keyChangeX,
                     keyChangeGlyphs = keyChangeGlyphs,
                     activeKeySignature = effectiveKey,
+                    timeChange = placedTimeChange,
+                    activeTimeSignature = effectiveTime,
                 )
             )
             cursorX += sp * 0.6f
@@ -647,6 +716,9 @@ object ScoreRenderer {
             keyGlyph = keyGlyph,
             keyGlyphStepWidth = keyGlyphStepWidth,
             timeSigX = timeSigX,
+            timeSigWidth = timeSigWidth,
+            numWidth = numWidth,
+            denWidth = denWidth,
             numStr = numStr,
             denStr = denStr,
             headerEndX = headerEndX,
@@ -660,6 +732,7 @@ object ScoreRenderer {
             headerEndX = headerEndX,
             staffEndX = staffEndX,
             placedMeasures = placedMeasures,
+            placedTimeSignatures = placedTimeSignatures,
         )
         return header to layout
     }
@@ -718,8 +791,10 @@ object ScoreRenderer {
             target.drawGlyph(header.keyGlyph, kx, layout.yForStep(stepOffset), emPx, colors.ink)
         }
 
-        target.drawGlyph(header.numStr, header.timeSigX, layout.yForStep(6), emPx, colors.ink)
-        target.drawGlyph(header.denStr, header.timeSigX, layout.yForStep(2), emPx, colors.ink)
+        val headerNumX = header.timeSigX + (header.timeSigWidth - header.numWidth) * 0.5f
+        val headerDenX = header.timeSigX + (header.timeSigWidth - header.denWidth) * 0.5f
+        target.drawGlyph(header.numStr, headerNumX, layout.yForStep(6), emPx, colors.ink)
+        target.drawGlyph(header.denStr, headerDenX, layout.yForStep(2), emPx, colors.ink)
 
         // 3. Draw measures, barlines, notes, and rests
         val thinBar = SmuflGlyphs.THIN_BARLINE_THICKNESS * sp
@@ -744,6 +819,15 @@ object ScoreRenderer {
                 pm.keyChangeGlyphs.forEachIndexed { gIdx, (kStep, acc) ->
                     target.drawGlyph(acc.glyph, glyphXs[gIdx], layout.yForStep(kStep), emPx, colors.ink)
                 }
+            }
+
+            pm.timeChange?.let { ts ->
+                val cNumStr = SmuflGlyphs.timeSigNumber(ts.timeSignature.numerator)
+                val cDenStr = SmuflGlyphs.timeSigNumber(ts.timeSignature.denominator)
+                val cNumX = ts.x + (ts.width - ts.numWidth) * 0.5f
+                val cDenX = ts.x + (ts.width - ts.denWidth) * 0.5f
+                target.drawGlyph(cNumStr, cNumX, layout.yForStep(6), emPx, colors.ink)
+                target.drawGlyph(cDenStr, cDenX, layout.yForStep(2), emPx, colors.ink)
             }
 
             if (idx > 0) {

@@ -565,6 +565,9 @@ object GraphSerializer {
                     if (mIdx > 0) append(",")
                     append("{\"num\":${measure.number}")
                     measure.keySignature?.let { append(",\"key\":\"${it.name}\"") }
+                    measure.timeSignature?.let {
+                        append(",\"timeNum\":${it.numerator},\"timeDen\":${it.denominator}")
+                    }
                     append(",\"items\":[")
                     measure.items.forEachIndexed { iIdx, item ->
                         if (iIdx > 0) append(",")
@@ -1552,7 +1555,7 @@ object GraphSerializer {
                 }
                 val num = (obj?.map?.get("timeNum") as? JsonValue.Num)?.value?.toInt()
                 val den = (obj?.map?.get("timeDen") as? JsonValue.Num)?.value?.toInt()
-                if (num != null && den != null && num in 1..16 && den in listOf(2, 4, 8, 16)) {
+                if (num != null && den != null && TimeSignature.isValid(num, den)) {
                     module.scoreData.timeSignature = TimeSignature(num, den)
                 }
                 (obj?.map?.get("windowX") as? JsonValue.Num)?.value?.let { module.windowX = it.toFloat() }
@@ -1567,6 +1570,13 @@ object GraphSerializer {
                         val mNum = (mObj.map["num"] as? JsonValue.Num)?.value?.toInt() ?: (mIdx + 1)
                         val mKeyStr = (mObj.map["key"] as? JsonValue.Str)?.value
                         val mKey = mKeyStr?.let { name -> KeySignature.entries.firstOrNull { it.name == name } }
+                        val mTimeNum = (mObj.map["timeNum"] as? JsonValue.Num)?.value?.toInt()
+                        val mTimeDen = (mObj.map["timeDen"] as? JsonValue.Num)?.value?.toInt()
+                        val mTime = if (mTimeNum != null && mTimeDen != null && TimeSignature.isValid(mTimeNum, mTimeDen)) {
+                            TimeSignature(mTimeNum, mTimeDen)
+                        } else {
+                            null
+                        }
                         val itemsArr = (mObj.map["items"] as? JsonValue.Arr)?.items ?: emptyList()
                         val loadedItems = mutableListOf<ScoreItem>()
                         for (itemVal in itemsArr) {
@@ -1625,7 +1635,14 @@ object GraphSerializer {
                                 }
                             }
                         }
-                        loadedMeasures.add(ScoreMeasure(number = mNum, items = loadedItems, keySignature = mKey))
+                        loadedMeasures.add(
+                            ScoreMeasure(
+                                number = mNum,
+                                items = loadedItems,
+                                keySignature = mKey,
+                                timeSignature = mTime,
+                            )
+                        )
                     }
                     module.scoreData.replaceMeasures(loadedMeasures)
                 }

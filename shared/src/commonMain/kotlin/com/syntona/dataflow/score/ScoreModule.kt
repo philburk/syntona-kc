@@ -151,14 +151,18 @@ class ScoreModule : Module("score"), EngineAware {
         val measures = scoreData.measures
         if (measures.none { it.items.isNotEmpty() }) return
 
-        val measureCapacityTicks = scoreData.timeSignature.measureCapacityTicks.toLong().coerceAtLeast(0L)
+        var effectiveTime = measures.firstOrNull()?.timeSignature ?: scoreData.timeSignature
         isPlaying = true
         var tickCursor = 0L
         var globalIdx = 0
         var nextVoiceTag = 0
         var hasActiveHighlight = false
 
-        for (measure in measures) {
+        for ((mIdx, measure) in measures.withIndex()) {
+            if (mIdx > 0) {
+                measure.timeSignature?.let { effectiveTime = it }
+            }
+            val measureCapacityTicks = effectiveTime.measureCapacityTicks.toLong().coerceAtLeast(0L)
             val measureStartTick = tickCursor
             for (item in measure.items) {
                 val itemIdx = globalIdx++
