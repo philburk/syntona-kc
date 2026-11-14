@@ -160,6 +160,33 @@ fun StopIcon(
 }
 
 /**
+ * A rewind-to-start icon (|◀) drawn via Canvas.
+ */
+@Composable
+fun RewindIcon(
+    modifier: Modifier = Modifier,
+    color: Color = Color(0xFF94A3B8),
+    size: Dp = 10.dp
+) {
+    Canvas(modifier = modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+        drawRect(
+            color = color,
+            topLeft = Offset(w * 0.1f, h * 0.05f),
+            size = Size(w * 0.16f, h * 0.9f),
+        )
+        val path = Path().apply {
+            moveTo(w * 0.88f, 0f)
+            lineTo(w * 0.30f, h * 0.5f)
+            lineTo(w * 0.88f, h)
+            close()
+        }
+        drawPath(path, color = color)
+    }
+}
+
+/**
  * A right chevron icon (›) for submenus.
  */
 @Composable

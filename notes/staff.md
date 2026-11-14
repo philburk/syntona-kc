@@ -173,7 +173,13 @@ To delete a dynamic marking, click on it select it then press DELETE or BACKSPAC
 
 Dynamics can be copied and pasted.
 
-### Phase 12 - Beams
+### Phase 12 - Play from Cursor
+
+When Playback is started using the play button or space bar, play from the cursor position.
+Add a Rewind button next to the Play button that positions the cursor at the beginning.
+When playback is initiated from the "Start" jack, start at the beginning.
+
+### Phase ? - Beams
 
 Add beams. Beams do not change the playback.
 
@@ -183,7 +189,7 @@ Pressing SHIFT+B will enter beaming mode.
 When the user clicks on a note it will be beamed with the following note.
 If the user clicks on a note that is currently beamed then it will un-beam that note.
 
-### Phase 13 - Ties
+### Phase ? - Ties
 
 Ties will combine note durations and is often used to hold a note across a measure boundary.
 
