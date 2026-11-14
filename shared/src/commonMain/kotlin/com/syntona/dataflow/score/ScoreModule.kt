@@ -55,6 +55,7 @@ class ScoreModule : Module("score"), EngineAware {
 
     var stepRecordDuration by mutableStateOf(NoteDuration.QUARTER)
     var stepRecordStaccato by mutableStateOf(false)
+    var stepRecordDotted by mutableStateOf(false)
 
     var lastStepRecordedText by mutableStateOf<String?>(null)
         internal set

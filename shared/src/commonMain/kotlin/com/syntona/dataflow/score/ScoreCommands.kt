@@ -66,6 +66,7 @@ class StepRecordScoreNoteCommand(
             val note = ScoreItem.Note(
                 pitch = spelled,
                 duration = module.stepRecordDuration,
+                isDotted = module.stepRecordDotted,
                 amplitude = amplitude.coerceIn(0.05, 1.0),
                 isStaccato = module.stepRecordStaccato,
             )

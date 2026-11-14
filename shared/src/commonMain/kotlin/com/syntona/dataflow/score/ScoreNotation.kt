@@ -601,6 +601,42 @@ object ScoreEditing {
         return if (anyChanged) updated else measures
     }
 
+    /**
+     * Updates the duration and augmentation dot on every selected note, chord, or rest.
+     */
+    fun setDurationOnSelection(
+        measures: List<ScoreMeasure>,
+        selection: Set<ScoreItemLocation>,
+        duration: NoteDuration,
+        isDotted: Boolean,
+    ): List<ScoreMeasure> {
+        if (selection.isEmpty()) return measures
+        val slots = selection.map { it.slotLocation() }.toSet()
+        var anyChanged = false
+        val updated = measures.mapIndexed { mIdx, m ->
+            var measureChanged = false
+            val newItems = m.items.mapIndexed { sIdx, item ->
+                if (ScoreItemLocation(mIdx, sIdx) !in slots) {
+                    item
+                } else {
+                    if (item.duration != duration || item.isDotted != isDotted) {
+                        measureChanged = true
+                        anyChanged = true
+                        when (item) {
+                            is ScoreItem.Note -> item.copy(duration = duration, isDotted = isDotted)
+                            is ScoreItem.Chord -> item.copy(duration = duration, isDotted = isDotted)
+                            is ScoreItem.Rest -> item.copy(duration = duration, isDotted = isDotted)
+                        }
+                    } else {
+                        item
+                    }
+                }
+            }
+            if (measureChanged) m.copy(items = newItems) else m
+        }
+        return if (anyChanged) updated else measures
+    }
+
     fun toggleStaccatoOnSelection(
         measures: List<ScoreMeasure>,
         selection: Set<ScoreItemLocation>,

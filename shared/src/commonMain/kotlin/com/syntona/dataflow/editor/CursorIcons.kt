@@ -14,5 +14,6 @@ expect fun crosshairCursor(): PointerIcon
 expect fun scoreSymbolCursor(
     duration: NoteDuration,
     isRest: Boolean,
+    isDotted: Boolean = false,
     isDarkMode: Boolean,
 ): PointerIcon
