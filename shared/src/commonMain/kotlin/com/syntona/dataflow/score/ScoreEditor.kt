@@ -29,6 +29,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Slider
@@ -51,10 +54,12 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
@@ -62,6 +67,7 @@ import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.input.key.utf16CodePoint
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -72,10 +78,13 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -136,6 +145,13 @@ private sealed interface ScoreDragState {
     }
 }
 
+private data class TimeSigEditSession(
+    val measureIdx: Int,
+    val original: TimeSignature,
+    val anchorX: Float,
+    val anchorY: Float,
+)
+
 @Composable
 fun ScoreEditor(module: ScoreModule, state: GraphState) {
     val isDark = GraphViewSettings.isDarkMode
@@ -169,7 +185,12 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
     var activeChordName by remember { mutableStateOf<String?>(null) }
     var hoverPos by remember { mutableStateOf<Offset?>(null) }
     var hoveringItem by remember { mutableStateOf(false) }
+    var hoveringTimeSig by remember { mutableStateOf(false) }
     var dragState by remember { mutableStateOf<ScoreDragState?>(null) }
+    var editingTimeSig by remember { mutableStateOf<TimeSigEditSession?>(null) }
+    var timeSigInputValue by remember { mutableStateOf(TextFieldValue("")) }
+    var timeSigHadFocus by remember { mutableStateOf(false) }
+    val timeSigFocusRequester = remember { FocusRequester() }
 
     val score = module.scoreData
 
@@ -308,6 +329,54 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         )
     }
 
+    fun applyTimeSignature(newTime: TimeSignature?, targetMeasures: Set<Int>) {
+        if (targetMeasures.isEmpty()) return
+        val beforeInitialTime = score.timeSignature
+        val beforeMeasures = score.measures.toList()
+        val (afterInitialTime, afterMeasures) = ScoreEditing.setTimeSignatureOnMeasures(
+            initialTime = beforeInitialTime,
+            measures = beforeMeasures,
+            selectedMeasureIndices = targetMeasures,
+            newTime = newTime,
+        )
+        if (afterInitialTime == beforeInitialTime && afterMeasures == beforeMeasures) return
+        postCommand(
+            SetScoreTimeSignatureCommand(
+                scoreData = score,
+                beforeInitialTime = beforeInitialTime,
+                beforeMeasures = beforeMeasures,
+                afterInitialTime = afterInitialTime,
+                afterMeasures = afterMeasures,
+            )
+        )
+    }
+
+    fun commitTimeSigEdit(returnFocusToCanvas: Boolean = true) {
+        val session = editingTimeSig ?: return
+        editingTimeSig = null
+        timeSigHadFocus = false
+        val trimmed = timeSigInputValue.text.trim()
+        if (trimmed.isEmpty()) {
+            if (session.measureIdx > 0) {
+                applyTimeSignature(null, setOf(session.measureIdx))
+            }
+        } else {
+            TimeSignature.parse(trimmed)?.let { parsed ->
+                applyTimeSignature(parsed, setOf(session.measureIdx))
+            }
+        }
+        if (returnFocusToCanvas) {
+            focusRequester.requestFocus()
+        }
+    }
+
+    fun cancelTimeSigEdit() {
+        if (editingTimeSig == null) return
+        editingTimeSig = null
+        timeSigHadFocus = false
+        focusRequester.requestFocus()
+    }
+
     fun toggleStaccato() {
         val before = score.measures.toList()
         val hasSelectedNotes = selectedLocations.any { loc ->
@@ -402,8 +471,14 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
     }
 
     LaunchedEffect(openPalette) {
-        if (openPalette == null) {
+        if (openPalette == null && editingTimeSig == null) {
             focusRequester.requestFocus()
+        }
+    }
+
+    LaunchedEffect(editingTimeSig) {
+        if (editingTimeSig != null) {
+            timeSigFocusRequester.requestFocus()
         }
     }
 
@@ -428,6 +503,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
     }
 
     fun handleKeyEvent(event: KeyEvent): Boolean {
+        if (editingTimeSig != null) return false
         if (event.type != KeyEventType.KeyDown) return false
         if (event.isMetaPressed || event.isCtrlPressed) return false
         return when {
@@ -649,11 +725,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             ScoreTimeSigSelector(
                 selected = score.timeSignature,
                 textColor = toolbarText,
-                onSelect = {
-                    score.timeSignature = it
-                    FileState.markDirty()
-                    state.markChanged()
-                },
+                onSelect = { applyTimeSignature(it, setOf(0)) },
             )
 
             TextButton(
@@ -719,6 +791,11 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 initialKey = score.keySignature,
                 measureIdx = firstTargetIdx,
             )
+            val activeTargetTime = ScoreEditing.effectiveTimeAtMeasure(
+                measures = score.measures,
+                initialTime = score.timeSignature,
+                measureIdx = firstTargetIdx,
+            )
             ScorePalettePanel(
                 openPalette = openPalette,
                 editorMode = editorMode,
@@ -726,6 +803,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 entryDuration = entryDuration,
                 entryIsRest = entryIsRest,
                 activeKeySignature = activeTargetKey,
+                activeTimeSignature = activeTargetTime,
                 toolbarBg = toolbarBg,
                 toolbarText = toolbarText,
                 accentColor = accentColor,
@@ -774,6 +852,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         offsetX = popupOffsetX,
                         targetMeasures = targetMeasureIndices,
                         activeKey = activeTargetKey,
+                        activeTime = activeTargetTime,
                         isDark = isDark,
                         toolbarText = toolbarText,
                         accentColor = accentColor,
@@ -781,6 +860,11 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         musicFontFamily = musicFontFamily,
                         onSelectKey = { chosenKey ->
                             applyKeySignature(chosenKey, targetMeasureIndices)
+                            openPalette = null
+                            focusRequester.requestFocus()
+                        },
+                        onSelectTimeSignature = { chosenTime ->
+                            applyTimeSignature(chosenTime, targetMeasureIndices)
                             openPalette = null
                             focusRequester.requestFocus()
                         },
@@ -864,6 +948,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
 
             val activeCursor = when {
                 dragState is ScoreDragState.PitchDrag -> moveCursor()
+                hoveringTimeSig -> PointerIcon.Hand
                 !module.isStepRecording && editorMode == ScoreEditMode.ENTRY ->
                     scoreSymbolCursor(entryDuration, entryIsRest, isDark)
                 hoveringItem -> moveCursor()
@@ -880,12 +965,14 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 entryIsRest,
                 pendingAccidental,
                 pendingStaccato,
+                editingTimeSig,
             ) {
-                if (module.isStepRecording || editorMode != ScoreEditMode.ENTRY || dragState != null) {
+                if (module.isStepRecording || editorMode != ScoreEditMode.ENTRY || dragState != null || editingTimeSig != null) {
                     return@remember null
                 }
                 val pos = hoverPos ?: return@remember null
                 if (pos.x < layout.headerEndX - layout.staffSpacePx * 0.5f) return@remember null
+                if (layout.timeSignatureAt(pos.x, pos.y) != null) return@remember null
                 val step = layout.stepAtY(pos.y)
                 val snappedX = if (!entryIsRest) {
                     layout.itemColumnAt(pos.x)?.x ?: (pos.x - layout.staffSpacePx * 0.65f)
@@ -957,10 +1044,12 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                         PointerEventType.Move -> {
                                             val pos = event.changes.firstOrNull()?.position
                                             hoverPos = pos
+                                            hoveringTimeSig = pos != null && currentLayout.timeSignatureAt(pos.x, pos.y) != null
                                             hoveringItem = pos != null && currentLayout.itemAt(pos.x, pos.y) != null
                                         }
                                         PointerEventType.Exit -> {
                                             hoverPos = null
+                                            hoveringTimeSig = false
                                             hoveringItem = false
                                         }
                                         else -> {}
@@ -971,13 +1060,33 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         .pointerInput(Unit) {
                             awaitEachGesture {
                                 val down = awaitFirstDown()
-                                focusRequester.requestFocus()
                                 down.consume()
+                                if (editingTimeSig != null) {
+                                    commitTimeSigEdit(returnFocusToCanvas = true)
+                                    return@awaitEachGesture
+                                }
+                                focusRequester.requestFocus()
 
                                 val downPos = down.position
                                 val isShift = currentEvent.keyboardModifiers.isShiftPressed
                                 val lyt = currentLayout
                                 val sp = currentStaffSpacePx
+                                val hitTimeSig = lyt.timeSignatureAt(downPos.x, downPos.y)
+                                if (hitTimeSig != null && !isShift) {
+                                    val label = hitTimeSig.timeSignature.label
+                                    editingTimeSig = TimeSigEditSession(
+                                        measureIdx = hitTimeSig.measureIdx,
+                                        original = hitTimeSig.timeSignature,
+                                        anchorX = hitTimeSig.x,
+                                        anchorY = hitTimeSig.topY,
+                                    )
+                                    timeSigInputValue = TextFieldValue(
+                                        text = label,
+                                        selection = TextRange(0, label.length),
+                                    )
+                                    timeSigHadFocus = false
+                                    return@awaitEachGesture
+                                }
                                 val hit = lyt.itemAt(downPos.x, downPos.y)
 
                                 fun beginNoteDrag(
@@ -1420,6 +1529,69 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         )
                     }
                 }
+
+                // Inline text box when clicking a time signature
+                val activeTimeEdit = editingTimeSig
+                if (activeTimeEdit != null) {
+                    val boxX = (activeTimeEdit.anchorX - 6f).roundToInt().coerceAtLeast(0)
+                    val boxY = (activeTimeEdit.anchorY + staffSpacePx * 0.7f).roundToInt().coerceAtLeast(0)
+                    val editBg = if (isDark) Color(0xFF0F172A) else Color.White
+                    val editTextColor = if (isDark) Color(0xFFF8FAFC) else Color(0xFF0F172A)
+                    Box(
+                        modifier = Modifier
+                            .offset { IntOffset(boxX, boxY) }
+                            .width(64.dp)
+                            .background(editBg, RoundedCornerShape(4.dp))
+                            .border(1.5.dp, accentColor, RoundedCornerShape(4.dp))
+                            .padding(horizontal = 6.dp, vertical = 4.dp)
+                            .onPreviewKeyEvent { keyEvent ->
+                                if (keyEvent.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                                when (keyEvent.key) {
+                                    Key.Enter, Key.NumPadEnter -> {
+                                        commitTimeSigEdit(returnFocusToCanvas = true)
+                                        true
+                                    }
+                                    Key.Escape -> {
+                                        cancelTimeSigEdit()
+                                        true
+                                    }
+                                    else -> false
+                                }
+                            }
+                    ) {
+                        BasicTextField(
+                            value = timeSigInputValue,
+                            onValueChange = { next ->
+                                if (next.text.all { it.isDigit() || it == '/' || it.isWhitespace() }) {
+                                    timeSigInputValue = next
+                                }
+                            },
+                            singleLine = true,
+                            textStyle = TextStyle(
+                                color = editTextColor,
+                                fontSize = 13.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center,
+                            ),
+                            cursorBrush = SolidColor(accentColor),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(
+                                onDone = { commitTimeSigEdit(returnFocusToCanvas = true) },
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .focusRequester(timeSigFocusRequester)
+                                .onFocusChanged { focusState ->
+                                    if (focusState.isFocused) {
+                                        timeSigHadFocus = true
+                                    } else if (timeSigHadFocus) {
+                                        commitTimeSigEdit(returnFocusToCanvas = false)
+                                    }
+                                },
+                        )
+                    }
+                }
                 }
             }
         }
@@ -1618,6 +1790,7 @@ private fun ScorePalettePanel(
     entryDuration: NoteDuration,
     entryIsRest: Boolean,
     activeKeySignature: KeySignature,
+    activeTimeSignature: TimeSignature,
     toolbarBg: Color,
     toolbarText: Color,
     accentColor: Color,
@@ -1714,11 +1887,12 @@ private fun ScorePalettePanel(
                             ScorePaletteKind.KEY_SIGNATURES -> {
                                 KeySignatureMiniStaff(
                                     keySignature = activeKeySignature,
+                                    timeSignature = activeTimeSignature,
                                     inkColor = contentColor,
                                     staffLineColor = borderMuted,
                                     musicFontFamily = musicFontFamily,
                                     textMeasurer = textMeasurer,
-                                    width = 44.dp,
+                                    width = 48.dp,
                                     height = 22.dp,
                                     staffSpaceDp = 3.2f,
                                 )
@@ -1930,12 +2104,14 @@ private fun KeySignaturesPalettePopup(
     offsetX: Int,
     targetMeasures: Set<Int>,
     activeKey: KeySignature,
+    activeTime: TimeSignature,
     isDark: Boolean,
     toolbarText: Color,
     accentColor: Color,
     borderMuted: Color,
     musicFontFamily: FontFamily,
     onSelectKey: (KeySignature) -> Unit,
+    onSelectTimeSignature: (TimeSignature) -> Unit,
     onDismiss: () -> Unit,
     onKeyEvent: (KeyEvent) -> Boolean,
 ) {
@@ -2020,6 +2196,86 @@ private fun KeySignaturesPalettePopup(
                     musicFontFamily = musicFontFamily,
                     textMeasurer = textMeasurer,
                     onSelectKey = onSelectKey,
+                )
+
+                TimeSignaturePaletteRow(
+                    rowLabel = "Time",
+                    options = ScorePalettes.timeSignatureOptions,
+                    activeTime = activeTime,
+                    isDark = isDark,
+                    tileBg = tileBg,
+                    toolbarText = toolbarText,
+                    accentColor = accentColor,
+                    borderMuted = borderMuted,
+                    onSelectTimeSignature = onSelectTimeSignature,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TimeSignaturePaletteRow(
+    rowLabel: String,
+    options: List<ScoreTimeSigOption>,
+    activeTime: TimeSignature,
+    isDark: Boolean,
+    tileBg: Color,
+    toolbarText: Color,
+    accentColor: Color,
+    borderMuted: Color,
+    onSelectTimeSignature: (TimeSignature) -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Text(
+            text = rowLabel,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Medium,
+            color = toolbarText,
+            modifier = Modifier.width(34.dp),
+        )
+        options.forEach { option ->
+            val ts = option.timeSignature
+            val selected = ts == activeTime
+            val contentColor = if (selected) {
+                if (isDark) Color.White else accentColor
+            } else {
+                toolbarText
+            }
+            val bg = if (selected) accentColor.copy(alpha = 0.22f) else tileBg
+            Column(
+                modifier = Modifier
+                    .width(40.dp)
+                    .background(bg, RoundedCornerShape(5.dp))
+                    .border(
+                        width = if (selected) 1.5.dp else 1.dp,
+                        color = if (selected) accentColor else borderMuted,
+                        shape = RoundedCornerShape(5.dp),
+                    )
+                    .pointerHoverIcon(PointerIcon.Hand)
+                    .clickable { onSelectTimeSignature(ts) }
+                    .padding(horizontal = 2.dp, vertical = 3.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(0.dp),
+            ) {
+                Text(
+                    text = ts.numerator.toString(),
+                    fontSize = 11.sp,
+                    lineHeight = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = contentColor,
+                    maxLines = 1,
+                )
+                Text(
+                    text = ts.denominator.toString(),
+                    fontSize = 11.sp,
+                    lineHeight = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = contentColor,
+                    maxLines = 1,
                 )
             }
         }
@@ -2106,6 +2362,7 @@ private fun KeySignatureMiniStaff(
     width: Dp,
     height: Dp,
     staffSpaceDp: Float,
+    timeSignature: TimeSignature? = null,
 ) {
     Canvas(modifier = Modifier.size(width = width, height = height)) {
         val sp = staffSpaceDp.dp.toPx()
@@ -2123,29 +2380,84 @@ private fun KeySignatureMiniStaff(
                 strokeWidth = 0.8f,
             )
         }
+        val emSp = with(this) { emPx.toSp() }
+        val style = TextStyle(fontFamily = musicFontFamily, fontSize = emSp, color = inkColor)
         val steps = keySignature.trebleStaffSteps()
-        if (steps.isNotEmpty()) {
+
+        val numMeasured = timeSignature?.let {
+            textMeasurer.measure(
+                text = SmuflGlyphs.timeSigNumber(it.numerator),
+                style = style,
+                softWrap = false,
+                maxLines = 1,
+            )
+        }
+        val denMeasured = timeSignature?.let {
+            textMeasurer.measure(
+                text = SmuflGlyphs.timeSigNumber(it.denominator),
+                style = style,
+                softWrap = false,
+                maxLines = 1,
+            )
+        }
+        val tsWidth = if (numMeasured != null && denMeasured != null) {
+            max(numMeasured.size.width, denMeasured.size.width).toFloat()
+        } else {
+            0f
+        }
+        val tsGap = if (steps.isNotEmpty() && timeSignature != null) sp * 0.7f else 0f
+
+        val accMeasured = if (steps.isNotEmpty()) {
             val glyph = if (keySignature.fifths >= 0) {
                 SmuflGlyphs.ACCIDENTAL_SHARP
             } else {
                 SmuflGlyphs.ACCIDENTAL_FLAT
             }
-            val emSp = with(this) { emPx.toSp() }
-            val style = TextStyle(fontFamily = musicFontFamily, fontSize = emSp, color = inkColor)
-            val measured = textMeasurer.measure(text = glyph, style = style, softWrap = false, maxLines = 1)
-            val stepW = ((lineRight - lineLeft - measured.size.width) / steps.size.coerceAtLeast(1))
-                .coerceAtMost(sp * 1.15f)
-            val totalGlyphsW = (steps.size - 1) * stepW + measured.size.width
-            val startX = ((size.width - totalGlyphsW) * 0.5f).coerceAtLeast(lineLeft)
+            textMeasurer.measure(text = glyph, style = style, softWrap = false, maxLines = 1)
+        } else {
+            null
+        }
+        val stepW = if (accMeasured != null) {
+            val availForKey = (lineRight - lineLeft - tsWidth - tsGap - accMeasured.size.width).coerceAtLeast(0f)
+            (availForKey / (steps.size - 1).coerceAtLeast(1)).coerceAtMost(sp * 1.1f)
+        } else {
+            0f
+        }
+        val totalKeyW = if (accMeasured != null) {
+            (steps.size - 1) * stepW + accMeasured.size.width
+        } else {
+            0f
+        }
+        val combinedW = totalKeyW + tsGap + tsWidth
+        val startX = ((size.width - combinedW) * 0.5f).coerceAtLeast(lineLeft)
+
+        if (accMeasured != null) {
             steps.forEachIndexed { idx, step ->
                 val gx = startX + idx * stepW
                 val gy = bottomStaffY - step * (sp * 0.5f)
                 drawText(
-                    textLayoutResult = measured,
+                    textLayoutResult = accMeasured,
                     color = inkColor,
-                    topLeft = Offset(gx, gy - measured.firstBaseline),
+                    topLeft = Offset(gx, gy - accMeasured.firstBaseline),
                 )
             }
+        }
+        if (numMeasured != null && denMeasured != null) {
+            val tsX = startX + totalKeyW + tsGap
+            val numX = tsX + (tsWidth - numMeasured.size.width) * 0.5f
+            val denX = tsX + (tsWidth - denMeasured.size.width) * 0.5f
+            val numY = bottomStaffY - 6f * (sp * 0.5f)
+            val denY = bottomStaffY - 2f * (sp * 0.5f)
+            drawText(
+                textLayoutResult = numMeasured,
+                color = inkColor,
+                topLeft = Offset(numX, numY - numMeasured.firstBaseline),
+            )
+            drawText(
+                textLayoutResult = denMeasured,
+                color = inkColor,
+                topLeft = Offset(denX, denY - denMeasured.firstBaseline),
+            )
         }
     }
 }

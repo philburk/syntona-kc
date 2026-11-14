@@ -805,7 +805,8 @@ class ScoreModuleTest {
 
     @Test
     fun testKeySignaturePaletteOptionsButtonLabelAndMeasureApplication() {
-        assertEquals("Key", ScorePaletteKind.KEY_SIGNATURES.buttonLabel)
+        assertEquals("Keys/\nTimes", ScorePaletteKind.KEY_SIGNATURES.buttonLabel)
+        assertEquals("Keys/Times", ScorePaletteKind.KEY_SIGNATURES.title)
         val paletteKeys = (ScorePalettes.sharpKeyOptions + ScorePalettes.flatKeyOptions).map { it.keySignature }
         assertEquals(KeySignature.entries.size, paletteKeys.size)
         assertEquals(KeySignature.entries.toSet(), paletteKeys.toSet())
@@ -1233,5 +1234,194 @@ class ScoreModuleTest {
         assertEquals(6, receiver.received.size)
         assertEquals(2_000_000_000L, receiver.received[4].time.nanoseconds)
         assertEquals(2_500_000_000L, receiver.received[5].time.nanoseconds)
+    }
+
+    @Test
+    fun testTimeSignatureParseAndPaletteOptions() {
+        assertEquals(TimeSignature(3, 4), TimeSignature.parse("3/4"))
+        assertEquals(TimeSignature(12, 8), TimeSignature.parse(" 12 / 8 "))
+        assertEquals(TimeSignature(2, 2), TimeSignature.parse("2/2"))
+        assertEquals(TimeSignature(5, 4), TimeSignature.parse("5/4"))
+        assertNull(TimeSignature.parse(""))
+        assertNull(TimeSignature.parse("3"))
+        assertNull(TimeSignature.parse("3/0"))
+        assertNull(TimeSignature.parse("3/3"))
+        assertNull(TimeSignature.parse("0/4"))
+        assertNull(TimeSignature.parse("40/4"))
+        assertNull(TimeSignature.parse("a/4"))
+        assertNull(TimeSignature.parse("3/4/4"))
+
+        val paletteTimeSigs = ScorePalettes.timeSignatureOptions.map { it.timeSignature }.toSet()
+        assertTrue(TimeSignature(3, 4) in paletteTimeSigs)
+        assertTrue(TimeSignature(2, 2) in paletteTimeSigs)
+        assertTrue(TimeSignature(4, 4) in paletteTimeSigs)
+        assertTrue(TimeSignature(6, 8) in paletteTimeSigs)
+        assertTrue(TimeSignature(12, 8) in paletteTimeSigs)
+    }
+
+    @Test
+    fun testMeasureTimeSignatureEditingUndoRedoAndRemovalRules() {
+        val score = ScoreData()
+        score.timeSignature = TimeSignature.COMMON_TIME
+        val m1 = ScoreMeasure(1, listOf(ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 4), NoteDuration.WHOLE)))
+        val m2 = ScoreMeasure(2, listOf(ScoreItem.Note(SpelledPitch(NoteLetter.D, 0, 4), NoteDuration.HALF)))
+        val m3 = ScoreMeasure(3, listOf(ScoreItem.Note(SpelledPitch(NoteLetter.E, 0, 4), NoteDuration.QUARTER)))
+        score.replaceMeasures(listOf(m1, m2, m3))
+
+        // Multi-measure selection sets only the first selected measure (measure index 1).
+        val (init1, measures1) = ScoreEditing.setTimeSignatureOnMeasures(
+            initialTime = score.timeSignature,
+            measures = score.measures,
+            selectedMeasureIndices = setOf(1, 2),
+            newTime = TimeSignature.THREE_FOUR,
+        )
+        assertEquals(TimeSignature.COMMON_TIME, init1)
+        assertEquals(TimeSignature.THREE_FOUR, measures1[1].timeSignature)
+        assertNull(measures1[2].timeSignature)
+        assertEquals(TimeSignature.THREE_FOUR, ScoreEditing.effectiveTimeAtMeasure(measures1, init1, 2))
+
+        val cmd = SetScoreTimeSignatureCommand(
+            scoreData = score,
+            beforeInitialTime = score.timeSignature,
+            beforeMeasures = score.measures.toList(),
+            afterInitialTime = init1,
+            afterMeasures = measures1,
+        )
+        cmd.execute()
+        assertEquals(TimeSignature.THREE_FOUR, score.measures[1].timeSignature)
+        cmd.undo()
+        assertNull(score.measures[1].timeSignature)
+        cmd.execute()
+
+        // Removing time signature on measure 0 is disallowed (no-op).
+        val (afterClearM0Init, afterClearM0Measures) = ScoreEditing.setTimeSignatureOnMeasures(
+            initialTime = score.timeSignature,
+            measures = score.measures,
+            selectedMeasureIndices = setOf(0),
+            newTime = null,
+        )
+        assertEquals(TimeSignature.COMMON_TIME, afterClearM0Init)
+        assertEquals(score.measures.toList(), afterClearM0Measures)
+
+        // Removing time signature on measure 1 clears it.
+        val (_, afterClearM1Measures) = ScoreEditing.setTimeSignatureOnMeasures(
+            initialTime = score.timeSignature,
+            measures = score.measures,
+            selectedMeasureIndices = setOf(1),
+            newTime = null,
+        )
+        assertNull(afterClearM1Measures[1].timeSignature)
+        assertEquals(TimeSignature.COMMON_TIME, ScoreEditing.effectiveTimeAtMeasure(afterClearM1Measures, score.timeSignature, 2))
+    }
+
+    @Test
+    fun testMidScoreTimeSignatureRenderingHitTestingPlaybackAndSerialization() {
+        val scoreModule = ScoreModule()
+        scoreModule.scoreData.timeSignature = TimeSignature.COMMON_TIME // 4/4 (960 ticks)
+        scoreModule.scoreData.replaceMeasures(
+            listOf(
+                ScoreMeasure(
+                    number = 1,
+                    items = listOf(ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 4), NoteDuration.HALF)), // 480 ticks (incomplete 4/4)
+                ),
+                ScoreMeasure(
+                    number = 2,
+                    timeSignature = TimeSignature.TWELVE_EIGHT, // 1440 ticks
+                    items = listOf(
+                        ScoreItem.Note(SpelledPitch(NoteLetter.E, 0, 4), NoteDuration.WHOLE), // 960 ticks
+                        ScoreItem.Note(SpelledPitch(NoteLetter.G, 0, 4), NoteDuration.HALF), // +480 = 1440 (not overflow in 12/8!)
+                    ),
+                ),
+                ScoreMeasure(
+                    number = 3,
+                    timeSignature = TimeSignature.THREE_FOUR, // 720 ticks
+                    items = listOf(
+                        ScoreItem.Note(SpelledPitch(NoteLetter.A, 0, 4), NoteDuration.HALF),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.B, 0, 4), NoteDuration.HALF), // overflows 3/4
+                    ),
+                ),
+            )
+        )
+
+        val target = RecordingDrawTarget()
+        val layout = ScoreRenderer.render(
+            score = scoreModule.scoreData,
+            target = target,
+            staffSpacePx = 10f,
+            minWidthPx = 600f,
+            colors = ScoreRenderColors.forTheme(darkMode = false),
+        )
+
+        assertEquals(3, layout.placedTimeSignatures.size)
+        assertEquals(0, layout.placedTimeSignatures[0].measureIdx)
+        assertEquals(TimeSignature.COMMON_TIME, layout.placedTimeSignatures[0].timeSignature)
+        assertEquals(1, layout.placedTimeSignatures[1].measureIdx)
+        assertEquals(TimeSignature.TWELVE_EIGHT, layout.placedTimeSignatures[1].timeSignature)
+        assertEquals(2, layout.placedTimeSignatures[2].measureIdx)
+        assertEquals(TimeSignature.THREE_FOUR, layout.placedTimeSignatures[2].timeSignature)
+
+        // Hit testing each placed time signature finds the matching measureIdx.
+        for (placedTs in layout.placedTimeSignatures) {
+            val hit = layout.timeSignatureAt(placedTs.x + placedTs.width * 0.5f, (placedTs.topY + placedTs.bottomY) * 0.5f)
+            assertEquals(placedTs, hit)
+        }
+
+        // Per-measure capacity ticks & overflow check
+        assertEquals(960, layout.placedMeasures[0].capacityTicks)
+        assertEquals(1440, layout.placedMeasures[1].capacityTicks)
+        assertFalse(layout.placedMeasures[1].items[1].isOverflow, "Half note completing 12/8 should not overflow")
+        assertEquals(720, layout.placedMeasures[2].capacityTicks)
+        assertTrue(layout.placedMeasures[2].items[1].isOverflow, "Second half note in 3/4 should overflow")
+
+        // Playback honors M1 (4/4 = 2.0s), M2 (12/8 = 3.0s), M3 (3/4 overfull 2 halfs = 2.0s)
+        val engine = TestEngine()
+        scoreModule.setEngine(engine)
+        val receiver = VoiceReceiver()
+        scoreModule.output.connect(receiver.inJack)
+        scoreModule.start.receive(Message.FloatValue(ScoreTime(0L), 1.0))
+        for ((_, action) in engine.scheduled.sortedBy { it.first.nanoseconds }) {
+            action()
+        }
+        assertEquals(5, receiver.received.size)
+        assertEquals(0L, receiver.received[0].time.nanoseconds)
+        assertEquals(2_000_000_000L, receiver.received[1].time.nanoseconds) // M2 starts after 4/4 (2.0s)
+        assertEquals(4_000_000_000L, receiver.received[2].time.nanoseconds) // + whole note (2.0s)
+        assertEquals(5_000_000_000L, receiver.received[3].time.nanoseconds) // M3 starts after 12/8 (3.0s from M2 start)
+
+        // Serialization round-trip preserves mid-score time signatures including 12/8
+        val graph = GraphState()
+        graph.addModule(scoreModule, Offset.Zero)
+        val json = GraphSerializer.serialize(graph, graph.modules)
+        val reloaded = GraphSerializer.deserialize(GraphState(), json).filterIsInstance<ScoreModule>().single()
+        assertEquals(TimeSignature.COMMON_TIME, reloaded.scoreData.timeSignature)
+        assertNull(reloaded.scoreData.measures[0].timeSignature)
+        assertEquals(TimeSignature.TWELVE_EIGHT, reloaded.scoreData.measures[1].timeSignature)
+        assertEquals(TimeSignature.THREE_FOUR, reloaded.scoreData.measures[2].timeSignature)
+    }
+
+    @Test
+    fun testStepRecordHonorsActiveMeasureTimeSignature() {
+        val scoreModule = ScoreModule()
+        scoreModule.scoreData.timeSignature = TimeSignature.COMMON_TIME
+        // M2 is 3/8 (360 ticks); two quarter notes (480 ticks >= 360) should advance cursor to M3
+        scoreModule.scoreData.replaceMeasures(
+            listOf(
+                ScoreMeasure(1, emptyList()),
+                ScoreMeasure(2, emptyList(), timeSignature = TimeSignature.THREE_EIGHT),
+            )
+        )
+        scoreModule.stepRecordDuration = NoteDuration.QUARTER
+        scoreModule.setStepRecordingEnabled(true)
+        scoreModule.placeCursor(ScoreCursorPosition(measureIdx = 1, itemIdx = 0))
+
+        scoreModule.input.receive(
+            Message.VoiceMessage(ScoreTime(0L), Message.VoiceOpcode.NOTE_ON, tag = 0, value = 60.0, extra = 0.8)
+        )
+        assertEquals(ScoreCursorPosition(measureIdx = 1, itemIdx = 1), scoreModule.cursorPosition)
+        scoreModule.input.receive(
+            Message.VoiceMessage(ScoreTime(1L), Message.VoiceOpcode.NOTE_ON, tag = 1, value = 62.0, extra = 0.8)
+        )
+        assertEquals(ScoreCursorPosition(measureIdx = 2, itemIdx = 0), scoreModule.cursorPosition)
+        assertEquals(3, scoreModule.scoreData.measures.size)
     }
 }
