@@ -121,33 +121,82 @@ If the user clears the text box then remove the time signature unless it is for 
 Add some Time Signatures to the Keys Palette like 3/4 2/2 4/4 6/8 12/8 . (Any others?)
 When clicked, insert or change the time signature of the first selected measure.
 
-### Phase ?
+### Phase 8 - Augmented Dot
 
 Add a "dot" button to the Notes/Rests palette. Pressing 'd' will toggle dot mode.
 This can be used to make "dotted" notes, which have 3/2 the duration of an undotted noted.
 
-Implement the = keyboard shortcut for changing the duration of selected notes.
+Implement the '=' keyboard shortcut for changing the duration of selected notes.
+Steps:
 Select some notes.
 Press '=' key.
 Press a duration key like 'q' and maybe 'd' for an augmentation dot.
 The duration of the selected notes will change to the entered value.
 
-### Phase ? - Clefs, Keys
-Add other common clefs.
-Add ties and beams, repeating measure bars.
+### Phase 9 - Clefs
+Add other common clefs. Add a Clef palette that works similar to the Key Signature
+editing except clefs can occur in the middle of a measure.
 
+How Mid-Stave Clef Changes Work
+Size: A mid-stave clef is drawn slightly smaller than the primary clef at the start
+of a system (typically about 65–75% of full size) so it doesn't get confused with a system break.
 
-### Phase ? - Copy/Paste
+Placement:
+Before the barline: If the clef changes on beat 1 of a new measure, place the new
+clef immediately before the barline at the end of the preceding measure.
+
+Mid-measure: If the change happens partway through a bar, place the new clef
+immediately before the first note that uses it.
+
+Before key/time signatures: If a clef change coincides with a new key or
+time signature at a double barline, the order is: Clef → Barline → Key Signature → Time Signature.
+
+### Phase 10 - Copy/Paste
 Add support for copying and pasting selected notes.
 Allow copying and pasting between score modules.
 
-### Phase ? - Multiple Instruments
+### Phase 11 - Dynamics
+Add a Dynamics palette that contains mf, ff and the other common dynamic marks.
+Selecting one changes the cursor to that dynamic.
+Clicking above or below a stave will add the dynamic to the score.
+Notes following the dynamic will have the dynamic applied to
+their amplitude in a musically appropriate way.
+
+Keyboard shortcut:
+Pressing 'p' will select pianissimo (one p). Pressing p again will select pp and so on up to pppp.
+After that it will rotate back to mp.
+Pressing 'f' will do the same for forte.
+SHIFT+P will select mezzo-pianissimo (mp)
+SHIFT+F will select mezzo-forte (mf)
+
+### Phase 12 - Ties and Beams
+
+Add ties and beams and slurs. Beams and slurs do not change the playback.
+Ties will combine note durations and is often used to hold a note across a measure boundary.
+
+Note with flags should automatically be beamed together in a standard way.
+But the user may want to override the automatic beaming.
+Pressing SHIFT+B will enter beaming mode.
+When the user clicks on a note it will be beamed with the following note.
+If the user clicks on a note that is currently beamed then it will un-beam that note.
+
+Pressing SHIFT+T will enter Tie mode.
+
+Pressing SHIFT+S will enter Slue mode.
+
+### Phase 13 - Multiple Instruments
 Add support for multiple instruments.
 Add new instruments with a "+" button.
 Each instrument has its own voice output jack.
 
-### Phase ? - Export
+### Phase 14 - Document Name, Composer, Date and other fields
+
+Allow the user to enter the score name, composer and a date.
+
+### Phase 14 - Export
 Add MusicXML support. This will allow us to export a score to Notion or other notation editors.
+
+### Phase - Save to PDF, All Together or as Parts
 
 ### Phase ?
 Add score modifications for selected notes. Include transpose, retrograde,
