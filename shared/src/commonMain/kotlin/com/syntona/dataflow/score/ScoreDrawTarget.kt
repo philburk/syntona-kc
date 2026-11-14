@@ -67,6 +67,33 @@ interface ScoreDrawTarget {
     )
 
     fun measureGlyphWidth(glyph: String, fontSizePx: Float): Float
+
+    /**
+     * Draws a solid sloped or horizontal beam parallelogram spanning from `(x1, y1)` to `(x2, y2)`,
+     * extruded vertically by [heightPx] (positive = downward from top edge, negative = upward).
+     */
+    fun drawBeamSegment(
+        x1: Float,
+        y1: Float,
+        x2: Float,
+        y2: Float,
+        heightPx: Float,
+        color: Color,
+    ) {
+        val minX = kotlin.math.min(x1, x2)
+        val w = kotlin.math.abs(x2 - x1)
+        if (kotlin.math.abs(y1 - y2) < 0.01f) {
+            fillRect(
+                x = minX,
+                y = kotlin.math.min(y1, y1 + heightPx),
+                width = w,
+                height = kotlin.math.abs(heightPx),
+                color = color,
+            )
+        } else {
+            drawLine(x1, y1 + heightPx * 0.5f, x2, y2 + heightPx * 0.5f, kotlin.math.abs(heightPx), color)
+        }
+    }
 }
 
 /** [ScoreDrawTarget] implementation backed by Compose [DrawScope] and [TextMeasurer]. */
@@ -154,6 +181,24 @@ class ComposeScoreDrawTarget(
             maxLines = 1,
         )
         return result.size.width.toFloat()
+    }
+
+    override fun drawBeamSegment(
+        x1: Float,
+        y1: Float,
+        x2: Float,
+        y2: Float,
+        heightPx: Float,
+        color: Color,
+    ) {
+        val path = Path().apply {
+            moveTo(x1, y1)
+            lineTo(x2, y2)
+            lineTo(x2, y2 + heightPx)
+            lineTo(x1, y1 + heightPx)
+            close()
+        }
+        drawScope.drawPath(path = path, color = color)
     }
 
     private fun drawMeasuredText(

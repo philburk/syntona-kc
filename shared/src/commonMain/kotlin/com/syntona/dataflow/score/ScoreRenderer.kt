@@ -85,9 +85,23 @@ data class ScorePlacedItem(
     val chordNotes: List<ScorePlacedChordNote> = emptyList(),
     val stemDown: Boolean = false,
     val effectiveClef: Clef = Clef.TREBLE,
+    val isBeamed: Boolean = false,
+    val stemTipYOverride: Float? = null,
 ) {
     val location: ScoreItemLocation get() = ScoreItemLocation(measureIdx, itemIdx)
 }
+
+data class ScorePlacedBeamGroup(
+    val measureIdx: Int,
+    val itemIndices: List<Int>,
+    val stemDown: Boolean,
+    val firstStemX: Float,
+    val lastStemX: Float,
+    val firstTipY: Float,
+    val lastTipY: Float,
+    val stemXsByItemIdx: Map<Int, Float>,
+    val stemTipsByItemIdx: Map<Int, Float>,
+)
 
 data class ScorePlacedClefChange(
     val measureIdx: Int,
@@ -145,6 +159,7 @@ data class ScorePlacedMeasure(
     val activeOpeningClef: Clef = Clef.TREBLE,
     val activeClosingClef: Clef = Clef.TREBLE,
     val dynamics: List<ScorePlacedDynamic> = emptyList(),
+    val beamGroups: List<ScorePlacedBeamGroup> = emptyList(),
 )
 
 data class ScoreInsertionTarget(
@@ -631,6 +646,18 @@ object ScoreRenderer {
             val itemsInMeasure = mutableListOf<ScorePlacedItem>()
             val midClefChanges = mutableListOf<ScorePlacedClefChange>()
             var measureTicks = 0
+            val beamGroups = ScoreEditing.computeBeamGroups(
+                measure = measure,
+                measureIdx = mIdx,
+                openingClef = measureOpeningClef,
+                timeSignature = effectiveTime,
+            )
+            val beamGroupByItemIdx = mutableMapOf<Int, ScoreBeamGroup>()
+            for (bg in beamGroups) {
+                for (bIdx in bg.itemIndices) {
+                    beamGroupByItemIdx[bIdx] = bg
+                }
+            }
 
             cursorX += sp * 1.1f
             val stemThick = SmuflGlyphs.STEM_THICKNESS * sp
@@ -673,7 +700,7 @@ object ScoreRenderer {
                     val steps = pitches.map { effectiveClef.staffStepFromBottom(it) }
                     val bottomStep = steps.first()
                     val topStep = steps.last()
-                    val stemDown = (topStep - 4) >= (4 - bottomStep)
+                    val stemDown = beamGroupByItemIdx[iIdx]?.stemDown ?: ((topStep - 4) >= (4 - bottomStep))
 
                     // Displace adjacent seconds horizontally so noteheads never overlap
                     val headXOffsets = FloatArray(pitches.size)
@@ -890,6 +917,13 @@ object ScoreRenderer {
                 null
             }
             val barlineX = cursorX
+            val placedBeamGroups = buildPlacedBeamGroups(
+                measureIdx = mIdx,
+                beamGroups = beamGroups,
+                itemsInMeasure = itemsInMeasure,
+                sp = sp,
+                stemThick = stemThick,
+            )
             val placedDynamicsForMeasure = if (measure.dynamics.isEmpty()) {
                 emptyList()
             } else {
@@ -951,6 +985,7 @@ object ScoreRenderer {
                     activeOpeningClef = measureOpeningClef,
                     activeClosingClef = measureClosingClef,
                     dynamics = placedDynamicsForMeasure,
+                    beamGroups = placedBeamGroups,
                 )
             )
             cursorX += sp * 0.6f
@@ -1173,6 +1208,28 @@ object ScoreRenderer {
                     stemDownOverride = pi.stemDown,
                     selectedChordNoteIndices = selectedChordIndices,
                     selectedNoteColor = chordNoteHighlightColor,
+                    suppressFlags = pi.isBeamed,
+                    stemTipYOverride = pi.stemTipYOverride,
+                )
+            }
+
+            // Beams shared across beamed note groups in this measure
+            for (pbg in pm.beamGroups) {
+                val groupItems = pbg.itemIndices.mapNotNull { pm.items.getOrNull(it) }
+                if (groupItems.size < 2) continue
+                val beamColor = when {
+                    groupItems.any { activeItemGlobalIndex == it.globalIdx } -> colors.activeNote
+                    groupItems.all { it.isOverflow } -> colors.overflowNote
+                    groupItems.all { it.location in selectedLocations } -> colors.selectedNote
+                    else -> colors.ink
+                }
+                drawBeamGroup(
+                    target = target,
+                    beamGroup = pbg,
+                    itemsInGroup = groupItems,
+                    sp = sp,
+                    stemThick = stemThick,
+                    color = beamColor,
                 )
             }
 
@@ -1312,6 +1369,8 @@ object ScoreRenderer {
         stemDownOverride: Boolean? = null,
         selectedChordNoteIndices: Set<Int> = emptySet(),
         selectedNoteColor: Color = color,
+        suppressFlags: Boolean = false,
+        stemTipYOverride: Float? = null,
     ) {
         when (item) {
             is ScoreItem.Note, is ScoreItem.Chord -> {
@@ -1404,14 +1463,18 @@ object ScoreRenderer {
                     if (!stemDown) {
                         val stemX = x + SmuflGlyphs.STEM_UP_ANCHOR_X * sp - stemThick * 0.5f
                         val stemStartY = bottomNote.y - SmuflGlyphs.STEM_UP_ANCHOR_Y * sp
-                        val stemEndY = topNote.y - stemLen
+                        val stemEndY = stemTipYOverride ?: (topNote.y - stemLen)
                         target.drawLine(stemX, stemStartY, stemX, stemEndY, stemThick, color)
 
-                        val flagGlyph = when (item.duration.flagCount) {
-                            1 -> SmuflGlyphs.FLAG_8TH_UP
-                            2 -> SmuflGlyphs.FLAG_16TH_UP
-                            3 -> SmuflGlyphs.FLAG_32ND_UP
-                            else -> null
+                        val flagGlyph = if (suppressFlags) {
+                            null
+                        } else {
+                            when (item.duration.flagCount) {
+                                1 -> SmuflGlyphs.FLAG_8TH_UP
+                                2 -> SmuflGlyphs.FLAG_16TH_UP
+                                3 -> SmuflGlyphs.FLAG_32ND_UP
+                                else -> null
+                            }
                         }
                         if (flagGlyph != null) {
                             target.drawGlyph(flagGlyph, stemX - stemThick * 0.5f, stemEndY, emPx, color)
@@ -1419,14 +1482,18 @@ object ScoreRenderer {
                     } else {
                         val stemX = x + SmuflGlyphs.STEM_DOWN_ANCHOR_X * sp + stemThick * 0.5f
                         val stemStartY = topNote.y - SmuflGlyphs.STEM_DOWN_ANCHOR_Y * sp
-                        val stemEndY = bottomNote.y + stemLen
+                        val stemEndY = stemTipYOverride ?: (bottomNote.y + stemLen)
                         target.drawLine(stemX, stemStartY, stemX, stemEndY, stemThick, color)
 
-                        val flagGlyph = when (item.duration.flagCount) {
-                            1 -> SmuflGlyphs.FLAG_8TH_DOWN
-                            2 -> SmuflGlyphs.FLAG_16TH_DOWN
-                            3 -> SmuflGlyphs.FLAG_32ND_DOWN
-                            else -> null
+                        val flagGlyph = if (suppressFlags) {
+                            null
+                        } else {
+                            when (item.duration.flagCount) {
+                                1 -> SmuflGlyphs.FLAG_8TH_DOWN
+                                2 -> SmuflGlyphs.FLAG_16TH_DOWN
+                                3 -> SmuflGlyphs.FLAG_32ND_DOWN
+                                else -> null
+                            }
                         }
                         if (flagGlyph != null) {
                             target.drawGlyph(flagGlyph, stemX - stemThick * 0.5f, stemEndY, emPx, color)
@@ -1509,6 +1576,174 @@ object ScoreRenderer {
 
     private fun stemLengthSpaces(duration: NoteDuration): Float =
         if (duration.flagCount >= 3) STEM_LENGTH_32ND_SPACES else STEM_LENGTH_SPACES
+
+    private fun buildPlacedBeamGroups(
+        measureIdx: Int,
+        beamGroups: List<ScoreBeamGroup>,
+        itemsInMeasure: MutableList<ScorePlacedItem>,
+        sp: Float,
+        stemThick: Float,
+    ): List<ScorePlacedBeamGroup> {
+        if (beamGroups.isEmpty()) return emptyList()
+        val result = ArrayList<ScorePlacedBeamGroup>(beamGroups.size)
+        for (bg in beamGroups) {
+            val placed = bg.itemIndices.mapNotNull { itemsInMeasure.getOrNull(it) }
+            if (placed.size < 2) continue
+            val maxFlags = placed.maxOf { it.item.duration.flagCount }
+            val stemLen = when {
+                maxFlags >= 3 -> STEM_LENGTH_32ND_SPACES
+                maxFlags == 2 -> 3.75f
+                else -> STEM_LENGTH_SPACES
+            } * sp
+
+            val stemXs = FloatArray(placed.size) { idx ->
+                val pi = placed[idx]
+                if (!bg.stemDown) {
+                    pi.x + SmuflGlyphs.STEM_UP_ANCHOR_X * sp - stemThick * 0.5f
+                } else {
+                    pi.x + SmuflGlyphs.STEM_DOWN_ANCHOR_X * sp + stemThick * 0.5f
+                }
+            }
+            val rawTips = FloatArray(placed.size) { idx ->
+                val pi = placed[idx]
+                if (!bg.stemDown) {
+                    (pi.chordNotes.lastOrNull()?.y ?: pi.centerY) - stemLen
+                } else {
+                    (pi.chordNotes.firstOrNull()?.y ?: pi.centerY) + stemLen
+                }
+            }
+
+            val x1 = stemXs.first()
+            val x2 = stemXs.last()
+            val dx = (x2 - x1).coerceAtLeast(1f)
+            val y1Raw = rawTips.first()
+            val y2Raw = rawTips.last()
+            val maxSlant = min(sp * 1.25f, dx * 0.25f)
+            val clampedDy = ((y2Raw - y1Raw) * 0.55f).coerceIn(-maxSlant, maxSlant)
+            val slope = clampedDy / dx
+
+            fun anchorY(sx: Float): Float = y1Raw + slope * (sx - x1)
+            val shift = if (!bg.stemDown) {
+                placed.indices.minOf { k -> rawTips[k] - anchorY(stemXs[k]) }
+            } else {
+                placed.indices.maxOf { k -> rawTips[k] - anchorY(stemXs[k]) }
+            }
+            val firstTipY = y1Raw + shift
+            val lastTipY = firstTipY + clampedDy
+
+            val stemXsByIdx = mutableMapOf<Int, Float>()
+            val stemTipsByIdx = mutableMapOf<Int, Float>()
+            for (k in placed.indices) {
+                val itemIdx = bg.itemIndices[k]
+                val sx = stemXs[k]
+                val tipY = firstTipY + slope * (sx - x1)
+                stemXsByIdx[itemIdx] = sx
+                stemTipsByIdx[itemIdx] = tipY
+                val old = itemsInMeasure[itemIdx]
+                itemsInMeasure[itemIdx] = old.copy(
+                    isBeamed = true,
+                    stemTipYOverride = tipY,
+                    boxTop = min(old.boxTop, tipY - sp * 0.25f),
+                    boxBottom = max(old.boxBottom, tipY + sp * 0.25f),
+                )
+            }
+            result.add(
+                ScorePlacedBeamGroup(
+                    measureIdx = measureIdx,
+                    itemIndices = bg.itemIndices,
+                    stemDown = bg.stemDown,
+                    firstStemX = x1,
+                    lastStemX = x2,
+                    firstTipY = firstTipY,
+                    lastTipY = lastTipY,
+                    stemXsByItemIdx = stemXsByIdx,
+                    stemTipsByItemIdx = stemTipsByIdx,
+                )
+            )
+        }
+        return result
+    }
+
+    private fun drawBeamGroup(
+        target: ScoreDrawTarget,
+        beamGroup: ScorePlacedBeamGroup,
+        itemsInGroup: List<ScorePlacedItem>,
+        sp: Float,
+        stemThick: Float,
+        color: Color,
+    ) {
+        val maxFlags = itemsInGroup.maxOf { it.item.duration.flagCount }.coerceAtLeast(1)
+        val dx = (beamGroup.lastStemX - beamGroup.firstStemX).coerceAtLeast(1f)
+        val slope = (beamGroup.lastTipY - beamGroup.firstTipY) / dx
+        val dir = if (!beamGroup.stemDown) 1f else -1f
+        val beamThick = SmuflGlyphs.BEAM_THICKNESS * sp
+        val beamStep = SmuflGlyphs.BEAM_SPACING * sp
+        val stemXs = FloatArray(itemsInGroup.size) { idx ->
+            beamGroup.stemXsByItemIdx[beamGroup.itemIndices[idx]] ?: itemsInGroup[idx].x
+        }
+
+        for (level in 0 until maxFlags) {
+            val requiredFlags = level + 1
+            val levelOffset = dir * level * beamStep
+            fun lineY(x: Float): Float =
+                beamGroup.firstTipY + slope * (x - beamGroup.firstStemX) + levelOffset
+
+            var idx = 0
+            while (idx < itemsInGroup.size) {
+                if (itemsInGroup[idx].item.duration.flagCount < requiredFlags) {
+                    idx++
+                    continue
+                }
+                val startIdx = idx
+                while (idx + 1 < itemsInGroup.size && itemsInGroup[idx + 1].item.duration.flagCount >= requiredFlags) {
+                    idx++
+                }
+                val endIdx = idx
+                if (endIdx > startIdx) {
+                    val xStart = stemXs[startIdx] - stemThick * 0.5f
+                    val xEnd = stemXs[endIdx] + stemThick * 0.5f
+                    target.drawBeamSegment(
+                        x1 = xStart,
+                        y1 = lineY(xStart),
+                        x2 = xEnd,
+                        y2 = lineY(xEnd),
+                        heightPx = dir * beamThick,
+                        color = color,
+                    )
+                } else if (level >= 1) {
+                    val pointRight = when {
+                        startIdx == 0 -> true
+                        startIdx == itemsInGroup.lastIndex -> false
+                        itemsInGroup[startIdx - 1].item.isDotted -> false
+                        startIdx % 2 == 1 -> false
+                        else -> true
+                    }
+                    val neighborGap = if (pointRight) {
+                        abs(stemXs[startIdx + 1] - stemXs[startIdx])
+                    } else {
+                        abs(stemXs[startIdx] - stemXs[startIdx - 1])
+                    }
+                    val stubLen = min(sp * 1.15f, neighborGap * 0.45f)
+                    val (xStart, xEnd) = if (pointRight) {
+                        val s = stemXs[startIdx] - stemThick * 0.5f
+                        s to (s + stubLen)
+                    } else {
+                        val e = stemXs[startIdx] + stemThick * 0.5f
+                        (e - stubLen) to e
+                    }
+                    target.drawBeamSegment(
+                        x1 = xStart,
+                        y1 = lineY(xStart),
+                        x2 = xEnd,
+                        y2 = lineY(xEnd),
+                        heightPx = dir * beamThick,
+                        color = color,
+                    )
+                }
+                idx++
+            }
+        }
+    }
 
     private fun keyChangeGlyphLayout(
         startX: Float,

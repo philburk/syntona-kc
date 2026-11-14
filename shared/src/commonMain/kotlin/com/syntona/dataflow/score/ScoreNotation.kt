@@ -494,6 +494,18 @@ data class ScoreMeasure(
     val timeSignature: TimeSignature? = null,
     val clefChanges: Map<Int, Clef> = emptyMap(),
     val dynamics: Map<Int, ScoreDynamicMarking> = emptyMap(),
+    /**
+     * Manual beaming overrides between adjacent items (`i` links item `i` and `i + 1`).
+     * `true` forces a beam across a beat/clef boundary; `false` breaks an automatic beam.
+     */
+    val beamOverrides: Map<Int, Boolean> = emptyMap(),
+)
+
+/** Contiguous group of 2 or more flagged notes/chords rendered under a shared beam. */
+data class ScoreBeamGroup(
+    val measureIdx: Int,
+    val itemIndices: List<Int>,
+    val stemDown: Boolean,
 )
 
 /** Identifies the opening clef (`0, 0`) or a mid-score clef change before `(measureIdx, itemIdx)`. */
@@ -634,6 +646,38 @@ object ScoreEditing {
         }
     }
 
+    private fun shiftBeamOverridesOnInsert(
+        overrides: Map<Int, Boolean>,
+        clampedIdx: Int,
+    ): Map<Int, Boolean> {
+        if (overrides.isEmpty()) return overrides
+        return buildMap {
+            for ((k, v) in overrides) {
+                when {
+                    k < clampedIdx - 1 -> put(k, v)
+                    k >= clampedIdx -> put(k + 1, v)
+                    // Drop link k == clampedIdx - 1 since the new item sits between those old neighbors
+                }
+            }
+        }
+    }
+
+    private fun shiftBeamOverridesOnDelete(
+        overrides: Map<Int, Boolean>,
+        removedIndices: List<Int>,
+    ): Map<Int, Boolean> {
+        if (overrides.isEmpty() || removedIndices.isEmpty()) return overrides
+        val removedSet = removedIndices.toSet()
+        return buildMap {
+            for ((k, v) in overrides.entries.sortedBy { it.key }) {
+                if (k !in removedSet && (k + 1) !in removedSet) {
+                    val newK = k - removedIndices.count { it < k }
+                    if (newK >= 0) put(newK, v)
+                }
+            }
+        }
+    }
+
     fun insertItem(
         measures: List<ScoreMeasure>,
         measureIdx: Int,
@@ -653,7 +697,13 @@ object ScoreEditing {
         val newItems = m.items.toMutableList().apply { add(clampedIdx, item) }
         val updatedClefs = shiftIndexedMapOnInsert(m.clefChanges, clampedIdx, shiftClefAtIndex)
         val updatedDynamics = shiftIndexedMapOnInsert(m.dynamics, clampedIdx, shiftClefAtIndex)
-        updated[measureIdx] = m.copy(items = newItems, clefChanges = updatedClefs, dynamics = updatedDynamics)
+        val updatedBeams = shiftBeamOverridesOnInsert(m.beamOverrides, clampedIdx)
+        updated[measureIdx] = m.copy(
+            items = newItems,
+            clefChanges = updatedClefs,
+            dynamics = updatedDynamics,
+            beamOverrides = updatedBeams,
+        )
         return renumber(updated) to ScoreItemLocation(measureIdx, clampedIdx)
     }
 
@@ -881,7 +931,8 @@ object ScoreEditing {
             }
             val nextClefs = shiftIndexedMapOnDelete(m.clefChanges, removedIndices)
             val nextDynamics = shiftIndexedMapOnDelete(m.dynamics, removedIndices)
-            m.copy(items = nextItems, clefChanges = nextClefs, dynamics = nextDynamics)
+            val nextBeams = shiftBeamOverridesOnDelete(m.beamOverrides, removedIndices)
+            m.copy(items = nextItems, clefChanges = nextClefs, dynamics = nextDynamics, beamOverrides = nextBeams)
         }
         return renumber(updated)
     }
@@ -1209,9 +1260,19 @@ object ScoreEditing {
         val sortedSlots = bySlot.keys.sortedWith(compareBy<ScoreItemLocation> { it.measureIdx }.thenBy { it.itemIdx })
         val firstMeasureIdx = sortedSlots.firstOrNull { itemAt(measures, it) != null }?.measureIdx ?: return emptyList()
         val copied = mutableListOf<ScoreClipboardItem>()
-        for (slot in sortedSlots) {
+        for (idx in sortedSlots.indices) {
+            val slot = sortedSlots[idx]
             val item = itemAt(measures, slot) ?: continue
             val relMeasure = slot.measureIdx - firstMeasureIdx
+            val nextSlot = sortedSlots.getOrNull(idx + 1)
+            val isContiguousNext = nextSlot != null &&
+                nextSlot.measureIdx == slot.measureIdx &&
+                nextSlot.itemIdx == slot.itemIdx + 1
+            val beamOverrideAfter = if (isContiguousNext) {
+                measures.getOrNull(slot.measureIdx)?.beamOverrides?.get(slot.itemIdx)
+            } else {
+                null
+            }
             val clefBefore = measures
                 .getOrNull(slot.measureIdx)
                 ?.clefChanges
@@ -1235,9 +1296,9 @@ object ScoreEditing {
                     isDotted = item.isDotted,
                     amplitude = item.amplitude,
                     isStaccato = item.isStaccato,
-                )?.let { copied.add(ScoreClipboardItem(it, relMeasure, clefBefore, dynamicAt)) }
+                )?.let { copied.add(ScoreClipboardItem(it, relMeasure, clefBefore, dynamicAt, beamOverrideAfter)) }
             } else {
-                copied.add(ScoreClipboardItem(item, relMeasure, clefBefore, dynamicAt))
+                copied.add(ScoreClipboardItem(item, relMeasure, clefBefore, dynamicAt, beamOverrideAfter))
             }
         }
         return copied
@@ -1270,6 +1331,7 @@ object ScoreEditing {
                         items = m.items.toList(),
                         clefChanges = m.clefChanges.toMap(),
                         dynamics = m.dynamics.toMap(),
+                        beamOverrides = m.beamOverrides.toMap(),
                     ),
                     openingKey = effectiveKeyAtMeasure(measures, initialKeySignature, mIdx),
                     openingTime = effectiveTimeAtMeasure(measures, initialTimeSignature, mIdx),
@@ -1407,6 +1469,8 @@ object ScoreEditing {
         var prevRelMeasure = entries.first().relativeMeasureOffset
         val pastedLocs = linkedSetOf<ScoreItemLocation>()
         var lastInsertedLoc = ScoreItemLocation(0, 0)
+        var prevEntry: ScoreClipboardItem? = null
+        var prevInsertedLoc: ScoreItemLocation? = null
 
         for (entry in entries) {
             val barJump = (entry.relativeMeasureOffset - prevRelMeasure).coerceAtLeast(0)
@@ -1457,8 +1521,34 @@ object ScoreEditing {
                     entry.dynamicAt,
                 ).first
             }
+            val prevLocSnapshot = prevInsertedLoc
+            val prevBeamOverride = prevEntry?.beamOverrideAfter
+            if (prevLocSnapshot != null &&
+                prevBeamOverride != null &&
+                loc.measureIdx == prevLocSnapshot.measureIdx &&
+                loc.itemIdx == prevLocSnapshot.itemIdx + 1
+            ) {
+                val targetMeasure = current[loc.measureIdx]
+                val openingClef = effectiveClefAt(current, afterClef, loc.measureIdx, itemIdx = 0)
+                val effTime = effectiveTimeAtMeasure(current, initialTimeSignature, loc.measureIdx)
+                val linkIdx = prevLocSnapshot.itemIdx
+                val auto = autoBeamedAfter(targetMeasure, openingClef, effTime, linkIdx)
+                val nextOverrides = targetMeasure.beamOverrides.toMutableMap()
+                if (prevBeamOverride == auto) {
+                    nextOverrides.remove(linkIdx)
+                } else {
+                    nextOverrides[linkIdx] = prevBeamOverride
+                }
+                if (nextOverrides != targetMeasure.beamOverrides) {
+                    current = current.toMutableList().apply {
+                        set(loc.measureIdx, targetMeasure.copy(beamOverrides = nextOverrides))
+                    }
+                }
+            }
             pastedLocs.add(loc)
             lastInsertedLoc = loc
+            prevEntry = entry
+            prevInsertedLoc = loc
             mIdx = loc.measureIdx
             iIdx = loc.itemIdx + 1
         }
@@ -1698,6 +1788,19 @@ object ScoreEditing {
                 mergedDynamics[insertIIdx + k] = dyn
             }
 
+            val mergedBeams = mutableMapOf<Int, Boolean>()
+            for ((k, beamed) in dest.beamOverrides) {
+                when {
+                    k < insertIIdx - 1 || (insertedCount == 0 && k < insertIIdx) -> mergedBeams[k] = beamed
+                    k >= insertIIdx -> mergedBeams[k + insertedCount] = beamed
+                }
+            }
+            for ((k, beamed) in cm.measure.beamOverrides) {
+                if (k in 0 until insertedCount - 1) {
+                    mergedBeams[insertIIdx + k] = beamed
+                }
+            }
+
             val mergedKey: KeySignature?
             val mergedTime: TimeSignature?
             if (insertIIdx == 0) {
@@ -1738,6 +1841,7 @@ object ScoreEditing {
                         timeSignature = mergedTime,
                         clefChanges = mergedClefs,
                         dynamics = mergedDynamics,
+                        beamOverrides = mergedBeams,
                     )
                 )
             }
@@ -1838,6 +1942,225 @@ object ScoreEditing {
             prevSteps.map { it to Accidental.NATURAL } + newSteps.map { it to newAcc }
         }
     }
+
+    /** Returns `true` iff [item] is a non-rest note or chord with at least one flag (8th or faster). */
+    fun isBeamableItem(item: ScoreItem): Boolean =
+        item !is ScoreItem.Rest && item.duration.flagCount >= 1
+
+    /**
+     * Returns whether adjacent items [idx] and `idx + 1` in [measure] should automatically be
+     * beamed together according to standard meter beat-grouping conventions and mid-measure clef changes.
+     */
+    fun autoBeamedAfter(
+        measure: ScoreMeasure,
+        openingClef: Clef,
+        timeSignature: TimeSignature,
+        idx: Int,
+    ): Boolean {
+        if (idx < 0 || idx >= measure.items.lastIndex) return false
+        val left = measure.items[idx]
+        val right = measure.items[idx + 1]
+        if (!isBeamableItem(left) || !isBeamableItem(right)) return false
+
+        // Break auto-beam if a clef change separates these two items
+        var clefBeforeRight = openingClef
+        for (i in 0..idx) {
+            measure.clefChanges[i]?.let { clefBeforeRight = it }
+        }
+        val clefAtRight = measure.clefChanges[idx + 1]
+        if (clefAtRight != null && clefAtRight != clefBeforeRight) return false
+
+        val boundaryTick = (0..idx).sumOf { measure.items[it].totalTicks }
+        return when {
+            // Compound meters (6/8, 9/8, 12/8, etc.): group per dotted beat (3 subdivisions)
+            timeSignature.denominator >= 8 &&
+                timeSignature.numerator >= 6 &&
+                timeSignature.numerator % 3 == 0 -> {
+                val unitTicks = ((PianoRollTiming.TPB * 4) / timeSignature.denominator).coerceAtLeast(1)
+                val compoundBeatTicks = unitTicks * 3
+                boundaryTick % compoundBeatTicks != 0
+            }
+            // 2/8 and 3/8 beam all flagged eighths/subdivisions across the full bar
+            timeSignature.denominator == 8 && timeSignature.numerator in 2..3 -> {
+                boundaryTick % timeSignature.measureCapacityTicks.coerceAtLeast(1) != 0
+            }
+            // 4/4 (Common time) and 2/2 (Cut time): never beam across half-bar, and beam
+            // four pure eighth notes across a half-bar while splitting 16ths/dotted on each quarter beat
+            (timeSignature.numerator == 4 && timeSignature.denominator == 4) ||
+                (timeSignature.numerator == 2 && timeSignature.denominator == 2) -> {
+                val beatTicks = PianoRollTiming.TPB
+                val halfBarTicks = beatTicks * 2
+                if (boundaryTick % halfBarTicks == 0) {
+                    false
+                } else if (boundaryTick % beatTicks != 0) {
+                    true
+                } else {
+                    val halfStart = (boundaryTick / halfBarTicks) * halfBarTicks
+                    val halfEnd = halfStart + halfBarTicks
+                    var t = 0
+                    for (item in measure.items) {
+                        val nextT = t + item.totalTicks
+                        if (nextT > halfStart && t < halfEnd && isBeamableItem(item)) {
+                            if (item.duration != NoteDuration.EIGHTH || item.isDotted) {
+                                return false
+                            }
+                        }
+                        t = nextT
+                    }
+                    true
+                }
+            }
+            else -> {
+                val beatTicks = when {
+                    timeSignature.denominator == 2 -> PianoRollTiming.TPB * 2
+                    timeSignature.denominator >= 8 -> PianoRollTiming.TPB
+                    else -> (PianoRollTiming.TPB * 4) / timeSignature.denominator
+                }.coerceAtLeast(1)
+                boundaryTick % beatTicks != 0
+            }
+        }
+    }
+
+    /** Computes the boolean link status `(i -> i + 1)` across a measure's items. */
+    fun effectiveBeamLinks(
+        measure: ScoreMeasure,
+        openingClef: Clef,
+        timeSignature: TimeSignature,
+    ): BooleanArray {
+        val linkCount = (measure.items.size - 1).coerceAtLeast(0)
+        val links = BooleanArray(linkCount)
+        for (i in 0 until linkCount) {
+            if (!isBeamableItem(measure.items[i]) || !isBeamableItem(measure.items[i + 1])) {
+                links[i] = false
+            } else {
+                val auto = autoBeamedAfter(measure, openingClef, timeSignature, i)
+                links[i] = measure.beamOverrides[i] ?: auto
+            }
+        }
+        return links
+    }
+
+    /** Computes every contiguous [ScoreBeamGroup] (`size >= 2`) within [measure]. */
+    fun computeBeamGroups(
+        measure: ScoreMeasure,
+        measureIdx: Int,
+        openingClef: Clef,
+        timeSignature: TimeSignature,
+    ): List<ScoreBeamGroup> {
+        if (measure.items.size < 2) return emptyList()
+        val links = effectiveBeamLinks(measure, openingClef, timeSignature)
+        val clefsPerItem = Array(measure.items.size) { openingClef }
+        var runningClef = openingClef
+        for (i in measure.items.indices) {
+            measure.clefChanges[i]?.let { runningClef = it }
+            clefsPerItem[i] = runningClef
+        }
+
+        val groups = mutableListOf<ScoreBeamGroup>()
+        var i = 0
+        while (i < links.size) {
+            if (!links[i]) {
+                i++
+                continue
+            }
+            val start = i
+            while (i < links.size && links[i]) {
+                i++
+            }
+            val end = i
+            val indices = (start..end).toList()
+            var minStep = Int.MAX_VALUE
+            var maxStep = Int.MIN_VALUE
+            var sumOffset = 0
+            for (itemIdx in indices) {
+                val clef = clefsPerItem[itemIdx]
+                for (pitch in measure.items[itemIdx].soundingPitches()) {
+                    val step = clef.staffStepFromBottom(pitch)
+                    if (step < minStep) minStep = step
+                    if (step > maxStep) maxStep = step
+                    sumOffset += step - 4
+                }
+            }
+            val stemDown = if (minStep <= maxStep) {
+                val upDist = 4 - minStep
+                val downDist = maxStep - 4
+                when {
+                    downDist > upDist -> true
+                    upDist > downDist -> false
+                    else -> sumOffset >= 0
+                }
+            } else {
+                false
+            }
+            groups.add(
+                ScoreBeamGroup(
+                    measureIdx = measureIdx,
+                    itemIndices = indices,
+                    stemDown = stemDown,
+                )
+            )
+        }
+        return groups
+    }
+
+    /**
+     * Toggles beaming at [itemIdx] in [measure] per beaming-mode rules:
+     * - If [itemIdx] is currently beamed, un-beams that note (breaking its left and/or right beam links).
+     * - Otherwise, if both [itemIdx] and `itemIdx + 1` are flagged notes/chords, beams them together.
+     */
+    fun toggleBeamClick(
+        measure: ScoreMeasure,
+        openingClef: Clef,
+        timeSignature: TimeSignature,
+        itemIdx: Int,
+    ): ScoreMeasure {
+        if (itemIdx !in measure.items.indices) return measure
+        if (!isBeamableItem(measure.items[itemIdx])) return measure
+
+        val links = effectiveBeamLinks(measure, openingClef, timeSignature)
+        val hasLeftLink = itemIdx > 0 && links[itemIdx - 1]
+        val hasRightLink = itemIdx < links.size && links[itemIdx]
+
+        val desiredChanges = mutableMapOf<Int, Boolean>()
+        if (hasLeftLink || hasRightLink) {
+            if (hasLeftLink) desiredChanges[itemIdx - 1] = false
+            if (hasRightLink) desiredChanges[itemIdx] = false
+        } else if (itemIdx < links.size && isBeamableItem(measure.items[itemIdx + 1])) {
+            desiredChanges[itemIdx] = true
+        } else {
+            return measure
+        }
+
+        val nextOverrides = measure.beamOverrides.toMutableMap()
+        for ((linkIdx, desired) in desiredChanges) {
+            val auto = autoBeamedAfter(measure, openingClef, timeSignature, linkIdx)
+            if (desired == auto) {
+                nextOverrides.remove(linkIdx)
+            } else {
+                nextOverrides[linkIdx] = desired
+            }
+        }
+        return if (nextOverrides == measure.beamOverrides) {
+            measure
+        } else {
+            measure.copy(beamOverrides = nextOverrides)
+        }
+    }
+
+    /** Applies [toggleBeamClick] to [measures] at [slotLoc], returning an updated list if changed. */
+    fun toggleBeamAt(
+        measures: List<ScoreMeasure>,
+        initialClef: Clef,
+        initialTimeSignature: TimeSignature,
+        slotLoc: ScoreItemLocation,
+    ): List<ScoreMeasure> {
+        val m = measures.getOrNull(slotLoc.measureIdx) ?: return measures
+        val openingClef = effectiveClefAt(measures, initialClef, slotLoc.measureIdx, itemIdx = 0)
+        val effectiveTime = effectiveTimeAtMeasure(measures, initialTimeSignature, slotLoc.measureIdx)
+        val updated = toggleBeamClick(m, openingClef, effectiveTime, slotLoc.itemIdx)
+        if (updated == m) return measures
+        return measures.toMutableList().apply { set(slotLoc.measureIdx, updated) }
+    }
 }
 
 /** Insertion cursor identifying a measure slot (`itemIdx` in `0..measure.items.size`). */
@@ -1853,12 +2176,13 @@ data class ScoreStepInsertResult(
     val nextCursor: ScoreCursorPosition,
 )
 
-/** Single entry stored in [ScoreClipboard], retaining its relative measure offset and optional clef/dynamic at it. */
+/** Single entry stored in [ScoreClipboard], retaining its relative measure offset and optional clef/dynamic/beam at it. */
 data class ScoreClipboardItem(
     val item: ScoreItem,
     val relativeMeasureOffset: Int = 0,
     val clefBefore: Clef? = null,
     val dynamicAt: ScoreDynamicMarking? = null,
+    val beamOverrideAfter: Boolean? = null,
 )
 
 /** Relative measure/slot snapshot for copying standalone dynamic markings. */

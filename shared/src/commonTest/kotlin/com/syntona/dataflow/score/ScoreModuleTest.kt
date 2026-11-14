@@ -38,12 +38,14 @@ class ScoreModuleTest {
             val color: Color,
         )
         data class DrawnText(val text: String, val x: Float, val baselineY: Float, val fontSizePx: Float)
+        data class DrawnBeam(val x1: Float, val y1: Float, val x2: Float, val y2: Float, val heightPx: Float)
 
         val lines = mutableListOf<DrawnLine>()
         val rects = mutableListOf<DrawnRect>()
         val beziers = mutableListOf<DrawnBezier>()
         val glyphs = mutableListOf<DrawnGlyph>()
         val texts = mutableListOf<DrawnText>()
+        val beams = mutableListOf<DrawnBeam>()
 
         override fun drawLine(x1: Float, y1: Float, x2: Float, y2: Float, strokeWidth: Float, color: Color) {
             lines.add(DrawnLine(x1, y1, x2, y2, strokeWidth))
@@ -78,6 +80,17 @@ class ScoreModuleTest {
 
         override fun measureGlyphWidth(glyph: String, fontSizePx: Float): Float {
             return fontSizePx * 0.35f
+        }
+
+        override fun drawBeamSegment(
+            x1: Float,
+            y1: Float,
+            x2: Float,
+            y2: Float,
+            heightPx: Float,
+            color: Color,
+        ) {
+            beams.add(DrawnBeam(x1, y1, x2, y2, heightPx))
         }
     }
 
@@ -2762,5 +2775,196 @@ class ScoreModuleTest {
         }
         assertEquals(5, receiver.received.size)
         assertEquals(c4.pitch.midiPitch.toDouble(), receiver.received[0].value)
+    }
+
+    @Test
+    fun automaticBeamingGroupsByMeterSubdivisionAndBreaksOnRestsAndClefs() {
+        fun e(step: Int) = ScoreItem.Note(
+            pitch = SpelledPitch(NoteLetter.entries[step.mod(7)], 0, 4 + step / 7),
+            duration = NoteDuration.EIGHTH,
+        )
+        fun s() = ScoreItem.Note(pitch = SpelledPitch(NoteLetter.C, 0, 5), duration = NoteDuration.SIXTEENTH)
+
+        // 4/4: 8 pure eighth notes beam as two half-bar groups [0..3] and [4..7]
+        val eightEighths = ScoreMeasure(1, List(8) { e(it) })
+        val groups44 = ScoreEditing.computeBeamGroups(eightEighths, 0, Clef.TREBLE, TimeSignature.COMMON_TIME)
+        assertEquals(listOf(listOf(0, 1, 2, 3), listOf(4, 5, 6, 7)), groups44.map { it.itemIndices })
+
+        // 4/4 with 16ths in beat 2 splits at beat 2: [e e] | [s s s s]
+        val mixed44 = ScoreMeasure(1, listOf(e(0), e(1), s(), s(), s(), s()))
+        val mixedGroups = ScoreEditing.computeBeamGroups(mixed44, 0, Clef.TREBLE, TimeSignature.COMMON_TIME)
+        assertEquals(listOf(listOf(0, 1), listOf(2, 3, 4, 5)), mixedGroups.map { it.itemIndices })
+
+        // 4/4 with eighth rest or quarter note breaks groups cleanly
+        val withRest = ScoreMeasure(
+            1,
+            listOf(e(0), ScoreItem.Rest(NoteDuration.EIGHTH), e(1), e(2), ScoreItem.Rest(NoteDuration.QUARTER), e(3), e(4)),
+        )
+        val restGroups = ScoreEditing.computeBeamGroups(withRest, 0, Clef.TREBLE, TimeSignature.COMMON_TIME)
+        assertEquals(listOf(listOf(2, 3), listOf(5, 6)), restGroups.map { it.itemIndices })
+
+        // 3/4 groups per quarter beat: [0,1], [2,3], [4,5]
+        val sixEighths = ScoreMeasure(1, List(6) { e(it) })
+        val groups34 = ScoreEditing.computeBeamGroups(sixEighths, 0, Clef.TREBLE, TimeSignature.THREE_FOUR)
+        assertEquals(listOf(listOf(0, 1), listOf(2, 3), listOf(4, 5)), groups34.map { it.itemIndices })
+
+        // Compound 6/8 groups by dotted-quarter beat: [0,1,2], [3,4,5]
+        val groups68 = ScoreEditing.computeBeamGroups(sixEighths, 0, Clef.TREBLE, TimeSignature.SIX_EIGHT)
+        assertEquals(listOf(listOf(0, 1, 2), listOf(3, 4, 5)), groups68.map { it.itemIndices })
+
+        // Mid-measure clef change breaks automatic beaming
+        val withClef = ScoreMeasure(1, List(4) { e(it) }, clefChanges = mapOf(2 to Clef.BASS))
+        val clefGroups = ScoreEditing.computeBeamGroups(withClef, 0, Clef.TREBLE, TimeSignature.COMMON_TIME)
+        assertEquals(listOf(listOf(0, 1), listOf(2, 3)), clefGroups.map { it.itemIndices })
+    }
+
+    @Test
+    fun manualBeamingTogglesUnbeamsAndBeamsAndSurvivesEditsAndSerialization() {
+        fun e(letter: NoteLetter) = ScoreItem.Note(SpelledPitch(letter, 0, 5), NoteDuration.EIGHTH)
+
+        // Start in 3/4: [0,1] beamed, [2,3] beamed
+        val initial = ScoreMeasure(1, listOf(e(NoteLetter.C), e(NoteLetter.D), e(NoteLetter.E), e(NoteLetter.F)))
+        // Clicking note 1 (currently beamed to 0) un-beams note 1
+        val afterUnbeam = ScoreEditing.toggleBeamClick(initial, Clef.TREBLE, TimeSignature.THREE_FOUR, 1)
+        assertEquals(mapOf(0 to false), afterUnbeam.beamOverrides)
+        assertEquals(
+            listOf(listOf(2, 3)),
+            ScoreEditing.computeBeamGroups(afterUnbeam, 0, Clef.TREBLE, TimeSignature.THREE_FOUR).map { it.itemIndices },
+        )
+
+        // Clicking unbeamed note 1 now beams it with the following note (2 -> joining [1, 2, 3])
+        val afterManualJoin = ScoreEditing.toggleBeamClick(afterUnbeam, Clef.TREBLE, TimeSignature.THREE_FOUR, 1)
+        assertEquals(mapOf(0 to false, 1 to true), afterManualJoin.beamOverrides)
+        assertEquals(
+            listOf(listOf(1, 2, 3)),
+            ScoreEditing.computeBeamGroups(afterManualJoin, 0, Clef.TREBLE, TimeSignature.THREE_FOUR).map { it.itemIndices },
+        )
+
+        // Clicking beamed interior note 2 un-beams only note 2 (separating [1] and [3])
+        val afterInteriorUnbeam = ScoreEditing.toggleBeamClick(afterManualJoin, Clef.TREBLE, TimeSignature.THREE_FOUR, 2)
+        assertEquals(
+            emptyList<List<Int>>(),
+            ScoreEditing.computeBeamGroups(afterInteriorUnbeam, 0, Clef.TREBLE, TimeSignature.THREE_FOUR).map { it.itemIndices },
+        )
+
+        // Inserting an item at index 1 shifts overrides at >= 1; deleting shifts back / drops invalidated links
+        val inserted = ScoreEditing.insertItem(listOf(afterManualJoin), 0, 0, e(NoteLetter.G)).first.first()
+        assertEquals(mapOf(1 to false, 2 to true), inserted.beamOverrides)
+        val deleted = ScoreEditing.deleteItems(listOf(inserted), setOf(ScoreItemLocation(0, 0))).first()
+        assertEquals(mapOf(0 to false, 1 to true), deleted.beamOverrides)
+
+        // Serialization round-trip preserves beamOverrides
+        val score = ScoreModule()
+        score.scoreData.timeSignature = TimeSignature.THREE_FOUR
+        score.scoreData.replaceMeasures(listOf(afterManualJoin))
+        val graph = GraphState()
+        graph.addModule(score, Offset.Zero)
+        val json = GraphSerializer.serialize(graph, graph.modules)
+        val restoredScore = GraphSerializer.deserialize(GraphState(), json).filterIsInstance<ScoreModule>().single()
+        assertEquals(afterManualJoin.beamOverrides, restoredScore.scoreData.measures.first().beamOverrides)
+
+        // Copy/paste of MeasureRange preserves manual beam overrides
+        val copied = ScoreEditing.copySelectionContent(
+            measures = listOf(afterManualJoin),
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.THREE_FOUR,
+            selectedMeasures = setOf(0),
+        )!!
+        val pasted = ScoreEditing.pasteClipboardContent(
+            measures = listOf(afterManualJoin, ScoreMeasure(2, emptyList())),
+            content = copied,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.THREE_FOUR,
+            cursorPosition = ScoreCursorPosition(1, 0),
+        )!!
+        assertEquals(afterManualJoin.beamOverrides, pasted.measures[1].beamOverrides)
+
+        // Copy/paste of ItemSelection (e.g. rubber-band note selection in one measure) also preserves manual beam overrides
+        val copiedItems = ScoreEditing.copySelectionContent(
+            measures = listOf(afterManualJoin),
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.THREE_FOUR,
+            selectedLocations = (0..3).map { ScoreItemLocation(0, it) }.toSet(),
+        )!!
+        val pastedItems = ScoreEditing.pasteClipboardContent(
+            measures = listOf(afterManualJoin, ScoreMeasure(2, emptyList())),
+            content = copiedItems,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.THREE_FOUR,
+            cursorPosition = ScoreCursorPosition(1, 0),
+        )!!
+        assertEquals(afterManualJoin.beamOverrides, pastedItems.measures[1].beamOverrides)
+        assertEquals(
+            listOf(listOf(1, 2, 3)),
+            ScoreEditing.computeBeamGroups(pastedItems.measures[1], 1, Clef.TREBLE, TimeSignature.THREE_FOUR).map { it.itemIndices },
+        )
+    }
+
+    @Test
+    fun rendererDrawsBeamsAndStubsWithoutFlagsAndPlaybackIsUnaffected() {
+        val target = RecordingDrawTarget()
+        val score = ScoreData()
+        val dotted8th = ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 5), NoteDuration.EIGHTH, isDotted = true)
+        val sixteenth = ScoreItem.Note(SpelledPitch(NoteLetter.D, 0, 5), NoteDuration.SIXTEENTH)
+        val twoSixteenthsAndEighth = listOf(
+            dotted8th,
+            sixteenth,
+            ScoreItem.Rest(NoteDuration.QUARTER),
+            ScoreItem.Note(SpelledPitch(NoteLetter.E, 0, 5), NoteDuration.EIGHTH),
+        )
+        score.replaceMeasures(listOf(ScoreMeasure(1, twoSixteenthsAndEighth)))
+
+        val layout = ScoreRenderer.render(
+            score = score,
+            target = target,
+            staffSpacePx = 12f,
+            minWidthPx = 600f,
+            colors = ScoreRenderColors.forTheme(false),
+        )
+
+        // Beat 1 [dotted8th, 16th] is beamed: primary beam + 16th broken beamlet = 2 DrawnBeams;
+        // item index 3 (isolated eighth note) keeps its individual flag glyph, while beamed items have no flags.
+        assertEquals(2, target.beams.size)
+        val flagGlyphs = target.glyphs.filter {
+            it.glyph == SmuflGlyphs.FLAG_8TH_UP ||
+                it.glyph == SmuflGlyphs.FLAG_8TH_DOWN ||
+                it.glyph == SmuflGlyphs.FLAG_16TH_UP ||
+                it.glyph == SmuflGlyphs.FLAG_16TH_DOWN
+        }
+        assertEquals(1, flagGlyphs.size)
+        assertTrue(layout.placedMeasures.single().items[0].isBeamed)
+        assertTrue(layout.placedMeasures.single().items[1].isBeamed)
+        assertFalse(layout.placedMeasures.single().items[3].isBeamed)
+
+        // Verify beams do NOT change playback notes or timing
+        val engine = TestEngine()
+        val module = ScoreModule()
+        module.setEngine(engine)
+        val receiver = VoiceReceiver()
+        module.output.connect(receiver.inJack)
+
+        val unoverridden = ScoreMeasure(1, twoSixteenthsAndEighth)
+        val overridden = ScoreMeasure(1, twoSixteenthsAndEighth, beamOverrides = mapOf(0 to false))
+
+        module.scoreData.replaceMeasures(listOf(unoverridden))
+        module.start.receive(Message.FloatValue(ScoreTime(0L), 1.0))
+        val normalTimes = engine.scheduled.map { it.first }
+        for ((_, action) in engine.scheduled) action()
+        val normalNotes = receiver.received.map { it.value to it.extra }
+
+        engine.scheduled.clear()
+        receiver.received.clear()
+        module.scoreData.replaceMeasures(listOf(overridden))
+        module.start.receive(Message.FloatValue(ScoreTime(0L), 1.0))
+        val overriddenTimes = engine.scheduled.map { it.first }
+        for ((_, action) in engine.scheduled) action()
+        val overriddenNotes = receiver.received.map { it.value to it.extra }
+
+        assertEquals(normalTimes, overriddenTimes)
+        assertEquals(normalNotes, overriddenNotes)
     }
 }

@@ -86,6 +86,8 @@ object SmuflGlyphs {
     const val STAFF_LINE_THICKNESS = 0.11f
     const val STEM_THICKNESS = 0.10f
     const val LEGER_LINE_THICKNESS = 0.16f
+    const val BEAM_THICKNESS = 0.50f
+    const val BEAM_SPACING = 0.75f
     const val LEGER_LINE_EXTENSION = 0.33f
     const val THIN_BARLINE_THICKNESS = 0.18f
     const val THICK_BARLINE_THICKNESS = 0.55f

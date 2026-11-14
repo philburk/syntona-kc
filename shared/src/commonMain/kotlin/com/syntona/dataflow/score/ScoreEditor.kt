@@ -102,6 +102,7 @@ import com.syntona.dataflow.editor.GraphState
 import com.syntona.dataflow.editor.GraphViewSettings
 import com.syntona.dataflow.editor.LocalMdiState
 import com.syntona.dataflow.editor.moveCursor
+import com.syntona.dataflow.editor.scoreBeamCursor
 import com.syntona.dataflow.editor.scoreDynamicCursor
 import com.syntona.dataflow.editor.scoreSymbolCursor
 import com.syntona.dataflow.engine.SyntonaCommand
@@ -122,6 +123,7 @@ private enum class ScoreEditMode {
     SELECT,
     ENTRY,
     DYNAMIC,
+    BEAM,
 }
 
 private sealed interface ScoreDragState {
@@ -315,6 +317,22 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 } else {
                     setOf(placedLoc)
                 }
+            }
+        )
+    }
+
+    fun toggleBeamAt(loc: ScoreItemLocation) {
+        val before = score.measures.toList()
+        val after = ScoreEditing.toggleBeamAt(
+            measures = before,
+            initialClef = score.clef,
+            initialTimeSignature = score.timeSignature,
+            slotLoc = loc,
+        )
+        if (after == before) return
+        postCommand(
+            ReplaceScoreMeasuresCommand(score, before, after) { restored ->
+                refreshPitchDisplayFromSelection(restored, selectedLocations)
             }
         )
     }
@@ -797,6 +815,17 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 }
                 true
             }
+            'b' -> {
+                if (event.isKeyShiftPressed && !module.isStepRecording) {
+                    openPalette = null
+                    pendingAccidental = null
+                    editorMode = ScoreEditMode.BEAM
+                    module.placeCursor(null)
+                    true
+                } else {
+                    false
+                }
+            }
             'd' -> { toggleDotMode(); true }
             't', 's', 'e', 'q', 'h', 'w' -> {
                 selectDuration(charDuration!!)
@@ -902,6 +931,24 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 },
             ) { color ->
                 Text("Select", fontSize = 11.sp, color = color)
+            }
+
+            ToolbarToggleChip(
+                selected = editorMode == ScoreEditMode.BEAM && !module.isStepRecording,
+                accentColor = accentColor,
+                borderMuted = borderMuted,
+                textColor = toolbarText,
+                isDark = isDark,
+                onClick = {
+                    module.exitStepRecording()
+                    openPalette = null
+                    pendingAccidental = null
+                    editorMode = ScoreEditMode.BEAM
+                    module.placeCursor(null)
+                    hoverPos = null
+                },
+            ) { color ->
+                Text("Beam", fontSize = 11.sp, color = color)
             }
 
             val stepColor = Color(0xFFEF4444)
@@ -1328,6 +1375,8 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     scoreSymbolCursor(entryDuration, entryIsRest, entryIsDotted, isDark)
                 !module.isStepRecording && editorMode == ScoreEditMode.DYNAMIC ->
                     scoreDynamicCursor(activeDynamic.label, isDark)
+                !module.isStepRecording && editorMode == ScoreEditMode.BEAM ->
+                    scoreBeamCursor(isDark)
                 hoveringItem -> moveCursor()
                 else -> PointerIcon.Default
             }
@@ -1632,6 +1681,11 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                     val target = lyt.dynamicTargetAt(downPos.x, downPos.y)
                                     if (target != null) {
                                         applyDynamic(target.first, activeDynamic, target.second)
+                                    }
+                                    return@awaitEachGesture
+                                } else if (editorMode == ScoreEditMode.BEAM) {
+                                    if (hit != null) {
+                                        toggleBeamAt(hit.location.slotLocation())
                                     }
                                     return@awaitEachGesture
                                 } else {
@@ -2103,6 +2157,8 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     if (entryIsDotted) "Mode: Select (Dot On)" else "Mode: Select"
                 editorMode == ScoreEditMode.DYNAMIC ->
                     "Mode: Dynamic (${activeDynamic.label}) — click above/below stave"
+                editorMode == ScoreEditMode.BEAM ->
+                    "Mode: Beam — click a note to beam/un-beam (Esc to exit)"
                 else -> "Mode: $dotPrefix${entryDuration.displayLabel} ${if (entryIsRest) "Rest" else "Note"}"
             }
             Text(
@@ -2167,7 +2223,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             Spacer(modifier = Modifier.weight(1f))
 
             Text(
-                text = "Esc: Select | t s e q h w: Dur | p/f: Dyn | d: Dot | =: Set Dur | 1..4: Artic/Acc | Del: Delete",
+                text = "Esc: Select | t s e q h w: Dur | p/f: Dyn | Shift+B: Beam | d: Dot | 1..4: Artic/Acc | Del: Delete",
                 fontSize = 10.sp,
                 color = toolbarText.copy(alpha = 0.8f),
                 maxLines = 1,

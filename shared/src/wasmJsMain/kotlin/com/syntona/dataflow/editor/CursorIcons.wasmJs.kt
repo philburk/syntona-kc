@@ -155,3 +155,28 @@ actual fun scoreDynamicCursor(
     wasmDynamicCursorCache[key] = icon
     return icon
 }
+
+private val wasmBeamCursorCache = mutableMapOf<Boolean, PointerIcon>()
+
+@OptIn(ExperimentalComposeUiApi::class)
+actual fun scoreBeamCursor(isDarkMode: Boolean): PointerIcon {
+    wasmBeamCursorCache[isDarkMode]?.let { return it }
+    val fg = if (isDarkMode) "#F8FAFC" else "#111827"
+    val halo = if (isDarkMode) "#0F172A" else "#FFFFFF"
+    val inner = "<ellipse cx='9' cy='23' rx='4.2' ry='2.9' transform='rotate(-20 9 23)'/>" +
+        "<ellipse cx='21' cy='21' rx='4.2' ry='2.9' transform='rotate(-20 21 21)'/>" +
+        "<line x1='12.5' y1='22' x2='12.5' y2='8' stroke-width='1.8'/>" +
+        "<line x1='24.5' y1='20' x2='24.5' y2='6' stroke-width='1.8'/>" +
+        "<polygon points='11.6,6.5 25.4,4.5 25.4,8.0 11.6,10.0'/>"
+    val svg = "<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'>" +
+        "<g stroke='$halo' fill='$halo' stroke-width='3.2'>$inner</g>" +
+        "<g stroke='$fg' fill='$fg'>$inner</g></svg>"
+    val encoded = svg
+        .replace("#", "%23")
+        .replace("<", "%3C")
+        .replace(">", "%3E")
+        .replace(" ", "%20")
+    val icon = PointerIcon.fromKeyword("url(\"data:image/svg+xml,$encoded\") 9 23, crosshair")
+    wasmBeamCursorCache[isDarkMode] = icon
+    return icon
+}

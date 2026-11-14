@@ -240,3 +240,51 @@ actual fun scoreDynamicCursor(
     dynamicCursorCache[key] = created
     return created
 }
+
+private val beamCursorCache = mutableMapOf<Boolean, PointerIcon>()
+
+actual fun scoreBeamCursor(isDarkMode: Boolean): PointerIcon {
+    beamCursorCache[isDarkMode]?.let { return it }
+    val created = try {
+        val toolkit = Toolkit.getDefaultToolkit()
+        val size = 32
+        val best = toolkit.getBestCursorSize(size, size)
+        val w = best.width.coerceAtLeast(size)
+        val h = best.height.coerceAtLeast(size)
+        val img = BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB)
+        val g = img.createGraphics()
+        try {
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+            g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE)
+            val fg = if (isDarkMode) Color(0xF8, 0xFA, 0xFC) else Color(0x11, 0x18, 0x27)
+            val halo = if (isDarkMode) Color(0x0F, 0x17, 0x2A, 220) else Color(0xFF, 0xFF, 0xFF, 235)
+            fun paintBeamedPair(color: Color, expand: Float) {
+                g.color = color
+                val saved = g.transform
+                for ((cx, cy) in listOf(9.0 to 23.0, 21.0 to 21.0)) {
+                    g.translate(cx, cy)
+                    g.rotate(-0.35)
+                    val rx = 7.6 + expand * 1.4
+                    val ry = 5.4 + expand * 1.4
+                    g.fill(Ellipse2D.Double(-rx * 0.5, -ry * 0.5, rx, ry))
+                    g.transform = saved
+                }
+                g.stroke = BasicStroke(1.8f + expand * 1.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
+                g.drawLine(12, 22, 12, 8)
+                g.drawLine(24, 20, 24, 6)
+                g.stroke = BasicStroke(3.4f + expand * 1.5f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER)
+                g.drawLine(12, 8, 24, 6)
+            }
+            paintBeamedPair(halo, 1.5f)
+            paintBeamedPair(fg, 0f)
+        } finally {
+            g.dispose()
+        }
+        val hotSpot = Point(9.coerceIn(0, w - 1), 23.coerceIn(0, h - 1))
+        PointerIcon(toolkit.createCustomCursor(img, hotSpot, "score-beam-${if (isDarkMode) "dark" else "light"}"))
+    } catch (_: Throwable) {
+        crosshairCursor()
+    }
+    beamCursorCache[isDarkMode] = created
+    return created
+}
