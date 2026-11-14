@@ -148,57 +148,76 @@ class ScoreModule : Module("score"), EngineAware {
 
         val tempoVal = tempo.getDoubleValue(PianoRollTiming.DEFAULT_TEMPO).coerceAtLeast(1.0)
         val nsPerTick = PianoRollTiming.nanosPerTick(tempoVal)
-        val items = scoreData.measures.flatMap { it.items }
-        if (items.isEmpty()) return
+        val measures = scoreData.measures
+        if (measures.none { it.items.isNotEmpty() }) return
 
+        val measureCapacityTicks = scoreData.timeSignature.measureCapacityTicks.toLong().coerceAtLeast(0L)
         isPlaying = true
         var tickCursor = 0L
         var globalIdx = 0
         var nextVoiceTag = 0
+        var hasActiveHighlight = false
 
-        for (item in items) {
-            val itemIdx = globalIdx++
-            val itemTicks = item.totalTicks.toLong()
-            val onTime = now + ScoreTime((tickCursor * nsPerTick).roundToLong())
-            val offTime = now + ScoreTime(((tickCursor + itemTicks) * nsPerTick).roundToLong())
-            val fullDurSec = (offTime.nanoseconds - onTime.nanoseconds).coerceAtLeast(0L) / 1_000_000_000.0
-            val soundingPitches = item.soundingPitches()
-            val soundingDurSec = if (soundingPitches.isNotEmpty() && item.noteStaccato()) {
-                minOf(fullDurSec * STACCATO_DURATION_FRACTION, MAX_STACCATO_SECONDS)
-                    .coerceAtLeast(minOf(MIN_STACCATO_SECONDS, fullDurSec))
-            } else {
-                fullDurSec
-            }
-            val soundingOffTime = onTime + ScoreTime((soundingDurSec * 1_000_000_000.0).roundToLong())
-            val voiceTags = List(soundingPitches.size) { nextVoiceTag++ }
-
-            scheduledEvents.add(e.schedule(onTime) {
-                activeItemIndex = itemIdx
-                if (soundingPitches.isNotEmpty()) {
-                    val amp = item.noteAmplitude()
-                    soundingPitches.forEachIndexed { idx, spelled ->
-                        val pitch = spelled.midiPitch.toDouble()
-                        val tag = voiceTags[idx]
-                        output.send(
-                            Message.VoiceMessage(
-                                time = onTime,
-                                opcode = Message.VoiceOpcode.NOTE,
-                                tag = tag,
-                                value = pitch,
-                                extra = amp,
-                                duration = soundingDurSec,
-                            )
-                        )
-                        soundingNotes[tag] = pitch
-                    }
+        for (measure in measures) {
+            val measureStartTick = tickCursor
+            for (item in measure.items) {
+                val itemIdx = globalIdx++
+                val itemTicks = item.totalTicks.toLong()
+                val onTime = now + ScoreTime((tickCursor * nsPerTick).roundToLong())
+                val offTime = now + ScoreTime(((tickCursor + itemTicks) * nsPerTick).roundToLong())
+                val fullDurSec = (offTime.nanoseconds - onTime.nanoseconds).coerceAtLeast(0L) / 1_000_000_000.0
+                val soundingPitches = item.soundingPitches()
+                val soundingDurSec = if (soundingPitches.isNotEmpty() && item.noteStaccato()) {
+                    minOf(fullDurSec * STACCATO_DURATION_FRACTION, MAX_STACCATO_SECONDS)
+                        .coerceAtLeast(minOf(MIN_STACCATO_SECONDS, fullDurSec))
+                } else {
+                    fullDurSec
                 }
-            })
-            if (soundingPitches.isNotEmpty()) {
-                scheduledEvents.add(e.schedule(soundingOffTime) {
-                    voiceTags.forEach { soundingNotes.remove(it) }
+                val soundingOffTime = onTime + ScoreTime((soundingDurSec * 1_000_000_000.0).roundToLong())
+                val voiceTags = List(soundingPitches.size) { nextVoiceTag++ }
+
+                scheduledEvents.add(e.schedule(onTime) {
+                    activeItemIndex = itemIdx
+                    if (soundingPitches.isNotEmpty()) {
+                        val amp = item.noteAmplitude()
+                        soundingPitches.forEachIndexed { idx, spelled ->
+                            val pitch = spelled.midiPitch.toDouble()
+                            val tag = voiceTags[idx]
+                            output.send(
+                                Message.VoiceMessage(
+                                    time = onTime,
+                                    opcode = Message.VoiceOpcode.NOTE,
+                                    tag = tag,
+                                    value = pitch,
+                                    extra = amp,
+                                    duration = soundingDurSec,
+                                )
+                            )
+                            soundingNotes[tag] = pitch
+                        }
+                    }
                 })
+                if (soundingPitches.isNotEmpty()) {
+                    scheduledEvents.add(e.schedule(soundingOffTime) {
+                        voiceTags.forEach { soundingNotes.remove(it) }
+                    })
+                }
+                hasActiveHighlight = true
+                tickCursor += itemTicks
             }
-            tickCursor += itemTicks
+
+            // Honor the time signature by treating missing space in empty/incomplete measures as rests.
+            val measureTicks = tickCursor - measureStartTick
+            if (measureTicks < measureCapacityTicks) {
+                if (hasActiveHighlight) {
+                    val restStartTime = now + ScoreTime((tickCursor * nsPerTick).roundToLong())
+                    scheduledEvents.add(e.schedule(restStartTime) {
+                        activeItemIndex = null
+                    })
+                    hasActiveHighlight = false
+                }
+                tickCursor = measureStartTick + measureCapacityTicks
+            }
         }
 
         val endTime = now + ScoreTime((tickCursor * nsPerTick).roundToLong()) + ScoreTime(1L)
