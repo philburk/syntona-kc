@@ -918,4 +918,212 @@ class ScoreModuleTest {
         val undoneLayout = ScoreRenderer.computeLayout(scoreModule.scoreData, 10f, 600f) { _, fs -> fs * 0.35f }
         assertEquals(null, undoneLayout.placedMeasures[1].items[0].accidental)
     }
+
+    @Test
+    fun testChordEditingStackingDeleteAccidentalStaccatoAndPitchDrag() {
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val e4 = SpelledPitch(NoteLetter.E, 0, 4)
+        val g4 = SpelledPitch(NoteLetter.G, 0, 4)
+        val initial = listOf(ScoreMeasure(1, listOf(ScoreItem.Note(e4, NoteDuration.QUARTER))))
+        val slot = ScoreItemLocation(0, 0)
+
+        // Stack C4 onto E4 -> becomes Chord([C4, E4]) and tracks chordNoteIdx = 0
+        val (withTwo, c4Loc) = ScoreEditing.addPitchToSlot(initial, slot, c4)
+        assertEquals(ScoreItemLocation(0, 0, 0), c4Loc)
+        val twoChord = withTwo[0].items[0] as ScoreItem.Chord
+        assertEquals(listOf(c4, e4), twoChord.pitches)
+
+        // Stack G4 -> becomes Chord([C4, E4, G4]), G4 at chordNoteIdx = 2
+        val (withThree, g4Loc) = ScoreEditing.addPitchToSlot(withTwo, slot, g4)
+        assertEquals(ScoreItemLocation(0, 0, 2), g4Loc)
+        assertEquals(listOf(c4, e4, g4), (withThree[0].items[0] as ScoreItem.Chord).pitches)
+
+        // Apply flat accidental to only the middle notehead (E4 -> Eb4)
+        val withEb = ScoreEditing.setAccidentalOnSelection(withThree, setOf(ScoreItemLocation(0, 0, 1)), -1)
+        assertEquals(
+            listOf(c4, SpelledPitch(NoteLetter.E, -1, 4), g4),
+            (withEb[0].items[0] as ScoreItem.Chord).pitches,
+        )
+
+        // Drag bottom note (C4) above G4 -> re-sorts and tracks updated chordNoteIdx = 2
+        val b4 = SpelledPitch(NoteLetter.B, 0, 4)
+        val (afterDrag, trackedLoc) = ScoreEditing.setNotePitchAndTrackLocation(withEb, ScoreItemLocation(0, 0, 0), b4)
+        assertEquals(ScoreItemLocation(0, 0, 2), trackedLoc)
+        assertEquals(b4, ScoreEditing.pitchAt(afterDrag, trackedLoc))
+
+        // Toggle staccato on chord
+        val withStacc = ScoreEditing.toggleStaccatoOnSelection(afterDrag, setOf(trackedLoc))
+        assertTrue((withStacc[0].items[0] as ScoreItem.Chord).isStaccato)
+
+        // Delete 1 notehead of 3 -> 2-note Chord; delete 1 of 2 -> unwraps back to ScoreItem.Note
+        val twoRemaining = ScoreEditing.deleteItems(withThree, setOf(ScoreItemLocation(0, 0, 1)))
+        val remainingChord = twoRemaining[0].items[0] as ScoreItem.Chord
+        assertEquals(listOf(c4, g4), remainingChord.pitches)
+
+        val unwrapped = ScoreEditing.deleteItems(twoRemaining, setOf(ScoreItemLocation(0, 0, 0)))
+        val singleNote = unwrapped[0].items[0] as ScoreItem.Note
+        assertEquals(g4, singleNote.pitch)
+
+        // Deleting whole chord (chordNoteIdx == null) removes the entire item
+        val cleared = ScoreEditing.deleteItems(withThree, setOf(slot))
+        assertTrue(cleared[0].items.isEmpty())
+    }
+
+    @Test
+    fun testChordRecognitionAcrossKeysAndQualities() {
+        val cSharpMinor7 = listOf(
+            SpelledPitch(NoteLetter.C, 1, 4),
+            SpelledPitch(NoteLetter.E, 0, 4),
+            SpelledPitch(NoteLetter.G, 1, 4),
+            SpelledPitch(NoteLetter.B, 0, 4),
+        )
+        assertEquals("C#m7", ScoreChordAnalyzer.recognizeChordName(cSharpMinor7, KeySignature.D_MAJOR))
+        assertEquals("C#m7", ScoreChordAnalyzer.recognizeChordName(cSharpMinor7, KeySignature.A_MAJOR))
+
+        val dFlatMinor7 = listOf(
+            SpelledPitch(NoteLetter.D, -1, 4),
+            SpelledPitch(NoteLetter.F, -1, 4),
+            SpelledPitch(NoteLetter.A, -1, 4),
+            SpelledPitch(NoteLetter.C, -1, 5),
+        )
+        assertEquals("Dbm7", ScoreChordAnalyzer.recognizeChordName(dFlatMinor7, KeySignature.D_FLAT))
+
+        assertEquals(
+            "C",
+            ScoreChordAnalyzer.recognizeChordName(
+                listOf(SpelledPitch(NoteLetter.C, 0, 4), SpelledPitch(NoteLetter.E, 0, 4), SpelledPitch(NoteLetter.G, 0, 4)),
+                KeySignature.C_MAJOR,
+            ),
+        )
+        assertEquals(
+            "C/E",
+            ScoreChordAnalyzer.recognizeChordName(
+                listOf(SpelledPitch(NoteLetter.E, 0, 4), SpelledPitch(NoteLetter.G, 0, 4), SpelledPitch(NoteLetter.C, 0, 5)),
+                KeySignature.C_MAJOR,
+            ),
+        )
+        assertEquals(
+            "Fmaj7",
+            ScoreChordAnalyzer.recognizeChordName(
+                listOf(
+                    SpelledPitch(NoteLetter.F, 0, 4),
+                    SpelledPitch(NoteLetter.A, 0, 4),
+                    SpelledPitch(NoteLetter.C, 0, 5),
+                    SpelledPitch(NoteLetter.E, 0, 5),
+                ),
+                KeySignature.C_MAJOR,
+            ),
+        )
+        assertEquals(
+            "G7",
+            ScoreChordAnalyzer.recognizeChordName(
+                listOf(
+                    SpelledPitch(NoteLetter.G, 0, 3),
+                    SpelledPitch(NoteLetter.B, 0, 3),
+                    SpelledPitch(NoteLetter.D, 0, 4),
+                    SpelledPitch(NoteLetter.F, 0, 4),
+                ),
+                KeySignature.C_MAJOR,
+            ),
+        )
+        assertEquals(
+            "Bm7b5",
+            ScoreChordAnalyzer.recognizeChordName(
+                listOf(
+                    SpelledPitch(NoteLetter.B, 0, 3),
+                    SpelledPitch(NoteLetter.D, 0, 4),
+                    SpelledPitch(NoteLetter.F, 0, 4),
+                    SpelledPitch(NoteLetter.A, 0, 4),
+                ),
+                KeySignature.C_MAJOR,
+            ),
+        )
+        assertEquals(
+            "Dsus4",
+            ScoreChordAnalyzer.recognizeChordName(
+                listOf(SpelledPitch(NoteLetter.D, 0, 4), SpelledPitch(NoteLetter.G, 0, 4), SpelledPitch(NoteLetter.A, 0, 4)),
+                KeySignature.C_MAJOR,
+            ),
+        )
+        assertEquals(null, ScoreChordAnalyzer.recognizeChordName(listOf(SpelledPitch(NoteLetter.C, 0, 4)), KeySignature.C_MAJOR))
+    }
+
+    @Test
+    fun testChordEngravingSecondsStaggeredAccidentalsAndHitTesting() {
+        val clusterChord = ScoreItem.Chord(
+            pitches = listOf(
+                SpelledPitch(NoteLetter.C, 1, 4), // step -2
+                SpelledPitch(NoteLetter.D, 1, 4), // step -1 (second above C#4)
+                SpelledPitch(NoteLetter.E, 1, 4), // step 0 (second above D#4)
+            ),
+            duration = NoteDuration.QUARTER,
+        )
+        val score = ScoreData().apply {
+            keySignature = KeySignature.C_MAJOR
+            replaceMeasures(listOf(ScoreMeasure(1, listOf(clusterChord))))
+        }
+        val target = RecordingDrawTarget()
+        val layout = ScoreRenderer.render(
+            score = score,
+            target = target,
+            staffSpacePx = 10f,
+            minWidthPx = 500f,
+            colors = ScoreRenderColors.forTheme(darkMode = false),
+            selectedLocations = setOf(ScoreItemLocation(0, 0, 1)),
+        )
+        val placed = layout.placedMeasures[0].items[0]
+        assertEquals(3, placed.chordNotes.size)
+        // Low chord (steps -2..0) -> stems go UP; second D#4 is offset right of C#4, E#4 aligns back to stem column
+        assertFalse(placed.stemDown)
+        assertTrue(placed.chordNotes[1].headX > placed.chordNotes[0].headX)
+        assertEquals(placed.chordNotes[0].headX, placed.chordNotes[2].headX)
+        // Adjacent sharps stagger into distinct horizontal accidental columns
+        val accXs = placed.chordNotes.mapNotNull { it.accX }.distinct()
+        assertTrue(accXs.size >= 2)
+
+        // itemColumnAt aligns anywhere over the notehead column, and chordNoteAt hits individual noteheads
+        assertEquals(placed, layout.itemColumnAt(placed.x + 2f))
+        val midCn = placed.chordNotes[1]
+        assertEquals(midCn, layout.chordNoteAt(placed, midCn.headX + 3f, midCn.y))
+    }
+
+    @Test
+    fun testChordPlaybackVoiceTagsAndSerializationRoundTrip() {
+        val chord = ScoreItem.Chord(
+            pitches = listOf(
+                SpelledPitch(NoteLetter.C, 1, 4),
+                SpelledPitch(NoteLetter.E, 0, 4),
+                SpelledPitch(NoteLetter.G, 1, 4),
+                SpelledPitch(NoteLetter.B, 0, 4),
+            ),
+            duration = NoteDuration.HALF,
+            isDotted = true,
+            amplitude = 0.72,
+            isStaccato = true,
+        )
+        val engine = TestEngine()
+        val scoreModule = ScoreModule()
+        scoreModule.setEngine(engine)
+        scoreModule.scoreData.replaceMeasures(listOf(ScoreMeasure(1, listOf(chord))))
+
+        val receiver = VoiceReceiver()
+        scoreModule.output.connect(receiver.inJack)
+        scoreModule.start.receive(Message.FloatValue(ScoreTime(0L), 1.0))
+
+        for ((_, action) in engine.scheduled) {
+            action()
+        }
+
+        assertEquals(4, receiver.received.size)
+        assertEquals(setOf(61.0, 64.0, 68.0, 71.0), receiver.received.map { it.value }.toSet())
+        assertEquals(4, receiver.received.map { it.tag }.distinct().size)
+        assertTrue(receiver.received.all { it.opcode == Message.VoiceOpcode.NOTE })
+
+        val graph = GraphState()
+        graph.addModule(scoreModule, Offset.Zero)
+        val json = GraphSerializer.serialize(graph, graph.modules)
+        val reloaded = GraphSerializer.deserialize(GraphState(), json).filterIsInstance<ScoreModule>().single()
+        val reloadedChord = reloaded.scoreData.measures[0].items[0] as ScoreItem.Chord
+        assertEquals(chord, reloadedChord)
+    }
 }

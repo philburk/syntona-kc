@@ -101,21 +101,36 @@ Pressing ESC will exit step record mode.
 Pressing a note duration key, like 'q', will change the current duration
 but leave us in step record mode.
 
-### Phase 5 - key signatures
+### Phase 5 - Key Signatures
 Add a palette for setting the key for a selected measure. If multiple measures selected,
 set key for first measure and remove any key signatures from later selected measures.
 Do not change any note pitch values when changing the key.
 Name the button that opens the palette "Key".
+There are no keyboard shortcuts for key signatures.
 
-### Phase 5
-Add support for chords by adding notes vertically aligned with existing notes.
-When clicking on a note, try to display the name of the chord based on the notes and
+### Phase 6 - Chords
+Add support for chords by allowing the user to add notes vertically aligned with existing notes.
+When clicking on a note that is in a chord, try to display the name of the chord based on the notes and
 the key signature, eg. "C#m7".
+
+### Phase 7 - Time Signature
+If the user clicks on a Time Signature, open a text box with the current time signature in a format like "3/4".
+Let the user edit that signature and hit enter or click outside the text box.
+If the user clears the text box then remove the time signature unless it is for the first measure.
+
+Add some Time Signatures to the Keys Palette like 3/4 2/2 4/4 6/8 12/8 . (Any others?)
+When clicked, insert or change the time signature of the first selected measure.
 
 ### Phase ?
 
 Add a "dot" button to the Notes/Rests palette. Pressing 'd' will toggle dot mode.
 This can be used to make "dotted" notes, which have 3/2 the duration of an undotted noted.
+
+Implement the = keyboard shortcut for changing the duration of selected notes.
+Select some notes.
+Press '=' key.
+Press a duration key like 'q' and maybe 'd' for an augmentation dot.
+The duration of the selected notes will change to the entered value.
 
 ### Phase ? - Clefs, Keys
 Add other common clefs.
