@@ -38,6 +38,7 @@ import com.syntona.dataflow.modules.PianoRollNote
 import com.syntona.dataflow.score.KeySignature
 import com.syntona.dataflow.score.NoteDuration
 import com.syntona.dataflow.score.NoteLetter
+import com.syntona.dataflow.score.ScoreEditing
 import com.syntona.dataflow.score.ScoreItem
 import com.syntona.dataflow.score.ScoreMeasure
 import com.syntona.dataflow.score.ScoreModule
@@ -572,6 +573,16 @@ object GraphSerializer {
                                 val dotted = if (item.isDotted) 1 else 0
                                 val staccato = if (item.isStaccato) 1 else 0
                                 append("[\"N\",\"${item.pitch.letter.name}\",${item.pitch.alter},${item.pitch.octave},\"${item.duration.name}\",$dotted,${item.amplitude},$staccato]")
+                            }
+                            is ScoreItem.Chord -> {
+                                val dotted = if (item.isDotted) 1 else 0
+                                val staccato = if (item.isStaccato) 1 else 0
+                                append("[\"C\",[")
+                                item.pitches.forEachIndexed { pIdx, p ->
+                                    if (pIdx > 0) append(",")
+                                    append("[\"${p.letter.name}\",${p.alter},${p.octave}]")
+                                }
+                                append("],\"${item.duration.name}\",$dotted,${item.amplitude},$staccato]")
                             }
                             is ScoreItem.Rest -> {
                                 val dotted = if (item.isDotted) 1 else 0
@@ -1581,6 +1592,30 @@ object GraphSerializer {
                                             isStaccato = isStaccato,
                                         )
                                     )
+                                }
+                                "C" -> {
+                                    val pitchArr = (arr.getOrNull(1) as? JsonValue.Arr)?.items ?: continue
+                                    val chordPitches = mutableListOf<SpelledPitch>()
+                                    for (pVal in pitchArr) {
+                                        val pFields = (pVal as? JsonValue.Arr)?.items ?: continue
+                                        val letterName = (pFields.getOrNull(0) as? JsonValue.Str)?.value ?: continue
+                                        val letter = NoteLetter.entries.firstOrNull { it.name == letterName } ?: continue
+                                        val alter = (pFields.getOrNull(1) as? JsonValue.Num)?.value?.toInt()?.coerceIn(-1, 1) ?: 0
+                                        val octave = (pFields.getOrNull(2) as? JsonValue.Num)?.value?.toInt()?.coerceIn(0, 9) ?: 4
+                                        chordPitches.add(SpelledPitch(letter = letter, alter = alter, octave = octave))
+                                    }
+                                    val durName = (arr.getOrNull(2) as? JsonValue.Str)?.value ?: continue
+                                    val dur = NoteDuration.entries.firstOrNull { it.name == durName } ?: continue
+                                    val isDotted = ((arr.getOrNull(3) as? JsonValue.Num)?.value?.toInt() ?: 0) != 0
+                                    val amp = (arr.getOrNull(4) as? JsonValue.Num)?.value ?: 0.25
+                                    val isStaccato = ((arr.getOrNull(5) as? JsonValue.Num)?.value?.toInt() ?: 0) != 0
+                                    ScoreEditing.itemFromPitches(
+                                        pitches = chordPitches,
+                                        duration = dur,
+                                        isDotted = isDotted,
+                                        amplitude = amp,
+                                        isStaccato = isStaccato,
+                                    )?.let { loadedItems.add(it) }
                                 }
                                 "R" -> {
                                     val durName = (arr.getOrNull(1) as? JsonValue.Str)?.value ?: continue

@@ -154,6 +154,7 @@ class ScoreModule : Module("score"), EngineAware {
         isPlaying = true
         var tickCursor = 0L
         var globalIdx = 0
+        var nextVoiceTag = 0
 
         for (item in items) {
             val itemIdx = globalIdx++
@@ -161,34 +162,40 @@ class ScoreModule : Module("score"), EngineAware {
             val onTime = now + ScoreTime((tickCursor * nsPerTick).roundToLong())
             val offTime = now + ScoreTime(((tickCursor + itemTicks) * nsPerTick).roundToLong())
             val fullDurSec = (offTime.nanoseconds - onTime.nanoseconds).coerceAtLeast(0L) / 1_000_000_000.0
-            val soundingDurSec = if (item is ScoreItem.Note && item.isStaccato) {
+            val soundingPitches = item.soundingPitches()
+            val soundingDurSec = if (soundingPitches.isNotEmpty() && item.noteStaccato()) {
                 minOf(fullDurSec * STACCATO_DURATION_FRACTION, MAX_STACCATO_SECONDS)
                     .coerceAtLeast(minOf(MIN_STACCATO_SECONDS, fullDurSec))
             } else {
                 fullDurSec
             }
             val soundingOffTime = onTime + ScoreTime((soundingDurSec * 1_000_000_000.0).roundToLong())
+            val voiceTags = List(soundingPitches.size) { nextVoiceTag++ }
 
             scheduledEvents.add(e.schedule(onTime) {
                 activeItemIndex = itemIdx
-                if (item is ScoreItem.Note) {
-                    val pitch = item.pitch.midiPitch.toDouble()
-                    output.send(
-                        Message.VoiceMessage(
-                            time = onTime,
-                            opcode = Message.VoiceOpcode.NOTE,
-                            tag = itemIdx,
-                            value = pitch,
-                            extra = item.amplitude,
-                            duration = soundingDurSec,
+                if (soundingPitches.isNotEmpty()) {
+                    val amp = item.noteAmplitude()
+                    soundingPitches.forEachIndexed { idx, spelled ->
+                        val pitch = spelled.midiPitch.toDouble()
+                        val tag = voiceTags[idx]
+                        output.send(
+                            Message.VoiceMessage(
+                                time = onTime,
+                                opcode = Message.VoiceOpcode.NOTE,
+                                tag = tag,
+                                value = pitch,
+                                extra = amp,
+                                duration = soundingDurSec,
+                            )
                         )
-                    )
-                    soundingNotes[itemIdx] = pitch
+                        soundingNotes[tag] = pitch
+                    }
                 }
             })
-            if (item is ScoreItem.Note) {
+            if (soundingPitches.isNotEmpty()) {
                 scheduledEvents.add(e.schedule(soundingOffTime) {
-                    soundingNotes.remove(itemIdx)
+                    voiceTags.forEach { soundingNotes.remove(it) }
                 })
             }
             tickCursor += itemTicks

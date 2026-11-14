@@ -33,14 +33,16 @@ data class SpelledPitch(
     /** Absolute diatonic step (`C4` = 28). */
     val diatonicStep: Int get() = octave * 7 + letter.ordinal
 
-    fun displayName(): String {
+    fun pitchClassName(): String {
         val suffix = when (alter) {
             1 -> "#"
             -1 -> "b"
             else -> ""
         }
-        return "${letter.display}$suffix$octave"
+        return "${letter.display}$suffix"
     }
+
+    fun displayName(): String = "${pitchClassName()}$octave"
 
     /** Formats pitch name and MIDI number, e.g. `"C#4, 61"`. */
     fun pitchDisplay(): String = "${displayName()}, $midiPitch"
@@ -288,8 +290,35 @@ sealed interface ScoreItem {
 
     val totalTicks: Int get() = duration.totalTicks(isDotted)
 
+    fun soundingPitches(): List<SpelledPitch> = when (this) {
+        is Note -> listOf(pitch)
+        is Chord -> pitches
+        is Rest -> emptyList()
+    }
+
+    fun noteAmplitude(): Double = when (this) {
+        is Note -> amplitude
+        is Chord -> amplitude
+        is Rest -> 0.0
+    }
+
+    fun noteStaccato(): Boolean = when (this) {
+        is Note -> isStaccato
+        is Chord -> isStaccato
+        is Rest -> false
+    }
+
     data class Note(
         val pitch: SpelledPitch,
+        override val duration: NoteDuration,
+        override val isDotted: Boolean = false,
+        val amplitude: Double = 0.25,
+        val isStaccato: Boolean = false,
+    ) : ScoreItem
+
+    /** Vertically aligned chord of two or more simultaneous pitches sharing one stem/duration. */
+    data class Chord(
+        val pitches: List<SpelledPitch>,
         override val duration: NoteDuration,
         override val isDotted: Boolean = false,
         val amplitude: Double = 0.25,
@@ -308,11 +337,16 @@ data class ScoreMeasure(
     val keySignature: KeySignature? = null,
 )
 
-/** Identifies an item slot by measure index and item index within that measure. */
+/**
+ * Identifies an item slot or an individual notehead (`chordNoteIdx != null`) within a chord.
+ */
 data class ScoreItemLocation(
     val measureIdx: Int,
     val itemIdx: Int,
-)
+    val chordNoteIdx: Int? = null,
+) {
+    fun slotLocation(): ScoreItemLocation = if (chordNoteIdx == null) this else copy(chordNoteIdx = null)
+}
 
 /** Pure immutable helpers for editing [ScoreMeasure] lists. */
 object ScoreEditing {
@@ -325,6 +359,79 @@ object ScoreEditing {
 
     fun itemAt(measures: List<ScoreMeasure>, loc: ScoreItemLocation): ScoreItem? =
         measures.getOrNull(loc.measureIdx)?.items?.getOrNull(loc.itemIdx)
+
+    fun pitchAt(measures: List<ScoreMeasure>, loc: ScoreItemLocation): SpelledPitch? = when (val item = itemAt(measures, loc)) {
+        is ScoreItem.Note -> item.pitch
+        is ScoreItem.Chord -> loc.chordNoteIdx?.let { item.pitches.getOrNull(it) }
+        else -> null
+    }
+
+    /** Sorts chord pitches low-to-high by diatonic step then MIDI pitch, deduplicating identical steps. */
+    fun normalizeChordPitches(pitches: List<SpelledPitch>): List<SpelledPitch> {
+        val byStep = LinkedHashMap<Int, SpelledPitch>()
+        for (p in pitches) {
+            byStep[p.diatonicStep] = p
+        }
+        return byStep.values.sortedWith(compareBy<SpelledPitch> { it.diatonicStep }.thenBy { it.midiPitch })
+    }
+
+    fun itemFromPitches(
+        pitches: List<SpelledPitch>,
+        duration: NoteDuration,
+        isDotted: Boolean = false,
+        amplitude: Double = 0.25,
+        isStaccato: Boolean = false,
+    ): ScoreItem? {
+        val sorted = normalizeChordPitches(pitches)
+        return when {
+            sorted.isEmpty() -> null
+            sorted.size == 1 -> ScoreItem.Note(
+                pitch = sorted.first(),
+                duration = duration,
+                isDotted = isDotted,
+                amplitude = amplitude,
+                isStaccato = isStaccato,
+            )
+            else -> ScoreItem.Chord(
+                pitches = sorted,
+                duration = duration,
+                isDotted = isDotted,
+                amplitude = amplitude,
+                isStaccato = isStaccato,
+            )
+        }
+    }
+
+    /**
+     * Adds [pitch] vertically aligned to the existing [ScoreItem.Note] or [ScoreItem.Chord] at
+     * [slotLoc], returning the updated measures and the location of the added notehead.
+     */
+    fun addPitchToSlot(
+        measures: List<ScoreMeasure>,
+        slotLoc: ScoreItemLocation,
+        pitch: SpelledPitch,
+    ): Pair<List<ScoreMeasure>, ScoreItemLocation> {
+        val slot = slotLoc.slotLocation()
+        val item = itemAt(measures, slot) ?: return measures to slotLoc
+        val (existingPitches, dur, dotted, amp, stacc) = when (item) {
+            is ScoreItem.Note -> Tuple5(listOf(item.pitch), item.duration, item.isDotted, item.amplitude, item.isStaccato)
+            is ScoreItem.Chord -> Tuple5(item.pitches, item.duration, item.isDotted, item.amplitude, item.isStaccato)
+            is ScoreItem.Rest -> return measures to slotLoc
+        }
+        val combined = normalizeChordPitches(existingPitches + pitch)
+        val newItem = itemFromPitches(combined, dur, dotted, amp, stacc) ?: return measures to slotLoc
+        val newMeasures = replaceItem(measures, slot, newItem)
+        val newLoc = if (newItem is ScoreItem.Chord) {
+            val idx = newItem.pitches.indexOfFirst { it.diatonicStep == pitch.diatonicStep }
+                .takeIf { it >= 0 }
+            slot.copy(chordNoteIdx = idx)
+        } else {
+            slot
+        }
+        return newMeasures to newLoc
+    }
+
+    private data class Tuple5<A, B, C, D, E>(val a: A, val b: B, val c: C, val d: D, val e: E)
 
     fun insertItem(
         measures: List<ScoreMeasure>,
@@ -361,54 +468,137 @@ object ScoreEditing {
         measures: List<ScoreMeasure>,
         loc: ScoreItemLocation,
         newPitch: SpelledPitch,
-    ): List<ScoreMeasure> {
-        val note = itemAt(measures, loc) as? ScoreItem.Note ?: return measures
-        if (note.pitch == newPitch) return measures
-        return replaceItem(measures, loc, note.copy(pitch = newPitch))
+    ): List<ScoreMeasure> = setNotePitchAndTrackLocation(measures, loc, newPitch).first
+
+    /**
+     * Updates the pitch at [loc] (either a single [ScoreItem.Note] or an individual notehead
+     * inside a [ScoreItem.Chord]) and returns the updated measures paired with the note's
+     * post-sort [ScoreItemLocation].
+     */
+    fun setNotePitchAndTrackLocation(
+        measures: List<ScoreMeasure>,
+        loc: ScoreItemLocation,
+        newPitch: SpelledPitch,
+    ): Pair<List<ScoreMeasure>, ScoreItemLocation> {
+        val slot = loc.slotLocation()
+        return when (val item = itemAt(measures, slot)) {
+            is ScoreItem.Note -> {
+                if (item.pitch == newPitch) measures to slot
+                else replaceItem(measures, slot, item.copy(pitch = newPitch)) to slot
+            }
+            is ScoreItem.Chord -> {
+                val noteIdx = loc.chordNoteIdx ?: return measures to loc
+                if (noteIdx !in item.pitches.indices) return measures to loc
+                if (item.pitches[noteIdx] == newPitch) return measures to loc
+                val rawList = item.pitches.toMutableList()
+                rawList[noteIdx] = newPitch
+                // Avoid collapsing another existing notehead while dragging past it cleanly: keep distinct steps
+                val normalized = if (rawList.count { it.diatonicStep == newPitch.diatonicStep } > 1) {
+                    val others = item.pitches.filterIndexed { idx, _ -> idx != noteIdx }
+                    normalizeChordPitches(others + newPitch)
+                } else {
+                    rawList.sortedWith(compareBy<SpelledPitch> { it.diatonicStep }.thenBy { it.midiPitch })
+                }
+                val newItem = itemFromPitches(
+                    normalized,
+                    item.duration,
+                    item.isDotted,
+                    item.amplitude,
+                    item.isStaccato,
+                ) ?: return measures to loc
+                val nextMeasures = replaceItem(measures, slot, newItem)
+                val nextLoc = if (newItem is ScoreItem.Chord) {
+                    val newIdx = newItem.pitches.indexOfFirst { it == newPitch }
+                        .takeIf { it >= 0 } ?: newItem.pitches.indexOfFirst { it.diatonicStep == newPitch.diatonicStep }
+                        .coerceAtLeast(0)
+                    slot.copy(chordNoteIdx = newIdx)
+                } else {
+                    slot
+                }
+                nextMeasures to nextLoc
+            }
+            else -> measures to loc
+        }
     }
 
     fun setAccidentalOnSelection(
         measures: List<ScoreMeasure>,
         selection: Set<ScoreItemLocation>,
         alter: Int,
-    ): List<ScoreMeasure> = mapSelectedNotes(measures, selection) { note ->
-        if (note.pitch.alter != alter) note.copy(pitch = note.pitch.copy(alter = alter)) else note
+    ): List<ScoreMeasure> {
+        if (selection.isEmpty()) return measures
+        val bySlot = selection.groupBy { it.slotLocation() }
+        var anyChanged = false
+        val updated = measures.mapIndexed { mIdx, m ->
+            var measureChanged = false
+            val newItems = m.items.mapIndexed { iIdx, item ->
+                val locs = bySlot[ScoreItemLocation(mIdx, iIdx)] ?: return@mapIndexed item
+                when (item) {
+                    is ScoreItem.Note -> if (item.pitch.alter != alter) {
+                        measureChanged = true
+                        anyChanged = true
+                        item.copy(pitch = item.pitch.copy(alter = alter))
+                    } else {
+                        item
+                    }
+                    is ScoreItem.Chord -> {
+                        val applyAll = locs.any { it.chordNoteIdx == null }
+                        val targetIndices = if (applyAll) item.pitches.indices.toSet() else locs.mapNotNull { it.chordNoteIdx }.toSet()
+                        var itemChanged = false
+                        val nextPitches = item.pitches.mapIndexed { pIdx, p ->
+                            if (pIdx in targetIndices && p.alter != alter) {
+                                itemChanged = true
+                                p.copy(alter = alter)
+                            } else {
+                                p
+                            }
+                        }
+                        if (itemChanged) {
+                            measureChanged = true
+                            anyChanged = true
+                            item.copy(pitches = nextPitches)
+                        } else {
+                            item
+                        }
+                    }
+                    is ScoreItem.Rest -> item
+                }
+            }
+            if (measureChanged) m.copy(items = newItems) else m
+        }
+        return if (anyChanged) updated else measures
     }
 
     fun toggleStaccatoOnSelection(
         measures: List<ScoreMeasure>,
         selection: Set<ScoreItemLocation>,
     ): List<ScoreMeasure> {
-        val selectedNotes = selection.mapNotNull { itemAt(measures, it) as? ScoreItem.Note }
-        if (selectedNotes.isEmpty()) return measures
-        val targetStaccato = !selectedNotes.all { it.isStaccato }
-        return mapSelectedNotes(measures, selection) { note ->
-            if (note.isStaccato != targetStaccato) note.copy(isStaccato = targetStaccato) else note
-        }
-    }
-
-    private inline fun mapSelectedNotes(
-        measures: List<ScoreMeasure>,
-        selection: Set<ScoreItemLocation>,
-        transform: (ScoreItem.Note) -> ScoreItem.Note,
-    ): List<ScoreMeasure> {
         if (selection.isEmpty()) return measures
+        val slots = selection.map { it.slotLocation() }.toSet()
+        val selectedSounding = slots.mapNotNull { slot ->
+            when (val item = itemAt(measures, slot)) {
+                is ScoreItem.Note -> item.isStaccato
+                is ScoreItem.Chord -> item.isStaccato
+                else -> null
+            }
+        }
+        if (selectedSounding.isEmpty()) return measures
+        val targetStaccato = !selectedSounding.all { it }
         var anyChanged = false
         val updated = measures.mapIndexed { mIdx, m ->
             var measureChanged = false
             val newItems = m.items.mapIndexed { iIdx, item ->
-                if (item is ScoreItem.Note && ScoreItemLocation(mIdx, iIdx) in selection) {
-                    val transformed = transform(item)
-                    if (transformed !== item && transformed != item) {
-                        measureChanged = true
-                        anyChanged = true
-                        transformed
-                    } else {
-                        item
-                    }
-                } else {
-                    item
+                if (ScoreItemLocation(mIdx, iIdx) !in slots) return@mapIndexed item
+                val next = when (item) {
+                    is ScoreItem.Note -> if (item.isStaccato != targetStaccato) item.copy(isStaccato = targetStaccato) else item
+                    is ScoreItem.Chord -> if (item.isStaccato != targetStaccato) item.copy(isStaccato = targetStaccato) else item
+                    is ScoreItem.Rest -> item
                 }
+                if (next !== item) {
+                    measureChanged = true
+                    anyChanged = true
+                }
+                next
             }
             if (measureChanged) m.copy(items = newItems) else m
         }
@@ -422,12 +612,26 @@ object ScoreEditing {
         if (selection.isEmpty()) return measures
         val byMeasure = selection.groupBy { it.measureIdx }
         val updated = measures.mapIndexed { mIdx, m ->
-            val indicesToRemove = byMeasure[mIdx]?.map { it.itemIdx }?.toSet() ?: emptySet()
-            if (indicesToRemove.isEmpty()) {
-                m
-            } else {
-                m.copy(items = m.items.filterIndexed { idx, _ -> idx !in indicesToRemove })
+            val measureSelections = byMeasure[mIdx] ?: return@mapIndexed m
+            val byItem = measureSelections.groupBy { it.itemIdx }
+            val nextItems = ArrayList<ScoreItem>(m.items.size)
+            for ((iIdx, item) in m.items.withIndex()) {
+                val locs = byItem[iIdx]
+                if (locs == null) {
+                    nextItems.add(item)
+                } else if (item is ScoreItem.Chord && locs.none { it.chordNoteIdx == null }) {
+                    val removeSet = locs.mapNotNull { it.chordNoteIdx }.toSet()
+                    val remaining = item.pitches.filterIndexed { pIdx, _ -> pIdx !in removeSet }
+                    itemFromPitches(
+                        pitches = remaining,
+                        duration = item.duration,
+                        isDotted = item.isDotted,
+                        amplitude = item.amplitude,
+                        isStaccato = item.isStaccato,
+                    )?.let { nextItems.add(it) }
+                }
             }
+            m.copy(items = nextItems)
         }
         return renumber(updated)
     }
@@ -654,5 +858,99 @@ class ScoreData {
                 ),
             ),
         )
+    }
+}
+
+/**
+ * Recognizes standard chord symbols (e.g. `"C#m7"`, `"G7"`, `"Cmaj7"`, `"F/C"`) from a set
+ * of vertical chord pitches and the active [KeySignature].
+ */
+object ScoreChordAnalyzer {
+    private data class ChordTemplate(
+        val intervals: Set<Int>,
+        val suffix: String,
+        val priority: Int,
+    )
+
+    private val TEMPLATES = listOf(
+        // Triads
+        ChordTemplate(setOf(0, 4, 7), "", 100),
+        ChordTemplate(setOf(0, 3, 7), "m", 98),
+        ChordTemplate(setOf(0, 3, 6), "dim", 88),
+        ChordTemplate(setOf(0, 4, 8), "aug", 82),
+        ChordTemplate(setOf(0, 2, 7), "sus2", 78),
+        ChordTemplate(setOf(0, 5, 7), "sus4", 80),
+        ChordTemplate(setOf(0, 4, 6), "(b5)", 65),
+        // Sixths & Sevenths
+        ChordTemplate(setOf(0, 4, 7, 10), "7", 99),
+        ChordTemplate(setOf(0, 4, 7, 11), "maj7", 97),
+        ChordTemplate(setOf(0, 3, 7, 10), "m7", 96),
+        ChordTemplate(setOf(0, 3, 7, 11), "m(maj7)", 85),
+        ChordTemplate(setOf(0, 3, 6, 10), "m7b5", 89),
+        ChordTemplate(setOf(0, 3, 6, 9), "dim7", 84),
+        ChordTemplate(setOf(0, 4, 7, 9), "6", 76),
+        ChordTemplate(setOf(0, 3, 7, 9), "m6", 74),
+        ChordTemplate(setOf(0, 5, 7, 10), "7sus4", 82),
+        ChordTemplate(setOf(0, 4, 8, 10), "aug7", 75),
+        ChordTemplate(setOf(0, 4, 8, 11), "aug(maj7)", 72),
+        ChordTemplate(setOf(0, 2, 4, 7), "add9", 79),
+        ChordTemplate(setOf(0, 2, 3, 7), "m(add9)", 77),
+        // Extended & omitted fifths / dyads
+        ChordTemplate(setOf(0, 2, 4, 7, 10), "9", 90),
+        ChordTemplate(setOf(0, 2, 4, 7, 11), "maj9", 88),
+        ChordTemplate(setOf(0, 2, 3, 7, 10), "m9", 87),
+        ChordTemplate(setOf(0, 4, 10), "7(no5)", 70),
+        ChordTemplate(setOf(0, 4, 11), "maj7(no5)", 68),
+        ChordTemplate(setOf(0, 3, 10), "m7(no5)", 68),
+        ChordTemplate(setOf(0, 7), "5", 72),
+    )
+
+    fun recognizeChordName(pitches: List<SpelledPitch>, keySignature: KeySignature): String? {
+        if (pitches.size < 2) return null
+        val sortedByMidi = pitches.sortedBy { it.midiPitch }
+        val bassPitch = sortedByMidi.first()
+        val bassPc = bassPitch.midiPitch.mod(12)
+        val pcSet = sortedByMidi.map { it.midiPitch.mod(12) }.toSet()
+        if (pcSet.size < 2) return null
+
+        val keyScale = NoteLetter.entries.associateBy(
+            { (it.semitoneOffset + keySignature.defaultAlter(it)).mod(12) },
+            { SpelledPitch(it, keySignature.defaultAlter(it), 4).pitchClassName() },
+        )
+
+        fun spellPitchClass(pc: Int): String {
+            keyScale[pc]?.let { return it }
+            sortedByMidi.firstOrNull { it.midiPitch.mod(12) == pc }?.let { return it.pitchClassName() }
+            return SpelledPitch.fromMidiPitch(60 + pc, keySignature).pitchClassName()
+        }
+
+        var bestName: String? = null
+        var bestScore = Int.MIN_VALUE
+
+        for (candidateRoot in pcSet) {
+            val intervals = pcSet.map { (it - candidateRoot).mod(12) }.toSet()
+            val template = TEMPLATES.firstOrNull { it.intervals == intervals } ?: continue
+            var score = template.priority
+            if (candidateRoot == bassPc) {
+                score += 40
+            }
+            if (candidateRoot in keyScale) {
+                score += 18
+            }
+            val matchingNote = sortedByMidi.firstOrNull { it.midiPitch.mod(12) == candidateRoot }
+            if (matchingNote != null && keyScale[candidateRoot] == matchingNote.pitchClassName()) {
+                score += 8
+            }
+            if (score > bestScore) {
+                bestScore = score
+                val rootName = spellPitchClass(candidateRoot)
+                bestName = if (candidateRoot == bassPc) {
+                    "$rootName${template.suffix}"
+                } else {
+                    "$rootName${template.suffix}/${spellPitchClass(bassPc)}"
+                }
+            }
+        }
+        return bestName
     }
 }
