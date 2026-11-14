@@ -22,6 +22,10 @@ enum class ScorePaletteKind(
         title = "Clefs",
         buttonLabel = "Clefs",
     ),
+    DYNAMICS(
+        title = "Dynamics",
+        buttonLabel = "Dynamics",
+    ),
 }
 
 /**
@@ -58,6 +62,15 @@ data class ScoreTimeSigOption(
 data class ScoreClefOption(
     val clef: Clef,
     val label: String = clef.label,
+)
+
+/**
+ * A selectable dynamic entry inside the Dynamics popup palette.
+ */
+data class ScoreDynamicOption(
+    val mark: DynamicMark,
+    val label: String = mark.label,
+    val glyph: String = mark.glyph,
 )
 
 /**
@@ -129,6 +142,31 @@ object ScorePalettes {
         Clef.BASS_8VB,
         Clef.BASS_8VA,
     ).map { ScoreClefOption(it) }
+
+    val softDynamicOptions: List<ScoreDynamicOption> = listOf(
+        DynamicMark.PPPP,
+        DynamicMark.PPP,
+        DynamicMark.PP,
+        DynamicMark.P,
+        DynamicMark.MP,
+    ).map { ScoreDynamicOption(it) }
+
+    val loudDynamicOptions: List<ScoreDynamicOption> = listOf(
+        DynamicMark.MF,
+        DynamicMark.F,
+        DynamicMark.FF,
+        DynamicMark.FFF,
+        DynamicMark.FFFF,
+    ).map { ScoreDynamicOption(it) }
+
+    val accentDynamicOptions: List<ScoreDynamicOption> = listOf(
+        DynamicMark.FP,
+        DynamicMark.SF,
+        DynamicMark.SFZ,
+    ).map { ScoreDynamicOption(it) }
+
+    val dynamicOptions: List<ScoreDynamicOption> =
+        softDynamicOptions + loudDynamicOptions + accentDynamicOptions
 }
 
 /**

@@ -66,6 +66,7 @@ import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isMetaPressed
+import androidx.compose.ui.input.key.isShiftPressed as isKeyShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -101,6 +102,7 @@ import com.syntona.dataflow.editor.GraphState
 import com.syntona.dataflow.editor.GraphViewSettings
 import com.syntona.dataflow.editor.LocalMdiState
 import com.syntona.dataflow.editor.moveCursor
+import com.syntona.dataflow.editor.scoreDynamicCursor
 import com.syntona.dataflow.editor.scoreSymbolCursor
 import com.syntona.dataflow.engine.SyntonaCommand
 import com.syntona.ui.PlayIcon
@@ -118,6 +120,7 @@ import kotlin.math.roundToInt
 private enum class ScoreEditMode {
     SELECT,
     ENTRY,
+    DYNAMIC,
 }
 
 private sealed interface ScoreDragState {
@@ -137,6 +140,7 @@ private sealed interface ScoreDragState {
         val additive: Boolean,
         val baseSelection: Set<ScoreItemLocation>,
         val baseMeasures: Set<Int>,
+        val baseDynamics: Set<ScoreDynamicLocation> = emptySet(),
     ) : ScoreDragState {
         var end by mutableStateOf(start)
     }
@@ -177,6 +181,9 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
     val toolbarScrollState = rememberScrollState()
 
     var editorMode by remember { mutableStateOf(ScoreEditMode.ENTRY) }
+    var activeDynamic by remember { mutableStateOf(DynamicMark.MF) }
+    var selectedDynamics by remember { mutableStateOf<Set<ScoreDynamicLocation>>(emptySet()) }
+    var hoveringDynamic by remember { mutableStateOf(false) }
     var entryDuration by remember { mutableStateOf(NoteDuration.QUARTER) }
     var entryIsRest by remember { mutableStateOf(false) }
     var entryIsDotted by remember { mutableStateOf(false) }
@@ -279,9 +286,41 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         )
     }
 
+    fun applyDynamic(
+        location: ScoreDynamicLocation,
+        mark: DynamicMark,
+        placement: DynamicPlacement,
+    ) {
+        val before = score.measures.toList()
+        val prevSelected = selectedDynamics
+        val (after, placedLoc) = ScoreEditing.setDynamic(
+            measures = before,
+            location = location,
+            marking = ScoreDynamicMarking(mark = mark, placement = placement),
+        )
+        if (after == before || placedLoc == null) return
+        selectedLocations = emptySet()
+        selectedMeasures = emptySet()
+        selectedClefChange = null
+        selectedDynamics = setOf(placedLoc)
+        activePitchText = null
+        activeChordName = null
+        postCommand(
+            ReplaceScoreMeasuresCommand(score, before, after) { restored ->
+                selectedDynamics = if (restored == before) {
+                    prevSelected.filterTo(linkedSetOf()) { loc ->
+                        restored.getOrNull(loc.measureIdx)?.dynamics?.containsKey(loc.itemIdx) == true
+                    }
+                } else {
+                    setOf(placedLoc)
+                }
+            }
+        )
+    }
+
     fun deleteSelection() {
         durationEditState = null
-        if (selectedLocations.isEmpty()) {
+        if (selectedLocations.isEmpty() && selectedDynamics.isEmpty()) {
             selectedClefChange?.let { clefLoc ->
                 applyClef(null, clefLoc)
             }
@@ -289,8 +328,11 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         }
         val before = score.measures.toList()
         val prevSelection = selectedLocations
-        val after = ScoreEditing.deleteItems(before, prevSelection)
+        val prevDynamics = selectedDynamics
+        val afterDyns = ScoreEditing.deleteDynamics(before, prevDynamics)
+        val after = ScoreEditing.deleteItems(afterDyns, prevSelection)
         selectedLocations = emptySet()
+        selectedDynamics = emptySet()
         activePitchText = null
         activeChordName = null
         postCommand(
@@ -298,6 +340,9 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 selectedLocations = prevSelection.filterTo(linkedSetOf()) { loc ->
                     ScoreEditing.pitchAt(restored, loc) != null ||
                         (loc.chordNoteIdx == null && ScoreEditing.itemAt(restored, loc) != null)
+                }
+                selectedDynamics = prevDynamics.filterTo(linkedSetOf()) { loc ->
+                    restored.getOrNull(loc.measureIdx)?.dynamics?.containsKey(loc.itemIdx) == true
                 }
                 refreshPitchDisplayFromSelection(restored, selectedLocations)
             }
@@ -480,6 +525,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             selectedLocations = selectedLocations,
             selectedMeasures = selectedMeasures,
             selectedClefChange = selectedClefChange,
+            selectedDynamics = selectedDynamics,
         )
         ScoreClipboard.copyContent(content)
     }
@@ -496,6 +542,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         val beforeInitialTime = score.timeSignature
         val beforeSelection = selectedLocations
         val beforeSelectedMeasures = selectedMeasures
+        val beforeSelectedDynamics = selectedDynamics
         val beforeCursor = module.cursorPosition
         val result = ScoreEditing.pasteClipboardContent(
             measures = beforeMeasures,
@@ -530,12 +577,17 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     selectedLocations = beforeSelection.filterTo(linkedSetOf()) {
                         ScoreEditing.itemAt(restored, it) != null
                     }
+                    selectedDynamics = beforeSelectedDynamics.filterTo(linkedSetOf()) {
+                        restored.getOrNull(it.measureIdx)?.dynamics?.containsKey(it.itemIdx) == true
+                    }
                 } else if (module.isStepRecording) {
                     module.placeCursor(result.nextCursor)
                     selectedMeasures = emptySet()
                     selectedLocations = emptySet()
+                    selectedDynamics = emptySet()
                     pendingScrollMeasures = result.pastedMeasures.ifEmpty {
-                        result.pastedLocations.mapTo(linkedSetOf()) { it.measureIdx }
+                        (result.pastedLocations.map { it.measureIdx } +
+                            result.pastedDynamics.map { it.measureIdx }).toCollection(linkedSetOf())
                     }
                 } else {
                     module.placeCursor(null)
@@ -543,8 +595,12 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     selectedLocations = result.pastedLocations.filterTo(linkedSetOf()) {
                         ScoreEditing.itemAt(restored, it) != null
                     }
+                    selectedDynamics = result.pastedDynamics.filterTo(linkedSetOf()) {
+                        restored.getOrNull(it.measureIdx)?.dynamics?.containsKey(it.itemIdx) == true
+                    }
                     pendingScrollMeasures = result.pastedMeasures.ifEmpty {
-                        result.pastedLocations.mapTo(linkedSetOf()) { it.measureIdx }
+                        (result.pastedLocations.map { it.measureIdx } +
+                            result.pastedDynamics.map { it.measureIdx }).toCollection(linkedSetOf())
                     }
                 }
                 refreshPitchDisplayFromSelection(restored, selectedLocations)
@@ -557,14 +613,17 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         val window = mdiState.windows.find { it.id == module }
         val handler = object : EditActionHandler {
             override fun canCopy() =
-                selectedLocations.isNotEmpty() || selectedMeasures.isNotEmpty() || selectedClefChange != null
+                selectedLocations.isNotEmpty() || selectedMeasures.isNotEmpty() ||
+                    selectedClefChange != null || selectedDynamics.isNotEmpty()
 
             override fun canCut() =
                 selectedLocations.isNotEmpty() ||
+                    selectedDynamics.isNotEmpty() ||
                     selectedClefChange?.let { it.measureIdx > 0 || it.itemIdx > 0 } == true
 
             override fun canPaste() = ScoreClipboard.isNotEmpty
-            override fun canDelete() = selectedLocations.isNotEmpty() || selectedClefChange != null
+            override fun canDelete() =
+                selectedLocations.isNotEmpty() || selectedClefChange != null || selectedDynamics.isNotEmpty()
             override fun cut() {
                 copySelection()
                 deleteSelection()
@@ -702,6 +761,38 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             '=' -> {
                 if (selectedLocations.isNotEmpty()) {
                     durationEditState = DurationEditPendingState.AWAITING_DURATION
+                }
+                true
+            }
+            'p' -> {
+                if (!module.isStepRecording) {
+                    openPalette = null
+                    pendingAccidental = null
+                    activeDynamic = if (event.isKeyShiftPressed) {
+                        DynamicMark.MP
+                    } else if (editorMode == ScoreEditMode.DYNAMIC) {
+                        DynamicMark.nextPianoCycle(activeDynamic)
+                    } else {
+                        DynamicMark.P
+                    }
+                    editorMode = ScoreEditMode.DYNAMIC
+                    module.placeCursor(null)
+                }
+                true
+            }
+            'f' -> {
+                if (!module.isStepRecording) {
+                    openPalette = null
+                    pendingAccidental = null
+                    activeDynamic = if (event.isKeyShiftPressed) {
+                        DynamicMark.MF
+                    } else if (editorMode == ScoreEditMode.DYNAMIC) {
+                        DynamicMark.nextForteCycle(activeDynamic)
+                    } else {
+                        DynamicMark.F
+                    }
+                    editorMode = ScoreEditMode.DYNAMIC
+                    module.placeCursor(null)
                 }
                 true
             }
@@ -989,6 +1080,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 activeKeySignature = activeTargetKey,
                 activeTimeSignature = activeTargetTime,
                 activeClef = activeTargetClef,
+                activeDynamic = activeDynamic,
                 toolbarBg = toolbarBg,
                 toolbarText = toolbarText,
                 accentColor = accentColor,
@@ -1079,6 +1171,26 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         },
                         onRemoveClef = {
                             applyClef(null, clefTargetLoc)
+                            openPalette = null
+                            focusRequester.requestFocus()
+                        },
+                        onDismiss = { openPalette = null },
+                        onKeyEvent = ::handleKeyEvent,
+                    )
+                } else if (kind == openPalette && kind == ScorePaletteKind.DYNAMICS) {
+                    DynamicsPalettePopup(
+                        offsetX = popupOffsetX,
+                        activeDynamic = activeDynamic,
+                        isDark = isDark,
+                        toolbarText = toolbarText,
+                        accentColor = accentColor,
+                        borderMuted = borderMuted,
+                        musicFontFamily = musicFontFamily,
+                        onSelectDynamic = { chosenMark ->
+                            activeDynamic = chosenMark
+                            module.exitStepRecording()
+                            module.placeCursor(null)
+                            editorMode = ScoreEditMode.DYNAMIC
                             openPalette = null
                             focusRequester.requestFocus()
                         },
@@ -1184,9 +1296,12 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
 
             val activeCursor = when {
                 dragState is ScoreDragState.PitchDrag -> moveCursor()
-                hoveringTimeSig || (editorMode == ScoreEditMode.SELECT && !module.isStepRecording && hoveringClef) -> PointerIcon.Hand
+                hoveringTimeSig || (editorMode == ScoreEditMode.SELECT && !module.isStepRecording && (hoveringClef || hoveringDynamic)) ->
+                    PointerIcon.Hand
                 !module.isStepRecording && editorMode == ScoreEditMode.ENTRY ->
                     scoreSymbolCursor(entryDuration, entryIsRest, entryIsDotted, isDark)
+                !module.isStepRecording && editorMode == ScoreEditMode.DYNAMIC ->
+                    scoreDynamicCursor(activeDynamic.label, isDark)
                 hoveringItem -> moveCursor()
                 else -> PointerIcon.Default
             }
@@ -1243,6 +1358,12 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             } else {
                 selectedLocations
             }
+            val displayedSelectedDynamics = if (rubberBandState != null && rubberBand != null) {
+                val dynHits = layout.dynamicsInRect(rubberBand.left, rubberBand.top, rubberBand.right, rubberBand.bottom)
+                if (rubberBandState.additive) rubberBandState.baseDynamics + dynHits else dynHits
+            } else {
+                selectedDynamics
+            }
             val displayedSelectedMeasures = if (rubberBandState != null && rubberBand != null) {
                 val isTiny = abs(rubberBandState.end.x - rubberBandState.start.x) < 4f &&
                     abs(rubberBandState.end.y - rubberBandState.start.y) < 4f
@@ -1250,8 +1371,9 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     selectedMeasures
                 } else {
                     val liveHits = layout.itemsInRect(rubberBand.left, rubberBand.top, rubberBand.right, rubberBand.bottom)
+                    val liveDynHits = layout.dynamicsInRect(rubberBand.left, rubberBand.top, rubberBand.right, rubberBand.bottom)
                     val liveMeasures = layout.measuresInRect(rubberBand.left, rubberBand.top, rubberBand.right, rubberBand.bottom)
-                    if (liveMeasures.size > 1 || liveHits.isEmpty()) {
+                    if (liveMeasures.size > 1 || (liveHits.isEmpty() && liveDynHits.isEmpty())) {
                         if (rubberBandState.additive) rubberBandState.baseMeasures + liveMeasures else liveMeasures
                     } else {
                         emptySet()
@@ -1285,12 +1407,14 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                             hoverPos = pos
                                             hoveringTimeSig = pos != null && currentLayout.timeSignatureAt(pos.x, pos.y) != null
                                             hoveringClef = pos != null && currentLayout.clefChangeAt(pos.x, pos.y) != null
+                                            hoveringDynamic = pos != null && currentLayout.dynamicAt(pos.x, pos.y) != null
                                             hoveringItem = pos != null && currentLayout.itemAt(pos.x, pos.y) != null
                                         }
                                         PointerEventType.Exit -> {
                                             hoverPos = null
                                             hoveringTimeSig = false
                                             hoveringClef = false
+                                            hoveringDynamic = false
                                             hoveringItem = false
                                         }
                                         else -> {}
@@ -1360,6 +1484,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                     if (hitClef != null) {
                                         module.placeCursor(null)
                                         selectedClefChange = hitClef.location
+                                        selectedDynamics = emptySet()
                                         selectedLocations = emptySet()
                                         selectedMeasures = emptySet()
                                         activePitchText = null
@@ -1367,7 +1492,32 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                         return@awaitEachGesture
                                     }
                                     selectedClefChange = null
+                                    val hitDyn = if (hit == null && !module.isStepRecording) {
+                                        lyt.dynamicAt(downPos.x, downPos.y)
+                                    } else {
+                                        null
+                                    }
+                                    if (hitDyn != null) {
+                                        module.placeCursor(null)
+                                        if (isShift) {
+                                            selectedDynamics = if (hitDyn.location in selectedDynamics) {
+                                                selectedDynamics - hitDyn.location
+                                            } else {
+                                                selectedDynamics + hitDyn.location
+                                            }
+                                        } else {
+                                            selectedDynamics = setOf(hitDyn.location)
+                                            selectedLocations = emptySet()
+                                            selectedMeasures = emptySet()
+                                            activePitchText = null
+                                            activeChordName = null
+                                        }
+                                        return@awaitEachGesture
+                                    }
                                     if (hit != null && !module.isStepRecording) {
+                                        if (!isShift) {
+                                            selectedDynamics = emptySet()
+                                        }
                                         module.placeCursor(null)
                                         val chordNote = if (hit.item is ScoreItem.Chord) {
                                             lyt.chordNoteAt(hit, downPos.x, downPos.y)
@@ -1434,6 +1584,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                         module.placeCursor(lyt.cursorPositionAt(downPos.x))
                                     } else {
                                         if (!isShift) {
+                                            selectedDynamics = emptySet()
                                             selectedLocations = emptySet()
                                             selectedMeasures = emptySet()
                                             activePitchText = null
@@ -1448,10 +1599,18 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                             } else {
                                                 selectedLocations.map { it.measureIdx }.toSet()
                                             },
+                                            baseDynamics = selectedDynamics,
                                         )
                                     }
+                                } else if (editorMode == ScoreEditMode.DYNAMIC) {
+                                    val target = lyt.dynamicTargetAt(downPos.x, downPos.y)
+                                    if (target != null) {
+                                        applyDynamic(target.first, activeDynamic, target.second)
+                                    }
+                                    return@awaitEachGesture
                                 } else {
                                     // ENTRY mode
+                                    selectedDynamics = emptySet()
                                     selectedClefChange = null
                                     val beforeMeasures = score.measures.toList()
                                     val colItem = if (!entryIsRest) lyt.itemColumnAt(downPos.x) else null
@@ -1717,6 +1876,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                         if (isClick) {
                                             val clickedMeasure = lyt.measureAt(drag.start.x)
                                             if (!drag.additive) {
+                                                selectedDynamics = emptySet()
                                                 selectedLocations = emptySet()
                                                 activePitchText = null
                                                 activeChordName = null
@@ -1729,6 +1889,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                     drag.baseMeasures + clickedMeasure
                                                 }
                                                 selectedMeasures = nextMeasures
+                                                selectedDynamics = emptySet()
                                                 selectedLocations = emptySet()
                                                 activePitchText = null
                                                 activeChordName = null
@@ -1742,14 +1903,19 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                             val right = max(drag.start.x, drag.end.x)
                                             val bottom = max(drag.start.y, drag.end.y)
                                             val hits = lyt.itemsInRect(left, top, right, bottom)
+                                            val dynHits = lyt.dynamicsInRect(left, top, right, bottom)
                                             val mHits = lyt.measuresInRect(left, top, right, bottom)
                                             selectedLocations = if (drag.additive) drag.baseSelection + hits else hits
-                                            selectedMeasures = if (mHits.size > 1 || hits.isEmpty()) {
+                                            selectedDynamics = if (drag.additive) drag.baseDynamics + dynHits else dynHits
+                                            selectedMeasures = if (mHits.size > 1 || (hits.isEmpty() && dynHits.isEmpty())) {
                                                 if (drag.additive) drag.baseMeasures + mHits else mHits
                                             } else {
                                                 emptySet()
                                             }
-                                            if (selectedLocations.isNotEmpty() || selectedMeasures.isNotEmpty()) {
+                                            if (selectedLocations.isNotEmpty() ||
+                                                selectedDynamics.isNotEmpty() ||
+                                                selectedMeasures.isNotEmpty()
+                                            ) {
                                                 module.placeCursor(null)
                                             }
                                             refreshPitchDisplayFromSelection()
@@ -1777,6 +1943,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         selectedLocations = displayedSelectedLocations,
                         selectedMeasureIndices = displayedSelectedMeasures,
                         selectedClefChange = selectedClefChange,
+                        selectedDynamics = displayedSelectedDynamics,
                         ghostPreview = ghostPreview,
                         rubberBand = rubberBand,
                         cursorPosition = module.cursorPosition,
@@ -1791,7 +1958,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     val badgeLabel = activeChordName?.let { "$pitchLabel ($it)" } ?: pitchLabel
                     val badgeX = (pitchDrag.anchorX + 20f).roundToInt()
                     val badgeY = (pitchDrag.anchorY - 34f).roundToInt().coerceAtLeast(4)
-                    Box(
+        Box(
                         modifier = Modifier
                             .offset { IntOffset(badgeX, badgeY) }
                             .background(
@@ -1818,7 +1985,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     val boxY = (activeTimeEdit.anchorY + staffSpacePx * 0.7f).roundToInt().coerceAtLeast(0)
                     val editBg = if (isDark) Color(0xFF0F172A) else Color.White
                     val editTextColor = if (isDark) Color(0xFFF8FAFC) else Color(0xFF0F172A)
-                    Box(
+        Box(
                         modifier = Modifier
                             .offset { IntOffset(boxX, boxY) }
                             .width(64.dp)
@@ -1908,6 +2075,8 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 module.isStepRecording -> "Mode: Step Record ($dotPrefix${entryDuration.displayLabel})"
                 editorMode == ScoreEditMode.SELECT ->
                     if (entryIsDotted) "Mode: Select (Dot On)" else "Mode: Select"
+                editorMode == ScoreEditMode.DYNAMIC ->
+                    "Mode: Dynamic (${activeDynamic.label}) — click above/below stave"
                 else -> "Mode: $dotPrefix${entryDuration.displayLabel} ${if (entryIsRest) "Rest" else "Note"}"
             }
             Text(
@@ -1928,7 +2097,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             }
             if (displayedPitchText != null) {
                 Spacer(modifier = Modifier.width(10.dp))
-                Box(
+    Box(
                     modifier = Modifier
                         .background(accentColor.copy(alpha = 0.16f), RoundedCornerShape(4.dp))
                         .border(1.dp, accentColor.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
@@ -1953,7 +2122,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             val chordLabel = activeChordName
             if (chordLabel != null) {
                 Spacer(modifier = Modifier.width(6.dp))
-                Box(
+    Box(
                     modifier = Modifier
                         .background(Color(0xFF10B981).copy(alpha = 0.16f), RoundedCornerShape(4.dp))
                         .border(1.dp, Color(0xFF10B981).copy(alpha = 0.55f), RoundedCornerShape(4.dp))
@@ -1972,7 +2141,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             Spacer(modifier = Modifier.weight(1f))
 
             Text(
-                text = "Esc: Select | t s e q h w: Dur (2x=Rest) | d: Dot | =: Set Dur | 1: Stacc  2: b  3: #  4: Nat | Del: Delete",
+                text = "Esc: Select | t s e q h w: Dur | p/f: Dyn | d: Dot | =: Set Dur | 1..4: Artic/Acc | Del: Delete",
                 fontSize = 10.sp,
                 color = toolbarText.copy(alpha = 0.8f),
                 maxLines = 1,
@@ -2086,6 +2255,7 @@ private fun ScorePalettePanel(
     activeKeySignature: KeySignature,
     activeTimeSignature: TimeSignature,
     activeClef: Clef,
+    activeDynamic: DynamicMark,
     toolbarBg: Color,
     toolbarText: Color,
     accentColor: Color,
@@ -2116,6 +2286,8 @@ private fun ScorePalettePanel(
                 val isToolActive = when (kind) {
                     ScorePaletteKind.NOTES_RESTS ->
                         (editorMode == ScoreEditMode.ENTRY && !isStepRecording) || isStepRecording
+                    ScorePaletteKind.DYNAMICS ->
+                        editorMode == ScoreEditMode.DYNAMIC && !isStepRecording
                     ScorePaletteKind.KEY_SIGNATURES, ScorePaletteKind.CLEFS -> false
                 }
                 val highlighted = isOpen || isToolActive
@@ -2130,7 +2302,7 @@ private fun ScorePalettePanel(
                     else -> Color.Transparent
                 }
                 var buttonWidthPx by remember { mutableStateOf(0) }
-                Box(
+    Box(
                     modifier = Modifier.onGloballyPositioned { coords ->
                         buttonWidthPx = coords.size.width
                     }
@@ -2204,6 +2376,14 @@ private fun ScorePalettePanel(
                                     width = 48.dp,
                                     height = 24.dp,
                                     staffSpaceDp = 3.2f,
+                                )
+                            }
+                            ScorePaletteKind.DYNAMICS -> {
+                                Text(
+                                    text = activeDynamic.glyph,
+                                    fontFamily = musicFontFamily,
+                                    fontSize = 18.sp,
+                                    color = contentColor,
                                 )
                             }
                         }
@@ -3242,6 +3422,157 @@ private fun ScoreHorizontalScrollBar(
                 size = Size(metrics.thumbWidth, barHeight),
                 cornerRadius = CornerRadius(barHeight / 2f),
             )
+        }
+    }
+}
+
+
+@Composable
+private fun DynamicsPalettePopup(
+    offsetX: Int,
+    activeDynamic: DynamicMark,
+    isDark: Boolean,
+    toolbarText: Color,
+    accentColor: Color,
+    borderMuted: Color,
+    musicFontFamily: FontFamily,
+    onSelectDynamic: (DynamicMark) -> Unit,
+    onDismiss: () -> Unit,
+    onKeyEvent: (KeyEvent) -> Boolean,
+) {
+    val popupBg = if (isDark) Color(0xFF1E2238) else Color(0xFFF8FAFC)
+    val tileBg = if (isDark) Color(0xFF282E4A) else Color(0xFFE2E8F0).copy(alpha = 0.7f)
+    Popup(
+        alignment = Alignment.TopStart,
+        offset = IntOffset(offsetX, 0),
+        onDismissRequest = onDismiss,
+        properties = PopupProperties(focusable = true),
+    ) {
+        Surface(
+            color = popupBg,
+            shape = RoundedCornerShape(8.dp),
+            shadowElevation = 8.dp,
+            modifier = Modifier
+                .border(1.dp, borderMuted, RoundedCornerShape(8.dp))
+                .onKeyEvent(onKeyEvent),
+        ) {
+            Column(
+                modifier = Modifier.padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        text = ScorePaletteKind.DYNAMICS.title,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = toolbarText,
+                    )
+                    Text(
+                        text = "p/f cycle, Shift+P=mp, Shift+F=mf",
+                        fontSize = 9.sp,
+                        color = toolbarText.copy(alpha = 0.75f),
+                    )
+                }
+                DynamicPaletteRow(
+                    rowLabel = "Soft",
+                    options = ScorePalettes.softDynamicOptions,
+                    activeDynamic = activeDynamic,
+                    isDark = isDark,
+                    tileBg = tileBg,
+                    toolbarText = toolbarText,
+                    accentColor = accentColor,
+                    borderMuted = borderMuted,
+                    musicFontFamily = musicFontFamily,
+                    onSelectDynamic = onSelectDynamic,
+                )
+                DynamicPaletteRow(
+                    rowLabel = "Loud",
+                    options = ScorePalettes.loudDynamicOptions,
+                    activeDynamic = activeDynamic,
+                    isDark = isDark,
+                    tileBg = tileBg,
+                    toolbarText = toolbarText,
+                    accentColor = accentColor,
+                    borderMuted = borderMuted,
+                    musicFontFamily = musicFontFamily,
+                    onSelectDynamic = onSelectDynamic,
+                )
+                DynamicPaletteRow(
+                    rowLabel = "Accent",
+                    options = ScorePalettes.accentDynamicOptions,
+                    activeDynamic = activeDynamic,
+                    isDark = isDark,
+                    tileBg = tileBg,
+                    toolbarText = toolbarText,
+                    accentColor = accentColor,
+                    borderMuted = borderMuted,
+                    musicFontFamily = musicFontFamily,
+                    onSelectDynamic = onSelectDynamic,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DynamicPaletteRow(
+    rowLabel: String,
+    options: List<ScoreDynamicOption>,
+    activeDynamic: DynamicMark,
+    isDark: Boolean,
+    tileBg: Color,
+    toolbarText: Color,
+    accentColor: Color,
+    borderMuted: Color,
+    musicFontFamily: FontFamily,
+    onSelectDynamic: (DynamicMark) -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Text(
+            text = rowLabel,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Medium,
+            color = toolbarText,
+            modifier = Modifier.width(40.dp),
+        )
+        options.forEach { option ->
+            val selected = option.mark == activeDynamic
+            val contentColor = if (selected) {
+                if (isDark) Color.White else accentColor
+            } else {
+                toolbarText
+            }
+            val bg = if (selected) accentColor.copy(alpha = 0.22f) else tileBg
+            Column(
+                modifier = Modifier
+                    .width(46.dp)
+                    .background(bg, RoundedCornerShape(5.dp))
+                    .border(
+                        width = if (selected) 1.5.dp else 1.dp,
+                        color = if (selected) accentColor else borderMuted,
+                        shape = RoundedCornerShape(5.dp),
+                    )
+                    .pointerHoverIcon(PointerIcon.Hand)
+                    .clickable { onSelectDynamic(option.mark) }
+                    .padding(horizontal = 2.dp, vertical = 3.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    text = option.glyph,
+                    fontFamily = musicFontFamily,
+                    fontSize = 20.sp,
+                    color = contentColor,
+                    maxLines = 1,
+                )
+            }
         }
     }
 }

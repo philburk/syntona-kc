@@ -427,12 +427,73 @@ sealed interface ScoreItem {
     ) : ScoreItem
 }
 
+/** Musical dynamic markings following SMuFL Leland glyphs and exponential musical gain. */
+enum class DynamicMark(
+    val label: String,
+    val glyph: String,
+    val amplitude: Double,
+    val isAccentOnly: Boolean = false,
+) {
+    PPPP("pppp", SmuflGlyphs.DYNAMIC_PPPP, 0.05),
+    PPP("ppp", SmuflGlyphs.DYNAMIC_PPP, 0.09),
+    PP("pp", SmuflGlyphs.DYNAMIC_PP, 0.14),
+    P("p", SmuflGlyphs.DYNAMIC_P, 0.21),
+    MP("mp", SmuflGlyphs.DYNAMIC_MP, 0.30),
+    MF("mf", SmuflGlyphs.DYNAMIC_MF, 0.42),
+    F("f", SmuflGlyphs.DYNAMIC_F, 0.56),
+    FF("ff", SmuflGlyphs.DYNAMIC_FF, 0.72),
+    FFF("fff", SmuflGlyphs.DYNAMIC_FFF, 0.86),
+    FFFF("ffff", SmuflGlyphs.DYNAMIC_FFFF, 0.98),
+    FP("fp", SmuflGlyphs.DYNAMIC_FP, 0.21),
+    SF("sf", SmuflGlyphs.DYNAMIC_SF, 0.72, isAccentOnly = true),
+    SFZ("sfz", SmuflGlyphs.DYNAMIC_SFZ, 0.80, isAccentOnly = true);
+
+    companion object {
+        /** Keyboard `'p'` cycle order: `p -> pp -> ppp -> pppp -> mp -> p`. */
+        val PIANO_CYCLE: List<DynamicMark> = listOf(P, PP, PPP, PPPP, MP)
+
+        /** Keyboard `'f'` cycle order: `f -> ff -> fff -> ffff -> mf -> f`. */
+        val FORTE_CYCLE: List<DynamicMark> = listOf(F, FF, FFF, FFFF, MF)
+
+        fun nextPianoCycle(current: DynamicMark?): DynamicMark {
+            val idx = PIANO_CYCLE.indexOf(current)
+            return if (idx < 0) P else PIANO_CYCLE[(idx + 1) % PIANO_CYCLE.size]
+        }
+
+        fun nextForteCycle(current: DynamicMark?): DynamicMark {
+            val idx = FORTE_CYCLE.indexOf(current)
+            return if (idx < 0) F else FORTE_CYCLE[(idx + 1) % FORTE_CYCLE.size]
+        }
+    }
+}
+
+/** Vertical side of the staff where a dynamic marking is drawn. */
+enum class DynamicPlacement {
+    ABOVE,
+    BELOW,
+}
+
+/** Dynamic marking anchored to an item slot inside a [ScoreMeasure]. */
+data class ScoreDynamicMarking(
+    val mark: DynamicMark,
+    val placement: DynamicPlacement = DynamicPlacement.BELOW,
+)
+
+/**
+ * Coordinates identifying an item-indexed dynamic marking inside a [ScoreMeasure].
+ */
+data class ScoreDynamicLocation(
+    val measureIdx: Int,
+    val itemIdx: Int,
+)
+
 data class ScoreMeasure(
     val number: Int,
     val items: List<ScoreItem>,
     val keySignature: KeySignature? = null,
     val timeSignature: TimeSignature? = null,
     val clefChanges: Map<Int, Clef> = emptyMap(),
+    val dynamics: Map<Int, ScoreDynamicMarking> = emptyMap(),
 )
 
 /** Identifies the opening clef (`0, 0`) or a mid-score clef change before `(measureIdx, itemIdx)`. */
@@ -537,6 +598,42 @@ object ScoreEditing {
 
     private data class Tuple5<A, B, C, D, E>(val a: A, val b: B, val c: C, val d: D, val e: E)
 
+    private fun <T> shiftIndexedMapOnInsert(
+        map: Map<Int, T>,
+        clampedIdx: Int,
+        shiftAtIndex: Boolean,
+    ): Map<Int, T> {
+        if (map.isEmpty()) return map
+        return buildMap {
+            for ((k, v) in map) {
+                val newK = if (k > clampedIdx || (shiftAtIndex && k > 0 && k == clampedIdx)) {
+                    k + 1
+                } else {
+                    k
+                }
+                put(newK, v)
+            }
+        }
+    }
+
+    private fun <T> shiftIndexedMapOnDelete(
+        map: Map<Int, T>,
+        removedIndices: List<Int>,
+    ): Map<Int, T> {
+        if (map.isEmpty() || removedIndices.isEmpty()) return map
+        return buildMap {
+            for ((k, v) in map.entries.sortedBy { it.key }) {
+                if (k == 0) {
+                    put(0, v)
+                } else {
+                    val removedBefore = removedIndices.count { it < k }
+                    val newK = (k - removedBefore).coerceAtLeast(0)
+                    put(newK, v)
+                }
+            }
+        }
+    }
+
     fun insertItem(
         measures: List<ScoreMeasure>,
         measureIdx: Int,
@@ -554,21 +651,9 @@ object ScoreEditing {
         val m = updated[measureIdx]
         val clampedIdx = itemIdx.coerceIn(0, m.items.size)
         val newItems = m.items.toMutableList().apply { add(clampedIdx, item) }
-        val updatedClefs = if (m.clefChanges.isEmpty()) {
-            m.clefChanges
-        } else {
-            buildMap {
-                for ((k, clef) in m.clefChanges) {
-                    val newK = if (k > clampedIdx || (shiftClefAtIndex && k > 0 && k == clampedIdx)) {
-                        k + 1
-                    } else {
-                        k
-                    }
-                    put(newK, clef)
-                }
-            }
-        }
-        updated[measureIdx] = m.copy(items = newItems, clefChanges = updatedClefs)
+        val updatedClefs = shiftIndexedMapOnInsert(m.clefChanges, clampedIdx, shiftClefAtIndex)
+        val updatedDynamics = shiftIndexedMapOnInsert(m.dynamics, clampedIdx, shiftClefAtIndex)
+        updated[measureIdx] = m.copy(items = newItems, clefChanges = updatedClefs, dynamics = updatedDynamics)
         return renumber(updated) to ScoreItemLocation(measureIdx, clampedIdx)
     }
 
@@ -794,22 +879,9 @@ object ScoreEditing {
                     removedIndices.add(iIdx)
                 }
             }
-            val nextClefs = if (m.clefChanges.isEmpty() || removedIndices.isEmpty()) {
-                m.clefChanges
-            } else {
-                buildMap {
-                    for ((k, clef) in m.clefChanges.entries.sortedBy { it.key }) {
-                        if (k == 0) {
-                            put(0, clef)
-                        } else {
-                            val removedBefore = removedIndices.count { it < k }
-                            val newK = (k - removedBefore).coerceAtLeast(0)
-                            put(newK, clef)
-                        }
-                    }
-                }
-            }
-            m.copy(items = nextItems, clefChanges = nextClefs)
+            val nextClefs = shiftIndexedMapOnDelete(m.clefChanges, removedIndices)
+            val nextDynamics = shiftIndexedMapOnDelete(m.dynamics, removedIndices)
+            m.copy(items = nextItems, clefChanges = nextClefs, dynamics = nextDynamics)
         }
         return renumber(updated)
     }
@@ -1026,6 +1098,102 @@ object ScoreEditing {
     }
 
     /**
+     * Sets or removes (`marking == null`) a dynamic marking at [location].
+     */
+    fun setDynamic(
+        measures: List<ScoreMeasure>,
+        location: ScoreDynamicLocation,
+        marking: ScoreDynamicMarking?,
+    ): Pair<List<ScoreMeasure>, ScoreDynamicLocation?> {
+        val normalized = renumber(measures)
+        if (location.measureIdx !in normalized.indices) return normalized to null
+        val m = normalized[location.measureIdx]
+        val clampedItemIdx = location.itemIdx.coerceIn(0, m.items.size)
+        val nextDynamics = m.dynamics.toMutableMap()
+        if (marking == null) {
+            nextDynamics.remove(clampedItemIdx)
+        } else {
+            nextDynamics[clampedItemIdx] = marking
+        }
+        if (nextDynamics == m.dynamics) {
+            return normalized to (if (marking == null) null else ScoreDynamicLocation(location.measureIdx, clampedItemIdx))
+        }
+        val nextMeasures = normalized.toMutableList().apply {
+            set(location.measureIdx, m.copy(dynamics = nextDynamics))
+        }
+        val resultLoc = if (marking == null) null else ScoreDynamicLocation(location.measureIdx, clampedItemIdx)
+        return nextMeasures to resultLoc
+    }
+
+    /**
+     * Deletes every explicit dynamic marking identified in [locations].
+     */
+    fun deleteDynamics(
+        measures: List<ScoreMeasure>,
+        locations: Set<ScoreDynamicLocation>,
+    ): List<ScoreMeasure> {
+        if (locations.isEmpty()) return measures
+        val byMeasure = locations.groupBy { it.measureIdx }
+        var changed = false
+        val updated = measures.mapIndexed { mIdx, m ->
+            val targets = byMeasure[mIdx] ?: return@mapIndexed m
+            if (m.dynamics.isEmpty()) return@mapIndexed m
+            val nextDynamics = m.dynamics.toMutableMap()
+            var measureChanged = false
+            for (loc in targets) {
+                if (nextDynamics.remove(loc.itemIdx) != null) {
+                    measureChanged = true
+                    changed = true
+                }
+            }
+            if (measureChanged) m.copy(dynamics = nextDynamics) else m
+        }
+        return if (changed) renumber(updated) else measures
+    }
+
+    /**
+     * Resolves `(attackDynamicForThisSlot, nextSustainedDynamic)` when stepping across a slot that
+     * may carry an explicit [marking] while [currentSustained] is active.
+     */
+    fun resolvePlaybackDynamicStep(
+        marking: ScoreDynamicMarking?,
+        currentSustained: DynamicMark?,
+    ): Pair<DynamicMark?, DynamicMark?> {
+        val mark = marking?.mark ?: return currentSustained to currentSustained
+        return when {
+            mark == DynamicMark.FP -> DynamicMark.F to DynamicMark.P
+            mark.isAccentOnly -> mark to currentSustained
+            else -> mark to mark
+        }
+    }
+
+    /**
+     * Returns the sustained [DynamicMark] in effect at `(measureIdx, itemIdx)`.
+     */
+    fun effectiveDynamicAt(
+        measures: List<ScoreMeasure>,
+        measureIdx: Int,
+        itemIdx: Int = Int.MAX_VALUE,
+    ): DynamicMark? {
+        if (measures.isEmpty()) return null
+        val limitM = measureIdx.coerceIn(0, measures.lastIndex)
+        var sustained: DynamicMark? = null
+        var current: DynamicMark? = null
+        for (m in 0..limitM) {
+            val measure = measures[m]
+            val limitI = if (m < limitM) Int.MAX_VALUE else itemIdx
+            for ((idx, dyn) in measure.dynamics.entries.sortedBy { it.key }) {
+                if (idx <= limitI) {
+                    val (attack, nextSustained) = resolvePlaybackDynamicStep(dyn, sustained)
+                    current = attack
+                    sustained = nextSustained
+                }
+            }
+        }
+        return current ?: sustained
+    }
+
+    /**
      * Captures the currently selected notes, chords, and rests in score order along with each
      * item's measure offset relative to the first selected measure (and any explicit clef at that
      * slot) so pasting preserves bar boundaries and mid-score clefs.
@@ -1049,6 +1217,10 @@ object ScoreEditing {
                 ?.clefChanges
                 ?.get(slot.itemIdx)
                 ?.takeIf { slot.itemIdx > 0 || slot.measureIdx > 0 }
+            val dynamicAt = measures
+                .getOrNull(slot.measureIdx)
+                ?.dynamics
+                ?.get(slot.itemIdx)
             val locs = bySlot.getValue(slot)
             if (item is ScoreItem.Chord && locs.none { it.chordNoteIdx == null }) {
                 val selectedIndices = locs
@@ -1063,9 +1235,9 @@ object ScoreEditing {
                     isDotted = item.isDotted,
                     amplitude = item.amplitude,
                     isStaccato = item.isStaccato,
-                )?.let { copied.add(ScoreClipboardItem(it, relMeasure, clefBefore)) }
+                )?.let { copied.add(ScoreClipboardItem(it, relMeasure, clefBefore, dynamicAt)) }
             } else {
-                copied.add(ScoreClipboardItem(item, relMeasure, clefBefore))
+                copied.add(ScoreClipboardItem(item, relMeasure, clefBefore, dynamicAt))
             }
         }
         return copied
@@ -1086,6 +1258,7 @@ object ScoreEditing {
         selectedLocations: Set<ScoreItemLocation> = emptySet(),
         selectedMeasures: Set<Int> = emptySet(),
         selectedClefChange: ScoreClefLocation? = null,
+        selectedDynamics: Set<ScoreDynamicLocation> = emptySet(),
     ): ScoreClipboardContent? {
         val validMeasures = selectedMeasures.filter { it in measures.indices }.sorted()
         if (validMeasures.isNotEmpty()) {
@@ -1096,6 +1269,7 @@ object ScoreEditing {
                     measure = m.copy(
                         items = m.items.toList(),
                         clefChanges = m.clefChanges.toMap(),
+                        dynamics = m.dynamics.toMap(),
                     ),
                     openingKey = effectiveKeyAtMeasure(measures, initialKeySignature, mIdx),
                     openingTime = effectiveTimeAtMeasure(measures, initialTimeSignature, mIdx),
@@ -1108,6 +1282,29 @@ object ScoreEditing {
             val entries = copySelectedEntries(measures, selectedLocations)
             if (entries.isNotEmpty()) {
                 return ScoreClipboardContent.ItemSelection(entries)
+            }
+        }
+        if (selectedDynamics.isNotEmpty()) {
+            val sortedDyns = selectedDynamics
+                .sortedWith(compareBy<ScoreDynamicLocation> { it.measureIdx }.thenBy { it.itemIdx })
+                .mapNotNull { loc ->
+                    val marking = measures.getOrNull(loc.measureIdx)?.dynamics?.get(loc.itemIdx)
+                        ?: return@mapNotNull null
+                    loc to marking
+                }
+            if (sortedDyns.isNotEmpty()) {
+                val baseM = sortedDyns.first().first.measureIdx
+                val baseI = sortedDyns.first().first.itemIdx
+                val copied = sortedDyns.map { (loc, marking) ->
+                    val relM = loc.measureIdx - baseM
+                    val relI = if (relM == 0) loc.itemIdx - baseI else loc.itemIdx
+                    ScoreClipboardDynamic(
+                        relativeMeasureOffset = relM,
+                        relativeOrAbsoluteItemIdx = relI,
+                        marking = marking,
+                    )
+                }
+                return ScoreClipboardContent.DynamicsOnly(copied)
             }
         }
         if (selectedClefChange != null) {
@@ -1253,6 +1450,13 @@ object ScoreEditing {
                 afterClef = updatedClef
                 current = updatedMeasures
             }
+            if (entry.dynamicAt != null) {
+                current = setDynamic(
+                    current,
+                    ScoreDynamicLocation(loc.measureIdx, loc.itemIdx),
+                    entry.dynamicAt,
+                ).first
+            }
             pastedLocs.add(loc)
             lastInsertedLoc = loc
             mIdx = loc.measureIdx
@@ -1325,7 +1529,74 @@ object ScoreEditing {
             initialKeySignature = initialKeySignature,
             initialTimeSignature = initialTimeSignature,
         )
+        is ScoreClipboardContent.DynamicsOnly -> pasteDynamicsOnly(
+            measures = measures,
+            markings = content.markings,
+            cursorPosition = cursorPosition,
+            selectedLocations = selectedLocations,
+            selectedMeasures = selectedMeasures,
+            initialKeySignature = initialKeySignature,
+            initialTimeSignature = initialTimeSignature,
+            initialClef = initialClef,
+        )
         is ScoreClipboardContent.ClefOnly -> null
+    }
+
+    private fun pasteDynamicsOnly(
+        measures: List<ScoreMeasure>,
+        markings: List<ScoreClipboardDynamic>,
+        cursorPosition: ScoreCursorPosition?,
+        selectedLocations: Set<ScoreItemLocation>,
+        selectedMeasures: Set<Int>,
+        initialKeySignature: KeySignature,
+        initialTimeSignature: TimeSignature,
+        initialClef: Clef,
+    ): ScorePasteResult? {
+        if (markings.isEmpty()) return null
+        var current = renumber(measures)
+        val (baseM, baseI) = when {
+            cursorPosition != null -> {
+                val m = cursorPosition.measureIdx.coerceIn(0, current.lastIndex)
+                val i = cursorPosition.itemIdx.coerceIn(0, current[m].items.size)
+                m to i
+            }
+            selectedLocations.isNotEmpty() -> {
+                val first = selectedLocations.minWith(compareBy<ScoreItemLocation> { it.measureIdx }.thenBy { it.itemIdx })
+                first.measureIdx.coerceIn(0, current.lastIndex) to first.itemIdx.coerceIn(0, current[first.measureIdx.coerceIn(0, current.lastIndex)].items.size)
+            }
+            selectedMeasures.isNotEmpty() -> {
+                selectedMeasures.min().coerceIn(0, current.lastIndex) to 0
+            }
+            else -> 0 to 0
+        }
+        val pastedDyns = linkedSetOf<ScoreDynamicLocation>()
+        var lastLoc = ScoreDynamicLocation(baseM, baseI)
+        for (entry in markings) {
+            val targetM = baseM + entry.relativeMeasureOffset
+            while (targetM >= current.size) {
+                current = appendEmptyMeasure(current)
+            }
+            val rawTargetI = if (entry.relativeMeasureOffset == 0) baseI + entry.relativeOrAbsoluteItemIdx else entry.relativeOrAbsoluteItemIdx
+            val (next, placedLoc) = setDynamic(
+                current,
+                ScoreDynamicLocation(targetM, rawTargetI),
+                entry.marking,
+            )
+            current = next
+            if (placedLoc != null) {
+                pastedDyns.add(placedLoc)
+                lastLoc = placedLoc
+            }
+        }
+        return ScorePasteResult(
+            measures = current,
+            pastedLocations = emptySet(),
+            nextCursor = ScoreCursorPosition(lastLoc.measureIdx, lastLoc.itemIdx),
+            initialClef = initialClef,
+            initialKeySignature = initialKeySignature,
+            initialTimeSignature = initialTimeSignature,
+            pastedDynamics = pastedDyns,
+        )
     }
 
     private fun pasteMeasureRange(
@@ -1377,7 +1648,8 @@ object ScoreEditing {
                     it.items.isNotEmpty() ||
                         it.keySignature != null ||
                         it.timeSignature != null ||
-                        it.clefChanges.isNotEmpty()
+                        it.clefChanges.isNotEmpty() ||
+                        it.dynamics.isNotEmpty()
                 }
                 if (lastNonEmpty >= 0) (lastNonEmpty + 1) to 0 else 0 to 0
             }
@@ -1412,6 +1684,18 @@ object ScoreEditing {
                 if (k > 0) {
                     mergedClefs[insertIIdx + k] = clef
                 }
+            }
+
+            val mergedDynamics = mutableMapOf<Int, ScoreDynamicMarking>()
+            for ((k, dyn) in dest.dynamics) {
+                if (k < insertIIdx) {
+                    mergedDynamics[k] = dyn
+                } else {
+                    mergedDynamics[k + insertedCount] = dyn
+                }
+            }
+            for ((k, dyn) in cm.measure.dynamics) {
+                mergedDynamics[insertIIdx + k] = dyn
             }
 
             val mergedKey: KeySignature?
@@ -1453,6 +1737,7 @@ object ScoreEditing {
                         keySignature = mergedKey,
                         timeSignature = mergedTime,
                         clefChanges = mergedClefs,
+                        dynamics = mergedDynamics,
                     )
                 )
             }
@@ -1568,11 +1853,19 @@ data class ScoreStepInsertResult(
     val nextCursor: ScoreCursorPosition,
 )
 
-/** Single entry stored in [ScoreClipboard], retaining its relative measure offset and optional clef before it. */
+/** Single entry stored in [ScoreClipboard], retaining its relative measure offset and optional clef/dynamic at it. */
 data class ScoreClipboardItem(
     val item: ScoreItem,
     val relativeMeasureOffset: Int = 0,
     val clefBefore: Clef? = null,
+    val dynamicAt: ScoreDynamicMarking? = null,
+)
+
+/** Relative measure/slot snapshot for copying standalone dynamic markings. */
+data class ScoreClipboardDynamic(
+    val relativeMeasureOffset: Int,
+    val relativeOrAbsoluteItemIdx: Int,
+    val marking: ScoreDynamicMarking,
 )
 
 /** Snapshot of a single copied measure, including its effective opening key/time/clef and internal clefs. */
@@ -1583,10 +1876,11 @@ data class ScoreClipboardMeasure(
     val openingClef: Clef,
 )
 
-/** Typed payload stored in [ScoreClipboard] covering whole measures, selected items, or a standalone clef. */
+/** Typed payload stored in [ScoreClipboard] covering whole measures, selected items, dynamics, or a standalone clef. */
 sealed interface ScoreClipboardContent {
     data class MeasureRange(val measures: List<ScoreClipboardMeasure>) : ScoreClipboardContent
     data class ItemSelection(val items: List<ScoreClipboardItem>) : ScoreClipboardContent
+    data class DynamicsOnly(val markings: List<ScoreClipboardDynamic>) : ScoreClipboardContent
     data class ClefOnly(val clef: Clef) : ScoreClipboardContent
 }
 
@@ -1599,6 +1893,7 @@ data class ScorePasteResult(
     val initialKeySignature: KeySignature? = null,
     val initialTimeSignature: TimeSignature? = null,
     val pastedMeasures: Set<Int> = emptySet(),
+    val pastedDynamics: Set<ScoreDynamicLocation> = emptySet(),
 )
 
 /** Shared clipboard across all [ScoreModule] editors so notes, measures, clefs, and signatures can be copied and pasted between scores. */
@@ -1612,13 +1907,14 @@ internal object ScoreClipboard {
             is ScoreClipboardContent.MeasureRange -> c.measures.flatMapIndexed { idx, cm ->
                 cm.measure.items.map { ScoreClipboardItem(it, idx) }
             }
-            is ScoreClipboardContent.ClefOnly, null -> emptyList()
+            is ScoreClipboardContent.DynamicsOnly, is ScoreClipboardContent.ClefOnly, null -> emptyList()
         }
 
     val isNotEmpty: Boolean
         get() = when (val c = content) {
             is ScoreClipboardContent.MeasureRange -> c.measures.isNotEmpty()
             is ScoreClipboardContent.ItemSelection -> c.items.isNotEmpty()
+            is ScoreClipboardContent.DynamicsOnly -> c.markings.isNotEmpty()
             is ScoreClipboardContent.ClefOnly -> true
             null -> false
         }
@@ -1634,6 +1930,7 @@ internal object ScoreClipboard {
         val nonEmpty = when (newContent) {
             is ScoreClipboardContent.MeasureRange -> newContent.measures.isNotEmpty()
             is ScoreClipboardContent.ItemSelection -> newContent.items.isNotEmpty()
+            is ScoreClipboardContent.DynamicsOnly -> newContent.markings.isNotEmpty()
             is ScoreClipboardContent.ClefOnly -> true
         }
         if (nonEmpty) {
