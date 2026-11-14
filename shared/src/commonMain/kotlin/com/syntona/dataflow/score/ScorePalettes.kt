@@ -18,6 +18,10 @@ enum class ScorePaletteKind(
         title = "Keys/Times",
         buttonLabel = "Keys/\nTimes",
     ),
+    CLEFS(
+        title = "Clefs",
+        buttonLabel = "Clefs",
+    ),
 }
 
 /**
@@ -46,6 +50,14 @@ data class ScoreKeyOption(
 data class ScoreTimeSigOption(
     val timeSignature: TimeSignature,
     val label: String = timeSignature.label,
+)
+
+/**
+ * A selectable clef entry inside the Clefs popup palette.
+ */
+data class ScoreClefOption(
+    val clef: Clef,
+    val label: String = clef.label,
 )
 
 /**
@@ -103,6 +115,20 @@ object ScorePalettes {
     )
 
     val timeSignatureOptions: List<ScoreTimeSigOption> = TimeSignature.PRESETS.map { ScoreTimeSigOption(it) }
+
+    val primaryClefOptions: List<ScoreClefOption> = listOf(
+        Clef.TREBLE,
+        Clef.BASS,
+        Clef.ALTO,
+        Clef.TENOR,
+    ).map { ScoreClefOption(it) }
+
+    val octaveClefOptions: List<ScoreClefOption> = listOf(
+        Clef.TREBLE_8VB,
+        Clef.TREBLE_8VA,
+        Clef.BASS_8VB,
+        Clef.BASS_8VA,
+    ).map { ScoreClefOption(it) }
 }
 
 /**

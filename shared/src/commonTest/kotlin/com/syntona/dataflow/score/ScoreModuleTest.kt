@@ -1559,4 +1559,292 @@ class ScoreModuleTest {
         )
         assertEquals(1, restTarget.glyphs.count { it.glyph == SmuflGlyphs.AUGMENTATION_DOT })
     }
+
+    @Test
+    fun testClefPitchMappingAndKeySignaturePositions() {
+        // Bass clef: F3 is on 4th line from bottom (step 6), G2 is on bottom line (step 0)
+        assertEquals(6, Clef.BASS.staffStepFromBottom(SpelledPitch(NoteLetter.F, 0, 3)))
+        assertEquals(0, Clef.BASS.staffStepFromBottom(SpelledPitch(NoteLetter.G, 0, 2)))
+        assertEquals(SpelledPitch(NoteLetter.F, 1, 3), Clef.BASS.pitchForStaffStep(6, KeySignature.G_MAJOR))
+
+        // Alto clef: C4 sits on middle line (step 4)
+        assertEquals(4, Clef.ALTO.staffStepFromBottom(SpelledPitch(NoteLetter.C, 0, 4)))
+        assertEquals(SpelledPitch(NoteLetter.C, 0, 4), Clef.ALTO.pitchForStaffStep(4, KeySignature.C_MAJOR))
+
+        // Tenor clef: C4 sits on 4th line from bottom (step 6)
+        assertEquals(6, Clef.TENOR.staffStepFromBottom(SpelledPitch(NoteLetter.C, 0, 4)))
+        assertEquals(SpelledPitch(NoteLetter.C, 0, 4), Clef.TENOR.pitchForStaffStep(6, KeySignature.C_MAJOR))
+
+        // Octave clefs shift sounding octave while preserving line position
+        assertEquals(2, Clef.TREBLE_8VB.staffStepFromBottom(SpelledPitch(NoteLetter.G, 0, 3)))
+        assertEquals(2, Clef.TREBLE_8VA.staffStepFromBottom(SpelledPitch(NoteLetter.G, 0, 5)))
+        assertEquals(6, Clef.BASS_8VB.staffStepFromBottom(SpelledPitch(NoteLetter.F, 0, 2)))
+        assertEquals(6, Clef.BASS_8VA.staffStepFromBottom(SpelledPitch(NoteLetter.F, 0, 4)))
+
+        // Per-clef key signature accidental staff positions
+        assertEquals(listOf(6, 3), KeySignature.D_MAJOR.staffSteps(Clef.BASS))
+        assertEquals(listOf(7, 4), KeySignature.D_MAJOR.staffSteps(Clef.ALTO))
+        assertEquals(listOf(2, 6), KeySignature.D_MAJOR.staffSteps(Clef.TENOR))
+        assertEquals(listOf(2, 5, 1), KeySignature.E_FLAT.staffSteps(Clef.BASS))
+        assertEquals(listOf(3, 6, 2), KeySignature.E_FLAT.staffSteps(Clef.ALTO))
+        assertEquals(listOf(5, 8, 4), KeySignature.E_FLAT.staffSteps(Clef.TENOR))
+    }
+
+    @Test
+    fun testSetClefCommandUndoRedoAndIndexShifting() {
+        val score = ScoreData()
+        score.clef = Clef.TREBLE
+        val c4Note = ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 4), NoteDuration.HALF)
+        val e4Note = ScoreItem.Note(SpelledPitch(NoteLetter.E, 0, 4), NoteDuration.HALF)
+        val g3Note = ScoreItem.Note(SpelledPitch(NoteLetter.G, 0, 3), NoteDuration.HALF)
+        val m1 = ScoreMeasure(1, listOf(c4Note, e4Note))
+        val m2 = ScoreMeasure(2, listOf(g3Note))
+        score.replaceMeasures(listOf(m1, m2))
+
+        // Set mid-measure clef at (0, 1)
+        val (init1, measures1) = ScoreEditing.setClefChange(
+            initialClef = score.clef,
+            measures = score.measures,
+            location = ScoreClefLocation(0, 1),
+            newClef = Clef.ALTO,
+        )
+        assertEquals(Clef.TREBLE, init1)
+        assertEquals(Clef.ALTO, measures1[0].clefChanges[1])
+        assertEquals(Clef.TREBLE, ScoreEditing.effectiveClefAt(measures1, init1, 0, 0))
+        assertEquals(Clef.ALTO, ScoreEditing.effectiveClefAt(measures1, init1, 0, 1))
+        assertEquals(Clef.ALTO, ScoreEditing.effectiveClefAt(measures1, init1, 1, 0))
+
+        val cmd = SetScoreClefCommand(
+            scoreData = score,
+            beforeInitialClef = score.clef,
+            beforeMeasures = score.measures.toList(),
+            afterInitialClef = init1,
+            afterMeasures = measures1,
+        )
+        cmd.execute()
+        assertEquals(Clef.ALTO, score.measures[0].clefChanges[1])
+        // Sounding pitches remain unchanged across clef changes
+        assertEquals(SpelledPitch(NoteLetter.E, 0, 4), (score.measures[0].items[1] as ScoreItem.Note).pitch)
+        assertEquals(SpelledPitch(NoteLetter.G, 0, 3), (score.measures[1].items[0] as ScoreItem.Note).pitch)
+
+        cmd.undo()
+        assertTrue(score.measures[0].clefChanges.isEmpty())
+        cmd.execute()
+
+        // Inserting after the clef change keeps clefChanges at index 1; inserting before shifts to index 2
+        val b4Note = ScoreItem.Note(SpelledPitch(NoteLetter.B, 0, 4), NoteDuration.QUARTER)
+        val (afterClefInsert, _) = ScoreEditing.insertItem(
+            measures = score.measures,
+            measureIdx = 0,
+            itemIdx = 1,
+            item = b4Note,
+            shiftClefAtIndex = false,
+        )
+        assertEquals(Clef.ALTO, afterClefInsert[0].clefChanges[1])
+
+        val (beforeClefInsert, _) = ScoreEditing.insertItem(
+            measures = score.measures,
+            measureIdx = 0,
+            itemIdx = 1,
+            item = b4Note,
+            shiftClefAtIndex = true,
+        )
+        assertNull(beforeClefInsert[0].clefChanges[1])
+        assertEquals(Clef.ALTO, beforeClefInsert[0].clefChanges[2])
+
+        // Deleting item 0 shifts clef at index 2 down to index 1
+        val afterDelete = ScoreEditing.deleteItems(
+            measures = beforeClefInsert,
+            selection = setOf(ScoreItemLocation(0, 0)),
+        )
+        assertNull(afterDelete[0].clefChanges[2])
+        assertEquals(Clef.ALTO, afterDelete[0].clefChanges[1])
+
+        // Opening clef removal is ignored (no-op)
+        val (unchangedInit, _) = ScoreEditing.setClefChange(
+            initialClef = Clef.TREBLE,
+            measures = score.measures,
+            location = ScoreClefLocation(0, 0),
+            newClef = null,
+        )
+        assertEquals(Clef.TREBLE, unchangedInit)
+    }
+
+    @Test
+    fun testBeatOneAndMidMeasureClefLayoutAndRendering() {
+        val score = ScoreData()
+        score.clef = Clef.TREBLE
+        score.keySignature = KeySignature.C_MAJOR
+        score.timeSignature = TimeSignature.COMMON_TIME
+        score.replaceMeasures(
+            listOf(
+                ScoreMeasure(
+                    number = 1,
+                    items = listOf(
+                        ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 4), NoteDuration.HALF),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 4), NoteDuration.HALF),
+                    ),
+                    // Mid-measure change to Alto before item 1
+                    clefChanges = mapOf(1 to Clef.ALTO),
+                ),
+                ScoreMeasure(
+                    number = 2,
+                    keySignature = KeySignature.G_MAJOR,
+                    timeSignature = TimeSignature.THREE_FOUR,
+                    // Beat-1 clef change to Bass coinciding with key & time change
+                    clefChanges = mapOf(0 to Clef.BASS),
+                    items = listOf(
+                        ScoreItem.Note(SpelledPitch(NoteLetter.F, 1, 3), NoteDuration.HALF),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.D, 0, 3), NoteDuration.QUARTER),
+                    ),
+                ),
+            )
+        )
+
+        val target = RecordingDrawTarget()
+        val staffSpacePx = 10f
+        val emPx = staffSpacePx * 4f
+        val layout = ScoreRenderer.render(
+            score = score,
+            target = target,
+            staffSpacePx = staffSpacePx,
+            minWidthPx = 800f,
+            colors = ScoreRenderColors.forTheme(darkMode = false),
+        )
+
+        assertEquals(Clef.TREBLE, layout.openingClef)
+        val pm1 = layout.placedMeasures[0]
+        val pm2 = layout.placedMeasures[1]
+
+        // Mid-measure clef change in M1: item 0 uses Treble (C4 = step -2), item 1 uses Alto (C4 = step 4)
+        assertEquals(Clef.TREBLE, pm1.items[0].effectiveClef)
+        assertEquals(-2, pm1.items[0].staffStep)
+        assertEquals(Clef.ALTO, pm1.items[1].effectiveClef)
+        assertEquals(4, pm1.items[1].staffStep)
+
+        val midClef = pm1.clefChanges.single()
+        assertEquals(ScoreClefLocation(0, 1), midClef.location)
+        assertTrue(midClef.x > pm1.items[0].x)
+        assertTrue(midClef.x < pm1.items[1].x)
+        assertEquals(
+            midClef,
+            layout.clefChangeAt(midClef.x + midClef.width * 0.5f, (midClef.topY + midClef.bottomY) * 0.5f),
+        )
+        assertEquals(Clef.TREBLE, layout.effectiveClefAtX(pm1.items[0].x))
+        assertEquals(Clef.ALTO, layout.effectiveClefAtX(pm1.items[1].x))
+
+        // Beat-1 Bass clef for M2 sits immediately before M1's barline at ~72% emPx,
+        // and precedes M2's key signature (rendered with Bass staff positions) and time signature.
+        val barlineClef = pm1.barlineClefChange
+        assertNotNull(barlineClef)
+        assertEquals(ScoreClefLocation(1, 0), barlineClef.location)
+        assertEquals(Clef.BASS, barlineClef.clef)
+        assertTrue(barlineClef.x + barlineClef.width <= pm1.barlineX + 0.01f)
+        assertEquals(Clef.BASS, pm2.activeOpeningClef)
+        assertEquals(listOf(6 to Accidental.SHARP), pm2.keyChangeGlyphs)
+
+        val midGlyph = target.glyphs.firstOrNull {
+            it.glyph == SmuflGlyphs.C_CLEF && it.fontSizePx < emPx * 0.8f
+        }
+        assertNotNull(midGlyph)
+        assertEquals(emPx * 0.72f, midGlyph.fontSizePx, 0.01f)
+
+        val fClefGlyph = target.glyphs.firstOrNull { it.glyph == SmuflGlyphs.F_CLEF }
+        assertNotNull(fClefGlyph)
+        assertEquals(emPx * 0.72f, fClefGlyph.fontSizePx, 0.01f)
+
+        val gSharpGlyph = target.glyphs.lastOrNull { it.glyph == SmuflGlyphs.ACCIDENTAL_SHARP }
+        val timeNumGlyph = target.glyphs.lastOrNull { it.glyph == SmuflGlyphs.timeSigNumber(3) }
+        assertNotNull(gSharpGlyph)
+        assertNotNull(timeNumGlyph)
+        assertTrue(fClefGlyph.x < pm1.barlineX)
+        assertTrue(pm1.barlineX < gSharpGlyph.x)
+        assertTrue(gSharpGlyph.x < timeNumGlyph.x)
+    }
+
+    @Test
+    fun testClefSerializationRoundTrip() {
+        val scoreModule = ScoreModule()
+        scoreModule.scoreData.clef = Clef.TENOR
+        scoreModule.scoreData.replaceMeasures(
+            listOf(
+                ScoreMeasure(
+                    number = 1,
+                    items = listOf(ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 4), NoteDuration.HALF)),
+                    clefChanges = mapOf(1 to Clef.TREBLE_8VB),
+                ),
+                ScoreMeasure(
+                    number = 2,
+                    items = listOf(ScoreItem.Note(SpelledPitch(NoteLetter.F, 0, 3), NoteDuration.WHOLE)),
+                    clefChanges = mapOf(0 to Clef.BASS_8VB),
+                ),
+            )
+        )
+
+        val graphState = GraphState()
+        graphState.addModule(scoreModule, Offset.Zero)
+        val json = GraphSerializer.serialize(graphState, graphState.modules)
+        val loadedModule = GraphSerializer.deserialize(GraphState(), json).filterIsInstance<ScoreModule>().single()
+
+        assertEquals(Clef.TENOR, loadedModule.scoreData.clef)
+        assertEquals(mapOf(1 to Clef.TREBLE_8VB), loadedModule.scoreData.measures[0].clefChanges)
+        assertEquals(mapOf(0 to Clef.BASS_8VB), loadedModule.scoreData.measures[1].clefChanges)
+    }
+
+    @Test
+    fun testResolveTargetClefLocationPrefersMidMeasureCursorOverMeasureHighlight() {
+        // Clicking inside a measure in select mode sets both selectedMeasures and cursorPosition.
+        // Mid-measure cursor must win so inserting a clef puts it at the cursor, not beat 1.
+        assertEquals(
+            ScoreClefLocation(5, 2),
+            ScoreEditing.resolveTargetClefLocation(
+                selectedClefChange = null,
+                selectedLocations = emptySet(),
+                cursorPosition = ScoreCursorPosition(5, 2),
+                selectedMeasures = setOf(5),
+            ),
+        )
+
+        // When cursor is cleared (e.g. rubber-band / Shift measure selection), use selected measure beat 1.
+        assertEquals(
+            ScoreClefLocation(4, 0),
+            ScoreEditing.resolveTargetClefLocation(
+                selectedClefChange = null,
+                selectedLocations = emptySet(),
+                cursorPosition = null,
+                selectedMeasures = setOf(4, 5),
+            ),
+        )
+
+        // Explicit note selection targets the first selected item.
+        assertEquals(
+            ScoreClefLocation(5, 1),
+            ScoreEditing.resolveTargetClefLocation(
+                selectedClefChange = null,
+                selectedLocations = setOf(ScoreItemLocation(5, 3), ScoreItemLocation(5, 1, chordNoteIdx = 0)),
+                cursorPosition = ScoreCursorPosition(5, 2),
+                selectedMeasures = emptySet(),
+            ),
+        )
+
+        // Explicit selected clef change takes top priority; empty state falls back to opening (0, 0).
+        assertEquals(
+            ScoreClefLocation(2, 0),
+            ScoreEditing.resolveTargetClefLocation(
+                selectedClefChange = ScoreClefLocation(2, 0),
+                selectedLocations = setOf(ScoreItemLocation(5, 1)),
+                cursorPosition = ScoreCursorPosition(5, 2),
+                selectedMeasures = setOf(5),
+            ),
+        )
+        assertEquals(
+            ScoreClefLocation(0, 0),
+            ScoreEditing.resolveTargetClefLocation(
+                selectedClefChange = null,
+                selectedLocations = emptySet(),
+                cursorPosition = null,
+                selectedMeasures = emptySet(),
+            ),
+        )
+    }
 }

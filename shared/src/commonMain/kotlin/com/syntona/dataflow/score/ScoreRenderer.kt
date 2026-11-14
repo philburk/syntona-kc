@@ -84,8 +84,21 @@ data class ScorePlacedItem(
     val isOverflow: Boolean,
     val chordNotes: List<ScorePlacedChordNote> = emptyList(),
     val stemDown: Boolean = false,
+    val effectiveClef: Clef = Clef.TREBLE,
 ) {
     val location: ScoreItemLocation get() = ScoreItemLocation(measureIdx, itemIdx)
+}
+
+data class ScorePlacedClefChange(
+    val measureIdx: Int,
+    val itemIdx: Int,
+    val clef: Clef,
+    val x: Float,
+    val width: Float,
+    val topY: Float,
+    val bottomY: Float,
+) {
+    val location: ScoreClefLocation get() = ScoreClefLocation(measureIdx, itemIdx)
 }
 
 data class ScorePlacedTimeSignature(
@@ -113,12 +126,17 @@ data class ScorePlacedMeasure(
     val activeKeySignature: KeySignature = KeySignature.C_MAJOR,
     val timeChange: ScorePlacedTimeSignature? = null,
     val activeTimeSignature: TimeSignature = TimeSignature.COMMON_TIME,
+    val clefChanges: List<ScorePlacedClefChange> = emptyList(),
+    val barlineClefChange: ScorePlacedClefChange? = null,
+    val activeOpeningClef: Clef = Clef.TREBLE,
+    val activeClosingClef: Clef = Clef.TREBLE,
 )
 
 data class ScoreInsertionTarget(
     val measureIdx: Int,
     val itemIdx: Int,
     val appendNewMeasure: Boolean,
+    val afterClefChange: Boolean = true,
 )
 
 data class ScoreGhostPreview(
@@ -146,13 +164,26 @@ data class ScoreLayout(
     val bottomStaffY: Float = 0f,
     val headerEndX: Float = 0f,
     val staffEndX: Float = 0f,
+    val openingClef: Clef = Clef.TREBLE,
     val placedMeasures: List<ScorePlacedMeasure> = emptyList(),
     val placedTimeSignatures: List<ScorePlacedTimeSignature> = emptyList(),
+    val placedClefChanges: List<ScorePlacedClefChange> = emptyList(),
 ) {
     fun yForStep(stepFromBottom: Int): Float = bottomStaffY - stepFromBottom * (staffSpacePx * 0.5f)
 
     fun stepAtY(y: Float, minStep: Int = -12, maxStep: Int = 20): Int =
         ((bottomStaffY - y) / (staffSpacePx * 0.5f)).roundToInt().coerceIn(minStep, maxStep)
+
+    /** Returns the [ScorePlacedClefChange] under `(x, y)`, or `null` if none. */
+    fun clefChangeAt(x: Float, y: Float): ScorePlacedClefChange? {
+        val sp = staffSpacePx
+        val padX = sp * 0.35f
+        val padY = sp * 0.4f
+        return placedClefChanges.firstOrNull { cc ->
+            x >= cc.x - padX && x <= cc.x + cc.width + padX &&
+                y >= cc.topY - padY && y <= cc.bottomY + padY
+        }
+    }
 
     /** Returns the [ScorePlacedTimeSignature] under `(x, y)`, or `null` if none. */
     fun timeSignatureAt(x: Float, y: Float): ScorePlacedTimeSignature? {
@@ -259,10 +290,13 @@ data class ScoreLayout(
             if (x <= pm.barlineX) {
                 val insertIdx = pm.items.indexOfFirst { x < it.x + it.width * 0.5f }
                     .let { if (it < 0) pm.items.size else it }
+                val ccAtIdx = pm.clefChanges.firstOrNull { it.itemIdx > 0 && it.itemIdx == insertIdx }
+                val afterClefChange = ccAtIdx == null || x >= ccAtIdx.x + ccAtIdx.width * 0.5f
                 return ScoreInsertionTarget(
                     measureIdx = pm.measureIdx,
                     itemIdx = insertIdx,
                     appendNewMeasure = false,
+                    afterClefChange = afterClefChange,
                 )
             }
         }
@@ -272,6 +306,22 @@ data class ScoreLayout(
         } else {
             ScoreInsertionTarget(measureIdx = placedMeasures.size, itemIdx = 0, appendNewMeasure = true)
         }
+    }
+
+    /** Returns the effective [Clef] for an insertion or hover at canvas horizontal coordinate [x]. */
+    fun effectiveClefAtX(x: Float): Clef {
+        val target = insertionTargetAt(x) ?: return openingClef
+        if (target.appendNewMeasure || target.measureIdx >= placedMeasures.size) {
+            return placedMeasures.lastOrNull()?.activeClosingClef ?: openingClef
+        }
+        val pm = placedMeasures[target.measureIdx]
+        var clef = pm.activeOpeningClef
+        for (cc in pm.clefChanges) {
+            if (cc.itemIdx > 0 && x >= cc.x + cc.width * 0.5f) {
+                clef = cc.clef
+            }
+        }
+        return clef
     }
 
     /**
@@ -326,18 +376,30 @@ data class ScoreLayout(
     fun cursorXFor(cursor: ScoreCursorPosition): Float? {
         val pm = placedMeasures.getOrNull(cursor.measureIdx) ?: return null
         val sp = staffSpacePx
+        val trailingClef = pm.clefChanges.lastOrNull { it.itemIdx >= pm.items.size }
         if (pm.items.isEmpty()) {
-            return pm.contentStartX + sp * 1.1f
+            return if (trailingClef != null) {
+                trailingClef.x + trailingClef.width + sp * 0.35f
+            } else {
+                pm.contentStartX + sp * 1.1f
+            }
         }
         val clampedIdx = cursor.itemIdx.coerceIn(0, pm.items.size)
         return when {
             clampedIdx == 0 -> ((pm.contentStartX + sp * 0.35f) + pm.items.first().boxLeft) * 0.5f
             clampedIdx >= pm.items.size -> {
-                val tailRight = pm.items.last().boxRight
+                val tailRight = maxOf(
+                    pm.items.last().boxRight,
+                    trailingClef?.let { it.x + it.width } ?: 0f,
+                )
                 val limit = min(pm.barlineX - sp * 0.25f, tailRight + sp * 0.9f)
                 max(tailRight + sp * 0.25f, (tailRight + limit) * 0.5f)
             }
-            else -> (pm.items[clampedIdx - 1].boxRight + pm.items[clampedIdx].boxLeft) * 0.5f
+            else -> {
+                val midClef = pm.clefChanges.lastOrNull { it.itemIdx == clampedIdx }
+                val leftEdge = midClef?.let { it.x + it.width } ?: pm.items[clampedIdx - 1].boxRight
+                (leftEdge + pm.items[clampedIdx].boxLeft) * 0.5f
+            }
         }
     }
 }
@@ -352,6 +414,7 @@ object ScoreRenderer {
     private const val STEM_LENGTH_32ND_SPACES = 4.25f
     private const val TOP_MARGIN_SPACES = 4.5f
     private const val BOTTOM_MARGIN_SPACES = 4.5f
+    private const val CLEF_CHANGE_SCALE = 0.72f
 
     private data class HeaderLayout(
         val leftMargin: Float,
@@ -359,6 +422,7 @@ object ScoreRenderer {
         val topStaffY: Float,
         val bottomStaffY: Float,
         val totalHeight: Float,
+        val openingClef: Clef,
         val clefX: Float,
         val keyStartX: Float,
         val keySteps: List<Int>,
@@ -393,12 +457,13 @@ object ScoreRenderer {
 
         var cursorX = leftMargin + sp * 0.7f
 
+        val openingClef = score.measures.firstOrNull()?.clefChanges?.get(0) ?: score.clef
         val clefX = cursorX
-        val clefWidth = max(measureGlyphWidth(score.clef.glyph, emPx), sp * 2.6f)
+        val clefWidth = max(measureGlyphWidth(openingClef.glyph, emPx), sp * 2.6f)
         cursorX += clefWidth + sp * 0.8f
 
         val openingKey = score.measures.firstOrNull()?.keySignature ?: score.keySignature
-        val keySteps = openingKey.trebleStaffSteps()
+        val keySteps = openingKey.staffSteps(openingClef)
         val keyGlyph = if (openingKey.fifths >= 0) SmuflGlyphs.ACCIDENTAL_SHARP else SmuflGlyphs.ACCIDENTAL_FLAT
         val keyGlyphStepWidth = if (openingKey.fifths >= 0) {
             SmuflGlyphs.ACCIDENTAL_SHARP_WIDTH * sp + sp * 0.18f
@@ -434,14 +499,18 @@ object ScoreRenderer {
             )
         )
         var globalIdx = 0
+        var effectiveClef = openingClef
         var effectiveKey = openingKey
         var effectiveTime = openingTime
+        val changeEmPx = emPx * CLEF_CHANGE_SCALE
+        val allClefChanges = mutableListOf<ScorePlacedClefChange>()
 
         for ((mIdx, measure) in score.measures.withIndex()) {
             val mStartX = cursorX
+            val measureOpeningClef = effectiveClef
             val keyChangeX = cursorX
             val keyChangeGlyphs = if (mIdx > 0 && measure.keySignature != null && measure.keySignature != effectiveKey) {
-                ScoreEditing.midMeasureKeyGlyphs(effectiveKey, measure.keySignature).also {
+                ScoreEditing.midMeasureKeyGlyphs(effectiveKey, measure.keySignature, effectiveClef).also {
                     effectiveKey = measure.keySignature
                 }
             } else {
@@ -481,11 +550,31 @@ object ScoreRenderer {
             val contentStartX = cursorX
             val activeAlters = mutableMapOf<Int, Int>()
             val itemsInMeasure = mutableListOf<ScorePlacedItem>()
+            val midClefChanges = mutableListOf<ScorePlacedClefChange>()
             var measureTicks = 0
 
             cursorX += sp * 1.1f
             val stemThick = SmuflGlyphs.STEM_THICKNESS * sp
             for ((iIdx, item) in measure.items.withIndex()) {
+                if (iIdx > 0) {
+                    val midClef = measure.clefChanges[iIdx]
+                    if (midClef != null && midClef != effectiveClef) {
+                        val ccW = max(measureGlyphWidth(midClef.glyph, changeEmPx), sp * 1.9f)
+                        val cc = ScorePlacedClefChange(
+                            measureIdx = mIdx,
+                            itemIdx = iIdx,
+                            clef = midClef,
+                            x = cursorX,
+                            width = ccW,
+                            topY = topStaffY,
+                            bottomY = bottomStaffY,
+                        )
+                        midClefChanges.add(cc)
+                        allClefChanges.add(cc)
+                        effectiveClef = midClef
+                        cursorX += ccW + sp * 0.55f
+                    }
+                }
                 val itemTicks = item.totalTicks
                 val newMeasureTicks = measureTicks + itemTicks
                 val isOverflow = newMeasureTicks > measureCapacity
@@ -502,7 +591,7 @@ object ScoreRenderer {
                 }
 
                 if (pitches.isNotEmpty()) {
-                    val steps = pitches.map { score.clef.staffStepFromBottom(it) }
+                    val steps = pitches.map { effectiveClef.staffStepFromBottom(it) }
                     val bottomStep = steps.first()
                     val topStep = steps.last()
                     val stemDown = (topStep - 4) >= (4 - bottomStep)
@@ -645,6 +734,7 @@ object ScoreRenderer {
                             isOverflow = isOverflow,
                             chordNotes = chordNotes,
                             stemDown = stemDown,
+                            effectiveClef = effectiveClef,
                         )
                     )
                     cursorX += advanceForItem(item, sp) + rightDispPx
@@ -667,13 +757,59 @@ object ScoreRenderer {
                             boxRight = itemX + noteWidth + (if (item.isDotted) sp * 0.7f else sp * 0.15f),
                             boxBottom = bottomStaffY - sp * 0.2f,
                             isOverflow = isOverflow,
+                            effectiveClef = effectiveClef,
                         )
                     )
                     cursorX += advanceForItem(item, sp)
                 }
             }
 
+            // Trailing mid-measure clef changes positioned after all existing items in this bar
+            for ((clefKey, clefVal) in measure.clefChanges.entries.sortedBy { it.key }) {
+                if (clefKey == 0) continue
+                if (clefKey >= measure.items.size && clefVal != effectiveClef) {
+                    cursorX += if (measure.items.isEmpty()) sp * 2.0f else sp * 0.35f
+                    val ccW = max(measureGlyphWidth(clefVal.glyph, changeEmPx), sp * 1.9f)
+                    val cc = ScorePlacedClefChange(
+                        measureIdx = mIdx,
+                        itemIdx = clefKey,
+                        clef = clefVal,
+                        x = cursorX,
+                        width = ccW,
+                        topY = topStaffY,
+                        bottomY = bottomStaffY,
+                    )
+                    midClefChanges.add(cc)
+                    allClefChanges.add(cc)
+                    effectiveClef = clefVal
+                    cursorX += ccW + sp * 0.55f
+                }
+            }
+            val measureClosingClef = effectiveClef
+
             cursorX += if (measure.items.isEmpty()) sp * 6f else sp * 0.6f
+
+            // If next measure changes clef on beat 1, draw the new clef right before this barline
+            val nextMeasure = score.measures.getOrNull(mIdx + 1)
+            val nextBeat1Clef = nextMeasure?.clefChanges?.get(0)
+            val barlineClefChange = if (nextMeasure != null && nextBeat1Clef != null && nextBeat1Clef != effectiveClef) {
+                val ccW = max(measureGlyphWidth(nextBeat1Clef.glyph, changeEmPx), sp * 1.9f)
+                val cc = ScorePlacedClefChange(
+                    measureIdx = mIdx + 1,
+                    itemIdx = 0,
+                    clef = nextBeat1Clef,
+                    x = cursorX,
+                    width = ccW,
+                    topY = topStaffY,
+                    bottomY = bottomStaffY,
+                )
+                allClefChanges.add(cc)
+                effectiveClef = nextBeat1Clef
+                cursorX += ccW + sp * 0.5f
+                cc
+            } else {
+                null
+            }
             val barlineX = cursorX
             placedMeasures.add(
                 ScorePlacedMeasure(
@@ -690,6 +826,10 @@ object ScoreRenderer {
                     activeKeySignature = effectiveKey,
                     timeChange = placedTimeChange,
                     activeTimeSignature = effectiveTime,
+                    clefChanges = midClefChanges,
+                    barlineClefChange = barlineClefChange,
+                    activeOpeningClef = measureOpeningClef,
+                    activeClosingClef = measureClosingClef,
                 )
             )
             cursorX += sp * 0.6f
@@ -711,6 +851,7 @@ object ScoreRenderer {
             topStaffY = topStaffY,
             bottomStaffY = bottomStaffY,
             totalHeight = totalHeight,
+            openingClef = openingClef,
             clefX = clefX,
             keyStartX = keyStartX,
             keySteps = keySteps,
@@ -732,8 +873,10 @@ object ScoreRenderer {
             bottomStaffY = bottomStaffY,
             headerEndX = headerEndX,
             staffEndX = staffEndX,
+            openingClef = openingClef,
             placedMeasures = placedMeasures,
             placedTimeSignatures = placedTimeSignatures,
+            placedClefChanges = allClefChanges,
         )
         return header to layout
     }
@@ -759,6 +902,7 @@ object ScoreRenderer {
         activeItemGlobalIndex: Int? = null,
         selectedLocations: Set<ScoreItemLocation> = emptySet(),
         selectedMeasureIndices: Set<Int> = emptySet(),
+        selectedClefChange: ScoreClefLocation? = null,
         ghostPreview: ScoreGhostPreview? = null,
         rubberBand: ScoreRubberBand? = null,
         cursorPosition: ScoreCursorPosition? = null,
@@ -772,6 +916,7 @@ object ScoreRenderer {
         )
         val sp = layout.staffSpacePx
         val emPx = sp * 4f
+        val changeEmPx = emPx * CLEF_CHANGE_SCALE
         val topStaffY = header.topStaffY
         val bottomStaffY = header.bottomStaffY
         val staffEndX = layout.staffEndX
@@ -784,8 +929,8 @@ object ScoreRenderer {
         }
 
         // 2. Draw clef, key signature, time signature
-        val clefBaselineY = layout.yForStep(score.clef.glyphLineFromBottom * 2)
-        target.drawGlyph(score.clef.glyph, header.clefX, clefBaselineY, emPx, colors.ink)
+        val clefBaselineY = layout.yForStep(header.openingClef.glyphLineFromBottom * 2)
+        target.drawGlyph(header.openingClef.glyph, header.clefX, clefBaselineY, emPx, colors.ink)
 
         header.keySteps.forEachIndexed { idx, stepOffset ->
             val kx = header.keyStartX + idx * header.keyGlyphStepWidth
@@ -906,6 +1051,31 @@ object ScoreRenderer {
                     selectedChordNoteIndices = selectedChordIndices,
                     selectedNoteColor = chordNoteHighlightColor,
                 )
+            }
+
+            // Mid-measure and before-barline clef changes (drawn at 72% size)
+            val clefsToDraw = buildList {
+                addAll(pm.clefChanges)
+                pm.barlineClefChange?.let { add(it) }
+            }
+            for (cc in clefsToDraw) {
+                val isClefSelected = cc.location == selectedClefChange
+                if (isClefSelected) {
+                    val pad = sp * 0.25f
+                    val rx = cc.x - pad
+                    val ry = topStaffY - sp * 0.4f
+                    val rw = cc.width + pad * 2f
+                    val rh = (bottomStaffY - topStaffY) + sp * 0.8f
+                    target.fillRect(rx, ry, rw, rh, colors.selectedBoxFill)
+                    val borderThick = (sp * 0.12f).coerceAtLeast(1f)
+                    target.drawLine(rx, ry, rx + rw, ry, borderThick, colors.selectedBoxBorder)
+                    target.drawLine(rx, ry + rh, rx + rw, ry + rh, borderThick, colors.selectedBoxBorder)
+                    target.drawLine(rx, ry, rx, ry + rh, borderThick, colors.selectedBoxBorder)
+                    target.drawLine(rx + rw, ry, rx + rw, ry + rh, borderThick, colors.selectedBoxBorder)
+                }
+                val clefColor = if (isClefSelected) colors.selectedNote else colors.ink
+                val clefY = layout.yForStep(cc.clef.glyphLineFromBottom * 2)
+                target.drawGlyph(cc.clef.glyph, cc.x, clefY, changeEmPx, clefColor)
             }
 
             // Barline at end of measure

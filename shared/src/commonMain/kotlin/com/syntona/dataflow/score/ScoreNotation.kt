@@ -110,11 +110,55 @@ enum class Clef(
     val glyphLineFromBottom: Int,
     /** Diatonic step of the bottom staff line (`line 0`). */
     val bottomLineDiatonicStep: Int,
+    val label: String,
 ) {
     TREBLE(
         glyph = SmuflGlyphs.G_CLEF,
         glyphLineFromBottom = 1, // G4 sits on 2nd line from bottom
         bottomLineDiatonicStep = 4 * 7 + NoteLetter.E.ordinal, // E4
+        label = "Treble",
+    ),
+    BASS(
+        glyph = SmuflGlyphs.F_CLEF,
+        glyphLineFromBottom = 3, // F3 sits on 4th line from bottom
+        bottomLineDiatonicStep = 2 * 7 + NoteLetter.G.ordinal, // G2
+        label = "Bass",
+    ),
+    ALTO(
+        glyph = SmuflGlyphs.C_CLEF,
+        glyphLineFromBottom = 2, // C4 sits on 3rd (middle) line
+        bottomLineDiatonicStep = 3 * 7 + NoteLetter.F.ordinal, // F3
+        label = "Alto",
+    ),
+    TENOR(
+        glyph = SmuflGlyphs.C_CLEF,
+        glyphLineFromBottom = 3, // C4 sits on 4th line from bottom
+        bottomLineDiatonicStep = 3 * 7 + NoteLetter.D.ordinal, // D3
+        label = "Tenor",
+    ),
+    TREBLE_8VB(
+        glyph = SmuflGlyphs.G_CLEF_8VB,
+        glyphLineFromBottom = 1, // G3 sits on 2nd line from bottom
+        bottomLineDiatonicStep = 3 * 7 + NoteLetter.E.ordinal, // E3
+        label = "Treble 8vb",
+    ),
+    TREBLE_8VA(
+        glyph = SmuflGlyphs.G_CLEF_8VA,
+        glyphLineFromBottom = 1, // G5 sits on 2nd line from bottom
+        bottomLineDiatonicStep = 5 * 7 + NoteLetter.E.ordinal, // E5
+        label = "Treble 8va",
+    ),
+    BASS_8VB(
+        glyph = SmuflGlyphs.F_CLEF_8VB,
+        glyphLineFromBottom = 3, // F2 sits on 4th line from bottom
+        bottomLineDiatonicStep = 1 * 7 + NoteLetter.G.ordinal, // G1
+        label = "Bass 8vb",
+    ),
+    BASS_8VA(
+        glyph = SmuflGlyphs.F_CLEF_8VA,
+        glyphLineFromBottom = 3, // F4 sits on 4th line from bottom
+        bottomLineDiatonicStep = 3 * 7 + NoteLetter.G.ordinal, // G3
+        label = "Bass 8va",
     );
 
     /** Staff step offset relative to the bottom line (`0` = bottom line, `4` = middle line `B4`, `8` = top line `F5`). */
@@ -165,16 +209,25 @@ enum class KeySignature(val fifths: Int, val label: String) {
         return 0
     }
 
-    /** Ordered staff steps (from bottom line E4 = 0) for key signature glyphs in treble clef. */
-    fun trebleStaffSteps(): List<Int> {
+    /** Ordered staff steps (from bottom line = 0) for key signature glyphs in [clef]. */
+    fun staffSteps(clef: Clef): List<Int> {
+        val (sharps, flats) = when (clef) {
+            Clef.TREBLE, Clef.TREBLE_8VB, Clef.TREBLE_8VA -> TREBLE_SHARP_STEPS to TREBLE_FLAT_STEPS
+            Clef.BASS, Clef.BASS_8VB, Clef.BASS_8VA -> BASS_SHARP_STEPS to BASS_FLAT_STEPS
+            Clef.ALTO -> ALTO_SHARP_STEPS to ALTO_FLAT_STEPS
+            Clef.TENOR -> TENOR_SHARP_STEPS to TENOR_FLAT_STEPS
+        }
         return if (fifths > 0) {
-            TREBLE_SHARP_STEPS.take(fifths)
+            sharps.take(fifths)
         } else if (fifths < 0) {
-            TREBLE_FLAT_STEPS.take(-fifths)
+            flats.take(-fifths)
         } else {
             emptyList()
         }
     }
+
+    /** Ordered staff steps (from bottom line E4 = 0) for key signature glyphs in treble clef. */
+    fun trebleStaffSteps(): List<Int> = staffSteps(Clef.TREBLE)
 
     companion object {
         private val SHARP_ORDER = listOf(
@@ -188,6 +241,18 @@ enum class KeySignature(val fifths: Int, val label: String) {
 
         // Standard treble-clef flat positions (B4, E5, A4, D5, G4, C5, F4) relative to bottom line E4
         private val TREBLE_FLAT_STEPS = listOf(4, 7, 3, 6, 2, 5, 1)
+
+        // Standard bass-clef positions relative to bottom line G2
+        private val BASS_SHARP_STEPS = listOf(6, 3, 7, 4, 1, 5, 2)
+        private val BASS_FLAT_STEPS = listOf(2, 5, 1, 4, 0, 3, -1)
+
+        // Standard alto-clef positions relative to bottom line F3
+        private val ALTO_SHARP_STEPS = listOf(7, 4, 8, 5, 2, 6, 3)
+        private val ALTO_FLAT_STEPS = listOf(3, 6, 2, 5, 1, 4, 0)
+
+        // Standard tenor-clef positions relative to bottom line D3
+        private val TENOR_SHARP_STEPS = listOf(2, 6, 3, 7, 4, 8, 5)
+        private val TENOR_FLAT_STEPS = listOf(5, 8, 4, 7, 3, 6, 2)
 
         val COMMON_PHASE1_PRESETS = listOf(
             F_MAJOR, C_MAJOR, G_MAJOR, D_MAJOR, A_MAJOR, B_FLAT, E_FLAT
@@ -367,6 +432,13 @@ data class ScoreMeasure(
     val items: List<ScoreItem>,
     val keySignature: KeySignature? = null,
     val timeSignature: TimeSignature? = null,
+    val clefChanges: Map<Int, Clef> = emptyMap(),
+)
+
+/** Identifies the opening clef (`0, 0`) or a mid-score clef change before `(measureIdx, itemIdx)`. */
+data class ScoreClefLocation(
+    val measureIdx: Int,
+    val itemIdx: Int,
 )
 
 /**
@@ -471,6 +543,7 @@ object ScoreEditing {
         itemIdx: Int,
         item: ScoreItem,
         appendNewMeasure: Boolean = false,
+        shiftClefAtIndex: Boolean = false,
     ): Pair<List<ScoreMeasure>, ScoreItemLocation> {
         val updated = measures.toMutableList()
         if (appendNewMeasure || updated.isEmpty() || measureIdx >= updated.size) {
@@ -481,7 +554,21 @@ object ScoreEditing {
         val m = updated[measureIdx]
         val clampedIdx = itemIdx.coerceIn(0, m.items.size)
         val newItems = m.items.toMutableList().apply { add(clampedIdx, item) }
-        updated[measureIdx] = m.copy(items = newItems)
+        val updatedClefs = if (m.clefChanges.isEmpty()) {
+            m.clefChanges
+        } else {
+            buildMap {
+                for ((k, clef) in m.clefChanges) {
+                    val newK = if (k > clampedIdx || (shiftClefAtIndex && k > 0 && k == clampedIdx)) {
+                        k + 1
+                    } else {
+                        k
+                    }
+                    put(newK, clef)
+                }
+            }
+        }
+        updated[measureIdx] = m.copy(items = newItems, clefChanges = updatedClefs)
         return renumber(updated) to ScoreItemLocation(measureIdx, clampedIdx)
     }
 
@@ -683,6 +770,7 @@ object ScoreEditing {
             val measureSelections = byMeasure[mIdx] ?: return@mapIndexed m
             val byItem = measureSelections.groupBy { it.itemIdx }
             val nextItems = ArrayList<ScoreItem>(m.items.size)
+            val removedIndices = mutableListOf<Int>()
             for ((iIdx, item) in m.items.withIndex()) {
                 val locs = byItem[iIdx]
                 if (locs == null) {
@@ -690,16 +778,38 @@ object ScoreEditing {
                 } else if (item is ScoreItem.Chord && locs.none { it.chordNoteIdx == null }) {
                     val removeSet = locs.mapNotNull { it.chordNoteIdx }.toSet()
                     val remaining = item.pitches.filterIndexed { pIdx, _ -> pIdx !in removeSet }
-                    itemFromPitches(
+                    val reduced = itemFromPitches(
                         pitches = remaining,
                         duration = item.duration,
                         isDotted = item.isDotted,
                         amplitude = item.amplitude,
                         isStaccato = item.isStaccato,
-                    )?.let { nextItems.add(it) }
+                    )
+                    if (reduced != null) {
+                        nextItems.add(reduced)
+                    } else {
+                        removedIndices.add(iIdx)
+                    }
+                } else {
+                    removedIndices.add(iIdx)
                 }
             }
-            m.copy(items = nextItems)
+            val nextClefs = if (m.clefChanges.isEmpty() || removedIndices.isEmpty()) {
+                m.clefChanges
+            } else {
+                buildMap {
+                    for ((k, clef) in m.clefChanges.entries.sortedBy { it.key }) {
+                        if (k == 0) {
+                            put(0, clef)
+                        } else {
+                            val removedBefore = removedIndices.count { it < k }
+                            val newK = (k - removedBefore).coerceAtLeast(0)
+                            put(newK, clef)
+                        }
+                    }
+                }
+            }
+            m.copy(items = nextItems, clefChanges = nextClefs)
         }
         return renumber(updated)
     }
@@ -840,13 +950,119 @@ object ScoreEditing {
     }
 
     /**
-     * Computes ordered `(staffStep, accidental)` glyphs for a mid-score key change from
-     * [prevKey] to [newKey], including cancellation naturals where appropriate.
+     * Returns the [Clef] in effect at `(measureIdx, itemIdx)`.
+     * [itemIdx] `0` includes a beat-1 clef change on [measureIdx]; `Int.MAX_VALUE` returns the clef
+     * in effect at the end of [measureIdx].
      */
-    fun midMeasureKeyGlyphs(prevKey: KeySignature, newKey: KeySignature): List<Pair<Int, Accidental>> {
+    fun effectiveClefAt(
+        measures: List<ScoreMeasure>,
+        initialClef: Clef,
+        measureIdx: Int,
+        itemIdx: Int = Int.MAX_VALUE,
+    ): Clef {
+        var effective = measures.firstOrNull()?.clefChanges?.get(0) ?: initialClef
+        if (measures.isEmpty()) return effective
+        val limitM = measureIdx.coerceIn(0, measures.lastIndex)
+        for (m in 0..limitM) {
+            val measure = measures[m]
+            val limitI = if (m < limitM) Int.MAX_VALUE else itemIdx
+            for ((idx, clef) in measure.clefChanges.entries.sortedBy { it.key }) {
+                if (m == 0 && idx == 0) continue
+                if (idx <= limitI) {
+                    effective = clef
+                }
+            }
+        }
+        return effective
+    }
+
+    /** Returns `true` if [measures] has an explicit mid-score clef change stored at [location]. */
+    fun hasExplicitClefChangeAt(
+        measures: List<ScoreMeasure>,
+        location: ScoreClefLocation,
+    ): Boolean = measures.getOrNull(location.measureIdx)?.clefChanges?.containsKey(location.itemIdx) == true
+
+    /**
+     * Sets or removes (`newClef == null`) a clef change at [location] (`(0, 0)` sets opening clef).
+     * Existing note pitches are preserved unchanged.
+     */
+    fun setClefChange(
+        initialClef: Clef,
+        measures: List<ScoreMeasure>,
+        location: ScoreClefLocation,
+        newClef: Clef?,
+    ): Pair<Clef, List<ScoreMeasure>> {
+        val normalized = renumber(measures)
+        if (location.measureIdx !in normalized.indices) return initialClef to normalized
+        if (location.measureIdx == 0 && location.itemIdx <= 0) {
+            if (newClef == null) return initialClef to normalized
+            val m0 = normalized[0]
+            val nextMeasures = if (0 in m0.clefChanges) {
+                val updatedClefs = m0.clefChanges.toMutableMap().apply { remove(0) }
+                normalized.toMutableList().apply { set(0, m0.copy(clefChanges = updatedClefs)) }
+            } else {
+                normalized
+            }
+            return newClef to nextMeasures
+        }
+        val m = normalized[location.measureIdx]
+        val clampedItemIdx = location.itemIdx.coerceIn(0, m.items.size)
+        val prevEffective = if (clampedItemIdx == 0) {
+            effectiveClefAt(normalized, initialClef, location.measureIdx - 1, Int.MAX_VALUE)
+        } else {
+            effectiveClefAt(normalized, initialClef, location.measureIdx, clampedItemIdx - 1)
+        }
+        val nextClefs = m.clefChanges.toMutableMap()
+        if (newClef == null || newClef == prevEffective) {
+            nextClefs.remove(clampedItemIdx)
+        } else {
+            nextClefs[clampedItemIdx] = newClef
+        }
+        if (nextClefs == m.clefChanges) return initialClef to normalized
+        val nextMeasures = normalized.toMutableList().apply {
+            set(location.measureIdx, m.copy(clefChanges = nextClefs))
+        }
+        return initialClef to nextMeasures
+    }
+
+    /**
+     * Resolves the target [ScoreClefLocation] from editor selection/cursor state.
+     * Priority: explicit selected clef change, first selected item, active insertion cursor
+     * (so a mid-measure cursor is not shadowed by single-measure click highlight), selected
+     * measure beat 1, or the opening `(0, 0)` clef.
+     */
+    fun resolveTargetClefLocation(
+        selectedClefChange: ScoreClefLocation?,
+        selectedLocations: Set<ScoreItemLocation>,
+        cursorPosition: ScoreCursorPosition?,
+        selectedMeasures: Set<Int>,
+    ): ScoreClefLocation {
+        selectedClefChange?.let { return it }
+        if (selectedLocations.isNotEmpty()) {
+            val first = selectedLocations
+                .map { it.slotLocation() }
+                .minWith(compareBy<ScoreItemLocation> { it.measureIdx }.thenBy { it.itemIdx })
+            return ScoreClefLocation(first.measureIdx, first.itemIdx)
+        }
+        cursorPosition?.let { return ScoreClefLocation(it.measureIdx, it.itemIdx) }
+        if (selectedMeasures.isNotEmpty()) {
+            return ScoreClefLocation(selectedMeasures.min(), 0)
+        }
+        return ScoreClefLocation(0, 0)
+    }
+
+    /**
+     * Computes ordered `(staffStep, accidental)` glyphs for a mid-score key change from
+     * [prevKey] to [newKey] in [clef], including cancellation naturals where appropriate.
+     */
+    fun midMeasureKeyGlyphs(
+        prevKey: KeySignature,
+        newKey: KeySignature,
+        clef: Clef = Clef.TREBLE,
+    ): List<Pair<Int, Accidental>> {
         if (newKey == prevKey) return emptyList()
-        val prevSteps = prevKey.trebleStaffSteps()
-        val newSteps = newKey.trebleStaffSteps()
+        val prevSteps = prevKey.staffSteps(clef)
+        val newSteps = newKey.staffSteps(clef)
         if (newKey.fifths == 0) {
             return prevSteps.map { it to Accidental.NATURAL }
         }
