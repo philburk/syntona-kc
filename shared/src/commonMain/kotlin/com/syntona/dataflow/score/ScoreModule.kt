@@ -123,15 +123,41 @@ class ScoreModule : Module("score"), EngineAware {
     override fun execute(triggerMessage: Message) {
         val now = triggerMessage.time
         when {
-            start.isKicked -> startPlayback(now)
+            start.isKicked -> startPlayback(now, startCursor = null)
             stop.isKicked -> stopPlayback(now)
         }
     }
 
+    /**
+     * Toggles playback from the UI Play button or Spacebar.
+     * Starts from [cursorPosition] (or from the beginning when `cursorPosition == null`).
+     */
     fun requestPlayToggle() {
         val e = engine ?: return
-        val jack = if (isPlaying) stop else start
-        e.post(KickJackCommand(jack, ScoreClock.now()))
+        if (isPlaying) {
+            e.post(KickJackCommand(stop, ScoreClock.now()))
+        } else {
+            e.post(PlayScoreFromCursorCommand(this, ScoreClock.now()))
+        }
+    }
+
+    /**
+     * Stops playback if running and moves the cursor to the beginning of the score.
+     */
+    fun requestRewind() {
+        if (isPlaying) {
+            val e = engine
+            if (e != null) {
+                e.post(KickJackCommand(stop, ScoreClock.now()))
+            } else {
+                stopPlayback(ScoreClock.now())
+            }
+        }
+        cursorPosition = ScoreCursorPosition(0, 0)
+    }
+
+    internal fun startPlaybackFromCursor(now: ScoreTime = ScoreClock.now()) {
+        startPlayback(now, startCursor = cursorPosition)
     }
 
     /**
@@ -143,7 +169,10 @@ class ScoreModule : Module("score"), EngineAware {
         e.post(PreviewScoreNoteCommand(output, pitch, durationMs))
     }
 
-    private fun startPlayback(now: ScoreTime) {
+    private fun startPlayback(
+        now: ScoreTime,
+        startCursor: ScoreCursorPosition? = null,
+    ) {
         if (isPlaying) stopPlayback(now)
         val e = engine ?: return
 
@@ -152,9 +181,23 @@ class ScoreModule : Module("score"), EngineAware {
         val measures = scoreData.measures
         if (measures.none { it.items.isNotEmpty() }) return
 
+        val targetCursor = startCursor?.let { raw ->
+            val clampedM = raw.measureIdx.coerceIn(0, measures.lastIndex)
+            val clampedI = raw.itemIdx.coerceIn(0, measures[clampedM].items.size)
+            ScoreCursorPosition(clampedM, clampedI)
+        }
+        if (targetCursor != null) {
+            val hasRemainingItem = (targetCursor.measureIdx..measures.lastIndex).any { mIdx ->
+                val startSlot = if (mIdx == targetCursor.measureIdx) targetCursor.itemIdx else 0
+                startSlot < measures[mIdx].items.size
+            }
+            if (!hasRemainingItem) return
+        }
+
         var effectiveTime = measures.firstOrNull()?.timeSignature ?: scoreData.timeSignature
         isPlaying = true
         var tickCursor = 0L
+        var startTick: Long? = if (targetCursor == null) 0L else null
         var globalIdx = 0
         var nextVoiceTag = 0
         var hasActiveHighlight = false
@@ -167,6 +210,10 @@ class ScoreModule : Module("score"), EngineAware {
             val measureCapacityTicks = effectiveTime.measureCapacityTicks.toLong().coerceAtLeast(0L)
             val measureStartTick = tickCursor
             for ((slotIdx, item) in measure.items.withIndex()) {
+                if (startTick == null && targetCursor != null && mIdx == targetCursor.measureIdx && slotIdx >= targetCursor.itemIdx) {
+                    startTick = tickCursor
+                }
+                val resolvedStart = startTick
                 val (attackDyn, nextSustained) = ScoreEditing.resolvePlaybackDynamicStep(
                     measure.dynamics[slotIdx],
                     sustainedDynamic,
@@ -174,51 +221,57 @@ class ScoreModule : Module("score"), EngineAware {
                 sustainedDynamic = nextSustained
                 val itemIdx = globalIdx++
                 val itemTicks = item.totalTicks.toLong()
-                val onTime = now + ScoreTime((tickCursor * nsPerTick).roundToLong())
-                val offTime = now + ScoreTime(((tickCursor + itemTicks) * nsPerTick).roundToLong())
-                val fullDurSec = (offTime.nanoseconds - onTime.nanoseconds).coerceAtLeast(0L) / 1_000_000_000.0
-                val soundingPitches = item.soundingPitches()
-                val soundingDurSec = if (soundingPitches.isNotEmpty() && item.noteStaccato()) {
-                    minOf(fullDurSec * STACCATO_DURATION_FRACTION, MAX_STACCATO_SECONDS)
-                        .coerceAtLeast(minOf(MIN_STACCATO_SECONDS, fullDurSec))
-                } else {
-                    fullDurSec
-                }
-                val soundingOffTime = onTime + ScoreTime((soundingDurSec * 1_000_000_000.0).roundToLong())
-                val voiceTags = List(soundingPitches.size) { nextVoiceTag++ }
-                val effectiveAmp = if (attackDyn != null) {
-                    ((item.noteAmplitude() / 0.25) * attackDyn.amplitude).coerceIn(0.0, 1.0)
-                } else {
-                    item.noteAmplitude()
-                }
-
-                scheduledEvents.add(e.schedule(onTime) {
-                    activeItemIndex = itemIdx
-                    if (soundingPitches.isNotEmpty()) {
-                        soundingPitches.forEachIndexed { idx, spelled ->
-                            val pitch = spelled.midiPitch.toDouble()
-                            val tag = voiceTags[idx]
-                            output.send(
-                                Message.VoiceMessage(
-                                    time = onTime,
-                                    opcode = Message.VoiceOpcode.NOTE,
-                                    tag = tag,
-                                    value = pitch,
-                                    extra = effectiveAmp,
-                                    duration = soundingDurSec,
-                                )
-                            )
-                            soundingNotes[tag] = pitch
-                        }
+                if (resolvedStart != null) {
+                    val relStartTick = tickCursor - resolvedStart
+                    val onTime = now + ScoreTime((relStartTick * nsPerTick).roundToLong())
+                    val offTime = now + ScoreTime(((relStartTick + itemTicks) * nsPerTick).roundToLong())
+                    val fullDurSec = (offTime.nanoseconds - onTime.nanoseconds).coerceAtLeast(0L) / 1_000_000_000.0
+                    val soundingPitches = item.soundingPitches()
+                    val soundingDurSec = if (soundingPitches.isNotEmpty() && item.noteStaccato()) {
+                        minOf(fullDurSec * STACCATO_DURATION_FRACTION, MAX_STACCATO_SECONDS)
+                            .coerceAtLeast(minOf(MIN_STACCATO_SECONDS, fullDurSec))
+                    } else {
+                        fullDurSec
                     }
-                })
-                if (soundingPitches.isNotEmpty()) {
-                    scheduledEvents.add(e.schedule(soundingOffTime) {
-                        voiceTags.forEach { soundingNotes.remove(it) }
+                    val soundingOffTime = onTime + ScoreTime((soundingDurSec * 1_000_000_000.0).roundToLong())
+                    val voiceTags = List(soundingPitches.size) { nextVoiceTag++ }
+                    val effectiveAmp = if (attackDyn != null) {
+                        ((item.noteAmplitude() / 0.25) * attackDyn.amplitude).coerceIn(0.0, 1.0)
+                    } else {
+                        item.noteAmplitude()
+                    }
+
+                    scheduledEvents.add(e.schedule(onTime) {
+                        activeItemIndex = itemIdx
+                        if (soundingPitches.isNotEmpty()) {
+                            soundingPitches.forEachIndexed { idx, spelled ->
+                                val pitch = spelled.midiPitch.toDouble()
+                                val tag = voiceTags[idx]
+                                output.send(
+                                    Message.VoiceMessage(
+                                        time = onTime,
+                                        opcode = Message.VoiceOpcode.NOTE,
+                                        tag = tag,
+                                        value = pitch,
+                                        extra = effectiveAmp,
+                                        duration = soundingDurSec,
+                                    )
+                                )
+                                soundingNotes[tag] = pitch
+                            }
+                        }
                     })
+                    if (soundingPitches.isNotEmpty()) {
+                        scheduledEvents.add(e.schedule(soundingOffTime) {
+                            voiceTags.forEach { soundingNotes.remove(it) }
+                        })
+                    }
+                    hasActiveHighlight = true
                 }
-                hasActiveHighlight = true
                 tickCursor += itemTicks
+            }
+            if (startTick == null && targetCursor != null && mIdx == targetCursor.measureIdx && targetCursor.itemIdx >= measure.items.size) {
+                startTick = tickCursor
             }
 
             // Honor the time signature by treating missing space in empty/incomplete measures as rests.
@@ -229,8 +282,8 @@ class ScoreModule : Module("score"), EngineAware {
             }
             val measureTicks = tickCursor - measureStartTick
             if (measureTicks < measureCapacityTicks) {
-                if (hasActiveHighlight) {
-                    val restStartTime = now + ScoreTime((tickCursor * nsPerTick).roundToLong())
+                if (hasActiveHighlight && startTick != null) {
+                    val restStartTime = now + ScoreTime(((tickCursor - startTick) * nsPerTick).roundToLong())
                     scheduledEvents.add(e.schedule(restStartTime) {
                         activeItemIndex = null
                     })
@@ -240,7 +293,8 @@ class ScoreModule : Module("score"), EngineAware {
             }
         }
 
-        val endTime = now + ScoreTime((tickCursor * nsPerTick).roundToLong()) + ScoreTime(1L)
+        val resolvedStartTick = startTick ?: 0L
+        val endTime = now + ScoreTime(((tickCursor - resolvedStartTick).coerceAtLeast(0L) * nsPerTick).roundToLong()) + ScoreTime(1L)
         scheduledEvents.add(e.schedule(endTime) {
             activeItemIndex = null
             isPlaying = false
@@ -281,6 +335,19 @@ class ScoreModule : Module("score"), EngineAware {
         const val MAX_STACCATO_SECONDS = 0.08
         const val MIN_STACCATO_SECONDS = 0.015
     }
+}
+
+private class PlayScoreFromCursorCommand(
+    private val module: ScoreModule,
+    private val now: ScoreTime,
+) : SyntonaCommand {
+    override val isUndoable = false
+
+    override fun execute() {
+        module.startPlaybackFromCursor(now)
+    }
+
+    override fun undo() {}
 }
 
 private class PreviewScoreNoteCommand(

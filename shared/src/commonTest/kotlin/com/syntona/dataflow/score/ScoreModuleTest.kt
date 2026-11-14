@@ -2676,4 +2676,91 @@ class ScoreModuleTest {
         assertEquals(DynamicMark.F.amplitude, amps[7], 1e-6)
         assertEquals(DynamicMark.P.amplitude, amps[8], 1e-6)
     }
+
+    @Test
+    fun testPlayFromCursorRewindAndStartJackFromBeginning() {
+        val engine = TestEngine()
+        val score = ScoreModule()
+        score.setEngine(engine)
+        val receiver = VoiceReceiver()
+        score.output.connect(receiver.inJack)
+
+        val c4 = ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 4), NoteDuration.QUARTER)
+        val d4 = ScoreItem.Note(SpelledPitch(NoteLetter.D, 0, 4), NoteDuration.QUARTER)
+        val e4 = ScoreItem.Note(SpelledPitch(NoteLetter.E, 0, 4), NoteDuration.QUARTER)
+        val f4 = ScoreItem.Note(SpelledPitch(NoteLetter.F, 0, 4), NoteDuration.QUARTER)
+        val g4 = ScoreItem.Note(SpelledPitch(NoteLetter.G, 0, 4), NoteDuration.QUARTER)
+
+        // M1 has dynamic P on C4 and 2 quarter notes + 2 missing beats; M2 has E4, F4, G4.
+        score.scoreData.replaceMeasures(
+            listOf(
+                ScoreMeasure(
+                    1,
+                    listOf(c4, d4),
+                    dynamics = mapOf(0 to ScoreDynamicMarking(DynamicMark.P, DynamicPlacement.BELOW)),
+                ),
+                ScoreMeasure(2, listOf(e4, f4, g4)),
+            )
+        )
+
+        // 1. Place cursor on Measure 2 slot 1 (F4) and start playback from cursor
+        score.placeCursor(ScoreCursorPosition(1, 1))
+        score.startPlaybackFromCursor(ScoreTime(0L))
+        assertTrue(score.isPlaying)
+        for ((_, action) in engine.scheduled) {
+            action()
+        }
+        assertFalse(score.isPlaying)
+        // F4 and G4 play immediately starting at t=0, inheriting dynamic P from Measure 1!
+        assertEquals(listOf(f4.pitch.midiPitch.toDouble(), g4.pitch.midiPitch.toDouble()), receiver.received.map { it.value })
+        assertEquals(0L, receiver.received[0].time.nanoseconds)
+        assertTrue(receiver.received[1].time.nanoseconds > 0L)
+        assertEquals(DynamicMark.P.amplitude, receiver.received[0].extra, 1e-6)
+        assertEquals(DynamicMark.P.amplitude, receiver.received[1].extra, 1e-6)
+
+        // 2. Trailing cursor in incomplete M1 (slot 2, after D4): M2 E4 waits for the 2 missing beats of M1
+        engine.scheduled.clear()
+        receiver.received.clear()
+        score.placeCursor(ScoreCursorPosition(0, 2))
+        score.startPlaybackFromCursor(ScoreTime(0L))
+        for ((_, action) in engine.scheduled) {
+            action()
+        }
+        assertEquals(3, receiver.received.size)
+        assertEquals(e4.pitch.midiPitch.toDouble(), receiver.received[0].value)
+        // Two beats at 120 BPM = 1.0s
+        assertEquals(1_000_000_000L, receiver.received[0].time.nanoseconds)
+
+        // 3. Triggering the "start" jack STILL plays from the very beginning regardless of cursorPosition
+        engine.scheduled.clear()
+        receiver.received.clear()
+        score.placeCursor(ScoreCursorPosition(1, 2))
+        score.start.receive(Message.FloatValue(ScoreTime(0L), 1.0))
+        for ((_, action) in engine.scheduled) {
+            action()
+        }
+        assertEquals(
+            listOf(c4, d4, e4, f4, g4).map { it.pitch.midiPitch.toDouble() },
+            receiver.received.map { it.value },
+        )
+        assertEquals(0L, receiver.received[0].time.nanoseconds)
+
+        // 4. Cursor at end of score (after last note) does not get stuck in isPlaying
+        engine.scheduled.clear()
+        receiver.received.clear()
+        score.placeCursor(ScoreCursorPosition(1, 3))
+        score.startPlaybackFromCursor(ScoreTime(0L))
+        assertFalse(score.isPlaying)
+        assertTrue(engine.scheduled.isEmpty())
+
+        // 5. Rewind moves cursor to the beginning (0, 0) and playback starts from beginning again
+        score.requestRewind()
+        assertEquals(ScoreCursorPosition(0, 0), score.cursorPosition)
+        score.startPlaybackFromCursor(ScoreTime(0L))
+        for ((_, action) in engine.scheduled) {
+            action()
+        }
+        assertEquals(5, receiver.received.size)
+        assertEquals(c4.pitch.midiPitch.toDouble(), receiver.received[0].value)
+    }
 }

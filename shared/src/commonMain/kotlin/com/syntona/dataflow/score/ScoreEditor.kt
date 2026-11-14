@@ -107,6 +107,7 @@ import com.syntona.dataflow.editor.scoreSymbolCursor
 import com.syntona.dataflow.engine.SyntonaCommand
 import com.syntona.ui.PlayIcon
 import com.syntona.ui.RecordIcon
+import com.syntona.ui.RewindIcon
 import com.syntona.ui.StopIcon
 import kotlinx.coroutines.launch
 import org.jetbrains.compose.resources.Font
@@ -839,6 +840,31 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            TextButton(
+                onClick = {
+                    module.requestRewind()
+                    selectedLocations = emptySet()
+                    selectedMeasures = emptySet()
+                    selectedClefChange = null
+                    selectedDynamics = emptySet()
+                    activePitchText = null
+                    activeChordName = null
+                    coroutineScope.launch { scrollState.animateScrollTo(0) }
+                },
+                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+                modifier = Modifier
+                    .height(28.dp)
+                    .focusProperties { canFocus = false },
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    RewindIcon(color = toolbarText, size = 10.dp)
+                    Text("Rewind", fontSize = 12.sp, color = toolbarText)
+                }
+            }
+
             TextButton(
                 onClick = { module.requestPlayToggle() },
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
