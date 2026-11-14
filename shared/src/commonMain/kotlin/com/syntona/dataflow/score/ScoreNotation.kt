@@ -404,12 +404,19 @@ sealed interface ScoreItem {
         is Rest -> false
     }
 
+    fun tiedMidiPitches(): Set<Int> = when (this) {
+        is Note -> if (isTiedToNext) setOf(pitch.midiPitch) else emptySet()
+        is Chord -> tiedMidiPitches
+        is Rest -> emptySet()
+    }
+
     data class Note(
         val pitch: SpelledPitch,
         override val duration: NoteDuration,
         override val isDotted: Boolean = false,
         val amplitude: Double = 0.25,
         val isStaccato: Boolean = false,
+        val isTiedToNext: Boolean = false,
     ) : ScoreItem
 
     /** Vertically aligned chord of two or more simultaneous pitches sharing one stem/duration. */
@@ -419,6 +426,7 @@ sealed interface ScoreItem {
         override val isDotted: Boolean = false,
         val amplitude: Double = 0.25,
         val isStaccato: Boolean = false,
+        val tiedMidiPitches: Set<Int> = emptySet(),
     ) : ScoreItem
 
     data class Rest(
@@ -558,24 +566,33 @@ object ScoreEditing {
         isDotted: Boolean = false,
         amplitude: Double = 0.25,
         isStaccato: Boolean = false,
+        tiedMidiPitches: Set<Int> = emptySet(),
     ): ScoreItem? {
         val sorted = normalizeChordPitches(pitches)
         return when {
             sorted.isEmpty() -> null
-            sorted.size == 1 -> ScoreItem.Note(
-                pitch = sorted.first(),
-                duration = duration,
-                isDotted = isDotted,
-                amplitude = amplitude,
-                isStaccato = isStaccato,
-            )
-            else -> ScoreItem.Chord(
-                pitches = sorted,
-                duration = duration,
-                isDotted = isDotted,
-                amplitude = amplitude,
-                isStaccato = isStaccato,
-            )
+            sorted.size == 1 -> {
+                val p = sorted.first()
+                ScoreItem.Note(
+                    pitch = p,
+                    duration = duration,
+                    isDotted = isDotted,
+                    amplitude = amplitude,
+                    isStaccato = isStaccato,
+                    isTiedToNext = p.midiPitch in tiedMidiPitches,
+                )
+            }
+            else -> {
+                val validMidis = sorted.map { it.midiPitch }.toSet()
+                ScoreItem.Chord(
+                    pitches = sorted,
+                    duration = duration,
+                    isDotted = isDotted,
+                    amplitude = amplitude,
+                    isStaccato = isStaccato,
+                    tiedMidiPitches = tiedMidiPitches intersect validMidis,
+                )
+            }
         }
     }
 
@@ -596,7 +613,7 @@ object ScoreEditing {
             is ScoreItem.Rest -> return measures to slotLoc
         }
         val combined = normalizeChordPitches(existingPitches + pitch)
-        val newItem = itemFromPitches(combined, dur, dotted, amp, stacc) ?: return measures to slotLoc
+        val newItem = itemFromPitches(combined, dur, dotted, amp, stacc, item.tiedMidiPitches()) ?: return measures to slotLoc
         val newMeasures = replaceItem(measures, slot, newItem)
         val newLoc = if (newItem is ScoreItem.Chord) {
             val idx = newItem.pitches.indexOfFirst { it.diatonicStep == pitch.diatonicStep }
@@ -738,12 +755,25 @@ object ScoreEditing {
         return when (val item = itemAt(measures, slot)) {
             is ScoreItem.Note -> {
                 if (item.pitch == newPitch) measures to slot
-                else replaceItem(measures, slot, item.copy(pitch = newPitch)) to slot
+                else replaceItem(
+                    measures,
+                    slot,
+                    item.copy(
+                        pitch = newPitch,
+                        isTiedToNext = item.isTiedToNext && item.pitch.midiPitch == newPitch.midiPitch,
+                    ),
+                ) to slot
             }
             is ScoreItem.Chord -> {
                 val noteIdx = loc.chordNoteIdx ?: return measures to loc
                 if (noteIdx !in item.pitches.indices) return measures to loc
                 if (item.pitches[noteIdx] == newPitch) return measures to loc
+                val oldMidi = item.pitches[noteIdx].midiPitch
+                val keptTies = if (oldMidi == newPitch.midiPitch) {
+                    item.tiedMidiPitches
+                } else {
+                    item.tiedMidiPitches - oldMidi
+                }
                 val rawList = item.pitches.toMutableList()
                 rawList[noteIdx] = newPitch
                 // Avoid collapsing another existing notehead while dragging past it cleanly: keep distinct steps
@@ -759,6 +789,7 @@ object ScoreEditing {
                     item.isDotted,
                     item.amplitude,
                     item.isStaccato,
+                    keptTies,
                 ) ?: return measures to loc
                 val nextMeasures = replaceItem(measures, slot, newItem)
                 val nextLoc = if (newItem is ScoreItem.Chord) {
@@ -791,7 +822,11 @@ object ScoreEditing {
                     is ScoreItem.Note -> if (item.pitch.alter != alter) {
                         measureChanged = true
                         anyChanged = true
-                        item.copy(pitch = item.pitch.copy(alter = alter))
+                        val updatedPitch = item.pitch.copy(alter = alter)
+                        item.copy(
+                            pitch = updatedPitch,
+                            isTiedToNext = item.isTiedToNext && item.pitch.midiPitch == updatedPitch.midiPitch,
+                        )
                     } else {
                         item
                     }
@@ -799,10 +834,13 @@ object ScoreEditing {
                         val applyAll = locs.any { it.chordNoteIdx == null }
                         val targetIndices = if (applyAll) item.pitches.indices.toSet() else locs.mapNotNull { it.chordNoteIdx }.toSet()
                         var itemChanged = false
+                        val removedTiedMidis = mutableSetOf<Int>()
                         val nextPitches = item.pitches.mapIndexed { pIdx, p ->
                             if (pIdx in targetIndices && p.alter != alter) {
                                 itemChanged = true
-                                p.copy(alter = alter)
+                                val nextP = p.copy(alter = alter)
+                                if (nextP.midiPitch != p.midiPitch) removedTiedMidis.add(p.midiPitch)
+                                nextP
                             } else {
                                 p
                             }
@@ -810,7 +848,10 @@ object ScoreEditing {
                         if (itemChanged) {
                             measureChanged = true
                             anyChanged = true
-                            item.copy(pitches = nextPitches)
+                            item.copy(
+                                pitches = nextPitches,
+                                tiedMidiPitches = item.tiedMidiPitches - removedTiedMidis,
+                            )
                         } else {
                             item
                         }
@@ -919,6 +960,7 @@ object ScoreEditing {
                         isDotted = item.isDotted,
                         amplitude = item.amplitude,
                         isStaccato = item.isStaccato,
+                        tiedMidiPitches = item.tiedMidiPitches,
                     )
                     if (reduced != null) {
                         nextItems.add(reduced)
@@ -1296,6 +1338,7 @@ object ScoreEditing {
                     isDotted = item.isDotted,
                     amplitude = item.amplitude,
                     isStaccato = item.isStaccato,
+                    tiedMidiPitches = item.tiedMidiPitches,
                 )?.let { copied.add(ScoreClipboardItem(it, relMeasure, clefBefore, dynamicAt, beamOverrideAfter)) }
             } else {
                 copied.add(ScoreClipboardItem(item, relMeasure, clefBefore, dynamicAt, beamOverrideAfter))
@@ -2160,6 +2203,85 @@ object ScoreEditing {
         val updated = toggleBeamClick(m, openingClef, effectiveTime, slotLoc.itemIdx)
         if (updated == m) return measures
         return measures.toMutableList().apply { set(slotLoc.measureIdx, updated) }
+    }
+
+    /**
+     * Returns the immediately following slot location in the score (either the next item in the
+     * same measure or the first item of the next measure when it has items), or `null` if none.
+     */
+    fun nextItemLocation(
+        measures: List<ScoreMeasure>,
+        measureIdx: Int,
+        itemIdx: Int,
+    ): ScoreItemLocation? {
+        val measure = measures.getOrNull(measureIdx) ?: return null
+        if (itemIdx < 0 || itemIdx >= measure.items.size) return null
+        if (itemIdx + 1 < measure.items.size) {
+            return ScoreItemLocation(measureIdx, itemIdx + 1)
+        }
+        val nextMeasure = measures.getOrNull(measureIdx + 1) ?: return null
+        return if (nextMeasure.items.isNotEmpty()) ScoreItemLocation(measureIdx + 1, 0) else null
+    }
+
+    /**
+     * Returns `true` when [midiPitch] on item ([measureIdx], [itemIdx]) has an outgoing tie flag
+     * AND the immediately following item contains a note matching [midiPitch].
+     */
+    fun hasActiveTieForPitch(
+        measures: List<ScoreMeasure>,
+        measureIdx: Int,
+        itemIdx: Int,
+        midiPitch: Int,
+    ): Boolean {
+        val item = measures.getOrNull(measureIdx)?.items?.getOrNull(itemIdx) ?: return false
+        if (midiPitch !in item.tiedMidiPitches()) return false
+        val nextLoc = nextItemLocation(measures, measureIdx, itemIdx) ?: return false
+        val nextItem = itemAt(measures, nextLoc) ?: return false
+        return nextItem.soundingPitches().any { it.midiPitch == midiPitch }
+    }
+
+    /**
+     * Toggles a tie from the note (or clicked chord notehead) at [slotLoc] to the immediately
+     * following item in the score whenever a matching MIDI pitch exists on that next item.
+     */
+    fun toggleTieAt(
+        measures: List<ScoreMeasure>,
+        slotLoc: ScoreItemLocation,
+    ): List<ScoreMeasure> {
+        val slot = slotLoc.slotLocation()
+        val item = itemAt(measures, slot) ?: return measures
+        val nextItem = nextItemLocation(measures, slot.measureIdx, slot.itemIdx)?.let { itemAt(measures, it) }
+        val nextMidis = nextItem?.soundingPitches()?.map { it.midiPitch }?.toSet() ?: emptySet()
+        return when (item) {
+            is ScoreItem.Note -> when {
+                item.isTiedToNext -> replaceItem(measures, slot, item.copy(isTiedToNext = false))
+                item.pitch.midiPitch in nextMidis -> replaceItem(measures, slot, item.copy(isTiedToNext = true))
+                else -> measures
+            }
+            is ScoreItem.Chord -> {
+                val noteIdx = slotLoc.chordNoteIdx
+                val nextTies = if (noteIdx != null && noteIdx in item.pitches.indices) {
+                    val targetMidi = item.pitches[noteIdx].midiPitch
+                    when {
+                        targetMidi in item.tiedMidiPitches -> item.tiedMidiPitches - targetMidi
+                        targetMidi in nextMidis -> item.tiedMidiPitches + targetMidi
+                        else -> return measures
+                    }
+                } else {
+                    val tieable = item.pitches.map { it.midiPitch }.filter { it in nextMidis }.toSet()
+                    if (tieable.isEmpty()) {
+                        if (item.tiedMidiPitches.isNotEmpty()) emptySet() else return measures
+                    } else if (tieable.all { it in item.tiedMidiPitches }) {
+                        item.tiedMidiPitches - tieable
+                    } else {
+                        item.tiedMidiPitches + tieable
+                    }
+                }
+                if (nextTies == item.tiedMidiPitches) measures
+                else replaceItem(measures, slot, item.copy(tiedMidiPitches = nextTies))
+            }
+            is ScoreItem.Rest -> measures
+        }
     }
 }
 

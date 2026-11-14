@@ -26,3 +26,7 @@ expect fun scoreDynamicCursor(
 expect fun scoreBeamCursor(
     isDarkMode: Boolean,
 ): PointerIcon
+
+expect fun scoreTieCursor(
+    isDarkMode: Boolean,
+): PointerIcon

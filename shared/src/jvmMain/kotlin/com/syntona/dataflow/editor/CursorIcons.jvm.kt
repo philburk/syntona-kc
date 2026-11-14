@@ -288,3 +288,52 @@ actual fun scoreBeamCursor(isDarkMode: Boolean): PointerIcon {
     beamCursorCache[isDarkMode] = created
     return created
 }
+
+private val tieCursorCache = mutableMapOf<Boolean, PointerIcon>()
+
+actual fun scoreTieCursor(isDarkMode: Boolean): PointerIcon {
+    tieCursorCache[isDarkMode]?.let { return it }
+    val created = try {
+        val toolkit = Toolkit.getDefaultToolkit()
+        val size = 32
+        val best = toolkit.getBestCursorSize(size, size)
+        val w = best.width.coerceAtLeast(size)
+        val h = best.height.coerceAtLeast(size)
+        val img = BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB)
+        val g = img.createGraphics()
+        try {
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+            g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE)
+            val fg = if (isDarkMode) Color(0xF8, 0xFA, 0xFC) else Color(0x11, 0x18, 0x27)
+            val halo = if (isDarkMode) Color(0x0F, 0x17, 0x2A, 220) else Color(0xFF, 0xFF, 0xFF, 235)
+            fun paintTiePair(color: Color, expand: Float) {
+                g.color = color
+                val saved = g.transform
+                for ((cx, cy) in listOf(9.0 to 16.0, 22.0 to 16.0)) {
+                    g.translate(cx, cy)
+                    g.rotate(-0.35)
+                    val rx = 7.4 + expand * 1.4
+                    val ry = 5.2 + expand * 1.4
+                    g.fill(Ellipse2D.Double(-rx * 0.5, -ry * 0.5, rx, ry))
+                    g.transform = saved
+                }
+                val arc = GeneralPath().apply {
+                    moveTo(9.0, 20.5)
+                    curveTo(12.5, 27.0, 18.5, 27.0, 22.0, 20.5)
+                }
+                g.stroke = BasicStroke(2.2f + expand * 1.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
+                g.draw(arc)
+            }
+            paintTiePair(halo, 1.5f)
+            paintTiePair(fg, 0f)
+        } finally {
+            g.dispose()
+        }
+        val hotSpot = Point(9.coerceIn(0, w - 1), 16.coerceIn(0, h - 1))
+        PointerIcon(toolkit.createCustomCursor(img, hotSpot, "score-tie-${if (isDarkMode) "dark" else "light"}"))
+    } catch (_: Throwable) {
+        crosshairCursor()
+    }
+    tieCursorCache[isDarkMode] = created
+    return created
+}

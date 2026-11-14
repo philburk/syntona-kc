@@ -180,3 +180,26 @@ actual fun scoreBeamCursor(isDarkMode: Boolean): PointerIcon {
     wasmBeamCursorCache[isDarkMode] = icon
     return icon
 }
+
+private val wasmTieCursorCache = mutableMapOf<Boolean, PointerIcon>()
+
+@OptIn(ExperimentalComposeUiApi::class)
+actual fun scoreTieCursor(isDarkMode: Boolean): PointerIcon {
+    wasmTieCursorCache[isDarkMode]?.let { return it }
+    val fg = if (isDarkMode) "#F8FAFC" else "#111827"
+    val halo = if (isDarkMode) "#0F172A" else "#FFFFFF"
+    val inner = "<ellipse cx='9' cy='16' rx='4.0' ry='2.8' transform='rotate(-20 9 16)'/>" +
+        "<ellipse cx='22' cy='16' rx='4.0' ry='2.8' transform='rotate(-20 22 16)'/>" +
+        "<path d='M 9 20.5 C 12.5 27 18.5 27 22 20.5' fill='none' stroke-width='2.2' stroke-linecap='round'/>"
+    val svg = "<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'>" +
+        "<g stroke='$halo' fill='$halo' stroke-width='3.2'>$inner</g>" +
+        "<g stroke='$fg' fill='$fg'>$inner</g></svg>"
+    val encoded = svg
+        .replace("#", "%23")
+        .replace("<", "%3C")
+        .replace(">", "%3E")
+        .replace(" ", "%20")
+    val icon = PointerIcon.fromKeyword("url(\"data:image/svg+xml,$encoded\") 9 16, crosshair")
+    wasmTieCursorCache[isDarkMode] = icon
+    return icon
+}

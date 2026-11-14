@@ -1292,6 +1292,15 @@ object ScoreRenderer {
             }
         }
 
+        // Ties within a measure and across barlines
+        drawTies(
+            target = target,
+            layout = layout,
+            colors = colors,
+            selectedLocations = selectedLocations,
+            activeItemGlobalIndex = activeItemGlobalIndex,
+        )
+
         // Initial left barline closing the stave cleanly
         target.drawLine(header.leftMargin, topStaffY, header.leftMargin, bottomStaffY, thinBar, colors.ink)
 
@@ -1741,6 +1750,125 @@ object ScoreRenderer {
                     )
                 }
                 idx++
+            }
+        }
+    }
+
+    private fun drawTies(
+        target: ScoreDrawTarget,
+        layout: ScoreLayout,
+        colors: ScoreRenderColors,
+        selectedLocations: Set<ScoreItemLocation>,
+        activeItemGlobalIndex: Int?,
+    ) {
+        val sp = layout.staffSpacePx
+        val tieStroke = (sp * 0.18f).coerceAtLeast(1.5f)
+        data class TieNotePos(
+            val midiPitch: Int,
+            val headX: Float,
+            val width: Float,
+            val y: Float,
+            val staffStep: Int,
+            val isTied: Boolean,
+            val chordNoteIdx: Int?,
+        )
+
+        fun tieNotesForItem(pi: ScorePlacedItem): List<TieNotePos> = when (val item = pi.item) {
+            is ScoreItem.Note -> listOf(
+                TieNotePos(
+                    midiPitch = item.pitch.midiPitch,
+                    headX = pi.x,
+                    width = pi.width,
+                    y = pi.centerY,
+                    staffStep = pi.staffStep ?: 4,
+                    isTied = item.isTiedToNext,
+                    chordNoteIdx = null,
+                )
+            )
+            is ScoreItem.Chord -> pi.chordNotes.mapIndexed { idx, cn ->
+                TieNotePos(
+                    midiPitch = cn.pitch.midiPitch,
+                    headX = cn.headX,
+                    width = pi.width,
+                    y = cn.y,
+                    staffStep = cn.staffStep,
+                    isTied = cn.pitch.midiPitch in item.tiedMidiPitches,
+                    chordNoteIdx = idx,
+                )
+            }
+            is ScoreItem.Rest -> emptyList()
+        }
+
+        for ((pmIdx, pm) in layout.placedMeasures.withIndex()) {
+            for ((piIdx, pi) in pm.items.withIndex()) {
+                val srcNotes = tieNotesForItem(pi)
+                if (srcNotes.none { it.isTied }) continue
+                val nextPi = pm.items.getOrNull(piIdx + 1)
+                    ?: layout.placedMeasures.getOrNull(pmIdx + 1)?.items?.firstOrNull()
+                    ?: continue
+                val dstNotes = tieNotesForItem(nextPi)
+                if (dstNotes.isEmpty()) continue
+
+                for (src in srcNotes) {
+                    if (!src.isTied) continue
+                    val dst = dstNotes.firstOrNull { it.midiPitch == src.midiPitch } ?: continue
+
+                    val curveDir = when {
+                        src.chordNoteIdx != null -> {
+                            when {
+                                src.chordNoteIdx == srcNotes.lastIndex -> -1f
+                                src.chordNoteIdx == 0 -> 1f
+                                src.chordNoteIdx >= srcNotes.size / 2 -> -1f
+                                else -> 1f
+                            }
+                        }
+                        !pi.item.duration.hasStem -> if (src.staffStep >= 4) -1f else 1f
+                        pi.stemDown -> -1f
+                        else -> 1f
+                    }
+
+                    val dotOffset = if (pi.item.isDotted) sp * 0.55f else 0f
+                    var x1 = src.headX + src.width + dotOffset + sp * 0.1f
+                    var x2 = dst.headX - sp * 0.1f
+                    var yOffset = sp * 0.52f
+                    if (x2 - x1 < sp * 0.9f) {
+                        x1 = src.headX + src.width * 0.65f
+                        x2 = dst.headX + dst.width * 0.35f
+                        yOffset = sp * 0.65f
+                    }
+                    val y1 = src.y + curveDir * yOffset
+                    val y2 = dst.y + curveDir * yOffset
+                    val span = (x2 - x1).coerceAtLeast(sp)
+                    val arch = (span * 0.24f).coerceIn(sp * 0.55f, sp * 1.45f) * curveDir
+                    val cx1 = x1 + span * 0.28f
+                    val cx2 = x2 - span * 0.28f
+                    val cy1 = y1 + arch
+                    val cy2 = y2 + arch
+
+                    val noteSelected = pi.location in selectedLocations ||
+                        (src.chordNoteIdx != null && pi.location.copy(chordNoteIdx = src.chordNoteIdx) in selectedLocations)
+                    val tieColor = when {
+                        activeItemGlobalIndex != null &&
+                            (pi.globalIdx == activeItemGlobalIndex || nextPi.globalIdx == activeItemGlobalIndex) ->
+                            colors.activeNote
+                        pi.isOverflow -> colors.overflowNote
+                        noteSelected -> colors.selectedNote
+                        else -> colors.ink
+                    }
+
+                    target.drawCubicBezier(
+                        x0 = x1,
+                        y0 = y1,
+                        cx1 = cx1,
+                        cy1 = cy1,
+                        cx2 = cx2,
+                        cy2 = cy2,
+                        x3 = x2,
+                        y3 = y2,
+                        strokeWidth = tieStroke,
+                        color = tieColor,
+                    )
+                }
             }
         }
     }
