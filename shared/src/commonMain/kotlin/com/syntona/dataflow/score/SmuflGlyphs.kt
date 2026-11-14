@@ -7,8 +7,12 @@ package com.syntona.dataflow.score
 object SmuflGlyphs {
     // Clefs
     const val G_CLEF = "\uE050"
+    const val G_CLEF_8VB = "\uE052"
+    const val G_CLEF_8VA = "\uE053"
     const val C_CLEF = "\uE05C"
     const val F_CLEF = "\uE062"
+    const val F_CLEF_8VB = "\uE064"
+    const val F_CLEF_8VA = "\uE065"
 
     // Time signature digits (U+E080..U+E089)
     const val TIME_SIG_ZERO = 0xE080

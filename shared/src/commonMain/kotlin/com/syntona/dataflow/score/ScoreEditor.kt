@@ -190,11 +190,13 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
     var pendingStaccato by remember { mutableStateOf(false) }
     var selectedLocations by remember { mutableStateOf<Set<ScoreItemLocation>>(emptySet()) }
     var selectedMeasures by remember { mutableStateOf<Set<Int>>(emptySet()) }
+    var selectedClefChange by remember { mutableStateOf<ScoreClefLocation?>(null) }
     var activePitchText by remember { mutableStateOf<String?>(null) }
     var activeChordName by remember { mutableStateOf<String?>(null) }
     var hoverPos by remember { mutableStateOf<Offset?>(null) }
     var hoveringItem by remember { mutableStateOf(false) }
     var hoveringTimeSig by remember { mutableStateOf(false) }
+    var hoveringClef by remember { mutableStateOf(false) }
     var dragState by remember { mutableStateOf<ScoreDragState?>(null) }
     var editingTimeSig by remember { mutableStateOf<TimeSigEditSession?>(null) }
     var timeSigInputValue by remember { mutableStateOf(TextFieldValue("")) }
@@ -248,9 +250,45 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         state.markChanged()
     }
 
+    fun targetClefLocation(): ScoreClefLocation = ScoreEditing.resolveTargetClefLocation(
+        selectedClefChange = selectedClefChange,
+        selectedLocations = selectedLocations,
+        cursorPosition = module.cursorPosition,
+        selectedMeasures = selectedMeasures,
+    )
+
+    fun applyClef(newClef: Clef?, target: ScoreClefLocation) {
+        val beforeInitialClef = score.clef
+        val beforeMeasures = score.measures.toList()
+        val (afterInitialClef, afterMeasures) = ScoreEditing.setClefChange(
+            initialClef = beforeInitialClef,
+            measures = beforeMeasures,
+            location = target,
+            newClef = newClef,
+        )
+        if (afterInitialClef == beforeInitialClef && afterMeasures == beforeMeasures) return
+        if (newClef == null) {
+            selectedClefChange = null
+        }
+        postCommand(
+            SetScoreClefCommand(
+                scoreData = score,
+                beforeInitialClef = beforeInitialClef,
+                beforeMeasures = beforeMeasures,
+                afterInitialClef = afterInitialClef,
+                afterMeasures = afterMeasures,
+            )
+        )
+    }
+
     fun deleteSelection() {
         durationEditState = null
-        if (selectedLocations.isEmpty()) return
+        if (selectedLocations.isEmpty()) {
+            selectedClefChange?.let { clefLoc ->
+                applyClef(null, clefLoc)
+            }
+            return
+        }
         val before = score.measures.toList()
         val prevSelection = selectedLocations
         val after = ScoreEditing.deleteItems(before, prevSelection)
@@ -891,6 +929,15 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 initialTime = score.timeSignature,
                 measureIdx = firstTargetIdx,
             )
+            val clefTargetLoc = targetClefLocation()
+            val activeTargetClef = ScoreEditing.effectiveClefAt(
+                measures = score.measures,
+                initialClef = score.clef,
+                measureIdx = clefTargetLoc.measureIdx,
+                itemIdx = clefTargetLoc.itemIdx,
+            )
+            val canRemoveClefChange = (clefTargetLoc.measureIdx > 0 || clefTargetLoc.itemIdx > 0) &&
+                ScoreEditing.hasExplicitClefChangeAt(score.measures, clefTargetLoc)
             ScorePalettePanel(
                 openPalette = openPalette,
                 editorMode = editorMode,
@@ -900,6 +947,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 entryIsDotted = entryIsDotted,
                 activeKeySignature = activeTargetKey,
                 activeTimeSignature = activeTargetTime,
+                activeClef = activeTargetClef,
                 toolbarBg = toolbarBg,
                 toolbarText = toolbarText,
                 accentColor = accentColor,
@@ -966,6 +1014,30 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         },
                         onSelectTimeSignature = { chosenTime ->
                             applyTimeSignature(chosenTime, targetMeasureIndices)
+                            openPalette = null
+                            focusRequester.requestFocus()
+                        },
+                        onDismiss = { openPalette = null },
+                        onKeyEvent = ::handleKeyEvent,
+                    )
+                } else if (kind == openPalette && kind == ScorePaletteKind.CLEFS) {
+                    ClefsPalettePopup(
+                        offsetX = popupOffsetX,
+                        targetLocation = clefTargetLoc,
+                        activeClef = activeTargetClef,
+                        canRemove = canRemoveClefChange,
+                        isDark = isDark,
+                        toolbarText = toolbarText,
+                        accentColor = accentColor,
+                        borderMuted = borderMuted,
+                        musicFontFamily = musicFontFamily,
+                        onSelectClef = { chosenClef ->
+                            applyClef(chosenClef, clefTargetLoc)
+                            openPalette = null
+                            focusRequester.requestFocus()
+                        },
+                        onRemoveClef = {
+                            applyClef(null, clefTargetLoc)
                             openPalette = null
                             focusRequester.requestFocus()
                         },
@@ -1049,7 +1121,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
 
             val activeCursor = when {
                 dragState is ScoreDragState.PitchDrag -> moveCursor()
-                hoveringTimeSig -> PointerIcon.Hand
+                hoveringTimeSig || (editorMode == ScoreEditMode.SELECT && !module.isStepRecording && hoveringClef) -> PointerIcon.Hand
                 !module.isStepRecording && editorMode == ScoreEditMode.ENTRY ->
                     scoreSymbolCursor(entryDuration, entryIsRest, entryIsDotted, isDark)
                 hoveringItem -> moveCursor()
@@ -1075,6 +1147,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 val pos = hoverPos ?: return@remember null
                 if (pos.x < layout.headerEndX - layout.staffSpacePx * 0.5f) return@remember null
                 if (layout.timeSignatureAt(pos.x, pos.y) != null) return@remember null
+                if (layout.clefChangeAt(pos.x, pos.y) != null) return@remember null
                 val step = layout.stepAtY(pos.y)
                 val snappedX = if (!entryIsRest) {
                     layout.itemColumnAt(pos.x)?.x ?: (pos.x - layout.staffSpacePx * 0.65f)
@@ -1148,11 +1221,13 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                             val pos = event.changes.firstOrNull()?.position
                                             hoverPos = pos
                                             hoveringTimeSig = pos != null && currentLayout.timeSignatureAt(pos.x, pos.y) != null
+                                            hoveringClef = pos != null && currentLayout.clefChangeAt(pos.x, pos.y) != null
                                             hoveringItem = pos != null && currentLayout.itemAt(pos.x, pos.y) != null
                                         }
                                         PointerEventType.Exit -> {
                                             hoverPos = null
                                             hoveringTimeSig = false
+                                            hoveringClef = false
                                             hoveringItem = false
                                         }
                                         else -> {}
@@ -1177,6 +1252,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                 val sp = currentStaffSpacePx
                                 val hitTimeSig = lyt.timeSignatureAt(downPos.x, downPos.y)
                                 if (hitTimeSig != null && !isShift) {
+                                    selectedClefChange = null
                                     val label = hitTimeSig.timeSignature.label
                                     editingTimeSig = TimeSigEditSession(
                                         measureIdx = hitTimeSig.measureIdx,
@@ -1213,6 +1289,21 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                 }
 
                                 if (module.isStepRecording || editorMode == ScoreEditMode.SELECT) {
+                                    val hitClef = if (hit == null && !module.isStepRecording) {
+                                        lyt.clefChangeAt(downPos.x, downPos.y)
+                                    } else {
+                                        null
+                                    }
+                                    if (hitClef != null) {
+                                        module.placeCursor(null)
+                                        selectedClefChange = hitClef.location
+                                        selectedLocations = emptySet()
+                                        selectedMeasures = emptySet()
+                                        activePitchText = null
+                                        activeChordName = null
+                                        return@awaitEachGesture
+                                    }
+                                    selectedClefChange = null
                                     if (hit != null && !module.isStepRecording) {
                                         module.placeCursor(null)
                                         val chordNote = if (hit.item is ScoreItem.Chord) {
@@ -1239,7 +1330,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                 is ScoreItem.Note -> {
                                                     module.previewPitch(item.pitch.midiPitch.toDouble(), isStaccato = item.isStaccato)
                                                     refreshPitchDisplayFromSelection()
-                                                    val step = hit.staffStep ?: score.clef.staffStepFromBottom(item.pitch)
+                                                    val step = hit.staffStep ?: hit.effectiveClef.staffStepFromBottom(item.pitch)
                                                     beginNoteDrag(clickedLoc, step, item.pitch.alter, score.measures.toList(), hit.x)
                                                 }
                                                 is ScoreItem.Chord -> {
@@ -1298,6 +1389,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                     }
                                 } else {
                                     // ENTRY mode
+                                    selectedClefChange = null
                                     val beforeMeasures = score.measures.toList()
                                     val colItem = if (!entryIsRest) lyt.itemColumnAt(downPos.x) else null
                                     if (hit != null && (entryIsRest || hit.item is ScoreItem.Rest)) {
@@ -1322,7 +1414,13 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                     score.keySignature,
                                                     hit.location.measureIdx,
                                                 )
-                                                val pitch = score.clef.pitchForStaffStep(
+                                                val measureClef = ScoreEditing.effectiveClefAt(
+                                                    beforeMeasures,
+                                                    score.clef,
+                                                    hit.location.measureIdx,
+                                                    hit.location.itemIdx,
+                                                )
+                                                val pitch = measureClef.pitchForStaffStep(
                                                     stepFromBottom = step,
                                                     keySignature = measureKey,
                                                     alterOverride = pendingAccidental?.alter,
@@ -1360,7 +1458,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                     score.keySignature,
                                                     colItem.location.measureIdx,
                                                 )
-                                                val pitch = score.clef.pitchForStaffStep(
+                                                val pitch = colItem.effectiveClef.pitchForStaffStep(
                                                     stepFromBottom = step,
                                                     keySignature = measureKey,
                                                     alterOverride = pendingAccidental?.alter,
@@ -1399,7 +1497,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                 score.keySignature,
                                                 colItem.location.measureIdx,
                                             )
-                                            val pitch = score.clef.pitchForStaffStep(
+                                            val pitch = colItem.effectiveClef.pitchForStaffStep(
                                                 stepFromBottom = step,
                                                 keySignature = measureKey,
                                                 alterOverride = pendingAccidental?.alter,
@@ -1427,6 +1525,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                     itemIdx = target.itemIdx,
                                                     item = newRest,
                                                     appendNewMeasure = target.appendNewMeasure,
+                                                    shiftClefAtIndex = !target.afterClefChange,
                                                 )
                                                 selectedLocations = setOf(newLoc)
                                                 activePitchText = null
@@ -1439,7 +1538,8 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                     score.keySignature,
                                                     target.measureIdx,
                                                 )
-                                                val pitch = score.clef.pitchForStaffStep(
+                                                val effectiveClef = lyt.effectiveClefAtX(downPos.x)
+                                                val pitch = effectiveClef.pitchForStaffStep(
                                                     stepFromBottom = step,
                                                     keySignature = measureKey,
                                                     alterOverride = pendingAccidental?.alter,
@@ -1457,6 +1557,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                     itemIdx = target.itemIdx,
                                                     item = newNote,
                                                     appendNewMeasure = target.appendNewMeasure,
+                                                    shiftClefAtIndex = !target.afterClefChange,
                                                 )
                                                 score.replaceMeasures(after)
                                                 selectedLocations = setOf(newLoc)
@@ -1490,7 +1591,13 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                     score.keySignature,
                                                     drag.location.measureIdx,
                                                 )
-                                                val newPitch = score.clef.pitchForStaffStep(
+                                                val measureClef = ScoreEditing.effectiveClefAt(
+                                                    currentMeasures,
+                                                    score.clef,
+                                                    drag.location.measureIdx,
+                                                    drag.location.itemIdx,
+                                                )
+                                                val newPitch = measureClef.pitchForStaffStep(
                                                     stepFromBottom = newStep,
                                                     keySignature = measureKey,
                                                     alterOverride = alterOverride,
@@ -1606,6 +1713,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         activeItemGlobalIndex = module.activeItemIndex,
                         selectedLocations = displayedSelectedLocations,
                         selectedMeasureIndices = displayedSelectedMeasures,
+                        selectedClefChange = selectedClefChange,
                         ghostPreview = ghostPreview,
                         rubberBand = rubberBand,
                         cursorPosition = module.cursorPosition,
@@ -1914,6 +2022,7 @@ private fun ScorePalettePanel(
     entryIsDotted: Boolean,
     activeKeySignature: KeySignature,
     activeTimeSignature: TimeSignature,
+    activeClef: Clef,
     toolbarBg: Color,
     toolbarText: Color,
     accentColor: Color,
@@ -1944,7 +2053,7 @@ private fun ScorePalettePanel(
                 val isToolActive = when (kind) {
                     ScorePaletteKind.NOTES_RESTS ->
                         (editorMode == ScoreEditMode.ENTRY && !isStepRecording) || isStepRecording
-                    ScorePaletteKind.KEY_SIGNATURES -> false
+                    ScorePaletteKind.KEY_SIGNATURES, ScorePaletteKind.CLEFS -> false
                 }
                 val highlighted = isOpen || isToolActive
                 val contentColor = if (highlighted) {
@@ -2011,6 +2120,7 @@ private fun ScorePalettePanel(
                             ScorePaletteKind.KEY_SIGNATURES -> {
                                 KeySignatureMiniStaff(
                                     keySignature = activeKeySignature,
+                                    clef = activeClef,
                                     timeSignature = activeTimeSignature,
                                     inkColor = contentColor,
                                     staffLineColor = borderMuted,
@@ -2018,6 +2128,18 @@ private fun ScorePalettePanel(
                                     textMeasurer = textMeasurer,
                                     width = 48.dp,
                                     height = 22.dp,
+                                    staffSpaceDp = 3.2f,
+                                )
+                            }
+                            ScorePaletteKind.CLEFS -> {
+                                ClefMiniStaff(
+                                    clef = activeClef,
+                                    inkColor = contentColor,
+                                    staffLineColor = borderMuted,
+                                    musicFontFamily = musicFontFamily,
+                                    textMeasurer = textMeasurer,
+                                    width = 48.dp,
+                                    height = 24.dp,
                                     staffSpaceDp = 3.2f,
                                 )
                             }
@@ -2529,6 +2651,244 @@ private fun KeySignaturePaletteRow(
 }
 
 @Composable
+private fun ClefsPalettePopup(
+    offsetX: Int,
+    targetLocation: ScoreClefLocation,
+    activeClef: Clef,
+    canRemove: Boolean,
+    isDark: Boolean,
+    toolbarText: Color,
+    accentColor: Color,
+    borderMuted: Color,
+    musicFontFamily: FontFamily,
+    onSelectClef: (Clef) -> Unit,
+    onRemoveClef: () -> Unit,
+    onDismiss: () -> Unit,
+    onKeyEvent: (KeyEvent) -> Boolean,
+) {
+    val popupBg = if (isDark) Color(0xFF161832) else Color(0xFFFFFFFF)
+    val tileBg = if (isDark) Color(0xFF202446) else Color(0xFFF1F5F9)
+    val titleColor = if (isDark) Color(0xFFE2E8F0) else Color(0xFF0F172A)
+    val textMeasurer = rememberTextMeasurer()
+
+    val targetDescription = when {
+        targetLocation.measureIdx == 0 && targetLocation.itemIdx == 0 -> "Opening clef"
+        targetLocation.itemIdx == 0 -> "Measure ${targetLocation.measureIdx + 1}, beat 1"
+        else -> "Measure ${targetLocation.measureIdx + 1}, item ${targetLocation.itemIdx + 1}"
+    }
+
+    Popup(
+        alignment = Alignment.TopStart,
+        offset = IntOffset(offsetX, 0),
+        properties = PopupProperties(
+            focusable = true,
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true,
+        ),
+        onDismissRequest = onDismiss,
+    ) {
+        Surface(
+            color = popupBg,
+            shape = RoundedCornerShape(6.dp),
+            shadowElevation = 6.dp,
+            modifier = Modifier
+                .wrapContentSize()
+                .border(1.dp, accentColor.copy(alpha = 0.65f), RoundedCornerShape(6.dp))
+                .onKeyEvent(onKeyEvent),
+        ) {
+            Column(
+                modifier = Modifier
+                    .width(IntrinsicSize.Max)
+                    .padding(6.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        text = ScorePaletteKind.CLEFS.title,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = titleColor,
+                    )
+                    Text(
+                        text = targetDescription,
+                        fontSize = 9.sp,
+                        color = accentColor,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    if (canRemove) {
+                        Text(
+                            text = "Remove",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = Color(0xFFDC2626),
+                            modifier = Modifier
+                                .background(
+                                    Color(0xFFDC2626).copy(alpha = 0.12f),
+                                    RoundedCornerShape(4.dp),
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    color = Color(0xFFDC2626).copy(alpha = 0.5f),
+                                    shape = RoundedCornerShape(4.dp),
+                                )
+                                .pointerHoverIcon(PointerIcon.Hand)
+                                .clickable { onRemoveClef() }
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                        )
+                    }
+                }
+
+                ClefPaletteRow(
+                    rowLabel = "Primary",
+                    options = ScorePalettes.primaryClefOptions,
+                    activeClef = activeClef,
+                    isDark = isDark,
+                    tileBg = tileBg,
+                    toolbarText = toolbarText,
+                    accentColor = accentColor,
+                    borderMuted = borderMuted,
+                    musicFontFamily = musicFontFamily,
+                    textMeasurer = textMeasurer,
+                    onSelectClef = onSelectClef,
+                )
+                ClefPaletteRow(
+                    rowLabel = "Octave",
+                    options = ScorePalettes.octaveClefOptions,
+                    activeClef = activeClef,
+                    isDark = isDark,
+                    tileBg = tileBg,
+                    toolbarText = toolbarText,
+                    accentColor = accentColor,
+                    borderMuted = borderMuted,
+                    musicFontFamily = musicFontFamily,
+                    textMeasurer = textMeasurer,
+                    onSelectClef = onSelectClef,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ClefPaletteRow(
+    rowLabel: String,
+    options: List<ScoreClefOption>,
+    activeClef: Clef,
+    isDark: Boolean,
+    tileBg: Color,
+    toolbarText: Color,
+    accentColor: Color,
+    borderMuted: Color,
+    musicFontFamily: FontFamily,
+    textMeasurer: TextMeasurer,
+    onSelectClef: (Clef) -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Text(
+            text = rowLabel,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Medium,
+            color = toolbarText,
+            modifier = Modifier.width(42.dp),
+        )
+        options.forEach { option ->
+            val selected = option.clef == activeClef
+            val contentColor = if (selected) {
+                if (isDark) Color.White else accentColor
+            } else {
+                toolbarText
+            }
+            val bg = if (selected) accentColor.copy(alpha = 0.22f) else tileBg
+            Column(
+                modifier = Modifier
+                    .width(56.dp)
+                    .background(bg, RoundedCornerShape(5.dp))
+                    .border(
+                        width = if (selected) 1.5.dp else 1.dp,
+                        color = if (selected) accentColor else borderMuted,
+                        shape = RoundedCornerShape(5.dp),
+                    )
+                    .pointerHoverIcon(PointerIcon.Hand)
+                    .clickable { onSelectClef(option.clef) }
+                    .padding(horizontal = 2.dp, vertical = 2.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(1.dp),
+            ) {
+                ClefMiniStaff(
+                    clef = option.clef,
+                    inkColor = contentColor,
+                    staffLineColor = borderMuted,
+                    musicFontFamily = musicFontFamily,
+                    textMeasurer = textMeasurer,
+                    width = 44.dp,
+                    height = 24.dp,
+                    staffSpaceDp = 3.2f,
+                )
+                Text(
+                    text = option.label,
+                    fontSize = 8.sp,
+                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                    color = contentColor,
+                    maxLines = 1,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ClefMiniStaff(
+    clef: Clef,
+    inkColor: Color,
+    staffLineColor: Color,
+    musicFontFamily: FontFamily,
+    textMeasurer: TextMeasurer,
+    width: Dp,
+    height: Dp,
+    staffSpaceDp: Float,
+) {
+    Canvas(modifier = Modifier.size(width = width, height = height)) {
+        val sp = staffSpaceDp.dp.toPx()
+        val emPx = sp * 4f
+        val topStaffY = (size.height - 4f * sp) * 0.5f
+        val bottomStaffY = topStaffY + 4f * sp
+        val lineLeft = 2.dp.toPx()
+        val lineRight = size.width - 2.dp.toPx()
+        for (lineIdx in 0..4) {
+            val y = bottomStaffY - lineIdx * sp
+            drawLine(
+                color = staffLineColor,
+                start = Offset(lineLeft, y),
+                end = Offset(lineRight, y),
+                strokeWidth = 0.8f,
+            )
+        }
+        val emSp = with(this) { emPx.toSp() }
+        val style = TextStyle(fontFamily = musicFontFamily, fontSize = emSp, color = inkColor)
+        val measured = textMeasurer.measure(
+            text = clef.glyph,
+            style = style,
+            softWrap = false,
+            maxLines = 1,
+        )
+        val glyphX = (size.width - measured.size.width) * 0.5f
+        val refStep = clef.glyphLineFromBottom * 2
+        val baselineY = bottomStaffY - refStep * (sp * 0.5f)
+        drawText(
+            textLayoutResult = measured,
+            color = inkColor,
+            topLeft = Offset(glyphX, baselineY - measured.firstBaseline),
+        )
+    }
+}
+
+@Composable
 private fun KeySignatureMiniStaff(
     keySignature: KeySignature,
     inkColor: Color,
@@ -2538,6 +2898,7 @@ private fun KeySignatureMiniStaff(
     width: Dp,
     height: Dp,
     staffSpaceDp: Float,
+    clef: Clef = Clef.TREBLE,
     timeSignature: TimeSignature? = null,
 ) {
     Canvas(modifier = Modifier.size(width = width, height = height)) {
@@ -2558,7 +2919,7 @@ private fun KeySignatureMiniStaff(
         }
         val emSp = with(this) { emPx.toSp() }
         val style = TextStyle(fontFamily = musicFontFamily, fontSize = emSp, color = inkColor)
-        val steps = keySignature.trebleStaffSteps()
+        val steps = keySignature.staffSteps(clef)
 
         val numMeasured = timeSignature?.let {
             textMeasurer.measure(

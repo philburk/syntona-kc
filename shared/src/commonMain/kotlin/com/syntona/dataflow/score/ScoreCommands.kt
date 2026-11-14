@@ -161,3 +161,32 @@ class SetScoreTimeSignatureCommand(
         FileState.markDirty()
     }
 }
+
+/**
+ * Undoable command updating the score's opening clef and/or per-measure / mid-measure clefs
+ * while leaving all note pitch values unchanged.
+ */
+class SetScoreClefCommand(
+    private val scoreData: ScoreData,
+    private val beforeInitialClef: Clef,
+    private val beforeMeasures: List<ScoreMeasure>,
+    private val afterInitialClef: Clef,
+    private val afterMeasures: List<ScoreMeasure>,
+    private val onSync: (() -> Unit)? = null,
+) : SyntonaCommand {
+    override val isUndoable = true
+
+    override fun execute() {
+        scoreData.clef = afterInitialClef
+        scoreData.replaceMeasures(afterMeasures)
+        onSync?.invoke()
+        FileState.markDirty()
+    }
+
+    override fun undo() {
+        scoreData.clef = beforeInitialClef
+        scoreData.replaceMeasures(beforeMeasures)
+        onSync?.invoke()
+        FileState.markDirty()
+    }
+}

@@ -35,6 +35,7 @@ import com.syntona.dataflow.modules.SEMITONES_PER_OCTAVE
 import kotlin.math.round
 import com.syntona.dataflow.modules.PianoRollModule
 import com.syntona.dataflow.modules.PianoRollNote
+import com.syntona.dataflow.score.Clef
 import com.syntona.dataflow.score.KeySignature
 import com.syntona.dataflow.score.NoteDuration
 import com.syntona.dataflow.score.NoteLetter
@@ -553,6 +554,7 @@ object GraphSerializer {
                 append("]")
             }
             if (module is ScoreModule) {
+                append(",\"clef\":\"${module.scoreData.clef.name}\"")
                 append(",\"key\":\"${module.scoreData.keySignature.name}\"")
                 append(",\"timeNum\":${module.scoreData.timeSignature.numerator}")
                 append(",\"timeDen\":${module.scoreData.timeSignature.denominator}")
@@ -567,6 +569,14 @@ object GraphSerializer {
                     measure.keySignature?.let { append(",\"key\":\"${it.name}\"") }
                     measure.timeSignature?.let {
                         append(",\"timeNum\":${it.numerator},\"timeDen\":${it.denominator}")
+                    }
+                    if (measure.clefChanges.isNotEmpty()) {
+                        append(",\"clefs\":[")
+                        measure.clefChanges.entries.sortedBy { it.key }.forEachIndexed { cIdx, (iIdx, clef) ->
+                            if (cIdx > 0) append(",")
+                            append("[$iIdx,\"${clef.name}\"]")
+                        }
+                        append("]")
                     }
                     append(",\"items\":[")
                     measure.items.forEachIndexed { iIdx, item ->
@@ -1547,6 +1557,12 @@ object GraphSerializer {
                 }
             }
             if (module is ScoreModule) {
+                val clefStr = (obj?.map?.get("clef") as? JsonValue.Str)?.value
+                if (clefStr != null) {
+                    Clef.entries.firstOrNull { it.name == clefStr }?.let {
+                        module.scoreData.clef = it
+                    }
+                }
                 val keyStr = (obj?.map?.get("key") as? JsonValue.Str)?.value
                 if (keyStr != null) {
                     KeySignature.entries.firstOrNull { it.name == keyStr }?.let {
@@ -1576,6 +1592,20 @@ object GraphSerializer {
                             TimeSignature(mTimeNum, mTimeDen)
                         } else {
                             null
+                        }
+                        val clefsArr = (mObj.map["clefs"] as? JsonValue.Arr)?.items
+                        val mClefs = if (clefsArr != null) {
+                            buildMap {
+                                for (cVal in clefsArr) {
+                                    val cPair = (cVal as? JsonValue.Arr)?.items ?: continue
+                                    val cIdx = (cPair.getOrNull(0) as? JsonValue.Num)?.value?.toInt() ?: continue
+                                    val cName = (cPair.getOrNull(1) as? JsonValue.Str)?.value ?: continue
+                                    val clef = Clef.entries.firstOrNull { it.name == cName } ?: continue
+                                    if (cIdx >= 0) put(cIdx, clef)
+                                }
+                            }
+                        } else {
+                            emptyMap()
                         }
                         val itemsArr = (mObj.map["items"] as? JsonValue.Arr)?.items ?: emptyList()
                         val loadedItems = mutableListOf<ScoreItem>()
@@ -1641,6 +1671,7 @@ object GraphSerializer {
                                 items = loadedItems,
                                 keySignature = mKey,
                                 timeSignature = mTime,
+                                clefChanges = mClefs,
                             )
                         )
                     }
