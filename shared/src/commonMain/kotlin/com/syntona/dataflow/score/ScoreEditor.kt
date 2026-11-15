@@ -1121,6 +1121,19 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             .focusable()
             .onKeyEvent(::handleKeyEvent)
     ) {
+        val targetMeasureIndices = targetMeasuresForKeyChange()
+        val firstTargetIdx = targetMeasureIndices.minOrNull() ?: 0
+        val activeTargetKey = ScoreEditing.effectiveKeyAtMeasure(
+            measures = score.measures,
+            initialKey = score.keySignature,
+            measureIdx = firstTargetIdx,
+        )
+        val activeTargetTime = ScoreEditing.effectiveTimeAtMeasure(
+            measures = score.measures,
+            initialTime = score.timeSignature,
+            measureIdx = firstTargetIdx,
+        )
+
         // Top toolbar
         Row(
             modifier = Modifier
@@ -1219,15 +1232,15 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             Text("|", color = borderMuted)
 
             ScoreKeySelector(
-                selected = score.keySignature,
+                selected = activeTargetKey,
                 textColor = toolbarText,
-                onSelect = { applyKeySignature(it, setOf(0)) },
+                onSelect = { applyKeySignature(it, targetMeasureIndices) },
             )
 
             ScoreTimeSigSelector(
-                selected = score.timeSignature,
+                selected = activeTargetTime,
                 textColor = toolbarText,
-                onSelect = { applyTimeSignature(it, setOf(0)) },
+                onSelect = { applyTimeSignature(it, targetMeasureIndices) },
             )
 
             ScoreTupletSelector(
@@ -1342,18 +1355,6 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 .weight(1f)
                 .fillMaxWidth()
         ) {
-            val targetMeasureIndices = targetMeasuresForKeyChange()
-            val firstTargetIdx = targetMeasureIndices.minOrNull() ?: 0
-            val activeTargetKey = ScoreEditing.effectiveKeyAtMeasure(
-                measures = score.measures,
-                initialKey = score.keySignature,
-                measureIdx = firstTargetIdx,
-            )
-            val activeTargetTime = ScoreEditing.effectiveTimeAtMeasure(
-                measures = score.measures,
-                initialTime = score.timeSignature,
-                measureIdx = firstTargetIdx,
-            )
             val clefTargetLoc = targetClefLocation()
             val targetClefStaffMeasures = score.staffMeasures(clefTargetLoc.staff)
             val activeTargetClef = ScoreEditing.effectiveClefAt(

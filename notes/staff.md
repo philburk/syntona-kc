@@ -254,6 +254,7 @@ mixed beams, or unbeamed quarter/half notes.
 ### Phase ? - Articulations
 Add support for articulations such as pizzicato, mute, sustain pedal, and
 2 or 3 other very common articulations.
+Add M2-123-UM compatible articulations.
 
 ### Phase ? - Measure Lines
 Add support for typical measure lines.
@@ -276,7 +277,6 @@ increase duration 2*, decrease duration 0.5x,
 Add graphical staves, custom glyphs, text.
 
 ### Phase ?
-Add M2-123-UM compatible articulations.
 
 ## BUGS
 
