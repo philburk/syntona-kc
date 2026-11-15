@@ -250,6 +250,14 @@ Brackets: Omit the tuplet bracket when all notes in the tuplet are connected
 by a single unbroken beam; draw the bracket whenever the tuplet contains rests,
 mixed beams, or unbeamed quarter/half notes.
 
+### Phase 18 - Transposition
+I want to be able to transpose groups of notes across multiple staves.
+UI:
+Select a group of notes.
+Press UP or DOWN arrow keys on keyboard to transpose the notes within the current key.
+
+If the SHIFT key is pressed while UP or DOWN are pressed then transpose the notes by single semitones.
+The notes may end up outside the current key.
 
 ### Phase ? - Articulations
 Add support for articulations such as pizzicato, mute, sustain pedal, and
@@ -267,7 +275,6 @@ Allow the user to enter the score name, composer and a date.
 ### Phase ? - Export
 Add MusicXML support. This will allow us to export a score to Notion or other notation editors.
 
-### Phase - Save to PDF, All Together or as Parts
 
 ### Phase ?
 Add score modifications for selected notes. Include transpose, retrograde,
@@ -276,13 +283,13 @@ increase duration 2*, decrease duration 0.5x,
 ### Phase ?
 Add graphical staves, custom glyphs, text.
 
+### Phase - Save to PDF, All Together or as Parts HARDER THAN MusicXML
+
 ### Phase ?
 
-## BUGS
+## BUG
 
-The text on the toolbar that shows key and time signature does not get updated. Click after 5:4.
-
-Dynamics palette is way too wide, covers the screen. Pack around the contents.
+None.
 
 ## Design Considerations
 
@@ -299,9 +306,9 @@ Also maybe some day we can get note durations back in the MIDI 2.0 standard.
 
 ## Advanced Features
 
-* Add advanced editing such as retrograde inversion, transposition chromatic and in-key.
+* Loop repeatedly on a section and enter notes using live transcription. Ideally save comps like in Logic Pro.
+* Add advanced editing such as retrograde inversion.
 * Allow editing of contours and other parameters in time with the notes.
 * Add editing note parameters and articulations.
 * Measure lines for multiple instruments can be synced or not to support polyrhythms or independent accelerandi.
 * Per Note Controller editing for MIDI 2.0.
-* Loop repeatedly on a section and enter notes using live transcription. Ideally save comps like in Logic Pro.

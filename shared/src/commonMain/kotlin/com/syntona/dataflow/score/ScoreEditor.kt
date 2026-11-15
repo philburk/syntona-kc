@@ -636,6 +636,62 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         }
     }
 
+    fun transposeSelection(steps: Int, chromatic: Boolean) {
+        if (selectedLocations.isEmpty() || steps == 0) return
+        val mode = if (chromatic) {
+            ScoreTransposeMode.CHROMATIC_SEMITONE
+        } else {
+            ScoreTransposeMode.DIATONIC_IN_KEY
+        }
+        val prevSelection = selectedLocations
+        val affectedStaves = prevSelection.map { it.staff }.toSet()
+        val remappedByStaff = mutableMapOf<ScoreStaffId, Set<ScoreItemLocation>>()
+        updateMeasuresAcrossStaves(
+            staves = affectedStaves,
+            transform = { staffId, ms ->
+                val staffLocs = prevSelection.filterTo(mutableSetOf()) { it.staff == staffId }
+                val (transposedMeasures, remappedLocs) = ScoreEditing.transposeSelection(
+                    measures = ms,
+                    initialKey = score.keySignature,
+                    selection = staffLocs,
+                    steps = steps,
+                    mode = mode,
+                )
+                remappedByStaff[staffId] = remappedLocs
+                transposedMeasures
+            },
+            onAfterRestore = { isUndo ->
+                val nextSel = if (isUndo) {
+                    filterValidLocations(prevSelection)
+                } else {
+                    val merged = remappedByStaff.values.flatten().toCollection(linkedSetOf())
+                    filterValidLocations(merged.ifEmpty { prevSelection })
+                }
+                selectedLocations = nextSel
+                refreshPitchDisplayFromSelection(selection = nextSel)
+            },
+        )
+        val mergedSelection = remappedByStaff.values.flatten().toCollection(linkedSetOf())
+        if (mergedSelection.isNotEmpty()) {
+            selectedLocations = mergedSelection
+        }
+        val singleSlot = selectedLocations.map { it.slotLocation() }.distinct().singleOrNull()
+        if (singleSlot != null) {
+            val staffMs = score.staffMeasures(singleSlot.staff)
+            val previewLoc = selectedLocations.first()
+            val previewItem = ScoreEditing.itemAt(staffMs, singleSlot)
+            val previewPitch = ScoreEditing.pitchAt(staffMs, previewLoc)
+                ?: previewItem?.soundingPitches()?.firstOrNull()
+            if (previewPitch != null) {
+                module.previewPitch(
+                    previewPitch.midiPitch.toDouble(),
+                    isStaccato = previewItem?.noteStaccato() == true,
+                    instrumentIdx = singleSlot.staff.instrumentIdx,
+                )
+            }
+        }
+    }
+
     fun targetMeasuresForKeyChange(): Set<Int> {
         if (selectedMeasures.isNotEmpty()) return selectedMeasures
         if (selectedLocations.isNotEmpty()) return selectedLocations.map { it.measureIdx }.toSet()
@@ -946,6 +1002,15 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             module.requestPlayToggle()
             return true
         }
+        if (event.key == Key.DirectionUp || event.key == Key.DirectionDown) {
+            if (!event.isAltPressed && selectedLocations.isNotEmpty() && !module.isStepRecording) {
+                durationEditState = null
+                val step = if (event.key == Key.DirectionUp) 1 else -1
+                transposeSelection(steps = step, chromatic = event.isKeyShiftPressed)
+                return true
+            }
+            return false
+        }
 
         val keyChar = event.utf16CodePoint.toChar().lowercaseChar()
         if (event.isAltPressed) {
@@ -1119,6 +1184,23 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             .background(bgColor)
             .focusRequester(focusRequester)
             .focusable()
+            .onPreviewKeyEvent { keyEvent ->
+                if (keyEvent.type == KeyEventType.KeyDown &&
+                    !keyEvent.isMetaPressed &&
+                    !keyEvent.isCtrlPressed &&
+                    !keyEvent.isAltPressed &&
+                    editingTimeSig == null &&
+                    !customTupletDialogOpen &&
+                    instrumentDialog == null &&
+                    (keyEvent.key == Key.DirectionUp || keyEvent.key == Key.DirectionDown) &&
+                    selectedLocations.isNotEmpty() &&
+                    !module.isStepRecording
+                ) {
+                    handleKeyEvent(keyEvent)
+                } else {
+                    false
+                }
+            }
             .onKeyEvent(::handleKeyEvent)
     ) {
         val targetMeasureIndices = targetMeasuresForKeyChange()
@@ -4944,17 +5026,19 @@ private fun DynamicsPalettePopup(
             shape = RoundedCornerShape(8.dp),
             shadowElevation = 8.dp,
             modifier = Modifier
+                .wrapContentSize()
                 .border(1.dp, borderMuted, RoundedCornerShape(8.dp))
                 .onKeyEvent(onKeyEvent),
         ) {
             Column(
-                modifier = Modifier.padding(8.dp),
+                modifier = Modifier
+                    .width(IntrinsicSize.Max)
+                    .padding(8.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     Text(
                         text = ScorePaletteKind.DYNAMICS.title,

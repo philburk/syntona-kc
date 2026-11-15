@@ -4285,4 +4285,229 @@ class ScoreModuleTest {
         )
         assertTrue(completedGroups.single().isFull, "Adding 2nd and 3rd notes completes the 3:2 tuplet")
     }
+
+    @Test
+    fun testInKeyAndChromaticTranspositionAcrossMeasuresAndKeys() {
+        val d4 = SpelledPitch(NoteLetter.D, 0, 4)
+        val e4 = SpelledPitch(NoteLetter.E, 0, 4)
+        val fSharp4 = SpelledPitch(NoteLetter.F, 1, 4)
+        val rest = ScoreItem.Rest(NoteDuration.QUARTER)
+
+        // Bar 1 in D Major, Bar 2 switches to F Major
+        val measures = listOf(
+            ScoreMeasure(1, listOf(ScoreItem.Note(d4, NoteDuration.QUARTER), ScoreItem.Note(e4, NoteDuration.QUARTER), rest)),
+            ScoreMeasure(
+                2,
+                listOf(ScoreItem.Note(SpelledPitch(NoteLetter.A, 0, 4), NoteDuration.QUARTER)),
+                keySignature = KeySignature.F_MAJOR,
+            ),
+        )
+        val sel = setOf(
+            ScoreItemLocation(0, 0),
+            ScoreItemLocation(0, 1),
+            ScoreItemLocation(0, 2),
+            ScoreItemLocation(1, 0),
+        )
+
+        // 1. In-key up: D4 -> E4, E4 -> F#4 (D Maj), rest untouched, A4 -> Bb4 (F Maj)
+        val (upInKey, remapped1) = ScoreEditing.transposeSelection(
+            measures = measures,
+            initialKey = KeySignature.D_MAJOR,
+            selection = sel,
+            steps = 1,
+            mode = ScoreTransposeMode.DIATONIC_IN_KEY,
+        )
+        assertEquals(sel, remapped1)
+        assertEquals(e4, (upInKey[0].items[0] as ScoreItem.Note).pitch)
+        assertEquals(fSharp4, (upInKey[0].items[1] as ScoreItem.Note).pitch)
+        assertTrue(upInKey[0].items[2] is ScoreItem.Rest)
+        assertEquals(SpelledPitch(NoteLetter.B, -1, 4), (upInKey[1].items[0] as ScoreItem.Note).pitch)
+
+        // Stepping in-key back down returns cleanly to starting pitches
+        val (downInKey, _) = ScoreEditing.transposeSelection(
+            measures = upInKey,
+            initialKey = KeySignature.D_MAJOR,
+            selection = remapped1,
+            steps = -1,
+            mode = ScoreTransposeMode.DIATONIC_IN_KEY,
+        )
+        assertEquals(d4, (downInKey[0].items[0] as ScoreItem.Note).pitch)
+        assertEquals(e4, (downInKey[0].items[1] as ScoreItem.Note).pitch)
+        assertEquals(SpelledPitch(NoteLetter.A, 0, 4), (downInKey[1].items[0] as ScoreItem.Note).pitch)
+
+        // 2. Chromatic semitone up (Shift+Up): D4 -> D#4, E4 -> F4 in D Maj; A4 -> Bb4 in F Maj
+        val (upChromatic, _) = ScoreEditing.transposeSelection(
+            measures = measures,
+            initialKey = KeySignature.D_MAJOR,
+            selection = sel,
+            steps = 1,
+            mode = ScoreTransposeMode.CHROMATIC_SEMITONE,
+        )
+        assertEquals(SpelledPitch(NoteLetter.D, 1, 4), (upChromatic[0].items[0] as ScoreItem.Note).pitch)
+        assertEquals(SpelledPitch(NoteLetter.F, 0, 4), (upChromatic[0].items[1] as ScoreItem.Note).pitch)
+        assertEquals(SpelledPitch(NoteLetter.B, -1, 4), (upChromatic[1].items[0] as ScoreItem.Note).pitch)
+
+        // Chromatic down from D4 in C Major hits C#4, and another semitone hits C4
+        val cMajMeasures = listOf(ScoreMeasure(1, listOf(ScoreItem.Note(d4, NoteDuration.QUARTER))))
+        val (step1Down, _) = ScoreEditing.transposeSelection(
+            measures = cMajMeasures,
+            initialKey = KeySignature.C_MAJOR,
+            selection = setOf(ScoreItemLocation(0, 0)),
+            steps = -1,
+            mode = ScoreTransposeMode.CHROMATIC_SEMITONE,
+        )
+        assertEquals(SpelledPitch(NoteLetter.C, 1, 4), (step1Down[0].items[0] as ScoreItem.Note).pitch)
+        val (step2Down, _) = ScoreEditing.transposeSelection(
+            measures = step1Down,
+            initialKey = KeySignature.C_MAJOR,
+            selection = setOf(ScoreItemLocation(0, 0)),
+            steps = -1,
+            mode = ScoreTransposeMode.CHROMATIC_SEMITONE,
+        )
+        assertEquals(SpelledPitch(NoteLetter.C, 0, 4), (step2Down[0].items[0] as ScoreItem.Note).pitch)
+    }
+
+    @Test
+    fun testTranspositionChordsTiesAndMultiStaffUndoRedo() {
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val e4 = SpelledPitch(NoteLetter.E, 0, 4)
+        val cSharp4 = SpelledPitch(NoteLetter.C, 1, 4)
+        val d4 = SpelledPitch(NoteLetter.D, 0, 4)
+
+        // 1. Tie preservation when both tied notes transpose together vs break when only one moves
+        val tiedMeasures = listOf(
+            ScoreMeasure(
+                1,
+                listOf(
+                    ScoreItem.Note(c4, NoteDuration.QUARTER, isTiedToNext = true),
+                    ScoreItem.Note(c4, NoteDuration.QUARTER),
+                ),
+            )
+        )
+        val (bothTiedMoved, _) = ScoreEditing.transposeSelection(
+            measures = tiedMeasures,
+            initialKey = KeySignature.C_MAJOR,
+            selection = setOf(ScoreItemLocation(0, 0), ScoreItemLocation(0, 1)),
+            steps = 1,
+            mode = ScoreTransposeMode.DIATONIC_IN_KEY,
+        )
+        val firstMoved = bothTiedMoved[0].items[0] as ScoreItem.Note
+        val secondMoved = bothTiedMoved[0].items[1] as ScoreItem.Note
+        assertEquals(d4, firstMoved.pitch)
+        assertEquals(d4, secondMoved.pitch)
+        assertTrue(firstMoved.isTiedToNext, "Moving both tied notes together keeps tie intact")
+
+        val (onlyFirstMoved, _) = ScoreEditing.transposeSelection(
+            measures = bothTiedMoved,
+            initialKey = KeySignature.C_MAJOR,
+            selection = setOf(ScoreItemLocation(0, 0)),
+            steps = 1,
+            mode = ScoreTransposeMode.DIATONIC_IN_KEY,
+        )
+        assertFalse((onlyFirstMoved[0].items[0] as ScoreItem.Note).isTiedToNext, "Pitch mismatch clears broken tie")
+
+        // 2. Selected single chord note moving past neighbor tracks remapped chordNoteIdx; cluster respells cleanly
+        val chordMeasure = listOf(
+            ScoreMeasure(1, listOf(ScoreItem.Chord(listOf(c4, e4), NoteDuration.QUARTER)))
+        )
+        val (jumpedPast, jumpedSel) = ScoreEditing.transposeSelection(
+            measures = chordMeasure,
+            initialKey = KeySignature.C_MAJOR,
+            selection = setOf(ScoreItemLocation(0, 0, chordNoteIdx = 0)),
+            steps = 3,
+            mode = ScoreTransposeMode.DIATONIC_IN_KEY,
+        )
+        val movedChord = jumpedPast[0].items[0] as ScoreItem.Chord
+        assertEquals(listOf(e4, SpelledPitch(NoteLetter.F, 0, 4)), movedChord.pitches)
+        assertEquals(setOf(ScoreItemLocation(0, 0, chordNoteIdx = 1)), jumpedSel)
+
+        val (mergedNote, mergedSel) = ScoreEditing.transposeSelection(
+            measures = listOf(ScoreMeasure(1, listOf(ScoreItem.Chord(listOf(d4, e4), NoteDuration.QUARTER)))),
+            initialKey = KeySignature.C_MAJOR,
+            selection = setOf(ScoreItemLocation(0, 0, chordNoteIdx = 0)),
+            steps = 1,
+            mode = ScoreTransposeMode.DIATONIC_IN_KEY,
+        )
+        assertEquals(e4, (mergedNote[0].items[0] as ScoreItem.Note).pitch)
+        assertEquals(setOf(ScoreItemLocation(0, 0, chordNoteIdx = null)), mergedSel)
+
+        val cluster = listOf(ScoreMeasure(1, listOf(ScoreItem.Chord(listOf(cSharp4, d4), NoteDuration.QUARTER))))
+        val (clusterDown, _) = ScoreEditing.transposeSelection(
+            measures = cluster,
+            initialKey = KeySignature.C_MAJOR,
+            selection = setOf(ScoreItemLocation(0, 0)),
+            steps = -1,
+            mode = ScoreTransposeMode.CHROMATIC_SEMITONE,
+        )
+        val clusterChord = clusterDown[0].items[0] as ScoreItem.Chord
+        assertEquals(listOf(60, 61), clusterChord.pitches.map { it.midiPitch })
+
+        // 3. Multi-staff rubber-band selection & transposition across multiple instruments with Undo/Redo
+        val module = ScoreModule()
+        val inst1 = ScoreInstrumentPart(
+            id = "inst-1",
+            name = "Violin",
+            instrumentType = InstrumentType.BOWED_STRINGS,
+            measures = listOf(ScoreMeasure(1, listOf(ScoreItem.Note(c4, NoteDuration.QUARTER)))),
+        )
+        val inst2 = ScoreInstrumentPart(
+            id = "inst-2",
+            name = "Cello",
+            instrumentType = InstrumentType.BOWED_STRINGS,
+            clef = Clef.BASS,
+            measures = listOf(ScoreMeasure(1, listOf(ScoreItem.Note(SpelledPitch(NoteLetter.G, 0, 3), NoteDuration.QUARTER)))),
+        )
+        module.scoreData.keySignature = KeySignature.G_MAJOR
+        module.scoreData.replaceAllInstruments(listOf(inst1, inst2))
+        module.syncInstrumentOutputs()
+
+        val layout = ScoreRenderer.render(
+            score = module.scoreData,
+            target = RecordingDrawTarget(),
+            staffSpacePx = 10f,
+            minWidthPx = 400f,
+            colors = ScoreRenderColors.forTheme(darkMode = false),
+        )
+        val staff1Item = layout.staves[0].placedMeasures[0].items.single()
+        val staff2Item = layout.staves[1].placedMeasures[0].items.single()
+        val multiSel = layout.itemsInRect(
+            left = minOf(staff1Item.boxLeft, staff2Item.boxLeft) - 5f,
+            top = staff1Item.boxTop - 5f,
+            right = maxOf(staff1Item.boxRight, staff2Item.boxRight) + 5f,
+            bottom = staff2Item.boxBottom + 5f,
+        )
+        assertEquals(2, multiSel.size, "Rubber-band selects notes across both staves")
+
+        val beforeInst = module.scoreData.instruments.toList()
+        val afterInst = beforeInst.mapIndexed { iIdx, part ->
+            val staffId = ScoreStaffId(iIdx, 0)
+            val staffLocs = multiSel.filterTo(mutableSetOf()) { it.staff == staffId }
+            val (nextMs, _) = ScoreEditing.transposeSelection(
+                measures = part.measures,
+                initialKey = module.scoreData.keySignature,
+                selection = staffLocs,
+                steps = 3,
+                mode = ScoreTransposeMode.DIATONIC_IN_KEY,
+            )
+            part.withStaffMeasures(0, nextMs)
+        }
+        val cmd = ReplaceScoreInstrumentsCommand(module, beforeInst, afterInst)
+        cmd.execute()
+        // G Major: C4 + 3 scale steps -> F#4; G3 + 3 scale steps -> C4
+        assertEquals(
+            SpelledPitch(NoteLetter.F, 1, 4),
+            (module.scoreData.instruments[0].measures[0].items[0] as ScoreItem.Note).pitch,
+        )
+        assertEquals(
+            SpelledPitch(NoteLetter.C, 0, 4),
+            (module.scoreData.instruments[1].measures[0].items[0] as ScoreItem.Note).pitch,
+        )
+
+        cmd.undo()
+        assertEquals(c4, (module.scoreData.instruments[0].measures[0].items[0] as ScoreItem.Note).pitch)
+        assertEquals(
+            SpelledPitch(NoteLetter.G, 0, 3),
+            (module.scoreData.instruments[1].measures[0].items[0] as ScoreItem.Note).pitch,
+        )
+    }
 }

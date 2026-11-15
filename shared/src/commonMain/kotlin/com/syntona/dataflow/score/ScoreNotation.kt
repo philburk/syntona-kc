@@ -831,6 +831,14 @@ data class ScoreItemLocation(
     fun slotLocation(): ScoreItemLocation = if (chordNoteIdx == null) this else copy(chordNoteIdx = null)
 }
 
+/** Mode controlling how pitch transposition steps selected notes. */
+enum class ScoreTransposeMode {
+    /** Step diatonically along the active key signature's scale degrees. */
+    DIATONIC_IN_KEY,
+    /** Step chromatically by semitones, spelling pitches against the active key signature. */
+    CHROMATIC_SEMITONE,
+}
+
 /** Pure immutable helpers for editing [ScoreMeasure] lists. */
 object ScoreEditing {
     fun renumber(measures: List<ScoreMeasure>): List<ScoreMeasure> {
@@ -1178,6 +1186,203 @@ object ScoreEditing {
             if (measureChanged) m.copy(items = newItems) else m
         }
         return if (anyChanged) updated else measures
+    }
+
+    private fun transposePitch(
+        pitch: SpelledPitch,
+        keySignature: KeySignature,
+        steps: Int,
+        mode: ScoreTransposeMode,
+    ): SpelledPitch = when (mode) {
+        ScoreTransposeMode.DIATONIC_IN_KEY -> {
+            val targetStep = pitch.diatonicStep + steps
+            val targetOctave = targetStep.floorDiv(7)
+            val targetLetter = NoteLetter.entries[targetStep.mod(7)]
+            val candidate = SpelledPitch(
+                letter = targetLetter,
+                alter = keySignature.defaultAlter(targetLetter),
+                octave = targetOctave,
+            )
+            if (candidate.midiPitch in 0..127) candidate else pitch
+        }
+        ScoreTransposeMode.CHROMATIC_SEMITONE -> {
+            val targetMidi = (pitch.midiPitch + steps).coerceIn(0, 127)
+            if (targetMidi == pitch.midiPitch) pitch else SpelledPitch.fromMidiPitch(targetMidi, keySignature)
+        }
+    }
+
+    private fun respellWithoutStepCollision(
+        candidate: SpelledPitch,
+        usedSteps: Set<Int>,
+    ): SpelledPitch {
+        if (candidate.diatonicStep !in usedSteps) return candidate
+        val targetMidi = candidate.midiPitch
+        for (delta in intArrayOf(1, -1)) {
+            val altStep = candidate.diatonicStep + delta
+            val oct = altStep.floorDiv(7)
+            val letter = NoteLetter.entries[altStep.mod(7)]
+            val alter = targetMidi - ((oct + 1) * 12 + letter.semitoneOffset)
+            if (alter in -1..1 && altStep !in usedSteps) {
+                return SpelledPitch(letter = letter, alter = alter, octave = oct)
+            }
+        }
+        return candidate
+    }
+
+    /**
+     * Transposes selected notes and chords in [measures] by [steps] under [mode], respecting each
+     * measure's effective key signature. Preserves outgoing ties when both tied notes move to the
+     * same new MIDI pitch and remaps chord note indices after sorting.
+     */
+    fun transposeSelection(
+        measures: List<ScoreMeasure>,
+        initialKey: KeySignature,
+        selection: Set<ScoreItemLocation>,
+        steps: Int,
+        mode: ScoreTransposeMode,
+    ): Pair<List<ScoreMeasure>, Set<ScoreItemLocation>> {
+        if (selection.isEmpty() || steps == 0) return measures to selection
+        val bySlot = selection.groupBy { it.measureIdx to it.itemIdx }
+        var anyChanged = false
+        val changedSlots = mutableSetOf<Pair<Int, Int>>()
+        val origTiesBySlot = mutableMapOf<Pair<Int, Int>, Set<Int>>()
+        val midiRemapBySlot = mutableMapOf<Pair<Int, Int>, Map<Int, Int>>()
+        val remappedSelection = linkedSetOf<ScoreItemLocation>()
+
+        val rawUpdated = measures.mapIndexed { mIdx, m ->
+            val activeKey = effectiveKeyAtMeasure(measures, initialKey, mIdx)
+            var measureChanged = false
+            val newItems = m.items.mapIndexed { iIdx, item ->
+                val slotKey = mIdx to iIdx
+                val locs = bySlot[slotKey] ?: return@mapIndexed item
+                when (item) {
+                    is ScoreItem.Note -> {
+                        val nextPitch = transposePitch(item.pitch, activeKey, steps, mode)
+                        origTiesBySlot[slotKey] = item.tiedMidiPitches()
+                        midiRemapBySlot[slotKey] = mapOf(item.pitch.midiPitch to nextPitch.midiPitch)
+                        for (loc in locs) remappedSelection.add(loc.copy(chordNoteIdx = null))
+                        if (nextPitch != item.pitch) {
+                            measureChanged = true
+                            anyChanged = true
+                            changedSlots.add(slotKey)
+                            item.copy(pitch = nextPitch)
+                        } else {
+                            item
+                        }
+                    }
+                    is ScoreItem.Chord -> {
+                        val applyAll = locs.any { it.chordNoteIdx == null }
+                        val targetIndices = if (applyAll) {
+                            item.pitches.indices.toSet()
+                        } else {
+                            locs.mapNotNull { it.chordNoteIdx }.toSet()
+                        }
+                        val nextRaw = MutableList(item.pitches.size) { pIdx ->
+                            val orig = item.pitches[pIdx]
+                            if (pIdx in targetIndices) transposePitch(orig, activeKey, steps, mode) else orig
+                        }
+                        if (applyAll && mode == ScoreTransposeMode.CHROMATIC_SEMITONE) {
+                            val usedSteps = mutableSetOf<Int>()
+                            for (pIdx in nextRaw.indices) {
+                                val resolved = respellWithoutStepCollision(nextRaw[pIdx], usedSteps)
+                                nextRaw[pIdx] = resolved
+                                usedSteps.add(resolved.diatonicStep)
+                            }
+                        }
+                        origTiesBySlot[slotKey] = item.tiedMidiPitches()
+                        val midiMap = mutableMapOf<Int, Int>()
+                        for (pIdx in item.pitches.indices) {
+                            midiMap[item.pitches[pIdx].midiPitch] = nextRaw[pIdx].midiPitch
+                        }
+                        midiRemapBySlot[slotKey] = midiMap
+
+                        val newItem = itemFromPitches(
+                            pitches = nextRaw,
+                            duration = item.duration,
+                            isDotted = item.isDotted,
+                            amplitude = item.amplitude,
+                            isStaccato = item.isStaccato,
+                            tiedMidiPitches = item.tiedMidiPitches,
+                            tuplet = item.tuplet,
+                        )
+                        if (newItem == null || newItem == item) {
+                            remappedSelection.addAll(locs)
+                            item
+                        } else {
+                            measureChanged = true
+                            anyChanged = true
+                            changedSlots.add(slotKey)
+                            for (loc in locs) {
+                                val oldIdx = loc.chordNoteIdx
+                                if (oldIdx == null || newItem !is ScoreItem.Chord || oldIdx !in nextRaw.indices) {
+                                    remappedSelection.add(loc.copy(chordNoteIdx = null))
+                                } else {
+                                    val targetP = nextRaw[oldIdx]
+                                    val newIdx = newItem.pitches.indexOfFirst { it == targetP }
+                                        .takeIf { it >= 0 }
+                                        ?: newItem.pitches.indexOfFirst { it.diatonicStep == targetP.diatonicStep }
+                                            .coerceAtLeast(0)
+                                    remappedSelection.add(loc.copy(chordNoteIdx = newIdx))
+                                }
+                            }
+                            newItem
+                        }
+                    }
+                    is ScoreItem.Rest -> {
+                        remappedSelection.addAll(locs)
+                        item
+                    }
+                }
+            }
+            if (measureChanged) m.copy(items = newItems) else m
+        }
+        if (!anyChanged) return measures to selection
+
+        val reconciled = rawUpdated.mapIndexed { mIdx, m ->
+            var measureChanged = false
+            val reconciledItems = m.items.mapIndexed { iIdx, item ->
+                val slotKey = mIdx to iIdx
+                val nextKey = nextItemLocation(rawUpdated, mIdx, iIdx)?.let { it.measureIdx to it.itemIdx }
+                val needsCheck = slotKey in changedSlots || (nextKey != null && nextKey in changedSlots)
+                if (!needsCheck) return@mapIndexed item
+                val origTies = origTiesBySlot[slotKey] ?: item.tiedMidiPitches()
+                if (origTies.isEmpty()) return@mapIndexed item
+                val nextMidis = nextItemLocation(rawUpdated, mIdx, iIdx)
+                    ?.let { itemAt(rawUpdated, it) }
+                    ?.soundingPitches()
+                    ?.map { it.midiPitch }
+                    ?.toSet()
+                    ?: emptySet()
+                val midiMap = midiRemapBySlot[slotKey].orEmpty()
+                val validTies = origTies.mapNotNullTo(mutableSetOf()) { oldMidi ->
+                    val mapped = midiMap[oldMidi] ?: oldMidi
+                    if (mapped in nextMidis) mapped else null
+                }
+                when (item) {
+                    is ScoreItem.Note -> {
+                        val tied = item.pitch.midiPitch in validTies
+                        if (item.isTiedToNext != tied) {
+                            measureChanged = true
+                            item.copy(isTiedToNext = tied)
+                        } else {
+                            item
+                        }
+                    }
+                    is ScoreItem.Chord -> {
+                        val chordValid = validTies intersect item.pitches.map { it.midiPitch }.toSet()
+                        if (item.tiedMidiPitches != chordValid) {
+                            measureChanged = true
+                            item.copy(tiedMidiPitches = chordValid)
+                        } else {
+                            item
+                        }
+                    }
+                    is ScoreItem.Rest -> item
+                }
+            }
+            if (measureChanged) m.copy(items = reconciledItems) else m
+        }
+        return reconciled to remappedSelection
     }
 
     /**
