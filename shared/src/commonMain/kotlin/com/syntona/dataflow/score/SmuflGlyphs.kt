@@ -104,4 +104,19 @@ object SmuflGlyphs {
     const val ACCIDENTAL_SHARP_WIDTH = 0.976f
     const val ACCIDENTAL_FLAT_WIDTH = 0.812f
     const val ACCIDENTAL_NATURAL_WIDTH = 0.684f
+
+    // Tuplets
+    const val TUPLET_ZERO = 0xE880
+    const val TUPLET_COLON = "\uE88A"
+    const val TUPLET_BRACKET_THICKNESS = 0.10f
+
+    /** Encodes a tuplet label string (digits 0-9 and ':') as SMuFL tuplet glyphs. */
+    fun tupletNumber(text: String): String = buildString {
+        for (ch in text) {
+            when (ch) {
+                in '0'..'9' -> append((TUPLET_ZERO + (ch - '0')).toChar())
+                ':' -> append(TUPLET_COLON)
+            }
+        }
+    }
 }

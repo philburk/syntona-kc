@@ -64,6 +64,70 @@ class ScoreModule : Module("score"), EngineAware {
     var stepRecordDuration by mutableStateOf(NoteDuration.QUARTER)
     var stepRecordStaccato by mutableStateOf(false)
     var stepRecordDotted by mutableStateOf(false)
+    var stepRecordTupletRatio by mutableStateOf<Pair<Int, Int>?>(null)
+
+    /**
+     * Resolves the [ScoreTuplet] to attach to a newly inserted item at [measureIdx]/[insertIdx].
+     * Continues an immediately preceding incomplete tuplet group when [stepRecordTupletRatio]
+     * matches, or when [stepRecordTupletRatio] is `null` and either [joinPrecedingIncomplete] is
+     * true or the insertion falls before subsequent items in the same measure. Otherwise begins a
+     * new group keyed off [baseTicks] when [stepRecordTupletRatio] is active.
+     */
+    fun resolveTupletForInsertion(
+        measures: List<ScoreMeasure>,
+        measureIdx: Int,
+        insertIdx: Int,
+        baseTicks: Int,
+        joinPrecedingIncomplete: Boolean = false,
+    ): ScoreTuplet? {
+        val ratio = stepRecordTupletRatio
+        val measure = measures.getOrNull(measureIdx)
+        val prevIdx = insertIdx - 1
+        if (measure != null && prevIdx in measure.items.indices) {
+            val prevTuplet = measure.items[prevIdx].tuplet
+            if (prevTuplet != null) {
+                val canJoinPreceding = if (ratio != null) {
+                    prevTuplet.actualCount == ratio.first && prevTuplet.normalCount == ratio.second
+                } else {
+                    joinPrecedingIncomplete || insertIdx < measure.items.size
+                }
+                if (canJoinPreceding) {
+                    var groupStart = prevIdx
+                    while (groupStart > 0 && measure.items[groupStart - 1].tuplet?.groupId == prevTuplet.groupId) {
+                        groupStart--
+                    }
+                    var groupEnd = prevIdx
+                    while (groupEnd + 1 < measure.items.size &&
+                        measure.items[groupEnd + 1].tuplet?.groupId == prevTuplet.groupId
+                    ) {
+                        groupEnd++
+                    }
+                    val unscaledSum = (groupStart..groupEnd).sumOf { measure.items[it].totalTicks }
+                    val targetSum = if (prevTuplet.baseTicks > 0) {
+                        prevTuplet.actualCount * prevTuplet.baseTicks
+                    } else {
+                        Int.MAX_VALUE
+                    }
+                    val isGroupFull = if (prevTuplet.baseTicks > 0) {
+                        unscaledSum >= targetSum
+                    } else {
+                        (groupEnd - groupStart + 1) >= prevTuplet.actualCount
+                    }
+                    if (!isGroupFull) {
+                        return prevTuplet
+                    }
+                }
+            }
+        }
+        val activeRatio = ratio ?: return null
+        val usedIds = ScoreEditing.collectTupletGroupIds(measures)
+        return ScoreTuplet(
+            groupId = ScoreEditing.nextTupletGroupId(usedIds),
+            actualCount = activeRatio.first,
+            normalCount = activeRatio.second,
+            baseTicks = baseTicks.coerceAtLeast(1),
+        )
+    }
 
     var lastStepRecordedText by mutableStateOf<String?>(null)
         internal set
@@ -282,21 +346,21 @@ class ScoreModule : Module("score"), EngineAware {
             val loc: ScoreItemLocation,
             val itemIdx: Int,
             val item: ScoreItem,
-            val onsetTick: Long,
-            val endTick: Long,
+            val onsetTick: RationalTicks,
+            val endTick: RationalTicks,
             val attackDyn: DynamicMark?,
         )
 
         isPlaying = true
         var effectiveTime = scoreData.instruments.firstOrNull()?.measures?.firstOrNull()?.timeSignature
             ?: scoreData.timeSignature
-        var tickCursor = 0L
-        var cursorStartTick: Long? = if (targetCursor == null) 0L else null
+        var tickCursor = RationalTicks.ZERO
+        var cursorStartTick: RationalTicks? = if (targetCursor == null) RationalTicks.ZERO else null
         var nextVoiceTag = 0
 
         val slotsByStaff = linkedMapOf<ScoreStaffId, MutableList<PlaybackSlot>>()
         val slotLookupByStaff = linkedMapOf<ScoreStaffId, MutableMap<ScoreItemLocation, PlaybackSlot>>()
-        val trailingRestTicksByStaff = linkedMapOf<ScoreStaffId, MutableList<Pair<Long, ScoreItemLocation?>>>()
+        val trailingRestTicksByStaff = linkedMapOf<ScoreStaffId, MutableList<Pair<RationalTicks, ScoreItemLocation?>>>()
         val sustainedByStaff = staffIds.associateWith<ScoreStaffId, DynamicMark?> { null }.toMutableMap()
         val globalIdxByStaff = staffIds.associateWith { 0 }.toMutableMap()
         val hadSlotInBarBefore = staffIds.associateWith { false }.toMutableMap()
@@ -306,7 +370,7 @@ class ScoreModule : Module("score"), EngineAware {
                 scoreData.instruments.firstNotNullOfOrNull { it.measures.getOrNull(mIdx)?.timeSignature }
                     ?.let { effectiveTime = it }
             }
-            val measureCapacityTicks = effectiveTime.measureCapacityTicks.toLong().coerceAtLeast(0L)
+            val measureCapacityTicks = RationalTicks.of(effectiveTime.measureCapacityTicks.coerceAtLeast(0))
             val measureStartTick = tickCursor
             var maxStaffEndTick = measureStartTick
 
@@ -336,7 +400,7 @@ class ScoreModule : Module("score"), EngineAware {
                     sustainedDyn = nextSustained
                     val gIdx = (globalIdxByStaff[staff] ?: 0)
                     globalIdxByStaff[staff] = gIdx + 1
-                    val itemTicks = item.totalTicks.toLong()
+                    val itemTicks = item.exactTicks()
                     val loc = ScoreItemLocation(mIdx, slotIdx, staff = staff)
                     val slot = PlaybackSlot(
                         staff = staff,
@@ -387,7 +451,7 @@ class ScoreModule : Module("score"), EngineAware {
             tickCursor = maxOf(measureStartTick + measureCapacityTicks, maxStaffEndTick)
         }
 
-        val resolvedStartTick = cursorStartTick ?: 0L
+        val resolvedStartTick = cursorStartTick ?: RationalTicks.ZERO
         var anyItemScheduled = false
 
         for (staff in staffIds) {
@@ -402,8 +466,8 @@ class ScoreModule : Module("score"), EngineAware {
                 anyItemScheduled = true
                 hasActiveHighlightForStaff = true
                 val item = slot.item
-                val relStartTick = slot.onsetTick - resolvedStartTick
-                val onTime = now + ScoreTime((relStartTick * nsPerTick).roundToLong())
+                val relStartTicks = (slot.onsetTick - resolvedStartTick).toDoubleTicks()
+                val onTime = now + ScoreTime((relStartTicks * nsPerTick).roundToLong())
                 val continuedMidis = continuedPitchesByLoc[slot.loc].orEmpty()
                 val attackPitches = item.soundingPitches().filter { it.midiPitch !in continuedMidis }
 
@@ -432,10 +496,13 @@ class ScoreModule : Module("score"), EngineAware {
                         endSlot = nextSlot
                         curLoc = nextLoc
                     }
-                    val sustainDurSec = ((endSlot.endTick - slot.onsetTick).coerceAtLeast(0L) * nsPerTick) / 1_000_000_000.0
+                    val sustainTicks = maxOf(endSlot.endTick - slot.onsetTick, RationalTicks.ZERO).toDoubleTicks()
+                    val sustainDurSec = (sustainTicks * nsPerTick) / 1_000_000_000.0
                     val soundingDurSec = if (endSlot.item.noteStaccato()) {
-                        val leadSec = ((endSlot.onsetTick - slot.onsetTick).coerceAtLeast(0L) * nsPerTick) / 1_000_000_000.0
-                        val lastNoteFullSec = ((endSlot.endTick - endSlot.onsetTick).coerceAtLeast(0L) * nsPerTick) / 1_000_000_000.0
+                        val leadTicks = maxOf(endSlot.onsetTick - slot.onsetTick, RationalTicks.ZERO).toDoubleTicks()
+                        val lastNoteFullTicks = maxOf(endSlot.endTick - endSlot.onsetTick, RationalTicks.ZERO).toDoubleTicks()
+                        val leadSec = (leadTicks * nsPerTick) / 1_000_000_000.0
+                        val lastNoteFullSec = (lastNoteFullTicks * nsPerTick) / 1_000_000_000.0
                         val staccatoTailSec = minOf(lastNoteFullSec * STACCATO_DURATION_FRACTION, MAX_STACCATO_SECONDS)
                             .coerceAtLeast(minOf(MIN_STACCATO_SECONDS, lastNoteFullSec))
                         leadSec + staccatoTailSec
@@ -489,7 +556,8 @@ class ScoreModule : Module("score"), EngineAware {
                     if (restTick >= resolvedStartTick) {
                         val hasPreviousPlayedNote = staffSlots.any { it.onsetTick >= resolvedStartTick && it.endTick <= restTick }
                         if (hasPreviousPlayedNote) {
-                            val restStartTime = now + ScoreTime(((restTick - resolvedStartTick) * nsPerTick).roundToLong())
+                            val relRestTicks = (restTick - resolvedStartTick).toDoubleTicks()
+                            val restStartTime = now + ScoreTime((relRestTicks * nsPerTick).roundToLong())
                             scheduledEvents.add(e.schedule(restStartTime) {
                                 activeItemsByStaff = activeItemsByStaff - staff
                                 if (staff == ScoreStaffId(0, 0)) {
@@ -507,7 +575,8 @@ class ScoreModule : Module("score"), EngineAware {
             return
         }
 
-        val endTime = now + ScoreTime(((tickCursor - resolvedStartTick).coerceAtLeast(0L) * nsPerTick).roundToLong()) + ScoreTime(1L)
+        val endTicks = maxOf(tickCursor - resolvedStartTick, RationalTicks.ZERO).toDoubleTicks()
+        val endTime = now + ScoreTime((endTicks * nsPerTick).roundToLong()) + ScoreTime(1L)
         scheduledEvents.add(e.schedule(endTime) {
             activeItemsByStaff = emptyMap()
             activeItemIndex = null

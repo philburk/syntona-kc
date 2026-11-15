@@ -228,6 +228,19 @@ Each instrument should have its own voice output jack.
 We need to be able to enter tuplets as an arbitrary N/M ratio.
 Provide presets for common tuplets (3:2, 5:4, 6:4, 7:4, 9:8, 11:8).
 
+Enter a tuplet by selecting the base duration, for example a quarter note, or an eighth rest.
+Then press ALT+N to enter a triplet mode.
+Use 2 for duplet, 3 for triplet, 5 for quintuplet, etc.
+If ALT+N is entered then put up a small dialog and allow the user to Enter a N/M ratio.
+Display as:   Fit |__| into |__|
+
+When in tuplet entry mode display the tuplet bar with the current ratio.
+The tuplet bar should be orange if it is not full.
+New notes under the bar will be added to the tuplet.
+When it is full, change the tuplet bar to black.
+
+Allow one to enter tuplets in more than one measure at a time.
+
 Engraving / Display Rules:
 Number display: Show just the top number (3, 5, 11) by default for standard
 ratios (3:2, 5:4, 6:4, 7:4, 9:8, 11:8), and display the full ratio (4:3, 5:3,
@@ -236,6 +249,7 @@ ratios (3:2, 5:4, 6:4, 7:4, 9:8, 11:8), and display the full ratio (4:3, 5:3,
 Brackets: Omit the tuplet bracket when all notes in the tuplet are connected
 by a single unbroken beam; draw the bracket whenever the tuplet contains rests,
 mixed beams, or unbeamed quarter/half notes.
+
 
 ### Phase ? - Articulations
 Add support for articulations such as pizzicato, mute, sustain pedal, and

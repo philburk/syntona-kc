@@ -49,6 +49,7 @@ import com.syntona.dataflow.score.ScoreInstrumentPart
 import com.syntona.dataflow.score.ScoreItem
 import com.syntona.dataflow.score.ScoreMeasure
 import com.syntona.dataflow.score.ScoreModule
+import com.syntona.dataflow.score.ScoreTuplet
 import com.syntona.dataflow.score.SpelledPitch
 import com.syntona.dataflow.score.TimeSignature
 import com.syntona.dataflow.modules.Ratio
@@ -715,6 +716,17 @@ object GraphSerializer {
                 }
                 append("]")
             }
+            val tupletEntries = measure.items.mapIndexedNotNull { iIdx, item ->
+                item.tuplet?.let { iIdx to it }
+            }
+            if (tupletEntries.isNotEmpty()) {
+                append(",\"tuplets\":[")
+                tupletEntries.forEachIndexed { entryIdx, (iIdx, t) ->
+                    if (entryIdx > 0) append(",")
+                    append("[$iIdx,\"${t.groupId.jsonEscape}\",${t.actualCount},${t.normalCount},${t.baseTicks}]")
+                }
+                append("]")
+            }
             append(",\"items\":[")
             measure.items.forEachIndexed { iIdx, item ->
                 if (iIdx > 0) append(",")
@@ -877,6 +889,23 @@ object GraphSerializer {
                         val dur = NoteDuration.entries.firstOrNull { it.name == durName } ?: continue
                         val isDotted = ((arr.getOrNull(2) as? JsonValue.Num)?.value?.toInt() ?: 0) != 0
                         loadedItems.add(ScoreItem.Rest(duration = dur, isDotted = isDotted))
+                    }
+                }
+            }
+            val tupletsArr = (mObj.map["tuplets"] as? JsonValue.Arr)?.items
+            if (tupletsArr != null) {
+                for (tVal in tupletsArr) {
+                    val tArr = (tVal as? JsonValue.Arr)?.items ?: continue
+                    val tIdx = (tArr.getOrNull(0) as? JsonValue.Num)?.value?.toInt() ?: continue
+                    val groupId = (tArr.getOrNull(1) as? JsonValue.Str)?.value ?: continue
+                    val actual = (tArr.getOrNull(2) as? JsonValue.Num)?.value?.toInt() ?: continue
+                    val normal = (tArr.getOrNull(3) as? JsonValue.Num)?.value?.toInt() ?: continue
+                    val baseTicks = (tArr.getOrNull(4) as? JsonValue.Num)?.value?.toInt() ?: 0
+                    if (tIdx in loadedItems.indices && actual >= 2 && normal >= 1 && groupId.isNotEmpty()) {
+                        loadedItems[tIdx] = ScoreEditing.withTuplet(
+                            loadedItems[tIdx],
+                            ScoreTuplet(groupId = groupId, actualCount = actual, normalCount = normal, baseTicks = baseTicks),
+                        )
                     }
                 }
             }

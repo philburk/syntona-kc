@@ -380,11 +380,127 @@ enum class NoteDuration(
     fun totalTicks(isDotted: Boolean): Int = if (isDotted) ticks + ticks / 2 else ticks
 }
 
+/** Exact rational tick duration so arbitrary N:M tuplets never accumulate rounding drift. */
+data class RationalTicks(
+    val num: Long,
+    val den: Long = 1L,
+) : Comparable<RationalTicks> {
+    init {
+        require(den > 0L) { "Denominator must be positive: $den" }
+    }
+
+    operator fun plus(other: RationalTicks): RationalTicks =
+        simplified(num * other.den + other.num * den, den * other.den)
+
+    operator fun minus(other: RationalTicks): RationalTicks =
+        simplified(num * other.den - other.num * den, den * other.den)
+
+    operator fun times(other: RationalTicks): RationalTicks =
+        simplified(num * other.num, den * other.den)
+
+    override fun compareTo(other: RationalTicks): Int =
+        (num * other.den).compareTo(other.num * den)
+
+    fun isWholeMultipleOf(stepTicks: Int): Boolean {
+        if (stepTicks <= 0) return false
+        return num % (den * stepTicks.toLong()) == 0L
+    }
+
+    fun toDoubleTicks(): Double = num.toDouble() / den.toDouble()
+
+    companion object {
+        val ZERO = RationalTicks(0L, 1L)
+
+        fun of(ticks: Int): RationalTicks = RationalTicks(ticks.toLong(), 1L)
+
+        fun simplified(rawNum: Long, rawDen: Long): RationalTicks {
+            if (rawNum == 0L) return ZERO
+            val sign = if (rawDen < 0L) -1L else 1L
+            val n = rawNum * sign
+            val d = kotlin.math.abs(rawDen)
+            val g = gcd(kotlin.math.abs(n), d)
+            return RationalTicks(n / g, d / g)
+        }
+
+        private fun gcd(a: Long, b: Long): Long {
+            var x = a
+            var y = b
+            while (y != 0L) {
+                val r = x % y
+                x = y
+                y = r
+            }
+            return if (x == 0L) 1L else x
+        }
+    }
+}
+
+/**
+ * Tuplet scaling metadata attached to contiguous [ScoreItem]s sharing [groupId].
+ * Rhythmic durations inside the group are scaled by `normalCount / actualCount`.
+ * When [baseTicks] > 0 (tuplet entry mode), the group becomes full once its unscaled
+ * tick sum reaches `actualCount * baseTicks`.
+ */
+data class ScoreTuplet(
+    val groupId: String,
+    val actualCount: Int,
+    val normalCount: Int,
+    val baseTicks: Int = 0,
+) {
+    init {
+        require(actualCount >= 2) { "Tuplet actualCount must be >= 2" }
+        require(normalCount >= 1) { "Tuplet normalCount must be >= 1" }
+    }
+
+    val ratioText: String get() = "$actualCount:$normalCount"
+
+    fun displayText(timeSignature: TimeSignature? = null): String {
+        val isCompound = timeSignature != null &&
+            timeSignature.denominator >= 8 &&
+            timeSignature.numerator >= 6 &&
+            timeSignature.numerator % 3 == 0
+        val showSingleDigit = when {
+            isCompound && actualCount == 2 && normalCount == 3 -> true
+            actualCount >= 3 && (actualCount and (actualCount - 1)) != 0 -> {
+                normalCount == highestPowerOf2Below(actualCount)
+            }
+            else -> false
+        }
+        return if (showSingleDigit) actualCount.toString() else ratioText
+    }
+
+    companion object {
+        val PRESETS: List<Pair<Int, Int>> = listOf(
+            3 to 2,
+            5 to 4,
+            6 to 4,
+            7 to 4,
+            9 to 8,
+            11 to 8,
+        )
+
+        private fun highestPowerOf2Below(value: Int): Int {
+            var p = 1
+            while (p * 2 < value) p *= 2
+            return p
+        }
+    }
+}
+
 sealed interface ScoreItem {
     val duration: NoteDuration
     val isDotted: Boolean
+    val tuplet: ScoreTuplet?
 
     val totalTicks: Int get() = duration.totalTicks(isDotted)
+
+    fun exactTicks(): RationalTicks {
+        val t = tuplet ?: return RationalTicks.of(totalTicks)
+        return RationalTicks.simplified(
+            totalTicks.toLong() * t.normalCount.toLong(),
+            t.actualCount.toLong(),
+        )
+    }
 
     fun soundingPitches(): List<SpelledPitch> = when (this) {
         is Note -> listOf(pitch)
@@ -417,6 +533,7 @@ sealed interface ScoreItem {
         val amplitude: Double = 0.25,
         val isStaccato: Boolean = false,
         val isTiedToNext: Boolean = false,
+        override val tuplet: ScoreTuplet? = null,
     ) : ScoreItem
 
     /** Vertically aligned chord of two or more simultaneous pitches sharing one stem/duration. */
@@ -427,11 +544,13 @@ sealed interface ScoreItem {
         val amplitude: Double = 0.25,
         val isStaccato: Boolean = false,
         val tiedMidiPitches: Set<Int> = emptySet(),
+        override val tuplet: ScoreTuplet? = null,
     ) : ScoreItem
 
     data class Rest(
         override val duration: NoteDuration,
         override val isDotted: Boolean = false,
+        override val tuplet: ScoreTuplet? = null,
     ) : ScoreItem
 }
 
@@ -739,6 +858,20 @@ object ScoreEditing {
         return byStep.values.sortedWith(compareBy<SpelledPitch> { it.diatonicStep }.thenBy { it.midiPitch })
     }
 
+    fun withTuplet(item: ScoreItem, tuplet: ScoreTuplet?): ScoreItem = when (item) {
+        is ScoreItem.Note -> item.copy(tuplet = tuplet)
+        is ScoreItem.Chord -> item.copy(tuplet = tuplet)
+        is ScoreItem.Rest -> item.copy(tuplet = tuplet)
+    }
+
+    fun measureExactTicks(measure: ScoreMeasure): RationalTicks {
+        var total = RationalTicks.ZERO
+        for (item in measure.items) {
+            total += item.exactTicks()
+        }
+        return total
+    }
+
     fun itemFromPitches(
         pitches: List<SpelledPitch>,
         duration: NoteDuration,
@@ -746,6 +879,7 @@ object ScoreEditing {
         amplitude: Double = 0.25,
         isStaccato: Boolean = false,
         tiedMidiPitches: Set<Int> = emptySet(),
+        tuplet: ScoreTuplet? = null,
     ): ScoreItem? {
         val sorted = normalizeChordPitches(pitches)
         return when {
@@ -759,6 +893,7 @@ object ScoreEditing {
                     amplitude = amplitude,
                     isStaccato = isStaccato,
                     isTiedToNext = p.midiPitch in tiedMidiPitches,
+                    tuplet = tuplet,
                 )
             }
             else -> {
@@ -770,6 +905,7 @@ object ScoreEditing {
                     amplitude = amplitude,
                     isStaccato = isStaccato,
                     tiedMidiPitches = tiedMidiPitches intersect validMidis,
+                    tuplet = tuplet,
                 )
             }
         }
@@ -792,7 +928,7 @@ object ScoreEditing {
             is ScoreItem.Rest -> return measures to slotLoc
         }
         val combined = normalizeChordPitches(existingPitches + pitch)
-        val newItem = itemFromPitches(combined, dur, dotted, amp, stacc, item.tiedMidiPitches()) ?: return measures to slotLoc
+        val newItem = itemFromPitches(combined, dur, dotted, amp, stacc, item.tiedMidiPitches(), item.tuplet) ?: return measures to slotLoc
         val newMeasures = replaceItem(measures, slot, newItem)
         val newLoc = if (newItem is ScoreItem.Chord) {
             val idx = newItem.pitches.indexOfFirst { it.diatonicStep == pitch.diatonicStep }
@@ -969,6 +1105,7 @@ object ScoreEditing {
                     item.amplitude,
                     item.isStaccato,
                     keptTies,
+                    item.tuplet,
                 ) ?: return measures to loc
                 val nextMeasures = replaceItem(measures, slot, newItem)
                 val nextLoc = if (newItem is ScoreItem.Chord) {
@@ -1140,6 +1277,7 @@ object ScoreEditing {
                         amplitude = item.amplitude,
                         isStaccato = item.isStaccato,
                         tiedMidiPitches = item.tiedMidiPitches,
+                        tuplet = item.tuplet,
                     )
                     if (reduced != null) {
                         nextItems.add(reduced)
@@ -1197,10 +1335,10 @@ object ScoreEditing {
         val iIdx = cursor.itemIdx.coerceIn(0, normalized[mIdx].items.size)
         val (insertedMeasures, loc) = insertItem(normalized, mIdx, iIdx, item)
         val measure = insertedMeasures[loc.measureIdx]
-        val measureTicks = measure.items.sumOf { it.totalTicks }
+        val measureTicks = measureExactTicks(measure)
         val atEndOfMeasure = loc.itemIdx == measure.items.lastIndex
 
-        return if (atEndOfMeasure && measureTicks >= measureCapacityTicks) {
+        return if (atEndOfMeasure && measureTicks >= RationalTicks.of(measureCapacityTicks)) {
             val nextMeasureIdx = loc.measureIdx + 1
             val finalMeasures = if (nextMeasureIdx >= insertedMeasures.size) {
                 appendEmptyMeasure(insertedMeasures)
@@ -1528,6 +1666,7 @@ object ScoreEditing {
                     amplitude = item.amplitude,
                     isStaccato = item.isStaccato,
                     tiedMidiPitches = item.tiedMidiPitches,
+                    tuplet = item.tuplet,
                 )?.let { copied.add(ScoreClipboardItem(it, relMeasure, clefBefore, dynamicAt, beamOverrideAfter)) }
             } else {
                 copied.add(ScoreClipboardItem(item, relMeasure, clefBefore, dynamicAt, beamOverrideAfter))
@@ -1703,6 +1842,8 @@ object ScoreEditing {
         var lastInsertedLoc = ScoreItemLocation(0, 0)
         var prevEntry: ScoreClipboardItem? = null
         var prevInsertedLoc: ScoreItemLocation? = null
+        val usedGroupIds = collectTupletGroupIds(current)
+        val remappedGroupIds = mutableMapOf<String, String>()
 
         for (entry in entries) {
             val barJump = (entry.relativeMeasureOffset - prevRelMeasure).coerceAtLeast(0)
@@ -1715,11 +1856,12 @@ object ScoreEditing {
                 current = appendEmptyMeasure(current)
                 iIdx = 0
             }
+            val itemToInsert = remapItemTuplet(entry.item, usedGroupIds, remappedGroupIds)
             val curMeasure = current[mIdx]
             if (iIdx >= curMeasure.items.size && curMeasure.items.isNotEmpty()) {
-                val capTicks = effectiveTimeAtMeasure(current, initialTimeSignature, mIdx).measureCapacityTicks
-                val curTicks = curMeasure.items.sumOf { it.totalTicks }
-                if (curTicks + entry.item.totalTicks > capTicks) {
+                val capTicks = RationalTicks.of(effectiveTimeAtMeasure(current, initialTimeSignature, mIdx).measureCapacityTicks)
+                val curTicks = measureExactTicks(curMeasure)
+                if (curTicks + itemToInsert.exactTicks() > capTicks) {
                     mIdx++
                     iIdx = 0
                     if (mIdx >= current.size) {
@@ -1731,7 +1873,7 @@ object ScoreEditing {
                 current,
                 mIdx,
                 iIdx,
-                entry.item,
+                itemToInsert,
                 appendNewMeasure = mIdx >= current.size,
                 shiftClefAtIndex = true,
             )
@@ -1788,7 +1930,7 @@ object ScoreEditing {
         val finalMeasure = current[lastInsertedLoc.measureIdx]
         val finalCap = effectiveTimeAtMeasure(current, initialTimeSignature, lastInsertedLoc.measureIdx).measureCapacityTicks
         val atEndOfMeasure = lastInsertedLoc.itemIdx == finalMeasure.items.lastIndex
-        val nextCursor = if (atEndOfMeasure && finalMeasure.items.sumOf { it.totalTicks } >= finalCap) {
+        val nextCursor = if (atEndOfMeasure && measureExactTicks(finalMeasure) >= RationalTicks.of(finalCap)) {
             val nextM = lastInsertedLoc.measureIdx + 1
             if (nextM < current.size) {
                 ScoreCursorPosition(nextM, 0)
@@ -1979,6 +2121,8 @@ object ScoreEditing {
 
         val pastedLocs = linkedSetOf<ScoreItemLocation>()
         val pastedMeasureSet = linkedSetOf<Int>()
+        val usedGroupIds = collectTupletGroupIds(current)
+        val remappedGroupIds = mutableMapOf<String, String>()
 
         for ((offset, cm) in copiedMeasures.withIndex()) {
             val targetMIdx = startMIdx + offset
@@ -1987,10 +2131,11 @@ object ScoreEditing {
             }
             val insertIIdx = if (offset == 0) startIIdx else 0
             val dest = current[targetMIdx]
-            val insertedCount = cm.measure.items.size
+            val remappedCopiedItems = cm.measure.items.map { remapItemTuplet(it, usedGroupIds, remappedGroupIds) }
+            val insertedCount = remappedCopiedItems.size
             val beforeItems = dest.items.take(insertIIdx)
             val afterItems = dest.items.drop(insertIIdx)
-            val mergedItems = beforeItems + cm.measure.items + afterItems
+            val mergedItems = beforeItems + remappedCopiedItems + afterItems
             for (i in 0 until insertedCount) {
                 pastedLocs.add(ScoreItemLocation(targetMIdx, insertIIdx + i))
             }
@@ -2202,7 +2347,14 @@ object ScoreEditing {
         val clefAtRight = measure.clefChanges[idx + 1]
         if (clefAtRight != null && clefAtRight != clefBeforeRight) return false
 
-        val boundaryTick = (0..idx).sumOf { measure.items[it].totalTicks }
+        if (left.tuplet != null || right.tuplet != null) {
+            return left.tuplet?.groupId == right.tuplet?.groupId
+        }
+
+        var boundaryTick = RationalTicks.ZERO
+        for (k in 0..idx) {
+            boundaryTick += measure.items[k].exactTicks()
+        }
         return when {
             // Compound meters (6/8, 9/8, 12/8, etc.): group per dotted beat (3 subdivisions)
             timeSignature.denominator >= 8 &&
@@ -2210,11 +2362,11 @@ object ScoreEditing {
                 timeSignature.numerator % 3 == 0 -> {
                 val unitTicks = ((PianoRollTiming.TPB * 4) / timeSignature.denominator).coerceAtLeast(1)
                 val compoundBeatTicks = unitTicks * 3
-                boundaryTick % compoundBeatTicks != 0
+                !boundaryTick.isWholeMultipleOf(compoundBeatTicks)
             }
             // 2/8 and 3/8 beam all flagged eighths/subdivisions across the full bar
             timeSignature.denominator == 8 && timeSignature.numerator in 2..3 -> {
-                boundaryTick % timeSignature.measureCapacityTicks.coerceAtLeast(1) != 0
+                !boundaryTick.isWholeMultipleOf(timeSignature.measureCapacityTicks.coerceAtLeast(1))
             }
             // 4/4 (Common time) and 2/2 (Cut time): never beam across half-bar, and beam
             // four pure eighth notes across a half-bar while splitting 16ths/dotted on each quarter beat
@@ -2222,18 +2374,19 @@ object ScoreEditing {
                 (timeSignature.numerator == 2 && timeSignature.denominator == 2) -> {
                 val beatTicks = PianoRollTiming.TPB
                 val halfBarTicks = beatTicks * 2
-                if (boundaryTick % halfBarTicks == 0) {
+                if (boundaryTick.isWholeMultipleOf(halfBarTicks)) {
                     false
-                } else if (boundaryTick % beatTicks != 0) {
+                } else if (!boundaryTick.isWholeMultipleOf(beatTicks)) {
                     true
                 } else {
-                    val halfStart = (boundaryTick / halfBarTicks) * halfBarTicks
-                    val halfEnd = halfStart + halfBarTicks
-                    var t = 0
+                    val halfSpan = (boundaryTick.num / (boundaryTick.den * halfBarTicks.toLong()))
+                    val halfStart = RationalTicks.of((halfSpan * halfBarTicks).toInt())
+                    val halfEnd = halfStart + RationalTicks.of(halfBarTicks)
+                    var t = RationalTicks.ZERO
                     for (item in measure.items) {
-                        val nextT = t + item.totalTicks
+                        val nextT = t + item.exactTicks()
                         if (nextT > halfStart && t < halfEnd && isBeamableItem(item)) {
-                            if (item.duration != NoteDuration.EIGHTH || item.isDotted) {
+                            if (item.tuplet != null || item.duration != NoteDuration.EIGHTH || item.isDotted) {
                                 return false
                             }
                         }
@@ -2248,7 +2401,7 @@ object ScoreEditing {
                     timeSignature.denominator >= 8 -> PianoRollTiming.TPB
                     else -> (PianoRollTiming.TPB * 4) / timeSignature.denominator
                 }.coerceAtLeast(1)
-                boundaryTick % beatTicks != 0
+                !boundaryTick.isWholeMultipleOf(beatTicks)
             }
         }
     }
@@ -2472,7 +2625,171 @@ object ScoreEditing {
             is ScoreItem.Rest -> measures
         }
     }
+
+    /** Returns every distinct tuplet groupId currently present across [measures]. */
+    fun collectTupletGroupIds(measures: List<ScoreMeasure>): MutableSet<String> {
+        val ids = linkedSetOf<String>()
+        for (m in measures) {
+            for (item in m.items) {
+                item.tuplet?.groupId?.let { ids.add(it) }
+            }
+        }
+        return ids
+    }
+
+    /** Allocates a fresh unique tuplet group ID not present in [usedIds] and registers it. */
+    fun nextTupletGroupId(usedIds: MutableSet<String>, prefix: String = "t"): String {
+        var idx = usedIds.size + 1
+        while (true) {
+            val candidate = "$prefix$idx"
+            if (usedIds.add(candidate)) return candidate
+            idx++
+        }
+    }
+
+    /** Remaps a copied/pasted item's tuplet groupId to a fresh ID per paste batch so pasted tuplets stay distinct. */
+    fun remapItemTuplet(
+        item: ScoreItem,
+        usedIds: MutableSet<String>,
+        remap: MutableMap<String, String>,
+    ): ScoreItem {
+        val t = item.tuplet ?: return item
+        val freshId = remap.getOrPut(t.groupId) { nextTupletGroupId(usedIds) }
+        return withTuplet(item, t.copy(groupId = freshId))
+    }
+
+    /** Computes contiguous [ScoreTupletGroup]s within [measure] together with label text and bracket visibility. */
+    fun computeTupletGroups(
+        measure: ScoreMeasure,
+        measureIdx: Int,
+        openingClef: Clef,
+        timeSignature: TimeSignature,
+    ): List<ScoreTupletGroup> {
+        if (measure.items.isEmpty()) return emptyList()
+        val links = effectiveBeamLinks(measure, openingClef, timeSignature)
+        val groups = mutableListOf<ScoreTupletGroup>()
+        var i = 0
+        while (i < measure.items.size) {
+            val t = measure.items[i].tuplet
+            if (t == null) {
+                i++
+                continue
+            }
+            val start = i
+            while (i + 1 < measure.items.size && measure.items[i + 1].tuplet?.groupId == t.groupId) {
+                i++
+            }
+            val end = i
+            val indices = (start..end).toList()
+            val unscaledSum = indices.sumOf { measure.items[it].totalTicks }
+            val isFull = if (t.baseTicks > 0) {
+                unscaledSum >= t.actualCount * t.baseTicks
+            } else {
+                indices.size >= t.actualCount
+            }
+            val allNotes = indices.all { measure.items[it] !is ScoreItem.Rest }
+            val singleUnbrokenBeam = indices.size >= 2 && (start until end).all { links[it] }
+            val drawBracket = !isFull || !(allNotes && singleUnbrokenBeam)
+            groups.add(
+                ScoreTupletGroup(
+                    measureIdx = measureIdx,
+                    itemIndices = indices,
+                    tuplet = t,
+                    displayText = t.displayText(timeSignature),
+                    drawBracket = drawBracket,
+                    isFull = isFull,
+                )
+            )
+            i++
+        }
+        return groups
+    }
+
+    /**
+     * Applies [ratio] (`actualCount to normalCount`) across each contiguous run of selected
+     * items per measure, or unwraps them when [ratio] is `null` or when all selected items
+     * already share the same ratio.
+     */
+    fun applyTupletOnSelection(
+        measures: List<ScoreMeasure>,
+        selection: Set<ScoreItemLocation>,
+        ratio: Pair<Int, Int>?,
+    ): List<ScoreMeasure> {
+        val slotsByMeasure = selection
+            .map { it.slotLocation() }
+            .filter { loc ->
+                loc.measureIdx in measures.indices &&
+                    loc.itemIdx in measures[loc.measureIdx].items.indices
+            }
+            .distinct()
+            .groupBy { it.measureIdx }
+        if (slotsByMeasure.isEmpty()) return measures
+
+        val alreadyMatchesRatio = ratio != null && slotsByMeasure.all { (mIdx, locs) ->
+            locs.all { loc ->
+                val t = measures[mIdx].items[loc.itemIdx].tuplet
+                t != null && t.actualCount == ratio.first && t.normalCount == ratio.second
+            }
+        }
+        val effectiveRatio = if (alreadyMatchesRatio) null else ratio
+        val usedIds = collectTupletGroupIds(measures)
+
+        return renumber(
+            measures.mapIndexed { mIdx, measure ->
+                val locs = slotsByMeasure[mIdx] ?: return@mapIndexed measure
+                val selectedSet = locs.map { it.itemIdx }.sorted()
+                if (effectiveRatio == null) {
+                    val updatedItems = measure.items.mapIndexed { iIdx, item ->
+                        if (iIdx in selectedSet) withTuplet(item, null) else item
+                    }
+                    measure.copy(items = updatedItems)
+                } else {
+                    val updatedItems = measure.items.toMutableList()
+                    var runStart = 0
+                    while (runStart < selectedSet.size) {
+                        var runEnd = runStart
+                        while (runEnd + 1 < selectedSet.size && selectedSet[runEnd + 1] == selectedSet[runEnd] + 1) {
+                            runEnd++
+                        }
+                        val runIndices = (runStart..runEnd).map { selectedSet[it] }
+                        val firstTicks = updatedItems[runIndices.first()].totalTicks
+                        val inferredBaseTicks = if (
+                            runIndices.size < effectiveRatio.first &&
+                            runIndices.all { updatedItems[it].totalTicks == firstTicks }
+                        ) {
+                            firstTicks
+                        } else {
+                            0
+                        }
+                        val groupId = nextTupletGroupId(usedIds)
+                        val tuplet = ScoreTuplet(
+                            groupId = groupId,
+                            actualCount = effectiveRatio.first,
+                            normalCount = effectiveRatio.second,
+                            baseTicks = inferredBaseTicks,
+                        )
+                        for (k in runStart..runEnd) {
+                            val idx = selectedSet[k]
+                            updatedItems[idx] = withTuplet(updatedItems[idx], tuplet)
+                        }
+                        runStart = runEnd + 1
+                    }
+                    measure.copy(items = updatedItems)
+                }
+            }
+        )
+    }
 }
+
+/** Contiguous tuplet group inside one measure with precomputed label text and bracket rules. */
+data class ScoreTupletGroup(
+    val measureIdx: Int,
+    val itemIndices: List<Int>,
+    val tuplet: ScoreTuplet,
+    val displayText: String,
+    val drawBracket: Boolean,
+    val isFull: Boolean,
+)
 
 /** Insertion cursor identifying a measure slot (`itemIdx` in `0..measure.items.size`). */
 data class ScoreCursorPosition(
