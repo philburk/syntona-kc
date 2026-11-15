@@ -12,18 +12,19 @@ class ReplaceScoreMeasuresCommand(
     private val scoreData: ScoreData,
     private val beforeMeasures: List<ScoreMeasure>,
     private val afterMeasures: List<ScoreMeasure>,
+    private val staff: ScoreStaffId = ScoreStaffId(0, 0),
     private val onSelectionSync: ((List<ScoreMeasure>) -> Unit)? = null,
 ) : SyntonaCommand {
     override val isUndoable = true
 
     override fun execute() {
-        scoreData.replaceMeasures(afterMeasures)
+        scoreData.replaceStaffMeasures(staff, afterMeasures)
         onSelectionSync?.invoke(afterMeasures)
         FileState.markDirty()
     }
 
     override fun undo() {
-        scoreData.replaceMeasures(beforeMeasures)
+        scoreData.replaceStaffMeasures(staff, beforeMeasures)
         onSelectionSync?.invoke(beforeMeasures)
         FileState.markDirty()
     }
@@ -46,15 +47,18 @@ class StepRecordScoreNoteCommand(
     private var afterMeasures: List<ScoreMeasure>? = null
     private var afterCursor: ScoreCursorPosition? = null
     private var pitchDisplayText: String? = null
+    private var targetStaff: ScoreStaffId = ScoreStaffId(0, 0)
 
     override fun execute() {
-        val prevMeasures = beforeMeasures ?: module.scoreData.measures.toList()
-        val prevCursor = beforeCursor ?: module.cursorPosition ?: ScoreEditing.defaultStepCursor(prevMeasures)
+        val prevCursor = beforeCursor ?: module.cursorPosition
+            ?: ScoreEditing.defaultStepCursor(module.scoreData.staffMeasures(ScoreStaffId(0, 0)))
+        targetStaff = prevCursor.staff
+        val prevMeasures = beforeMeasures ?: module.scoreData.staffMeasures(targetStaff).toList()
         val cachedAfter = afterMeasures
         val cachedCursor = afterCursor
 
         if (cachedAfter != null && cachedCursor != null) {
-            module.scoreData.replaceMeasures(cachedAfter)
+            module.scoreData.replaceStaffMeasures(targetStaff, cachedAfter)
             module.cursorPosition = cachedCursor
         } else {
             val activeKey = ScoreEditing.effectiveKeyAtMeasure(
@@ -87,7 +91,7 @@ class StepRecordScoreNoteCommand(
             afterCursor = result.nextCursor
             pitchDisplayText = spelled.pitchDisplay()
 
-            module.scoreData.replaceMeasures(result.measures)
+            module.scoreData.replaceStaffMeasures(targetStaff, result.measures)
             module.cursorPosition = result.nextCursor
         }
         module.lastStepRecordedText = pitchDisplayText
@@ -97,7 +101,7 @@ class StepRecordScoreNoteCommand(
 
     override fun undo() {
         val prevMeasures = beforeMeasures ?: return
-        module.scoreData.replaceMeasures(prevMeasures)
+        module.scoreData.replaceStaffMeasures(targetStaff, prevMeasures)
         module.cursorPosition = beforeCursor
         module.lastStepRecordedText = null
         module.stepRecordRevision++
@@ -107,7 +111,7 @@ class StepRecordScoreNoteCommand(
 
 /**
  * Undoable command updating the score's opening and/or per-measure key signatures while leaving
- * all note pitch values unchanged.
+ * all note pitch values unchanged. Propagates measure-level key changes across all staves.
  */
 class SetScoreKeySignatureCommand(
     private val scoreData: ScoreData,
@@ -115,27 +119,59 @@ class SetScoreKeySignatureCommand(
     private val beforeMeasures: List<ScoreMeasure>,
     private val afterInitialKey: KeySignature,
     private val afterMeasures: List<ScoreMeasure>,
+    private val staff: ScoreStaffId = ScoreStaffId(0, 0),
     private val onSync: (() -> Unit)? = null,
 ) : SyntonaCommand {
     override val isUndoable = true
+    private var beforeInstrumentsSnapshot: List<ScoreInstrumentPart>? = null
 
     override fun execute() {
+        if (beforeInstrumentsSnapshot == null) {
+            beforeInstrumentsSnapshot = scoreData.instruments.toList()
+        }
         scoreData.keySignature = afterInitialKey
-        scoreData.replaceMeasures(afterMeasures)
+        scoreData.replaceStaffMeasures(staff, afterMeasures)
+        val syncKeys = afterMeasures.map { it.keySignature }
+        for (iIdx in scoreData.instruments.indices) {
+            val part = scoreData.instruments[iIdx]
+            var updatedPart = part
+            if (ScoreStaffId(iIdx, 0) != staff) {
+                val synced = part.measures.mapIndexed { mIdx, m ->
+                    val k = syncKeys.getOrNull(mIdx)
+                    if (m.keySignature != k) m.copy(keySignature = k) else m
+                }
+                updatedPart = updatedPart.withStaffMeasures(0, synced)
+            }
+            if (part.staffCount >= 2 && ScoreStaffId(iIdx, 1) != staff) {
+                val syncedLower = part.lowerMeasures.mapIndexed { mIdx, m ->
+                    val k = syncKeys.getOrNull(mIdx)
+                    if (m.keySignature != k) m.copy(keySignature = k) else m
+                }
+                updatedPart = updatedPart.withStaffMeasures(1, syncedLower)
+            }
+            if (updatedPart !== part) {
+                scoreData.instruments[iIdx] = updatedPart
+            }
+        }
         onSync?.invoke()
         FileState.markDirty()
     }
 
     override fun undo() {
         scoreData.keySignature = beforeInitialKey
-        scoreData.replaceMeasures(beforeMeasures)
+        val snapshot = beforeInstrumentsSnapshot
+        if (snapshot != null) {
+            scoreData.replaceAllInstruments(snapshot)
+        } else {
+            scoreData.replaceStaffMeasures(staff, beforeMeasures)
+        }
         onSync?.invoke()
         FileState.markDirty()
     }
 }
 
 /**
- * Undoable command updating the score's opening and/or per-measure time signatures.
+ * Undoable command updating the score's opening and/or per-measure time signatures across all staves.
  */
 class SetScoreTimeSignatureCommand(
     private val scoreData: ScoreData,
@@ -143,27 +179,59 @@ class SetScoreTimeSignatureCommand(
     private val beforeMeasures: List<ScoreMeasure>,
     private val afterInitialTime: TimeSignature,
     private val afterMeasures: List<ScoreMeasure>,
+    private val staff: ScoreStaffId = ScoreStaffId(0, 0),
     private val onSync: (() -> Unit)? = null,
 ) : SyntonaCommand {
     override val isUndoable = true
+    private var beforeInstrumentsSnapshot: List<ScoreInstrumentPart>? = null
 
     override fun execute() {
+        if (beforeInstrumentsSnapshot == null) {
+            beforeInstrumentsSnapshot = scoreData.instruments.toList()
+        }
         scoreData.timeSignature = afterInitialTime
-        scoreData.replaceMeasures(afterMeasures)
+        scoreData.replaceStaffMeasures(staff, afterMeasures)
+        val syncTimes = afterMeasures.map { it.timeSignature }
+        for (iIdx in scoreData.instruments.indices) {
+            val part = scoreData.instruments[iIdx]
+            var updatedPart = part
+            if (ScoreStaffId(iIdx, 0) != staff) {
+                val synced = part.measures.mapIndexed { mIdx, m ->
+                    val t = syncTimes.getOrNull(mIdx)
+                    if (m.timeSignature != t) m.copy(timeSignature = t) else m
+                }
+                updatedPart = updatedPart.withStaffMeasures(0, synced)
+            }
+            if (part.staffCount >= 2 && ScoreStaffId(iIdx, 1) != staff) {
+                val syncedLower = part.lowerMeasures.mapIndexed { mIdx, m ->
+                    val t = syncTimes.getOrNull(mIdx)
+                    if (m.timeSignature != t) m.copy(timeSignature = t) else m
+                }
+                updatedPart = updatedPart.withStaffMeasures(1, syncedLower)
+            }
+            if (updatedPart !== part) {
+                scoreData.instruments[iIdx] = updatedPart
+            }
+        }
         onSync?.invoke()
         FileState.markDirty()
     }
 
     override fun undo() {
         scoreData.timeSignature = beforeInitialTime
-        scoreData.replaceMeasures(beforeMeasures)
+        val snapshot = beforeInstrumentsSnapshot
+        if (snapshot != null) {
+            scoreData.replaceAllInstruments(snapshot)
+        } else {
+            scoreData.replaceStaffMeasures(staff, beforeMeasures)
+        }
         onSync?.invoke()
         FileState.markDirty()
     }
 }
 
 /**
- * Undoable command updating the score's opening clef and/or per-measure / mid-measure clefs
+ * Undoable command updating a staff's opening clef and/or per-measure / mid-measure clefs
  * while leaving all note pitch values unchanged.
  */
 class SetScoreClefCommand(
@@ -172,26 +240,27 @@ class SetScoreClefCommand(
     private val beforeMeasures: List<ScoreMeasure>,
     private val afterInitialClef: Clef,
     private val afterMeasures: List<ScoreMeasure>,
+    private val staff: ScoreStaffId = ScoreStaffId(0, 0),
     private val onSync: (() -> Unit)? = null,
 ) : SyntonaCommand {
     override val isUndoable = true
 
     override fun execute() {
-        scoreData.clef = afterInitialClef
-        scoreData.replaceMeasures(afterMeasures)
+        scoreData.setStaffClef(staff, afterInitialClef)
+        scoreData.replaceStaffMeasures(staff, afterMeasures)
         onSync?.invoke()
         FileState.markDirty()
     }
 
     override fun undo() {
-        scoreData.clef = beforeInitialClef
-        scoreData.replaceMeasures(beforeMeasures)
+        scoreData.setStaffClef(staff, beforeInitialClef)
+        scoreData.replaceStaffMeasures(staff, beforeMeasures)
         onSync?.invoke()
         FileState.markDirty()
     }
 }
 
-/** Atomically replaces opening clef/key/time signatures and all measures (e.g. score-wide paste). */
+/** Atomically replaces opening clef/key/time signatures and all measures on [staff]. */
 class ReplaceScoreDocumentCommand(
     private val scoreData: ScoreData,
     private val beforeInitialClef: Clef,
@@ -202,25 +271,53 @@ class ReplaceScoreDocumentCommand(
     private val afterInitialKey: KeySignature,
     private val afterInitialTime: TimeSignature,
     private val afterMeasures: List<ScoreMeasure>,
+    private val staff: ScoreStaffId = ScoreStaffId(0, 0),
     private val onSync: ((List<ScoreMeasure>, Boolean) -> Unit)? = null,
 ) : SyntonaCommand {
     override val isUndoable = true
 
     override fun execute() {
-        scoreData.clef = afterInitialClef
+        scoreData.setStaffClef(staff, afterInitialClef)
         scoreData.keySignature = afterInitialKey
         scoreData.timeSignature = afterInitialTime
-        scoreData.replaceMeasures(afterMeasures)
+        scoreData.replaceStaffMeasures(staff, afterMeasures)
         onSync?.invoke(afterMeasures, false)
         FileState.markDirty()
     }
 
     override fun undo() {
-        scoreData.clef = beforeInitialClef
+        scoreData.setStaffClef(staff, beforeInitialClef)
         scoreData.keySignature = beforeInitialKey
         scoreData.timeSignature = beforeInitialTime
-        scoreData.replaceMeasures(beforeMeasures)
+        scoreData.replaceStaffMeasures(staff, beforeMeasures)
         onSync?.invoke(beforeMeasures, true)
+        FileState.markDirty()
+    }
+}
+
+/**
+ * Undoable command replacing the instrument roster of [ScoreModule] and synchronizing its per-instrument
+ * [com.syntona.dataflow.model.VoiceOutputJack] instances.
+ */
+class ReplaceScoreInstrumentsCommand(
+    private val module: ScoreModule,
+    private val beforeInstruments: List<ScoreInstrumentPart>,
+    private val afterInstruments: List<ScoreInstrumentPart>,
+    private val onSync: (() -> Unit)? = null,
+) : SyntonaCommand {
+    override val isUndoable = true
+
+    override fun execute() {
+        module.scoreData.replaceAllInstruments(afterInstruments)
+        module.syncInstrumentOutputs()
+        onSync?.invoke()
+        FileState.markDirty()
+    }
+
+    override fun undo() {
+        module.scoreData.replaceAllInstruments(beforeInstruments)
+        module.syncInstrumentOutputs()
+        onSync?.invoke()
         FileState.markDirty()
     }
 }

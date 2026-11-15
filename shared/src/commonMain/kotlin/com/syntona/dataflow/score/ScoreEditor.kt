@@ -33,7 +33,11 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
@@ -164,6 +168,15 @@ private enum class DurationEditPendingState {
     AWAITING_OPTIONAL_DOT,
 }
 
+private data class InstrumentDialogState(
+    val editingIndex: Int?,
+    val name: String,
+    val instrumentType: InstrumentType,
+    val lowPitchText: String,
+    val highPitchText: String,
+    val selectedPreset: InstrumentPreset? = null,
+)
+
 @Composable
 fun ScoreEditor(module: ScoreModule, state: GraphState) {
     val isDark = GraphViewSettings.isDarkMode
@@ -183,12 +196,15 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
 
     var staffSpaceDp by remember { mutableStateOf(10f) }
     val scrollState = rememberScrollState()
+    val verticalScrollState = rememberScrollState()
     val toolbarScrollState = rememberScrollState()
 
     var editorMode by remember { mutableStateOf(ScoreEditMode.ENTRY) }
+    var activeStaff by remember { mutableStateOf(ScoreStaffId(0, 0)) }
     var activeDynamic by remember { mutableStateOf(DynamicMark.MF) }
     var selectedDynamics by remember { mutableStateOf<Set<ScoreDynamicLocation>>(emptySet()) }
     var hoveringDynamic by remember { mutableStateOf(false) }
+    var hoveringInstrument by remember { mutableStateOf(false) }
     var entryDuration by remember { mutableStateOf(NoteDuration.QUARTER) }
     var entryIsRest by remember { mutableStateOf(false) }
     var entryIsDotted by remember { mutableStateOf(false) }
@@ -212,15 +228,34 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
     var timeSigInputValue by remember { mutableStateOf(TextFieldValue("")) }
     var timeSigHadFocus by remember { mutableStateOf(false) }
     val timeSigFocusRequester = remember { FocusRequester() }
+    var instrumentDialog by remember { mutableStateOf<InstrumentDialogState?>(null) }
 
     val score = module.scoreData
 
+    fun resolvedActiveStaff(): ScoreStaffId {
+        val part = score.instruments.getOrNull(activeStaff.instrumentIdx)
+        return when {
+            part == null -> ScoreStaffId(0, 0)
+            activeStaff.staffIdx >= part.staffCount -> ScoreStaffId(activeStaff.instrumentIdx, 0)
+            else -> activeStaff
+        }
+    }
+
     fun refreshPitchDisplayFromSelection(
-        measures: List<ScoreMeasure> = score.measures,
+        overrideStaff: ScoreStaffId? = null,
+        overrideMeasures: List<ScoreMeasure>? = null,
         selection: Set<ScoreItemLocation> = selectedLocations,
     ) {
+        fun measuresFor(staff: ScoreStaffId): List<ScoreMeasure> =
+            if (overrideMeasures != null && (overrideStaff == null || overrideStaff == staff)) {
+                overrideMeasures
+            } else {
+                score.staffMeasures(staff)
+            }
+
         val selectedPitches = selection.flatMap { loc ->
-            when (val item = ScoreEditing.itemAt(measures, loc)) {
+            val staffMeasures = measuresFor(loc.staff)
+            when (val item = ScoreEditing.itemAt(staffMeasures, loc)) {
                 is ScoreItem.Note -> listOf(item.pitch)
                 is ScoreItem.Chord -> if (loc.chordNoteIdx != null) {
                     listOfNotNull(item.pitches.getOrNull(loc.chordNoteIdx))
@@ -241,11 +276,13 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             .distinct()
             .singleOrNull()
             ?.let { slot ->
-                val chord = ScoreEditing.itemAt(measures, slot) as? ScoreItem.Chord
+                val staffMeasures = measuresFor(slot.staff)
+                val chord = ScoreEditing.itemAt(staffMeasures, slot) as? ScoreItem.Chord
                 if (chord != null) slot to chord else null
             }
         activeChordName = singleSlotChord?.let { (slot, chord) ->
-            val key = ScoreEditing.effectiveKeyAtMeasure(measures, score.keySignature, slot.measureIdx)
+            val staffMeasures = measuresFor(slot.staff)
+            val key = ScoreEditing.effectiveKeyAtMeasure(staffMeasures, score.keySignature, slot.measureIdx)
             ScoreChordAnalyzer.recognizeChordName(chord.pitches, key)
         }
     }
@@ -260,16 +297,24 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         state.markChanged()
     }
 
-    fun targetClefLocation(): ScoreClefLocation = ScoreEditing.resolveTargetClefLocation(
-        selectedClefChange = selectedClefChange,
-        selectedLocations = selectedLocations,
-        cursorPosition = module.cursorPosition,
-        selectedMeasures = selectedMeasures,
-    )
+    fun targetClefLocation(): ScoreClefLocation {
+        val base = ScoreEditing.resolveTargetClefLocation(
+            selectedClefChange = selectedClefChange,
+            selectedLocations = selectedLocations,
+            cursorPosition = module.cursorPosition,
+            selectedMeasures = selectedMeasures,
+        )
+        val staff = selectedClefChange?.staff
+            ?: selectedLocations.firstOrNull()?.staff
+            ?: module.cursorPosition?.staff
+            ?: resolvedActiveStaff()
+        return base.copy(staff = staff)
+    }
 
     fun applyClef(newClef: Clef?, target: ScoreClefLocation) {
-        val beforeInitialClef = score.clef
-        val beforeMeasures = score.measures.toList()
+        val targetStaff = target.staff
+        val beforeInitialClef = score.staffClef(targetStaff)
+        val beforeMeasures = score.staffMeasures(targetStaff).toList()
         val (afterInitialClef, afterMeasures) = ScoreEditing.setClefChange(
             initialClef = beforeInitialClef,
             measures = beforeMeasures,
@@ -287,6 +332,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 beforeMeasures = beforeMeasures,
                 afterInitialClef = afterInitialClef,
                 afterMeasures = afterMeasures,
+                staff = targetStaff,
             )
         )
     }
@@ -296,7 +342,8 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         mark: DynamicMark,
         placement: DynamicPlacement,
     ) {
-        val before = score.measures.toList()
+        val targetStaff = location.staff
+        val before = score.staffMeasures(targetStaff).toList()
         val prevSelected = selectedDynamics
         val (after, placedLoc) = ScoreEditing.setDynamic(
             measures = before,
@@ -304,54 +351,112 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             marking = ScoreDynamicMarking(mark = mark, placement = placement),
         )
         if (after == before || placedLoc == null) return
+        val placedWithStaff = placedLoc.copy(staff = targetStaff)
         selectedLocations = emptySet()
         selectedMeasures = emptySet()
         selectedClefChange = null
-        selectedDynamics = setOf(placedLoc)
+        selectedDynamics = setOf(placedWithStaff)
         activePitchText = null
         activeChordName = null
         postCommand(
-            ReplaceScoreMeasuresCommand(score, before, after) { restored ->
+            ReplaceScoreMeasuresCommand(score, before, after, staff = targetStaff) { restored ->
                 selectedDynamics = if (restored == before) {
                     prevSelected.filterTo(linkedSetOf()) { loc ->
-                        restored.getOrNull(loc.measureIdx)?.dynamics?.containsKey(loc.itemIdx) == true
+                        score.staffMeasures(loc.staff).getOrNull(loc.measureIdx)?.dynamics?.containsKey(loc.itemIdx) == true
                     }
                 } else {
-                    setOf(placedLoc)
+                    setOf(placedWithStaff)
                 }
             }
         )
     }
 
     fun toggleBeamAt(loc: ScoreItemLocation) {
-        val before = score.measures.toList()
+        val targetStaff = loc.staff
+        val before = score.staffMeasures(targetStaff).toList()
         val after = ScoreEditing.toggleBeamAt(
             measures = before,
-            initialClef = score.clef,
+            initialClef = score.staffClef(targetStaff),
             initialTimeSignature = score.timeSignature,
             slotLoc = loc,
         )
         if (after == before) return
         postCommand(
-            ReplaceScoreMeasuresCommand(score, before, after) { restored ->
-                refreshPitchDisplayFromSelection(restored, selectedLocations)
+            ReplaceScoreMeasuresCommand(score, before, after, staff = targetStaff) {
+                refreshPitchDisplayFromSelection(selection = selectedLocations)
             }
         )
     }
 
     fun toggleTieAt(loc: ScoreItemLocation) {
-        val before = score.measures.toList()
+        val targetStaff = loc.staff
+        val before = score.staffMeasures(targetStaff).toList()
         val after = ScoreEditing.toggleTieAt(
             measures = before,
             slotLoc = loc,
         )
         if (after == before) return
         postCommand(
-            ReplaceScoreMeasuresCommand(score, before, after) { restored ->
-                refreshPitchDisplayFromSelection(restored, selectedLocations)
+            ReplaceScoreMeasuresCommand(score, before, after, staff = targetStaff) {
+                refreshPitchDisplayFromSelection(selection = selectedLocations)
             }
         )
     }
+
+    fun updateMeasuresAcrossStaves(
+        staves: Set<ScoreStaffId>,
+        transform: (ScoreStaffId, List<ScoreMeasure>) -> List<ScoreMeasure>,
+        onAfterRestore: ((Boolean) -> Unit)? = null,
+    ) {
+        if (staves.isEmpty()) return
+        val singleStaff = staves.singleOrNull()
+        if (singleStaff != null) {
+            val before = score.staffMeasures(singleStaff).toList()
+            val after = transform(singleStaff, before)
+            if (after == before) return
+            postCommand(
+                ReplaceScoreMeasuresCommand(score, before, after, staff = singleStaff) { restored ->
+                    onAfterRestore?.invoke(restored == before)
+                }
+            )
+        } else {
+            val beforeInst = score.instruments.toList()
+            var changed = false
+            val afterInst = beforeInst.mapIndexed { instIdx, part ->
+                var updatedPart = part
+                for (sIdx in 0 until part.staffCount) {
+                    val staffId = ScoreStaffId(instIdx, sIdx)
+                    if (staffId in staves) {
+                        val cur = updatedPart.measuresForStaff(sIdx)
+                        val next = transform(staffId, cur)
+                        if (next != cur) {
+                            updatedPart = updatedPart.withStaffMeasures(sIdx, next)
+                            changed = true
+                        }
+                    }
+                }
+                updatedPart
+            }
+            if (!changed) return
+            postCommand(
+                ReplaceScoreInstrumentsCommand(module, beforeInst, afterInst) {
+                    onAfterRestore?.invoke(score.instruments.toList() == beforeInst)
+                }
+            )
+        }
+    }
+
+    fun filterValidLocations(locs: Set<ScoreItemLocation>): Set<ScoreItemLocation> =
+        locs.filterTo(linkedSetOf()) { loc ->
+            val ms = score.staffMeasures(loc.staff)
+            ScoreEditing.pitchAt(ms, loc) != null ||
+                (loc.chordNoteIdx == null && ScoreEditing.itemAt(ms, loc) != null)
+        }
+
+    fun filterValidDynamics(dyns: Set<ScoreDynamicLocation>): Set<ScoreDynamicLocation> =
+        dyns.filterTo(linkedSetOf()) { loc ->
+            score.staffMeasures(loc.staff).getOrNull(loc.measureIdx)?.dynamics?.containsKey(loc.itemIdx) == true
+        }
 
     fun deleteSelection() {
         durationEditState = null
@@ -361,26 +466,26 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             }
             return
         }
-        val before = score.measures.toList()
         val prevSelection = selectedLocations
         val prevDynamics = selectedDynamics
-        val afterDyns = ScoreEditing.deleteDynamics(before, prevDynamics)
-        val after = ScoreEditing.deleteItems(afterDyns, prevSelection)
+        val affectedStaves = (prevSelection.map { it.staff } + prevDynamics.map { it.staff }).toSet()
         selectedLocations = emptySet()
         selectedDynamics = emptySet()
         activePitchText = null
         activeChordName = null
-        postCommand(
-            ReplaceScoreMeasuresCommand(score, before, after) { restored ->
-                selectedLocations = prevSelection.filterTo(linkedSetOf()) { loc ->
-                    ScoreEditing.pitchAt(restored, loc) != null ||
-                        (loc.chordNoteIdx == null && ScoreEditing.itemAt(restored, loc) != null)
-                }
-                selectedDynamics = prevDynamics.filterTo(linkedSetOf()) { loc ->
-                    restored.getOrNull(loc.measureIdx)?.dynamics?.containsKey(loc.itemIdx) == true
-                }
-                refreshPitchDisplayFromSelection(restored, selectedLocations)
-            }
+        updateMeasuresAcrossStaves(
+            staves = affectedStaves,
+            transform = { staffId, ms ->
+                val staffDyns = prevDynamics.filterTo(mutableSetOf()) { it.staff == staffId }
+                val staffLocs = prevSelection.filterTo(mutableSetOf()) { it.staff == staffId }
+                val afterDyns = if (staffDyns.isEmpty()) ms else ScoreEditing.deleteDynamics(ms, staffDyns)
+                if (staffLocs.isEmpty()) afterDyns else ScoreEditing.deleteItems(afterDyns, staffLocs)
+            },
+            onAfterRestore = { _ ->
+                selectedLocations = filterValidLocations(prevSelection)
+                selectedDynamics = filterValidDynamics(prevDynamics)
+                refreshPitchDisplayFromSelection(selection = selectedLocations)
+            },
         )
     }
 
@@ -392,20 +497,19 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
 
     fun applyDurationToSelection(duration: NoteDuration, isDotted: Boolean) {
         if (selectedLocations.isEmpty()) return
-        val before = score.measures.toList()
         val prevSelection = selectedLocations
-        val after = ScoreEditing.setDurationOnSelection(before, prevSelection, duration, isDotted)
-        if (after != before) {
-            postCommand(
-                ReplaceScoreMeasuresCommand(score, before, after) { restored ->
-                    selectedLocations = prevSelection.filterTo(linkedSetOf()) { loc ->
-                        ScoreEditing.pitchAt(restored, loc) != null ||
-                            (loc.chordNoteIdx == null && ScoreEditing.itemAt(restored, loc) != null)
-                    }
-                    refreshPitchDisplayFromSelection(restored, selectedLocations)
-                }
-            )
-        }
+        val affectedStaves = prevSelection.map { it.staff }.toSet()
+        updateMeasuresAcrossStaves(
+            staves = affectedStaves,
+            transform = { staffId, ms ->
+                val staffLocs = prevSelection.filterTo(mutableSetOf()) { it.staff == staffId }
+                ScoreEditing.setDurationOnSelection(ms, staffLocs, duration, isDotted)
+            },
+            onAfterRestore = { _ ->
+                selectedLocations = filterValidLocations(prevSelection)
+                refreshPitchDisplayFromSelection(selection = selectedLocations)
+            },
+        )
     }
 
     fun selectDuration(duration: NoteDuration) {
@@ -427,23 +531,36 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
     }
 
     fun applyAccidental(accidental: Accidental) {
-        val before = score.measures.toList()
-        val after = ScoreEditing.setAccidentalOnSelection(before, selectedLocations, accidental.alter)
         val hasSelectedNotes = selectedLocations.any { loc ->
-            ScoreEditing.itemAt(before, loc)?.soundingPitches()?.isNotEmpty() == true
+            ScoreEditing.itemAt(score.staffMeasures(loc.staff), loc)?.soundingPitches()?.isNotEmpty() == true
         }
         if (hasSelectedNotes) {
-            if (after != before) {
-                postCommand(ReplaceScoreMeasuresCommand(score, before, after))
-            }
+            val prevSelection = selectedLocations
+            val affectedStaves = prevSelection.map { it.staff }.toSet()
+            updateMeasuresAcrossStaves(
+                staves = affectedStaves,
+                transform = { staffId, ms ->
+                    val staffLocs = prevSelection.filterTo(mutableSetOf()) { it.staff == staffId }
+                    ScoreEditing.setAccidentalOnSelection(ms, staffLocs, accidental.alter)
+                },
+                onAfterRestore = {
+                    refreshPitchDisplayFromSelection(selection = selectedLocations)
+                },
+            )
             val firstLoc = selectedLocations.firstOrNull()
+            val firstMeasures = firstLoc?.let { score.staffMeasures(it.staff) }
             val firstPitch = firstLoc?.let { loc ->
-                ScoreEditing.pitchAt(after, loc) ?: ScoreEditing.itemAt(after, loc)?.soundingPitches()?.firstOrNull()
+                val ms = firstMeasures ?: return@let null
+                ScoreEditing.pitchAt(ms, loc) ?: ScoreEditing.itemAt(ms, loc)?.soundingPitches()?.firstOrNull()
             }
-            val firstItem = firstLoc?.let { ScoreEditing.itemAt(after, it) }
+            val firstItem = firstLoc?.let { loc -> firstMeasures?.let { ScoreEditing.itemAt(it, loc) } }
             if (firstPitch != null && firstItem != null) {
-                module.previewPitch(firstPitch.midiPitch.toDouble(), isStaccato = firstItem.noteStaccato())
-                refreshPitchDisplayFromSelection(after, selectedLocations)
+                module.previewPitch(
+                    firstPitch.midiPitch.toDouble(),
+                    isStaccato = firstItem.noteStaccato(),
+                    instrumentIdx = firstLoc.staff.instrumentIdx,
+                )
+                refreshPitchDisplayFromSelection(selection = selectedLocations)
             }
         } else {
             pendingAccidental = if (pendingAccidental == accidental) null else accidental
@@ -528,22 +645,32 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
     }
 
     fun toggleStaccato() {
-        val before = score.measures.toList()
         val hasSelectedNotes = selectedLocations.any { loc ->
-            ScoreEditing.itemAt(before, loc)?.soundingPitches()?.isNotEmpty() == true
+            ScoreEditing.itemAt(score.staffMeasures(loc.staff), loc)?.soundingPitches()?.isNotEmpty() == true
         }
         if (hasSelectedNotes) {
-            val after = ScoreEditing.toggleStaccatoOnSelection(before, selectedLocations)
-            if (after != before) {
-                postCommand(ReplaceScoreMeasuresCommand(score, before, after))
-            }
+            val prevSelection = selectedLocations
+            val affectedStaves = prevSelection.map { it.staff }.toSet()
+            updateMeasuresAcrossStaves(
+                staves = affectedStaves,
+                transform = { staffId, ms ->
+                    val staffLocs = prevSelection.filterTo(mutableSetOf()) { it.staff == staffId }
+                    ScoreEditing.toggleStaccatoOnSelection(ms, staffLocs)
+                },
+            )
             val firstLoc = selectedLocations.firstOrNull()
+            val firstMeasures = firstLoc?.let { score.staffMeasures(it.staff) }
             val firstPitch = firstLoc?.let { loc ->
-                ScoreEditing.pitchAt(after, loc) ?: ScoreEditing.itemAt(after, loc)?.soundingPitches()?.firstOrNull()
+                val ms = firstMeasures ?: return@let null
+                ScoreEditing.pitchAt(ms, loc) ?: ScoreEditing.itemAt(ms, loc)?.soundingPitches()?.firstOrNull()
             }
-            val firstItem = firstLoc?.let { ScoreEditing.itemAt(after, it) }
+            val firstItem = firstLoc?.let { loc -> firstMeasures?.let { ScoreEditing.itemAt(it, loc) } }
             if (firstPitch != null && firstItem != null) {
-                module.previewPitch(firstPitch.midiPitch.toDouble(), isStaccato = firstItem.noteStaccato())
+                module.previewPitch(
+                    firstPitch.midiPitch.toDouble(),
+                    isStaccato = firstItem.noteStaccato(),
+                    instrumentIdx = firstLoc.staff.instrumentIdx,
+                )
             }
         } else {
             pendingStaccato = !pendingStaccato
@@ -552,15 +679,19 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
     }
 
     fun copySelection() {
+        val targetStaff = selectedLocations.firstOrNull()?.staff
+            ?: selectedDynamics.firstOrNull()?.staff
+            ?: selectedClefChange?.staff
+            ?: resolvedActiveStaff()
         val content = ScoreEditing.copySelectionContent(
-            measures = score.measures,
-            initialClef = score.clef,
+            measures = score.staffMeasures(targetStaff),
+            initialClef = score.staffClef(targetStaff),
             initialKeySignature = score.keySignature,
             initialTimeSignature = score.timeSignature,
-            selectedLocations = selectedLocations,
+            selectedLocations = selectedLocations.filterTo(linkedSetOf()) { it.staff == targetStaff },
             selectedMeasures = selectedMeasures,
-            selectedClefChange = selectedClefChange,
-            selectedDynamics = selectedDynamics,
+            selectedClefChange = selectedClefChange?.takeIf { it.staff == targetStaff },
+            selectedDynamics = selectedDynamics.filterTo(linkedSetOf()) { it.staff == targetStaff },
         )
         ScoreClipboard.copyContent(content)
     }
@@ -571,8 +702,11 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             applyClef(clipContent.clef, targetClefLocation())
             return
         }
-        val beforeMeasures = score.measures.toList()
-        val beforeInitialClef = score.clef
+        val targetStaff = selectedLocations.firstOrNull()?.staff
+            ?: module.cursorPosition?.staff
+            ?: resolvedActiveStaff()
+        val beforeMeasures = score.staffMeasures(targetStaff).toList()
+        val beforeInitialClef = score.staffClef(targetStaff)
         val beforeInitialKey = score.keySignature
         val beforeInitialTime = score.timeSignature
         val beforeSelection = selectedLocations
@@ -585,8 +719,8 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             initialClef = beforeInitialClef,
             initialKeySignature = beforeInitialKey,
             initialTimeSignature = beforeInitialTime,
-            selectedLocations = beforeSelection,
-            cursorPosition = beforeCursor,
+            selectedLocations = beforeSelection.filterTo(linkedSetOf()) { it.staff == targetStaff },
+            cursorPosition = beforeCursor?.takeIf { it.staff == targetStaff },
             selectedMeasures = beforeSelectedMeasures,
             appendMeasureOnFull = module.isStepRecording,
         ) ?: return
@@ -594,6 +728,8 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         val afterInitialClef = result.initialClef ?: beforeInitialClef
         val afterInitialKey = result.initialKeySignature ?: beforeInitialKey
         val afterInitialTime = result.initialTimeSignature ?: beforeInitialTime
+        val staffLocations = result.pastedLocations.mapTo(linkedSetOf()) { it.copy(staff = targetStaff) }
+        val staffDynamics = result.pastedDynamics.mapTo(linkedSetOf()) { it.copy(staff = targetStaff) }
         postCommand(
             ReplaceScoreDocumentCommand(
                 scoreData = score,
@@ -605,40 +741,33 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 afterInitialKey = afterInitialKey,
                 afterInitialTime = afterInitialTime,
                 afterMeasures = result.measures,
-            ) { restored, isUndo ->
+                staff = targetStaff,
+            ) { _, isUndo ->
                 if (isUndo) {
                     module.placeCursor(beforeCursor)
                     selectedMeasures = beforeSelectedMeasures
-                    selectedLocations = beforeSelection.filterTo(linkedSetOf()) {
-                        ScoreEditing.itemAt(restored, it) != null
-                    }
-                    selectedDynamics = beforeSelectedDynamics.filterTo(linkedSetOf()) {
-                        restored.getOrNull(it.measureIdx)?.dynamics?.containsKey(it.itemIdx) == true
-                    }
+                    selectedLocations = filterValidLocations(beforeSelection)
+                    selectedDynamics = filterValidDynamics(beforeSelectedDynamics)
                 } else if (module.isStepRecording) {
-                    module.placeCursor(result.nextCursor)
+                    module.placeCursor(result.nextCursor.copy(staff = targetStaff))
                     selectedMeasures = emptySet()
                     selectedLocations = emptySet()
                     selectedDynamics = emptySet()
                     pendingScrollMeasures = result.pastedMeasures.ifEmpty {
-                        (result.pastedLocations.map { it.measureIdx } +
-                            result.pastedDynamics.map { it.measureIdx }).toCollection(linkedSetOf())
+                        (staffLocations.map { it.measureIdx } +
+                            staffDynamics.map { it.measureIdx }).toCollection(linkedSetOf())
                     }
                 } else {
                     module.placeCursor(null)
                     selectedMeasures = result.pastedMeasures
-                    selectedLocations = result.pastedLocations.filterTo(linkedSetOf()) {
-                        ScoreEditing.itemAt(restored, it) != null
-                    }
-                    selectedDynamics = result.pastedDynamics.filterTo(linkedSetOf()) {
-                        restored.getOrNull(it.measureIdx)?.dynamics?.containsKey(it.itemIdx) == true
-                    }
+                    selectedLocations = filterValidLocations(staffLocations)
+                    selectedDynamics = filterValidDynamics(staffDynamics)
                     pendingScrollMeasures = result.pastedMeasures.ifEmpty {
-                        (result.pastedLocations.map { it.measureIdx } +
-                            result.pastedDynamics.map { it.measureIdx }).toCollection(linkedSetOf())
+                        (staffLocations.map { it.measureIdx } +
+                            staffDynamics.map { it.measureIdx }).toCollection(linkedSetOf())
                     }
                 }
-                refreshPitchDisplayFromSelection(restored, selectedLocations)
+                refreshPitchDisplayFromSelection(selection = selectedLocations)
             }
         )
     }
@@ -997,9 +1126,20 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
 
             TextButton(
                 onClick = {
-                    val before = score.measures.toList()
-                    val after = ScoreEditing.appendEmptyMeasure(before)
-                    postCommand(ReplaceScoreMeasuresCommand(score, before, after))
+                    val beforeInst = score.instruments.toList()
+                    val afterInst = beforeInst.map { part ->
+                        val updatedUpper = ScoreEditing.appendEmptyMeasure(part.measures)
+                        if (part.staffCount >= 2) {
+                            val updatedLower = ScoreEditing.appendEmptyMeasure(part.lowerMeasures)
+                            part.copy(
+                                measures = ScoreEditing.renumber(updatedUpper),
+                                lowerMeasures = ScoreEditing.renumber(updatedLower),
+                            )
+                        } else {
+                            part.copy(measures = ScoreEditing.renumber(updatedUpper))
+                        }
+                    }
+                    postCommand(ReplaceScoreInstrumentsCommand(module, beforeInst, afterInst))
                 },
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                 modifier = Modifier
@@ -1011,13 +1151,40 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
 
             TextButton(
                 onClick = {
-                    val before = score.measures.toList()
-                    val after = ScoreEditing.clearToSingleEmptyMeasure()
+                    val nextNum = score.instruments.size + 1
+                    instrumentDialog = InstrumentDialogState(
+                        editingIndex = null,
+                        name = "Instrument $nextNum",
+                        instrumentType = InstrumentType.KEYBOARDS,
+                        lowPitchText = ScoreInstrumentPart.formatMidiPitch(ScoreInstrumentPart.DEFAULT_MIN_MIDI),
+                        highPitchText = ScoreInstrumentPart.formatMidiPitch(ScoreInstrumentPart.DEFAULT_MAX_MIDI),
+                        selectedPreset = null,
+                    )
+                },
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                modifier = Modifier
+                    .height(28.dp)
+                    .focusProperties { canFocus = false },
+            ) {
+                Text("+ Inst", fontSize = 11.sp, color = accentColor, fontWeight = FontWeight.SemiBold)
+            }
+
+            TextButton(
+                onClick = {
+                    val beforeInst = score.instruments.toList()
+                    val afterInst = beforeInst.map { part ->
+                        part.copy(
+                            measures = ScoreEditing.clearToSingleEmptyMeasure(),
+                            lowerMeasures = if (part.staffCount >= 2) ScoreEditing.clearToSingleEmptyMeasure() else part.lowerMeasures,
+                        )
+                    }
                     selectedLocations = emptySet()
                     selectedMeasures = emptySet()
+                    selectedDynamics = emptySet()
+                    selectedClefChange = null
                     activePitchText = null
                     activeChordName = null
-                    postCommand(ReplaceScoreMeasuresCommand(score, before, after))
+                    postCommand(ReplaceScoreInstrumentsCommand(module, beforeInst, afterInst))
                 },
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                 modifier = Modifier
@@ -1064,16 +1231,17 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 measureIdx = firstTargetIdx,
             )
             val clefTargetLoc = targetClefLocation()
+            val targetClefStaffMeasures = score.staffMeasures(clefTargetLoc.staff)
             val activeTargetClef = ScoreEditing.effectiveClefAt(
-                measures = score.measures,
-                initialClef = score.clef,
+                measures = targetClefStaffMeasures,
+                initialClef = score.staffClef(clefTargetLoc.staff),
                 measureIdx = clefTargetLoc.measureIdx,
                 itemIdx = clefTargetLoc.itemIdx,
             )
             val canRemoveClefChange = (clefTargetLoc.measureIdx > 0 || clefTargetLoc.itemIdx > 0) &&
-                ScoreEditing.hasExplicitClefChangeAt(score.measures, clefTargetLoc)
+                ScoreEditing.hasExplicitClefChangeAt(targetClefStaffMeasures, clefTargetLoc)
             val selectedSlotItems = selectedLocations
-                .mapNotNull { loc -> ScoreEditing.itemAt(score.measures, loc) }
+                .mapNotNull { loc -> ScoreEditing.itemAt(score.staffMeasures(loc.staff), loc) }
                 .filter { it.soundingPitches().isNotEmpty() }
             val staccatoActive = if (selectedSlotItems.isNotEmpty()) {
                 selectedSlotItems.all { it.noteStaccato() }
@@ -1273,9 +1441,9 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     val viewportHeight = maxHeight
                     val staffSpacePx = with(density) { staffSpaceDp.dp.toPx() }
                     val minWidthPx = with(density) { viewportWidth.toPx() }.coerceAtLeast(600f)
-                    val measuresSnapshot = score.measures.toList()
+                    val instrumentsSnapshot = score.instruments.toList()
                     val layout = remember(
-                        measuresSnapshot,
+                        instrumentsSnapshot,
                         score.clef,
                         score.keySignature,
                         score.timeSignature,
@@ -1292,16 +1460,20 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     val currentLayout by rememberUpdatedState(layout)
                     val currentStaffSpacePx by rememberUpdatedState(staffSpacePx)
 
-                    LaunchedEffect(module.activeItemIndex, module.isPlaying) {
+                    LaunchedEffect(module.activeItemIndex, module.activeItemsByStaff, module.isPlaying) {
                         if (!module.isPlaying) return@LaunchedEffect
-                        val activeIdx = module.activeItemIndex ?: return@LaunchedEffect
-                        val placed = currentLayout.placedMeasures.asSequence()
-                            .flatMap { it.items.asSequence() }
-                            .firstOrNull { it.globalIdx == activeIdx } ?: return@LaunchedEffect
+                        val activePlaced = currentLayout.staves.asSequence()
+                            .mapNotNull { ps ->
+                                val idx = module.activeItemsByStaff[ps.staffId]
+                                    ?: if (ps.staffId == ScoreStaffId(0, 0)) module.activeItemIndex else null
+                                if (idx == null) null
+                                else ps.placedMeasures.asSequence().flatMap { it.items.asSequence() }.firstOrNull { it.globalIdx == idx }
+                            }
+                            .firstOrNull() ?: return@LaunchedEffect
                         val vpW = with(density) { viewportWidth.toPx() }
                         val curScroll = scrollState.value.toFloat()
-                        if (placed.boxRight > curScroll + vpW - 24f || placed.boxLeft < curScroll) {
-                            val target = (placed.boxLeft - vpW * 0.2f).roundToInt()
+                        if (activePlaced.boxRight > curScroll + vpW - 24f || activePlaced.boxLeft < curScroll) {
+                            val target = (activePlaced.boxLeft - vpW * 0.2f).roundToInt()
                                 .coerceIn(0, scrollState.maxValue)
                             scrollState.animateScrollTo(target)
                         }
@@ -1346,11 +1518,16 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 viewportWidth,
                 with(density) { layout.totalWidthPx.toDp() },
             )
+            val canvasHeightDp = maxOf(
+                viewportHeight,
+                with(density) { layout.totalHeightPx.toDp() },
+            )
             val renderColors = ScoreRenderColors.forTheme(isDark)
 
             val activeCursor = when {
                 dragState is ScoreDragState.PitchDrag -> moveCursor()
-                hoveringTimeSig || (editorMode == ScoreEditMode.SELECT && !module.isStepRecording && (hoveringClef || hoveringDynamic)) ->
+                hoveringInstrument || hoveringTimeSig ||
+                    (editorMode == ScoreEditMode.SELECT && !module.isStepRecording && (hoveringClef || hoveringDynamic)) ->
                     PointerIcon.Hand
                 !module.isStepRecording && editorMode == ScoreEditMode.ENTRY ->
                     scoreSymbolCursor(entryDuration, entryIsRest, entryIsDotted, isDark)
@@ -1382,11 +1559,13 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 }
                 val pos = hoverPos ?: return@remember null
                 if (pos.x < layout.headerEndX - layout.staffSpacePx * 0.5f) return@remember null
+                if (layout.instrumentGroupAt(pos.x, pos.y) != null) return@remember null
                 if (layout.timeSignatureAt(pos.x, pos.y) != null) return@remember null
                 if (layout.clefChangeAt(pos.x, pos.y) != null) return@remember null
-                val step = layout.stepAtY(pos.y)
+                val hoverStaff = layout.staffAtY(pos.y) ?: return@remember null
+                val step = hoverStaff.stepAtY(pos.y)
                 val snappedX = if (!entryIsRest) {
-                    layout.itemColumnAt(pos.x)?.x ?: (pos.x - layout.staffSpacePx * 0.65f)
+                    layout.itemColumnAt(pos.x, pos.y)?.x ?: (pos.x - layout.staffSpacePx * 0.65f)
                 } else {
                     pos.x - layout.staffSpacePx * 0.65f
                 }
@@ -1398,6 +1577,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     isDotted = entryIsDotted,
                     accidental = if (entryIsRest) null else pendingAccidental,
                     isStaccato = if (entryIsRest) false else pendingStaccato,
+                    staff = hoverStaff.staffId,
                 )
             }
 
@@ -1444,12 +1624,13 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .verticalScroll(verticalScrollState)
                     .horizontalScroll(scrollState)
             ) {
                 Box(
                     modifier = Modifier
                         .width(canvasWidthDp)
-                        .height(viewportHeight)
+                        .height(canvasHeightDp)
                 ) {
                 Canvas(
                     modifier = Modifier
@@ -1463,6 +1644,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                         PointerEventType.Move -> {
                                             val pos = event.changes.firstOrNull()?.position
                                             hoverPos = pos
+                                            hoveringInstrument = pos != null && currentLayout.instrumentGroupAt(pos.x, pos.y) != null
                                             hoveringTimeSig = pos != null && currentLayout.timeSignatureAt(pos.x, pos.y) != null
                                             hoveringClef = pos != null && currentLayout.clefChangeAt(pos.x, pos.y) != null
                                             hoveringDynamic = pos != null && currentLayout.dynamicAt(pos.x, pos.y) != null
@@ -1470,6 +1652,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                         }
                                         PointerEventType.Exit -> {
                                             hoverPos = null
+                                            hoveringInstrument = false
                                             hoveringTimeSig = false
                                             hoveringClef = false
                                             hoveringDynamic = false
@@ -1495,6 +1678,28 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                 val isShift = currentEvent.keyboardModifiers.isShiftPressed
                                 val lyt = currentLayout
                                 val sp = currentStaffSpacePx
+                                lyt.staffAtY(downPos.y)?.let { activeStaff = it.staffId }
+
+                                val hitInstrument = lyt.instrumentGroupAt(downPos.x, downPos.y)
+                                if (hitInstrument != null && !isShift) {
+                                    val part = hitInstrument.instrument
+                                    activeStaff = ScoreStaffId(hitInstrument.instrumentIdx, 0)
+                                    instrumentDialog = InstrumentDialogState(
+                                        editingIndex = hitInstrument.instrumentIdx,
+                                        name = part.name,
+                                        instrumentType = part.instrumentType,
+                                        lowPitchText = ScoreInstrumentPart.formatMidiPitch(part.minMidiPitch),
+                                        highPitchText = ScoreInstrumentPart.formatMidiPitch(part.maxMidiPitch),
+                                        selectedPreset = InstrumentPreset.entries.firstOrNull { preset ->
+                                            preset.displayName == part.name &&
+                                                preset.instrumentType == part.instrumentType &&
+                                                preset.minMidiPitch == part.minMidiPitch &&
+                                                preset.maxMidiPitch == part.maxMidiPitch
+                                        },
+                                    )
+                                    return@awaitEachGesture
+                                }
+
                                 val hitTimeSig = lyt.timeSignatureAt(downPos.x, downPos.y)
                                 if (hitTimeSig != null && !isShift) {
                                     selectedClefChange = null
@@ -1529,7 +1734,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                         downY = downPos.y,
                                         lastStep = step,
                                         anchorX = anchorX,
-                                        anchorY = lyt.yForStep(step),
+                                        anchorY = lyt.yForStep(step, loc.staff),
                                     )
                                 }
 
@@ -1540,6 +1745,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                         null
                                     }
                                     if (hitClef != null) {
+                                        activeStaff = hitClef.staff
                                         module.placeCursor(null)
                                         selectedClefChange = hitClef.location
                                         selectedDynamics = emptySet()
@@ -1556,6 +1762,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                         null
                                     }
                                     if (hitDyn != null) {
+                                        activeStaff = hitDyn.staff
                                         module.placeCursor(null)
                                         if (isShift) {
                                             selectedDynamics = if (hitDyn.location in selectedDynamics) {
@@ -1573,6 +1780,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                         return@awaitEachGesture
                                     }
                                     if (hit != null && !module.isStepRecording) {
+                                        activeStaff = hit.staff
                                         if (!isShift) {
                                             selectedDynamics = emptySet()
                                         }
@@ -1597,27 +1805,40 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                         } else {
                                             selectedLocations = setOf(clickedLoc)
                                             selectedMeasures = emptySet()
+                                            val staffMeasuresCopy = score.staffMeasures(clickedLoc.staff).toList()
                                             when (val item = hit.item) {
                                                 is ScoreItem.Note -> {
-                                                    module.previewPitch(item.pitch.midiPitch.toDouble(), isStaccato = item.isStaccato)
+                                                    module.previewPitch(
+                                                        item.pitch.midiPitch.toDouble(),
+                                                        isStaccato = item.isStaccato,
+                                                        instrumentIdx = clickedLoc.staff.instrumentIdx,
+                                                    )
                                                     refreshPitchDisplayFromSelection()
                                                     val step = hit.staffStep ?: hit.effectiveClef.staffStepFromBottom(item.pitch)
-                                                    beginNoteDrag(clickedLoc, step, item.pitch.alter, score.measures.toList(), hit.x)
+                                                    beginNoteDrag(clickedLoc, step, item.pitch.alter, staffMeasuresCopy, hit.x)
                                                 }
                                                 is ScoreItem.Chord -> {
                                                     if (chordNote != null) {
-                                                        module.previewPitch(chordNote.pitch.midiPitch.toDouble(), isStaccato = item.isStaccato)
+                                                        module.previewPitch(
+                                                            chordNote.pitch.midiPitch.toDouble(),
+                                                            isStaccato = item.isStaccato,
+                                                            instrumentIdx = clickedLoc.staff.instrumentIdx,
+                                                        )
                                                         refreshPitchDisplayFromSelection()
                                                         beginNoteDrag(
                                                             clickedLoc,
                                                             chordNote.staffStep,
                                                             chordNote.pitch.alter,
-                                                            score.measures.toList(),
+                                                            staffMeasuresCopy,
                                                             chordNote.headX,
                                                         )
                                                     } else {
                                                         item.pitches.firstOrNull()?.let {
-                                                            module.previewPitch(it.midiPitch.toDouble(), isStaccato = item.isStaccato)
+                                                            module.previewPitch(
+                                                                it.midiPitch.toDouble(),
+                                                                isStaccato = item.isStaccato,
+                                                                instrumentIdx = clickedLoc.staff.instrumentIdx,
+                                                            )
                                                         }
                                                         refreshPitchDisplayFromSelection()
                                                     }
@@ -1633,13 +1854,17 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                         selectedMeasures = emptySet()
                                         activePitchText = null
                                         activeChordName = null
-                                        module.placeCursor(lyt.cursorPositionAt(downPos.x))
+                                        val cPos = lyt.cursorPositionAt(downPos.x, downPos.y)
+                                        cPos?.let { activeStaff = it.staff }
+                                        module.placeCursor(cPos)
                                     } else if (module.isStepRecording && hit != null) {
                                         selectedLocations = emptySet()
                                         selectedMeasures = emptySet()
                                         activePitchText = null
                                         activeChordName = null
-                                        module.placeCursor(lyt.cursorPositionAt(downPos.x))
+                                        val cPos = lyt.cursorPositionAt(downPos.x, downPos.y)
+                                        cPos?.let { activeStaff = it.staff }
+                                        module.placeCursor(cPos)
                                     } else {
                                         if (!isShift) {
                                             selectedDynamics = emptySet()
@@ -1663,16 +1888,19 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                 } else if (editorMode == ScoreEditMode.DYNAMIC) {
                                     val target = lyt.dynamicTargetAt(downPos.x, downPos.y)
                                     if (target != null) {
+                                        activeStaff = target.first.staff
                                         applyDynamic(target.first, activeDynamic, target.second)
                                     }
                                     return@awaitEachGesture
                                 } else if (editorMode == ScoreEditMode.BEAM) {
                                     if (hit != null) {
+                                        activeStaff = hit.staff
                                         toggleBeamAt(hit.location.slotLocation())
                                     }
                                     return@awaitEachGesture
                                 } else if (editorMode == ScoreEditMode.TIE) {
                                     if (hit != null) {
+                                        activeStaff = hit.staff
                                         val chordNote = lyt.chordNoteAt(hit, downPos.x, downPos.y)
                                         val targetLoc = if (chordNote != null) {
                                             hit.location.copy(chordNoteIdx = chordNote.noteIdx)
@@ -1686,9 +1914,11 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                     // ENTRY mode
                                     selectedDynamics = emptySet()
                                     selectedClefChange = null
-                                    val beforeMeasures = score.measures.toList()
-                                    val colItem = if (!entryIsRest) lyt.itemColumnAt(downPos.x) else null
+                                    val colItem = if (!entryIsRest) lyt.itemColumnAt(downPos.x, downPos.y) else null
                                     if (hit != null && (entryIsRest || hit.item is ScoreItem.Rest)) {
+                                        val hitStaff = hit.staff
+                                        activeStaff = hitStaff
+                                        val beforeMeasures = score.staffMeasures(hitStaff).toList()
                                         val isDifferentKindOrDuration =
                                             (entryIsRest && hit.item !is ScoreItem.Rest) ||
                                                 (!entryIsRest && hit.item is ScoreItem.Rest) ||
@@ -1702,9 +1932,9 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                 selectedLocations = setOf(hit.location)
                                                 activePitchText = null
                                                 activeChordName = null
-                                                postCommand(ReplaceScoreMeasuresCommand(score, beforeMeasures, after))
+                                                postCommand(ReplaceScoreMeasuresCommand(score, beforeMeasures, after, staff = hitStaff))
                                             } else {
-                                                val step = lyt.stepAtY(downPos.y)
+                                                val step = lyt.stepAtY(downPos.y, hitStaff)
                                                 val measureKey = ScoreEditing.effectiveKeyAtMeasure(
                                                     beforeMeasures,
                                                     score.keySignature,
@@ -1712,7 +1942,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                 )
                                                 val measureClef = ScoreEditing.effectiveClefAt(
                                                     beforeMeasures,
-                                                    score.clef,
+                                                    score.staffClef(hitStaff),
                                                     hit.location.measureIdx,
                                                     hit.location.itemIdx,
                                                 )
@@ -1729,10 +1959,14 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                 )
                                                 pendingAccidental = null
                                                 val after = ScoreEditing.replaceItem(beforeMeasures, hit.location, newNote)
-                                                score.replaceMeasures(after)
+                                                score.replaceStaffMeasures(hitStaff, after)
                                                 selectedLocations = setOf(hit.location)
-                                                refreshPitchDisplayFromSelection(after, selectedLocations)
-                                                module.previewPitch(pitch.midiPitch.toDouble(), isStaccato = newNote.isStaccato)
+                                                refreshPitchDisplayFromSelection(hitStaff, after, selectedLocations)
+                                                module.previewPitch(
+                                                    pitch.midiPitch.toDouble(),
+                                                    isStaccato = newNote.isStaccato,
+                                                    instrumentIdx = hitStaff.instrumentIdx,
+                                                )
                                                 beginNoteDrag(hit.location, step, pitch.alter, beforeMeasures, hit.x)
                                             }
                                         } else {
@@ -1742,8 +1976,10 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                             activeChordName = null
                                         }
                                     } else if (colItem != null) {
-                                        // Stack onto an existing note/chord column, or select/replace an occupied step
-                                        val step = lyt.stepAtY(downPos.y)
+                                        val colStaff = colItem.staff
+                                        activeStaff = colStaff
+                                        val beforeMeasures = score.staffMeasures(colStaff).toList()
+                                        val step = lyt.stepAtY(downPos.y, colStaff)
                                         val existingCn = colItem.chordNotes.find { it.staffStep == step }
                                         if (existingCn != null) {
                                             if (colItem.item is ScoreItem.Note &&
@@ -1767,10 +2003,14 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                 )
                                                 pendingAccidental = null
                                                 val after = ScoreEditing.replaceItem(beforeMeasures, colItem.location, newNote)
-                                                score.replaceMeasures(after)
+                                                score.replaceStaffMeasures(colStaff, after)
                                                 selectedLocations = setOf(colItem.location)
-                                                refreshPitchDisplayFromSelection(after, selectedLocations)
-                                                module.previewPitch(pitch.midiPitch.toDouble(), isStaccato = newNote.isStaccato)
+                                                refreshPitchDisplayFromSelection(colStaff, after, selectedLocations)
+                                                module.previewPitch(
+                                                    pitch.midiPitch.toDouble(),
+                                                    isStaccato = newNote.isStaccato,
+                                                    instrumentIdx = colStaff.instrumentIdx,
+                                                )
                                                 beginNoteDrag(colItem.location, step, pitch.alter, beforeMeasures, colItem.x)
                                             } else {
                                                 val loc = if (colItem.item is ScoreItem.Chord) {
@@ -1784,6 +2024,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                 module.previewPitch(
                                                     existingCn.pitch.midiPitch.toDouble(),
                                                     isStaccato = colItem.item.noteStaccato(),
+                                                    instrumentIdx = colStaff.instrumentIdx,
                                                 )
                                                 beginNoteDrag(loc, existingCn.staffStep, existingCn.pitch.alter, beforeMeasures, existingCn.headX)
                                             }
@@ -1799,23 +2040,28 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                 alterOverride = pendingAccidental?.alter,
                                             )
                                             pendingAccidental = null
-                                            val (after, newLoc) = ScoreEditing.addPitchToSlot(beforeMeasures, colItem.location, pitch)
-                                            score.replaceMeasures(after)
+                                            val (after, newSlotLoc) = ScoreEditing.addPitchToSlot(beforeMeasures, colItem.location, pitch)
+                                            val newLoc = newSlotLoc.copy(staff = colStaff)
+                                            score.replaceStaffMeasures(colStaff, after)
                                             selectedLocations = setOf(newLoc)
                                             selectedMeasures = emptySet()
-                                            refreshPitchDisplayFromSelection(after, selectedLocations)
+                                            refreshPitchDisplayFromSelection(colStaff, after, selectedLocations)
                                             module.previewPitch(
                                                 pitch.midiPitch.toDouble(),
                                                 isStaccato = colItem.item.noteStaccato(),
+                                                instrumentIdx = colStaff.instrumentIdx,
                                             )
                                             beginNoteDrag(newLoc, step, pitch.alter, beforeMeasures, colItem.x)
                                         }
                                     } else {
-                                        val target = lyt.insertionTargetAt(downPos.x)
+                                        val target = lyt.insertionTargetAt(downPos.x, downPos.y)
                                         if (target != null) {
+                                            val targetStaff = target.staff
+                                            activeStaff = targetStaff
+                                            val beforeMeasures = score.staffMeasures(targetStaff).toList()
                                             if (entryIsRest) {
                                                 val newRest = ScoreItem.Rest(entryDuration, isDotted = entryIsDotted)
-                                                val (after, newLoc) = ScoreEditing.insertItem(
+                                                val (after, insertedLoc) = ScoreEditing.insertItem(
                                                     measures = beforeMeasures,
                                                     measureIdx = target.measureIdx,
                                                     itemIdx = target.itemIdx,
@@ -1823,18 +2069,19 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                     appendNewMeasure = target.appendNewMeasure,
                                                     shiftClefAtIndex = !target.afterClefChange,
                                                 )
+                                                val newLoc = insertedLoc.copy(staff = targetStaff)
                                                 selectedLocations = setOf(newLoc)
                                                 activePitchText = null
                                                 activeChordName = null
-                                                postCommand(ReplaceScoreMeasuresCommand(score, beforeMeasures, after))
+                                                postCommand(ReplaceScoreMeasuresCommand(score, beforeMeasures, after, staff = targetStaff))
                                             } else {
-                                                val step = lyt.stepAtY(downPos.y)
+                                                val step = lyt.stepAtY(downPos.y, targetStaff)
                                                 val measureKey = ScoreEditing.effectiveKeyAtMeasure(
                                                     beforeMeasures,
                                                     score.keySignature,
                                                     target.measureIdx,
                                                 )
-                                                val effectiveClef = lyt.effectiveClefAtX(downPos.x)
+                                                val effectiveClef = lyt.effectiveClefAtX(downPos.x, downPos.y)
                                                 val pitch = effectiveClef.pitchForStaffStep(
                                                     stepFromBottom = step,
                                                     keySignature = measureKey,
@@ -1847,7 +2094,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                     isStaccato = pendingStaccato,
                                                 )
                                                 pendingAccidental = null
-                                                val (after, newLoc) = ScoreEditing.insertItem(
+                                                val (after, insertedLoc) = ScoreEditing.insertItem(
                                                     measures = beforeMeasures,
                                                     measureIdx = target.measureIdx,
                                                     itemIdx = target.itemIdx,
@@ -1855,11 +2102,16 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                     appendNewMeasure = target.appendNewMeasure,
                                                     shiftClefAtIndex = !target.afterClefChange,
                                                 )
-                                                score.replaceMeasures(after)
+                                                val newLoc = insertedLoc.copy(staff = targetStaff)
+                                                score.replaceStaffMeasures(targetStaff, after)
                                                 selectedLocations = setOf(newLoc)
                                                 activePitchText = pitch.pitchDisplay()
                                                 activeChordName = null
-                                                module.previewPitch(pitch.midiPitch.toDouble(), isStaccato = newNote.isStaccato)
+                                                module.previewPitch(
+                                                    pitch.midiPitch.toDouble(),
+                                                    isStaccato = newNote.isStaccato,
+                                                    instrumentIdx = targetStaff.instrumentIdx,
+                                                )
                                                 beginNoteDrag(newLoc, step, pitch.alter, beforeMeasures, downPos.x)
                                             }
                                         }
@@ -1880,8 +2132,9 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                             val newStep = (drag.initialStep + deltaSteps).coerceIn(-12, 20)
                                             if (newStep != drag.lastStep) {
                                                 drag.lastStep = newStep
+                                                val dragStaff = drag.location.staff
                                                 val alterOverride = if (newStep == drag.initialStep) drag.initialAlter else null
-                                                val currentMeasures = score.measures.toList()
+                                                val currentMeasures = score.staffMeasures(dragStaff).toList()
                                                 val measureKey = ScoreEditing.effectiveKeyAtMeasure(
                                                     currentMeasures,
                                                     score.keySignature,
@@ -1889,7 +2142,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                 )
                                                 val measureClef = ScoreEditing.effectiveClefAt(
                                                     currentMeasures,
-                                                    score.clef,
+                                                    score.staffClef(dragStaff),
                                                     drag.location.measureIdx,
                                                     drag.location.itemIdx,
                                                 )
@@ -1903,15 +2156,17 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                     drag.location,
                                                     newPitch,
                                                 )
-                                                drag.location = trackedLoc
-                                                score.replaceMeasures(updated)
-                                                selectedLocations = setOf(trackedLoc)
-                                                drag.anchorY = lyt.yForStep(newStep)
-                                                refreshPitchDisplayFromSelection(updated, selectedLocations)
-                                                val updatedItem = ScoreEditing.itemAt(updated, trackedLoc)
+                                                val trackedWithStaff = trackedLoc.copy(staff = dragStaff)
+                                                drag.location = trackedWithStaff
+                                                score.replaceStaffMeasures(dragStaff, updated)
+                                                selectedLocations = setOf(trackedWithStaff)
+                                                drag.anchorY = lyt.yForStep(newStep, dragStaff)
+                                                refreshPitchDisplayFromSelection(dragStaff, updated, selectedLocations)
+                                                val updatedItem = ScoreEditing.itemAt(updated, trackedWithStaff)
                                                 module.previewPitch(
                                                     newPitch.midiPitch.toDouble(),
                                                     isStaccato = updatedItem?.noteStaccato() == true,
+                                                    instrumentIdx = dragStaff.instrumentIdx,
                                                 )
                                             }
                                         }
@@ -1926,11 +2181,12 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                 // Pointer up: commit drag command or rubber band selection
                                 when (val drag = dragState) {
                                     is ScoreDragState.PitchDrag -> {
-                                        val afterMeasures = score.measures.toList()
+                                        val dragStaff = drag.location.staff
+                                        val afterMeasures = score.staffMeasures(dragStaff).toList()
                                         if (afterMeasures != drag.beforeMeasures) {
                                             val loc = drag.location
                                             postCommand(
-                                                ReplaceScoreMeasuresCommand(score, drag.beforeMeasures, afterMeasures) { restored ->
+                                                ReplaceScoreMeasuresCommand(score, drag.beforeMeasures, afterMeasures, staff = dragStaff) { restored ->
                                                     selectedLocations = if (
                                                         ScoreEditing.pitchAt(restored, loc) != null ||
                                                         (loc.chordNoteIdx == null && ScoreEditing.itemAt(restored, loc) != null)
@@ -1939,7 +2195,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                     } else {
                                                         emptySet()
                                                     }
-                                                    refreshPitchDisplayFromSelection(restored, selectedLocations)
+                                                    refreshPitchDisplayFromSelection(dragStaff, restored, selectedLocations)
                                                 }
                                             )
                                         }
@@ -1948,14 +2204,14 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                         val isClick = abs(drag.end.x - drag.start.x) < 4f &&
                                             abs(drag.end.y - drag.start.y) < 4f
                                         if (isClick) {
-                                            val clickedMeasure = lyt.measureAt(drag.start.x)
+                                            val clickedMeasure = lyt.measureAt(drag.start.x, drag.start.y)
                                             if (!drag.additive) {
                                                 selectedDynamics = emptySet()
                                                 selectedLocations = emptySet()
                                                 activePitchText = null
                                                 activeChordName = null
                                                 selectedMeasures = clickedMeasure?.let(::setOf) ?: emptySet()
-                                                module.placeCursor(lyt.cursorPositionAt(drag.start.x))
+                                                module.placeCursor(lyt.cursorPositionAt(drag.start.x, drag.start.y))
                                             } else if (clickedMeasure != null) {
                                                 val nextMeasures = if (clickedMeasure in drag.baseMeasures) {
                                                     drag.baseMeasures - clickedMeasure
@@ -2022,6 +2278,42 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         rubberBand = rubberBand,
                         cursorPosition = module.cursorPosition,
                         isStepRecording = module.isStepRecording,
+                        activeItemsByStaff = module.activeItemsByStaff,
+                    )
+                }
+
+                // Subtle '+' button below the leftmost instrument gutter to add a new instrument
+                val lastBottomY = layout.staves.lastOrNull()?.bottomStaffY ?: layout.bottomStaffY
+                val addBtnX = with(density) { (staffSpacePx * 0.4f).toDp() }
+                val addBtnY = with(density) { (lastBottomY + staffSpacePx * 1.4f).toDp() }
+                Box(
+                    modifier = Modifier
+                        .offset(x = addBtnX, y = addBtnY)
+                        .background(
+                            color = accentColor.copy(alpha = if (isDark) 0.22f else 0.12f),
+                            shape = RoundedCornerShape(4.dp),
+                        )
+                        .border(1.dp, accentColor.copy(alpha = 0.65f), RoundedCornerShape(4.dp))
+                        .pointerHoverIcon(PointerIcon.Hand)
+                        .clickable {
+                            val nextNum = score.instruments.size + 1
+                            instrumentDialog = InstrumentDialogState(
+                                editingIndex = null,
+                                name = "Instrument $nextNum",
+                                instrumentType = InstrumentType.KEYBOARDS,
+                                lowPitchText = ScoreInstrumentPart.formatMidiPitch(ScoreInstrumentPart.DEFAULT_MIN_MIDI),
+                                highPitchText = ScoreInstrumentPart.formatMidiPitch(ScoreInstrumentPart.DEFAULT_MAX_MIDI),
+                                selectedPreset = null,
+                            )
+                        }
+                        .padding(horizontal = 7.dp, vertical = 2.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "+",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isDark) Color.White else accentColor,
                     )
                 }
 
@@ -2216,6 +2508,18 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 }
             }
 
+            val curInst = score.instrumentAt(resolvedActiveStaff().instrumentIdx)
+            if (curInst != null && (score.instruments.size > 1 || curInst.staffCount > 1 || curInst.name != ScoreInstrumentPart.DEFAULT_NAME)) {
+                Spacer(modifier = Modifier.width(8.dp))
+                val rangeStr = "${ScoreInstrumentPart.formatMidiPitch(curInst.minMidiPitch)}–${ScoreInstrumentPart.formatMidiPitch(curInst.maxMidiPitch)}"
+                Text(
+                    text = "${curInst.name} ($rangeStr)",
+                    fontSize = 11.sp,
+                    color = toolbarText.copy(alpha = 0.9f),
+                    maxLines = 1,
+                )
+            }
+
             Spacer(modifier = Modifier.weight(1f))
 
             Text(
@@ -2225,7 +2529,330 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 maxLines = 1,
             )
         }
+
+        val activeDialog = instrumentDialog
+        if (activeDialog != null) {
+            InstrumentEditorDialog(
+                state = activeDialog,
+                canDelete = activeDialog.editingIndex != null && score.instruments.size > 1,
+                isDark = isDark,
+                accentColor = accentColor,
+                borderMuted = borderMuted,
+                onStateChange = { instrumentDialog = it },
+                onDismiss = {
+                    instrumentDialog = null
+                    focusRequester.requestFocus()
+                },
+                onConfirm = { stateSnapshot ->
+                    val minMidi = ScoreInstrumentPart.parsePitchOrMidi(stateSnapshot.lowPitchText)
+                        ?: ScoreInstrumentPart.DEFAULT_MIN_MIDI
+                    val maxMidi = ScoreInstrumentPart.parsePitchOrMidi(stateSnapshot.highPitchText)
+                        ?: ScoreInstrumentPart.DEFAULT_MAX_MIDI
+                    val low = minOf(minMidi, maxMidi)
+                    val high = maxOf(minMidi, maxMidi)
+                    val rec = ScoreInstrumentPart.recommendStaffSetup(low, high)
+                    val cleanName = stateSnapshot.name.trim().ifEmpty {
+                        "Instrument ${(stateSnapshot.editingIndex ?: score.instruments.size) + 1}"
+                    }
+                    val beforeInst = score.instruments.toList()
+                    val measureCount = score.maxMeasureCount()
+                    val afterInst = if (stateSnapshot.editingIndex == null) {
+                        val existingJacks = beforeInst.map { it.jackName }
+                        val jackName = ScoreInstrumentPart.uniqueJackName(cleanName, existingJacks)
+                        var instNum = beforeInst.size + 1
+                        while (beforeInst.any { it.id == "inst-$instNum" }) {
+                            instNum++
+                        }
+                        val emptyUpper = score.createSyncedEmptyMeasures(measureCount)
+                        val emptyLower = if (rec.staffCount >= 2) score.createSyncedEmptyMeasures(measureCount) else listOf(ScoreMeasure(1, emptyList()))
+                        beforeInst + ScoreInstrumentPart(
+                            id = "inst-$instNum",
+                            name = cleanName,
+                            instrumentType = stateSnapshot.instrumentType,
+                            minMidiPitch = low,
+                            maxMidiPitch = high,
+                            staffCount = rec.staffCount,
+                            clef = rec.clef,
+                            lowerClef = rec.lowerClef,
+                            jackName = jackName,
+                            measures = emptyUpper,
+                            lowerMeasures = emptyLower,
+                        )
+                    } else {
+                        val editIdx = stateSnapshot.editingIndex
+                        beforeInst.mapIndexed { idx, existing ->
+                            if (idx != editIdx) {
+                                existing
+                            } else {
+                                val nextJack = if (
+                                    editIdx == 0 &&
+                                    existing.jackName == ScoreInstrumentPart.DEFAULT_JACK_NAME &&
+                                    cleanName == existing.name
+                                ) {
+                                    ScoreInstrumentPart.DEFAULT_JACK_NAME
+                                } else {
+                                    val otherJacks = beforeInst.filterIndexed { i, _ -> i != editIdx }.map { it.jackName }
+                                    ScoreInstrumentPart.uniqueJackName(cleanName, otherJacks)
+                                }
+                                val nextLowerMeasures = if (rec.staffCount >= 2 && existing.staffCount < 2) {
+                                    score.createSyncedEmptyMeasures(measureCount)
+                                } else {
+                                    existing.lowerMeasures
+                                }
+                                val clefChangedToRec = (existing.minMidiPitch != low || existing.maxMidiPitch != high) &&
+                                    existing.measures.all { it.items.isEmpty() }
+                                existing.copy(
+                                    name = cleanName,
+                                    instrumentType = stateSnapshot.instrumentType,
+                                    minMidiPitch = low,
+                                    maxMidiPitch = high,
+                                    staffCount = rec.staffCount,
+                                    clef = if (clefChangedToRec) rec.clef else existing.clef,
+                                    lowerClef = if (clefChangedToRec) rec.lowerClef else existing.lowerClef,
+                                    jackName = nextJack,
+                                    lowerMeasures = nextLowerMeasures,
+                                )
+                            }
+                        }
+                    }
+                    postCommand(ReplaceScoreInstrumentsCommand(module, beforeInst, afterInst))
+                    val targetIdx = stateSnapshot.editingIndex ?: (afterInst.lastIndex)
+                    activeStaff = ScoreStaffId(targetIdx.coerceAtLeast(0), 0)
+                    instrumentDialog = null
+                    focusRequester.requestFocus()
+                },
+                onDelete = {
+                    val editIdx = activeDialog.editingIndex ?: return@InstrumentEditorDialog
+                    val beforeInst = score.instruments.toList()
+                    if (beforeInst.size > 1 && editIdx in beforeInst.indices) {
+                        val afterInst = beforeInst.filterIndexed { idx, _ -> idx != editIdx }
+                        selectedLocations = emptySet()
+                        selectedDynamics = emptySet()
+                        selectedClefChange = null
+                        activeStaff = ScoreStaffId(0, 0)
+                        module.placeCursor(null)
+                        postCommand(ReplaceScoreInstrumentsCommand(module, beforeInst, afterInst))
+                    }
+                    instrumentDialog = null
+                    focusRequester.requestFocus()
+                },
+            )
+        }
     }
+}
+
+@Composable
+private fun InstrumentEditorDialog(
+    state: InstrumentDialogState,
+    canDelete: Boolean,
+    isDark: Boolean,
+    accentColor: Color,
+    borderMuted: Color,
+    onStateChange: (InstrumentDialogState) -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: (InstrumentDialogState) -> Unit,
+    onDelete: () -> Unit,
+) {
+    val fieldBg = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)
+    val textColor = if (isDark) Color(0xFFF8FAFC) else Color(0xFF0F172A)
+    val mutedText = if (isDark) Color(0xFF94A3B8) else Color(0xFF475569)
+
+    val parsedLow = ScoreInstrumentPart.parsePitchOrMidi(state.lowPitchText)
+    val parsedHigh = ScoreInstrumentPart.parsePitchOrMidi(state.highPitchText)
+    val rangeValid = parsedLow != null && parsedHigh != null
+    val effectiveLow = if (parsedLow != null && parsedHigh != null) minOf(parsedLow, parsedHigh) else ScoreInstrumentPart.DEFAULT_MIN_MIDI
+    val effectiveHigh = if (parsedLow != null && parsedHigh != null) maxOf(parsedLow, parsedHigh) else ScoreInstrumentPart.DEFAULT_MAX_MIDI
+    val recommendation = ScoreInstrumentPart.recommendStaffSetup(effectiveLow, effectiveHigh)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = if (state.editingIndex == null) "New Instrument" else "Edit Instrument",
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 16.sp,
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .width(420.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text("Preset", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = mutedText)
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    InstrumentPreset.entries.forEach { preset ->
+                        val isSelected = state.selectedPreset == preset
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (isSelected) accentColor.copy(alpha = 0.2f) else fieldBg,
+                            modifier = Modifier
+                                .border(1.dp, if (isSelected) accentColor else borderMuted, RoundedCornerShape(6.dp))
+                                .pointerHoverIcon(PointerIcon.Hand)
+                                .clickable {
+                                    onStateChange(
+                                        state.copy(
+                                            selectedPreset = preset,
+                                            name = preset.displayName,
+                                            instrumentType = preset.instrumentType,
+                                            lowPitchText = ScoreInstrumentPart.formatMidiPitch(preset.minMidiPitch),
+                                            highPitchText = ScoreInstrumentPart.formatMidiPitch(preset.maxMidiPitch),
+                                        )
+                                    )
+                                }
+                        ) {
+                            Text(
+                                text = preset.displayName,
+                                fontSize = 11.sp,
+                                color = if (isSelected) accentColor else textColor,
+                                fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
+                            )
+                        }
+                    }
+                }
+
+                Text("Instrument Name", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = mutedText)
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(fieldBg, RoundedCornerShape(6.dp))
+                        .border(1.dp, borderMuted, RoundedCornerShape(6.dp))
+                        .padding(horizontal = 10.dp, vertical = 8.dp)
+                ) {
+                    BasicTextField(
+                        value = state.name,
+                        onValueChange = { onStateChange(state.copy(name = it, selectedPreset = null)) },
+                        singleLine = true,
+                        textStyle = TextStyle(color = textColor, fontSize = 13.sp),
+                        cursorBrush = SolidColor(accentColor),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+
+                Text("Note Range (note name like A0, C8 or MIDI 0–127)", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = mutedText)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Lowest", fontSize = 10.sp, color = mutedText)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(fieldBg, RoundedCornerShape(6.dp))
+                                .border(1.dp, if (parsedLow != null) borderMuted else Color(0xFFEF4444), RoundedCornerShape(6.dp))
+                                .padding(horizontal = 10.dp, vertical = 7.dp)
+                        ) {
+                            BasicTextField(
+                                value = state.lowPitchText,
+                                onValueChange = { onStateChange(state.copy(lowPitchText = it, selectedPreset = null)) },
+                                singleLine = true,
+                                textStyle = TextStyle(color = textColor, fontSize = 13.sp, fontFamily = FontFamily.Monospace),
+                                cursorBrush = SolidColor(accentColor),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
+                    Text("to", fontSize = 12.sp, color = mutedText, modifier = Modifier.padding(top = 12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Highest", fontSize = 10.sp, color = mutedText)
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(fieldBg, RoundedCornerShape(6.dp))
+                                .border(1.dp, if (parsedHigh != null) borderMuted else Color(0xFFEF4444), RoundedCornerShape(6.dp))
+                                .padding(horizontal = 10.dp, vertical = 7.dp)
+                        ) {
+                            BasicTextField(
+                                value = state.highPitchText,
+                                onValueChange = { onStateChange(state.copy(highPitchText = it, selectedPreset = null)) },
+                                singleLine = true,
+                                textStyle = TextStyle(color = textColor, fontSize = 13.sp, fontFamily = FontFamily.Monospace),
+                                cursorBrush = SolidColor(accentColor),
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
+                    }
+                }
+
+                val staffDesc = if (recommendation.staffCount >= 2) {
+                    "2 staves (${recommendation.clef.label} + ${recommendation.lowerClef.label})"
+                } else {
+                    "1 staff (${recommendation.clef.label})"
+                }
+                Text(
+                    text = if (rangeValid) {
+                        "Range: ${ScoreInstrumentPart.formatMidiPitch(effectiveLow)} ($effectiveLow) – " +
+                            "${ScoreInstrumentPart.formatMidiPitch(effectiveHigh)} ($effectiveHigh)  •  $staffDesc"
+                    } else {
+                        "Enter valid pitch names (e.g. G3, C#4, Bb5) or MIDI numbers (0–127)"
+                    },
+                    fontSize = 11.sp,
+                    color = if (rangeValid) accentColor else Color(0xFFEF4444),
+                )
+
+                Text("Instrument Type", fontSize = 11.sp, fontWeight = FontWeight.Medium, color = mutedText)
+                Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                    InstrumentType.entries.chunked(3).forEach { rowTypes ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            rowTypes.forEach { t ->
+                                val isSel = state.instrumentType == t
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = if (isSel) accentColor.copy(alpha = 0.2f) else fieldBg,
+                                    modifier = Modifier
+                                        .border(1.dp, if (isSel) accentColor else borderMuted, RoundedCornerShape(6.dp))
+                                        .pointerHoverIcon(PointerIcon.Hand)
+                                        .clickable {
+                                            onStateChange(state.copy(instrumentType = t, selectedPreset = null))
+                                        }
+                                ) {
+                                    Text(
+                                        text = t.label,
+                                        fontSize = 11.sp,
+                                        color = if (isSel) accentColor else textColor,
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+                Text(
+                    text = "Articulations: ${state.instrumentType.availableArticulations.joinToString(", ")}",
+                    fontSize = 10.sp,
+                    color = mutedText,
+                )
+            }
+        },
+        confirmButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (canDelete) {
+                    TextButton(
+                        onClick = onDelete,
+                        colors = ButtonDefaults.textButtonColors(contentColor = Color(0xFFEF4444)),
+                    ) {
+                        Text("Remove")
+                    }
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel")
+                }
+                Button(
+                    onClick = { onConfirm(state) },
+                    enabled = rangeValid,
+                ) {
+                    Text(if (state.editingIndex == null) "Add" else "Save")
+                }
+            }
+        },
+    )
 }
 
 @Composable
