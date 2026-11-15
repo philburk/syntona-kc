@@ -110,6 +110,23 @@ abstract class Module(val type: String) {
         _outputs.remove(jack)
     }
 
+    /** Reorders [_outputs] in place to match [ordered], appending any remaining jacks. */
+    protected fun reorderOutputs(ordered: List<OutputJack>) {
+        if (_outputs.size == ordered.size && _outputs == ordered) return
+        val remaining = _outputs.toMutableList()
+        val nextOrder = mutableListOf<OutputJack>()
+        for (jack in ordered) {
+            if (remaining.remove(jack)) {
+                nextOrder.add(jack)
+            }
+        }
+        nextOrder.addAll(remaining)
+        if (_outputs != nextOrder) {
+            _outputs.clear()
+            _outputs.addAll(nextOrder)
+        }
+    }
+
     protected fun addCommandOutput(name: String): CommandOutputJack {
         val jack = CommandOutputJack(name, this)
         _outputs.add(jack)
