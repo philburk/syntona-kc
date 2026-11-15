@@ -624,7 +624,7 @@ object ScoreRenderer {
     private const val STEM_LENGTH_SPACES = 3.5f
     private const val STEM_LENGTH_32ND_SPACES = 4.25f
     private const val TOP_MARGIN_SPACES = 4.5f
-    private const val BOTTOM_MARGIN_SPACES = 4.5f
+    private const val BOTTOM_MARGIN_SPACES = 5.5f
     private const val CLEF_CHANGE_SCALE = 0.72f
 
     private data class StaffLayoutResult(

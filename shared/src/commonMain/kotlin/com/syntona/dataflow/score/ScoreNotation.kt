@@ -637,6 +637,29 @@ data class ScoreInstrumentPart(
             }
             return "$base $suffix"
         }
+
+        /** Moves the instrument at [fromIndex] to [toIndex], returning an updated roster list. */
+        fun reorderInstruments(
+            instruments: List<ScoreInstrumentPart>,
+            fromIndex: Int,
+            toIndex: Int,
+        ): List<ScoreInstrumentPart> {
+            if (fromIndex !in instruments.indices || toIndex !in instruments.indices || fromIndex == toIndex) {
+                return instruments
+            }
+            val mutable = instruments.toMutableList()
+            val moved = mutable.removeAt(fromIndex)
+            mutable.add(toIndex, moved)
+            return mutable
+        }
+
+        /** Maps an instrument index from before [reorderInstruments] to its new index afterward. */
+        fun remapInstrumentIndex(index: Int, fromIndex: Int, toIndex: Int): Int = when {
+            index == fromIndex -> toIndex
+            fromIndex < toIndex && index in (fromIndex + 1)..toIndex -> index - 1
+            toIndex < fromIndex && index in toIndex until fromIndex -> index + 1
+            else -> index
+        }
     }
 }
 

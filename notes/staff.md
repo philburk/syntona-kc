@@ -202,8 +202,9 @@ Ties will combine note durations and is often used to hold a note across a measu
 Pressing SHIFT+T will enter Tie mode.
 Click on a note with the Tie cursor to make it tie to the next note.
 
+The UI behavior of tying and untying is similar to the beaming and un-beaming behavior.
 
-### Phase ? - Multiple Instruments
+### Phase 16 - Multiple Instruments
 Add support for multiple instruments.
 Add new instruments with a "+" button.
 After clicking a +, a new instrument dialog will appear with some options.
@@ -212,7 +213,7 @@ One can enter a note range. The default will be the range of an 88 key piano.
 This will help composers avoid scoring notes that are impossible to play on, for example, a violin.
 Notes that are out of range can be entered but will display in red.
 
-The note range will determine the default clef and whether two staves are needed.
+The note range will determine the default clef and whether one or two staves are needed.
 
 One can enter an instrument type. This will determine the articulations available, for example pizzicato.
 (We don't currently support pizzicato but will some day.)
@@ -220,7 +221,29 @@ Types are: plucked strings, bowed string, brass, woodwind, keyboards, percussive
 
 Presets are: violin, viola, cello, guitar, piano, trumpet
 
-Each instrument has its own voice output jack.
+Each instrument should have its own voice output jack.
+
+### Phase 17 - Tuplets
+
+We need to be able to enter tuplets as an arbitrary N/M ratio.
+Provide presets for common tuplets (3:2, 5:4, 6:4, 7:4, 9:8, 11:8).
+
+Engraving / Display Rules:
+Number display: Show just the top number (3, 5, 11) by default for standard
+ratios (3:2, 5:4, 6:4, 7:4, 9:8, 11:8), and display the full ratio (4:3, 5:3,
+7:6) when the denominator isn't obvious from the meter.
+
+Brackets: Omit the tuplet bracket when all notes in the tuplet are connected
+by a single unbroken beam; draw the bracket whenever the tuplet contains rests,
+mixed beams, or unbeamed quarter/half notes.
+
+### Phase ? - Articulations
+Add support for articulations such as pizzicato, mute, sustain pedal, and
+2 or 3 other very common articulations.
+
+### Phase ? - Measure Lines
+Add support for typical measure lines.
+Put the select buttons for measure lines into a palette called "Measure Lines".
 
 ### Phase ? - Document Name, Composer, Date and other fields
 
@@ -236,10 +259,16 @@ Add score modifications for selected notes. Include transpose, retrograde,
 increase duration 2*, decrease duration 0.5x,
 
 ### Phase ?
-Add graphical scores, custom glyphs, textual scores.
+Add graphical staves, custom glyphs, text.
 
 ### Phase ?
 Add M2-123-UM compatible articulations.
+
+## BUGS
+
+The text on the toolbar that shows key and time signature does not get updated. Click after 5:4.
+
+Dynamics palette is way too wide, covers the screen. Pack around the contents.
 
 ## Design Considerations
 

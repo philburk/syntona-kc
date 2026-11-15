@@ -32,12 +32,13 @@ class ScoreModule : Module("score"), EngineAware {
         it.setValue(PianoRollTiming.DEFAULT_TEMPO)
     }
     val input = addVoiceInput("in")
-    val output = addVoiceOutput("out")
+    private val primaryOutput = addVoiceOutput("out")
+    val output: VoiceOutputJack get() = outputForInstrument(0)
 
     val scoreData = ScoreData()
 
     private val instrumentOutputs = linkedMapOf<String, VoiceOutputJack>().apply {
-        scoreData.instruments.firstOrNull()?.let { put(it.id, output) }
+        scoreData.instruments.firstOrNull()?.let { put(it.id, primaryOutput) }
     }
 
     var windowX: Float? = null
@@ -75,8 +76,8 @@ class ScoreModule : Module("score"), EngineAware {
     private val soundingNotesByOutput = linkedMapOf<VoiceOutputJack, MutableMap<Int, Double>>() // jack -> (tag -> pitch)
 
     fun outputForInstrument(instrumentIdx: Int): VoiceOutputJack {
-        val part = scoreData.instruments.getOrNull(instrumentIdx) ?: return output
-        return instrumentOutputs[part.id] ?: output
+        val part = scoreData.instruments.getOrNull(instrumentIdx) ?: return primaryOutput
+        return instrumentOutputs[part.id] ?: primaryOutput
     }
 
     fun syncInstrumentOutputs() {
@@ -87,27 +88,24 @@ class ScoreModule : Module("score"), EngineAware {
         val staleIds = instrumentOutputs.keys.filter { it !in activeIds }
         for (staleId in staleIds) {
             val staleJack = instrumentOutputs.remove(staleId)
-            if (staleJack != null && staleJack !== output) {
+            if (staleJack != null) {
                 detachAndRemoveOutput(staleJack)
             }
         }
 
-        // Keep primary instrument anchored on `this.output` for patch compatibility, creating
-        // dedicated VoiceOutputJack instances for additional instruments.
-        val firstPart = parts.first()
-        if (instrumentOutputs[firstPart.id] !== output) {
-            instrumentOutputs[firstPart.id]?.let { oldJack ->
-                if (oldJack !== output) detachAndRemoveOutput(oldJack)
-            }
-            instrumentOutputs[firstPart.id] = output
-        }
-
-        for (iIdx in 1 until parts.size) {
-            val part = parts[iIdx]
+        // Preserve each instrument's VoiceOutputJack across reorders and edits so wires
+        // remain attached to their intended instrument; reuse primaryOutput only if it is
+        // currently unassigned in outputs.
+        for (part in parts) {
             if (part.id !in instrumentOutputs) {
-                val existingNames = outputs.map { it.name }
-                val jackName = ScoreInstrumentPart.uniqueJackName(part.jackName, existingNames)
-                instrumentOutputs[part.id] = addVoiceOutput(jackName)
+                val canReusePrimary = primaryOutput in outputs && primaryOutput !in instrumentOutputs.values
+                if (canReusePrimary) {
+                    instrumentOutputs[part.id] = primaryOutput
+                } else {
+                    val existingNames = outputs.map { it.name }
+                    val jackName = ScoreInstrumentPart.uniqueJackName(part.jackName, existingNames)
+                    instrumentOutputs[part.id] = addVoiceOutput(jackName)
+                }
             }
         }
 
@@ -115,7 +113,7 @@ class ScoreModule : Module("score"), EngineAware {
         val assignedNames = outputs.filter { it !in instrumentOutputs.values }.map { it.name }.toMutableSet()
         for (iIdx in scoreData.instruments.indices) {
             val part = scoreData.instruments[iIdx]
-            val jack = if (iIdx == 0) output else instrumentOutputs[part.id] ?: continue
+            val jack = instrumentOutputs[part.id] ?: continue
             val uniqueName = ScoreInstrumentPart.uniqueJackName(part.jackName, assignedNames)
             assignedNames.add(uniqueName)
             if (uniqueName != part.jackName) {
@@ -125,6 +123,9 @@ class ScoreModule : Module("score"), EngineAware {
                 jack.name = uniqueName
             }
         }
+
+        // Match module output jack vertical order to the score instrument order.
+        reorderOutputs(scoreData.instruments.mapNotNull { instrumentOutputs[it.id] })
     }
 
     private fun detachAndRemoveOutput(jack: VoiceOutputJack) {

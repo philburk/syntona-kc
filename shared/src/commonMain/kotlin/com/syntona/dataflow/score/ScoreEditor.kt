@@ -9,6 +9,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -64,6 +65,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
@@ -239,6 +241,40 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             activeStaff.staffIdx >= part.staffCount -> ScoreStaffId(activeStaff.instrumentIdx, 0)
             else -> activeStaff
         }
+    }
+
+    fun reorderInstrument(fromIdx: Int, toIdx: Int) {
+        val beforeInst = score.instruments.toList()
+        val afterInst = ScoreInstrumentPart.reorderInstruments(beforeInst, fromIdx, toIdx)
+        if (afterInst === beforeInst) return
+
+        selectedLocations = selectedLocations.map { loc ->
+            val mappedIdx = ScoreInstrumentPart.remapInstrumentIndex(loc.staff.instrumentIdx, fromIdx, toIdx)
+            loc.copy(staff = loc.staff.copy(instrumentIdx = mappedIdx))
+        }.toSet()
+        selectedDynamics = selectedDynamics.map { dyn ->
+            val mappedIdx = ScoreInstrumentPart.remapInstrumentIndex(dyn.staff.instrumentIdx, fromIdx, toIdx)
+            dyn.copy(staff = dyn.staff.copy(instrumentIdx = mappedIdx))
+        }.toSet()
+        selectedClefChange = selectedClefChange?.let { sc ->
+            val mappedIdx = ScoreInstrumentPart.remapInstrumentIndex(sc.staff.instrumentIdx, fromIdx, toIdx)
+            sc.copy(staff = sc.staff.copy(instrumentIdx = mappedIdx))
+        }
+        activeStaff = activeStaff.copy(
+            instrumentIdx = ScoreInstrumentPart.remapInstrumentIndex(activeStaff.instrumentIdx, fromIdx, toIdx)
+        )
+        module.cursorPosition?.let { cur ->
+            val mappedIdx = ScoreInstrumentPart.remapInstrumentIndex(cur.staff.instrumentIdx, fromIdx, toIdx)
+            module.placeCursor(cur.copy(staff = cur.staff.copy(instrumentIdx = mappedIdx)))
+        }
+        val cmd = ReplaceScoreInstrumentsCommand(module, beforeInst, afterInst)
+        val e = module.getEngine()
+        if (e != null) {
+            e.post(cmd)
+        } else {
+            cmd.execute()
+        }
+        focusRequester.requestFocus()
     }
 
     fun refreshPitchDisplayFromSelection(
@@ -2282,10 +2318,49 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     )
                 }
 
+                // Little Up/Down buttons below each instrument label to reorder instruments
+                if (layout.instrumentGroups.size > 1) {
+                    val lastInstIdx = layout.instrumentGroups.lastIndex
+                    for (grp in layout.instrumentGroups) {
+                        val idx = grp.instrumentIdx
+                        val midY = (grp.topStaffY + grp.bottomStaffY) * 0.5f
+                        val ctrlX = with(density) { grp.labelLeft.toDp() }
+                        val ctrlY = with(density) { (midY + staffSpacePx * 1.9f).toDp() }
+                        Row(
+                            modifier = Modifier
+                                .offset(x = ctrlX, y = ctrlY)
+                                .clickable(
+                                    interactionSource = remember { MutableInteractionSource() },
+                                    indication = null,
+                                    onClick = {},
+                                ),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            InstrumentReorderButton(
+                                isUp = true,
+                                enabled = idx > 0,
+                                isDark = isDark,
+                                accentColor = accentColor,
+                                borderMuted = borderMuted,
+                                onClick = { reorderInstrument(idx, idx - 1) },
+                            )
+                            InstrumentReorderButton(
+                                isUp = false,
+                                enabled = idx < lastInstIdx,
+                                isDark = isDark,
+                                accentColor = accentColor,
+                                borderMuted = borderMuted,
+                                onClick = { reorderInstrument(idx, idx + 1) },
+                            )
+                        }
+                    }
+                }
+
                 // Subtle '+' button below the leftmost instrument gutter to add a new instrument
                 val lastBottomY = layout.staves.lastOrNull()?.bottomStaffY ?: layout.bottomStaffY
                 val addBtnX = with(density) { (staffSpacePx * 0.4f).toDp() }
-                val addBtnY = with(density) { (lastBottomY + staffSpacePx * 1.4f).toDp() }
+                val addBtnGapSp = if (layout.instrumentGroups.size > 1) 2.5f else 1.4f
+                val addBtnY = with(density) { (lastBottomY + staffSpacePx * addBtnGapSp).toDp() }
                 Box(
                     modifier = Modifier
                         .offset(x = addBtnX, y = addBtnY)
@@ -2637,6 +2712,55 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     focusRequester.requestFocus()
                 },
             )
+        }
+    }
+}
+
+@Composable
+private fun InstrumentReorderButton(
+    isUp: Boolean,
+    enabled: Boolean,
+    isDark: Boolean,
+    accentColor: Color,
+    borderMuted: Color,
+    onClick: () -> Unit,
+) {
+    val bgColor = when {
+        !enabled -> if (isDark) Color(0x551E293B) else Color(0x66F1F5F9)
+        isDark -> Color(0xFF1E293B)
+        else -> Color(0xFFF1F5F9)
+    }
+    val strokeColor = if (enabled) borderMuted else borderMuted.copy(alpha = 0.4f)
+    val arrowColor = when {
+        !enabled -> if (isDark) Color(0x5594A3B8) else Color(0x5564748B)
+        isDark -> Color(0xFFE2E8F0)
+        else -> accentColor
+    }
+    Box(
+        modifier = Modifier
+            .size(width = 18.dp, height = 16.dp)
+            .background(color = bgColor, shape = RoundedCornerShape(3.dp))
+            .border(1.dp, strokeColor, RoundedCornerShape(3.dp))
+            .then(if (enabled) Modifier.pointerHoverIcon(PointerIcon.Hand) else Modifier)
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(modifier = Modifier.size(8.dp)) {
+            val w = size.width
+            val h = size.height
+            val path = Path().apply {
+                if (isUp) {
+                    moveTo(w * 0.5f, h * 0.15f)
+                    lineTo(w * 0.9f, h * 0.85f)
+                    lineTo(w * 0.1f, h * 0.85f)
+                } else {
+                    moveTo(w * 0.1f, h * 0.15f)
+                    lineTo(w * 0.9f, h * 0.15f)
+                    lineTo(w * 0.5f, h * 0.85f)
+                }
+                close()
+            }
+            drawPath(path = path, color = arrowColor)
         }
     }
 }

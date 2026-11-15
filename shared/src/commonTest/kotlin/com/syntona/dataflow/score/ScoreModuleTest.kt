@@ -22,6 +22,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class ScoreModuleTest {
@@ -3709,5 +3710,125 @@ class ScoreModuleTest {
         // Undo restores Instrument 0 jack back to "out"
         renameFirstCmd.undo()
         assertEquals(listOf("out", "Frog"), module.outputs.map { it.name })
+    }
+
+    @Test
+    fun testReorderInstrumentsPreservesWiresUpdatesOutputOrderUndoRedoAndPlaybackRouting() {
+        val engine = TestEngine()
+        val patch = com.syntona.dataflow.modules.PatchModule()
+        val graph = patch.graphState
+        val module = ScoreModule()
+        module.setEngine(engine)
+        val recvA = VoiceReceiver()
+        val recvB = VoiceReceiver()
+        val recvC = VoiceReceiver()
+        graph.addModule(module, Offset.Zero)
+        graph.addModule(recvA, Offset(240f, 0f))
+        graph.addModule(recvB, Offset(240f, 100f))
+        graph.addModule(recvC, Offset(240f, 200f))
+
+        val instA = module.scoreData.instruments.first().copy(
+            name = "Violin",
+            jackName = "Violin",
+            measures = listOf(ScoreMeasure(1, listOf(ScoreItem.Note(SpelledPitch(NoteLetter.A, 0, 4), NoteDuration.QUARTER)))),
+        )
+        val instB = ScoreInstrumentPart(
+            id = "inst-2",
+            name = "Viola",
+            jackName = "Viola",
+            measures = listOf(ScoreMeasure(1, listOf(ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 4), NoteDuration.QUARTER)))),
+        )
+        val instC = ScoreInstrumentPart(
+            id = "inst-3",
+            name = "Cello",
+            jackName = "Cello",
+            measures = listOf(ScoreMeasure(1, listOf(ScoreItem.Note(SpelledPitch(NoteLetter.G, 0, 2), NoteDuration.QUARTER)))),
+        )
+        val initialRoster = listOf(instA, instB, instC)
+        ReplaceScoreInstrumentsCommand(
+            module = module,
+            beforeInstruments = module.scoreData.instruments.toList(),
+            afterInstruments = initialRoster,
+        ).execute()
+        assertEquals(listOf("Violin", "Viola", "Cello"), module.outputs.map { it.name })
+
+        val jackA = module.outputForInstrument(0)
+        val jackB = module.outputForInstrument(1)
+        val jackC = module.outputForInstrument(2)
+        graph.connect(jackA, recvA.inJack)
+        graph.connect(jackB, recvB.inJack)
+        graph.connect(jackC, recvC.inJack)
+
+        // Move Cello (index 2) up to index 0 (two moves: 2 -> 1 -> 0)
+        val afterUp1 = ScoreInstrumentPart.reorderInstruments(initialRoster, 2, 1)
+        assertEquals(listOf("Violin", "Cello", "Viola"), afterUp1.map { it.name })
+        val cmdUp1 = ReplaceScoreInstrumentsCommand(module, initialRoster, afterUp1)
+        cmdUp1.execute()
+        assertEquals(listOf("Violin", "Cello", "Viola"), module.outputs.map { it.name })
+
+        val afterUp2 = ScoreInstrumentPart.reorderInstruments(afterUp1, 1, 0)
+        assertEquals(listOf("Cello", "Violin", "Viola"), afterUp2.map { it.name })
+        val cmdUp2 = ReplaceScoreInstrumentsCommand(module, afterUp1, afterUp2)
+        cmdUp2.execute()
+        assertEquals(listOf("Cello", "Violin", "Viola"), module.outputs.map { it.name })
+
+        // Same jack objects stay wired to their original receivers!
+        assertSame(jackC, module.outputForInstrument(0))
+        assertSame(jackA, module.outputForInstrument(1))
+        assertSame(jackB, module.outputForInstrument(2))
+        assertEquals(3, graph.connections.size)
+
+        // Index remapping tracks cursors/selections cleanly
+        assertEquals(0, ScoreInstrumentPart.remapInstrumentIndex(2, 2, 0))
+        assertEquals(1, ScoreInstrumentPart.remapInstrumentIndex(0, 2, 0))
+        assertEquals(2, ScoreInstrumentPart.remapInstrumentIndex(1, 2, 0))
+        assertEquals(2, ScoreInstrumentPart.remapInstrumentIndex(0, 0, 2))
+        assertEquals(0, ScoreInstrumentPart.remapInstrumentIndex(1, 0, 2))
+        assertEquals(1, ScoreInstrumentPart.remapInstrumentIndex(2, 0, 2))
+
+        // Playback after reorder still routes each instrument's notes to its original receiver
+        module.start.receive(Message.FloatValue(ScoreTime(0L), 1.0))
+        for ((_, action) in engine.scheduled.sortedBy { it.first.nanoseconds }) {
+            action()
+        }
+        assertEquals(listOf(69), recvA.received.filter { it.opcode == Message.VoiceOpcode.NOTE }.map { it.value.toInt() })
+        assertEquals(listOf(60), recvB.received.filter { it.opcode == Message.VoiceOpcode.NOTE }.map { it.value.toInt() })
+        assertEquals(listOf(43), recvC.received.filter { it.opcode == Message.VoiceOpcode.NOTE }.map { it.value.toInt() })
+
+        // JSON serialization/deserialization preserves reordered instruments, jack order, and wires
+        val serGraph = GraphState()
+        val serScore = ScoreModule()
+        val sink0 = ScoreModule()
+        val sink1 = ScoreModule()
+        val sink2 = ScoreModule()
+        serGraph.addModule(serScore, Offset.Zero)
+        serGraph.addModule(sink0, Offset(240f, 0f))
+        serGraph.addModule(sink1, Offset(240f, 100f))
+        serGraph.addModule(sink2, Offset(240f, 200f))
+        serScore.scoreData.replaceAllInstruments(module.scoreData.instruments.toList())
+        serScore.syncInstrumentOutputs()
+        serGraph.connect(serScore.outputForInstrument(0), sink0.input)
+        serGraph.connect(serScore.outputForInstrument(1), sink1.input)
+        serGraph.connect(serScore.outputForInstrument(2), sink2.input)
+
+        val json = GraphSerializer.serialize(serGraph, serGraph.modules)
+        val restoredGraph = GraphState()
+        val restoredModules = GraphSerializer.deserialize(restoredGraph, json)
+        val restoredScore = restoredModules.filterIsInstance<ScoreModule>().first()
+        assertEquals(listOf("Cello", "Violin", "Viola"), restoredScore.scoreData.instruments.map { it.name })
+        assertEquals(listOf("Cello", "Violin", "Viola"), restoredScore.outputs.map { it.name })
+        assertEquals(3, restoredGraph.connections.size)
+        assertTrue(restoredGraph.connections.any { it.output.name == "Cello" && it.input.module === restoredModules[1] })
+        assertTrue(restoredGraph.connections.any { it.output.name == "Violin" && it.input.module === restoredModules[2] })
+        assertTrue(restoredGraph.connections.any { it.output.name == "Viola" && it.input.module === restoredModules[3] })
+
+        // Undo restores order and keeps all 3 wires intact
+        cmdUp2.undo()
+        cmdUp1.undo()
+        assertEquals(listOf("Violin", "Viola", "Cello"), module.outputs.map { it.name })
+        assertSame(jackA, module.outputForInstrument(0))
+        assertSame(jackB, module.outputForInstrument(1))
+        assertSame(jackC, module.outputForInstrument(2))
+        assertEquals(3, graph.connections.size)
     }
 }
