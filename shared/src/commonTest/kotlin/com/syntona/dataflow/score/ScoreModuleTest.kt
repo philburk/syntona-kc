@@ -3831,4 +3831,458 @@ class ScoreModuleTest {
         assertSame(jackC, module.outputForInstrument(2))
         assertEquals(3, graph.connections.size)
     }
+
+    @Test
+    fun testTupletRatioDisplayAndExactCapacity() {
+        // Standard ratios display top number only in simple meters
+        assertEquals("3", ScoreTuplet("g1", 3, 2).displayText(TimeSignature.COMMON_TIME))
+        assertEquals("5", ScoreTuplet("g2", 5, 4).displayText(TimeSignature.COMMON_TIME))
+        assertEquals("6", ScoreTuplet("g3", 6, 4).displayText(TimeSignature.COMMON_TIME))
+        assertEquals("7", ScoreTuplet("g4", 7, 4).displayText(TimeSignature.COMMON_TIME))
+        assertEquals("9", ScoreTuplet("g5", 9, 8).displayText(TimeSignature.COMMON_TIME))
+        assertEquals("11", ScoreTuplet("g6", 11, 8).displayText(TimeSignature.COMMON_TIME))
+
+        // Compound meter 6/8 displays compound duplet as single "2"
+        assertEquals("2", ScoreTuplet("gd", 2, 3).displayText(TimeSignature(6, 8)))
+
+        // Non-obvious denominators display full N:M ratio
+        assertEquals("4:3", ScoreTuplet("gn1", 4, 3).displayText(TimeSignature.COMMON_TIME))
+        assertEquals("5:3", ScoreTuplet("gn2", 5, 3).displayText(TimeSignature.COMMON_TIME))
+        assertEquals("7:6", ScoreTuplet("gn3", 7, 6).displayText(TimeSignature.COMMON_TIME))
+
+        // 7:4 septuplet of 16ths in 4/4 sums to exactly 1 quarter beat (240 ticks) + 3 quarters = 960 ticks (no overflow!)
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val sepTuplet = ScoreTuplet("sep", 7, 4)
+        val sepItems = List(7) {
+            ScoreItem.Note(c4, NoteDuration.SIXTEENTH, tuplet = sepTuplet)
+        } + List(3) {
+            ScoreItem.Note(c4, NoteDuration.QUARTER)
+        }
+        val m = ScoreMeasure(1, sepItems)
+        assertEquals(RationalTicks.of(960), ScoreEditing.measureExactTicks(m))
+
+        val score = ScoreData().apply {
+            timeSignature = TimeSignature.COMMON_TIME
+            replaceMeasures(listOf(m))
+        }
+        val layout = ScoreRenderer.render(
+            score = score,
+            target = RecordingDrawTarget(),
+            staffSpacePx = 10f,
+            minWidthPx = 600f,
+            colors = ScoreRenderColors.forTheme(darkMode = false),
+        )
+        val placedItems = layout.placedMeasures[0].items
+        assertTrue(placedItems.none { it.isOverflow }, "7:4 + 3 quarters should fill 4/4 cleanly with no overflow")
+
+        // Adding one more 16th tips over 960 ticks -> flagged as overflow
+        val overScore = ScoreData().apply {
+            timeSignature = TimeSignature.COMMON_TIME
+            replaceMeasures(listOf(ScoreMeasure(1, sepItems + ScoreItem.Note(c4, NoteDuration.SIXTEENTH))))
+        }
+        val overLayout = ScoreRenderer.render(
+            score = overScore,
+            target = RecordingDrawTarget(),
+            staffSpacePx = 10f,
+            minWidthPx = 600f,
+            colors = ScoreRenderColors.forTheme(darkMode = false),
+        )
+        assertTrue(overLayout.placedMeasures[0].items.last().isOverflow)
+    }
+
+    @Test
+    fun testTupletBracketsAndAutoBeaming() {
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val e4 = SpelledPitch(NoteLetter.E, 0, 4)
+
+        // 1. Complete beamed eighth triplet -> unbroken single beam -> omit bracket
+        val tBeam = ScoreTuplet("tb", 3, 2, baseTicks = NoteDuration.EIGHTH.ticks)
+        val beamedMeasure = ScoreMeasure(
+            1,
+            listOf(
+                ScoreItem.Note(c4, NoteDuration.EIGHTH, tuplet = tBeam),
+                ScoreItem.Note(e4, NoteDuration.EIGHTH, tuplet = tBeam),
+                ScoreItem.Note(c4, NoteDuration.EIGHTH, tuplet = tBeam),
+                ScoreItem.Note(c4, NoteDuration.EIGHTH), // non-tuplet follows
+            ),
+        )
+        val links = ScoreEditing.effectiveBeamLinks(beamedMeasure, Clef.TREBLE, TimeSignature.COMMON_TIME)
+        assertTrue(links[0])
+        assertTrue(links[1])
+        assertFalse(links[2], "Auto-beam must break across tuplet boundary")
+        val beamedGroups = ScoreEditing.computeTupletGroups(beamedMeasure, 0, Clef.TREBLE, TimeSignature.COMMON_TIME)
+        assertEquals(1, beamedGroups.size)
+        assertTrue(beamedGroups[0].isFull)
+        assertFalse(beamedGroups[0].drawBracket, "Single unbroken beam omits bracket")
+        assertEquals("3", beamedGroups[0].displayText)
+
+        // 2. Broken beam inside triplet -> draws bracket
+        val brokenMeasure = beamedMeasure.copy(beamOverrides = mapOf(1 to false))
+        val brokenGroups = ScoreEditing.computeTupletGroups(brokenMeasure, 0, Clef.TREBLE, TimeSignature.COMMON_TIME)
+        assertTrue(brokenGroups.single().drawBracket, "Broken beam must draw bracket")
+
+        // 3. Rest inside triplet -> draws bracket
+        val tRest = ScoreTuplet("tr", 3, 2, baseTicks = NoteDuration.EIGHTH.ticks)
+        val restMeasure = ScoreMeasure(
+            1,
+            listOf(
+                ScoreItem.Note(c4, NoteDuration.EIGHTH, tuplet = tRest),
+                ScoreItem.Rest(NoteDuration.EIGHTH, tuplet = tRest),
+                ScoreItem.Note(e4, NoteDuration.EIGHTH, tuplet = tRest),
+            ),
+        )
+        val restGroups = ScoreEditing.computeTupletGroups(restMeasure, 0, Clef.TREBLE, TimeSignature.COMMON_TIME)
+        assertTrue(restGroups.single().isFull)
+        assertTrue(restGroups.single().drawBracket, "Rest in tuplet requires bracket")
+
+        // 4. Quarter triplet (unbeamed) -> draws bracket
+        val tQuarter = ScoreTuplet("tq", 3, 2, baseTicks = NoteDuration.QUARTER.ticks)
+        val quarterMeasure = ScoreMeasure(
+            1,
+            List(3) { ScoreItem.Note(c4, NoteDuration.QUARTER, tuplet = tQuarter) },
+        )
+        val quarterGroups = ScoreEditing.computeTupletGroups(quarterMeasure, 0, Clef.TREBLE, TimeSignature.COMMON_TIME)
+        assertTrue(quarterGroups.single().isFull)
+        assertTrue(quarterGroups.single().drawBracket, "Unbeamed quarter triplet requires bracket")
+
+        // 5. Partial orange entry (2 of 3 items entered) -> !isFull & orange render color
+        val partialMeasure = ScoreMeasure(
+            1,
+            listOf(
+                ScoreItem.Note(c4, NoteDuration.EIGHTH, tuplet = tBeam),
+                ScoreItem.Note(e4, NoteDuration.EIGHTH, tuplet = tBeam),
+            ),
+        )
+        val partialGroups = ScoreEditing.computeTupletGroups(partialMeasure, 0, Clef.TREBLE, TimeSignature.COMMON_TIME)
+        assertFalse(partialGroups.single().isFull)
+        assertTrue(partialGroups.single().drawBracket)
+
+        val partialScore = ScoreData().apply { replaceMeasures(listOf(partialMeasure)) }
+        val drawTarget = RecordingDrawTarget()
+        val colors = ScoreRenderColors.forTheme(darkMode = false)
+        ScoreRenderer.render(
+            score = partialScore,
+            target = drawTarget,
+            staffSpacePx = 10f,
+            minWidthPx = 400f,
+            colors = colors,
+        )
+        assertTrue(
+            drawTarget.glyphs.any { it.glyph == SmuflGlyphs.tupletNumber("3") && it.color == colors.incompleteTuplet },
+            "Incomplete tuplet renders with incompleteTuplet orange color",
+        )
+    }
+
+    @Test
+    fun testTupletPlaybackTimingTiesAndMultiInstrumentSync() {
+        val engine = TestEngine()
+        val module = ScoreModule()
+        val inst1Out = module.outputForInstrument(0)
+        val recv1 = VoiceReceiver()
+        val graph = GraphState()
+        graph.addModule(module, Offset.Zero)
+        graph.addModule(recv1, Offset(200f, 0f))
+        graph.connect(inst1Out, recv1.inJack)
+        module.setEngine(engine)
+
+        // Second instrument to verify measure boundary synchronization when bar 1 uses tuplets
+        val inst2 = ScoreInstrumentPart(
+            id = "inst-2",
+            name = "Viola",
+            instrumentType = InstrumentType.BOWED_STRINGS,
+            minMidiPitch = 48,
+            maxMidiPitch = 88,
+            clef = Clef.ALTO,
+            jackName = "Viola",
+            measures = listOf(
+                ScoreMeasure(1, listOf(ScoreItem.Rest(NoteDuration.WHOLE))),
+                ScoreMeasure(2, listOf(ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 4), NoteDuration.QUARTER))),
+            ),
+        )
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val d4 = SpelledPitch(NoteLetter.D, 0, 4)
+        val e4 = SpelledPitch(NoteLetter.E, 0, 4)
+        val g4 = SpelledPitch(NoteLetter.G, 0, 4)
+        val triplet = ScoreTuplet("t1", 3, 2)
+        // Bar 1 for inst 1: quarter triplet (480 ticks total -> 160 ticks each, tied 1->2) + half note (480 ticks) = 960 ticks
+        val inst1 = module.scoreData.instruments[0].copy(
+            measures = listOf(
+                ScoreMeasure(
+                    1,
+                    listOf(
+                        ScoreItem.Note(c4, NoteDuration.QUARTER, isTiedToNext = true, tuplet = triplet),
+                        ScoreItem.Note(c4, NoteDuration.QUARTER, tuplet = triplet),
+                        ScoreItem.Note(d4, NoteDuration.QUARTER, tuplet = triplet),
+                        ScoreItem.Note(e4, NoteDuration.HALF),
+                    ),
+                ),
+                ScoreMeasure(2, listOf(ScoreItem.Note(g4, NoteDuration.QUARTER))),
+            ),
+        )
+        module.scoreData.timeSignature = TimeSignature.COMMON_TIME // 4/4 = 960 ticks
+        module.tempo.receive(Message.FloatValue(ScoreTime(0L), 120.0)) // 240 ticks = 0.5s -> 160 ticks = 1/3 s, 320 ticks = 2/3 s, 480 ticks = 1.0 s, bar 2 = 2.0 s
+        module.scoreData.replaceAllInstruments(listOf(inst1, inst2))
+        module.syncInstrumentOutputs()
+
+        val recv2 = VoiceReceiver()
+        graph.addModule(recv2, Offset(200f, 100f))
+        graph.connect(module.outputForInstrument(1), recv2.inJack)
+
+        module.start.receive(Message.FloatValue(ScoreTime(0L), 1.0))
+        for ((_, action) in engine.scheduled.sortedBy { it.first.nanoseconds }) {
+            action()
+        }
+
+        val notes1 = recv1.received.filter { it.opcode == Message.VoiceOpcode.NOTE }
+        // Note 0 ties into note 1, so only 4 attacks: C4 (320 ticks = 2/3s), D4 (160 ticks = 1/3s), E4 (480 ticks = 1.0s), G4 (bar 2 at 2.0s)
+        assertEquals(listOf(60, 62, 64, 67), notes1.map { it.value.toInt() })
+        assertEquals(0L, notes1[0].time.nanoseconds)
+        assertEquals(2.0 / 3.0, notes1[0].duration, 1e-4)
+        assertTrue(kotlin.math.abs(notes1[1].time.nanoseconds - 666_666_667L) < 20_000L)
+        assertEquals(1.0 / 3.0, notes1[1].duration, 1e-4)
+        assertTrue(kotlin.math.abs(notes1[2].time.nanoseconds - 1_000_000_000L) < 20_000L)
+        assertTrue(kotlin.math.abs(notes1[3].time.nanoseconds - 2_000_000_000L) < 20_000L)
+
+        // Inst 2's bar 2 note also starts cleanly at 2.0s (measure boundaries aligned)
+        val notes2 = recv2.received.filter { it.opcode == Message.VoiceOpcode.NOTE }
+        assertEquals(1, notes2.size)
+        assertTrue(kotlin.math.abs(notes2[0].time.nanoseconds - 2_000_000_000L) < 20_000L)
+    }
+
+    @Test
+    fun testTupletSelectionEditingStepRecordPasteAndSerialization() {
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val d4 = SpelledPitch(NoteLetter.D, 0, 4)
+        val e4 = SpelledPitch(NoteLetter.E, 0, 4)
+
+        // 1. Wrap & unwrap contiguous run via applyTupletOnSelection
+        val baseMeasures = listOf(
+            ScoreMeasure(
+                1,
+                listOf(
+                    ScoreItem.Note(c4, NoteDuration.QUARTER),
+                    ScoreItem.Note(d4, NoteDuration.QUARTER),
+                    ScoreItem.Note(e4, NoteDuration.QUARTER),
+                ),
+            )
+        )
+        val sel = setOf(ScoreItemLocation(0, 0), ScoreItemLocation(0, 1), ScoreItemLocation(0, 2))
+        val wrapped = ScoreEditing.applyTupletOnSelection(baseMeasures, sel, 3 to 2)
+        val tGroup = wrapped[0].items.map { it.tuplet }
+        assertTrue(tGroup.all { it != null && it.actualCount == 3 && it.normalCount == 2 })
+        assertEquals(1, tGroup.map { it!!.groupId }.distinct().size)
+
+        // Calling again with same ratio unwraps back to normal notes
+        val unwrapped = ScoreEditing.applyTupletOnSelection(wrapped, sel, 3 to 2)
+        assertTrue(unwrapped[0].items.all { it.tuplet == null })
+
+        // 2. Step recording with 3:2 across >1 measure cleanly rolls over groupId once full
+        val module = ScoreModule()
+        module.scoreData.timeSignature = TimeSignature(2, 4) // 480 ticks per bar (1 quarter triplet fills 1 bar)
+        module.scoreData.replaceMeasures(listOf(ScoreMeasure(1, emptyList())))
+        module.stepRecordDuration = NoteDuration.QUARTER
+        module.stepRecordTupletRatio = 3 to 2
+        module.setStepRecordingEnabled(true)
+        module.placeCursor(ScoreCursorPosition(0, 0))
+
+        for (midi in listOf(60, 62, 64, 65)) {
+            module.input.receive(
+                Message.VoiceMessage(ScoreTime(midi.toLong()), Message.VoiceOpcode.NOTE_ON, tag = midi, value = midi.toDouble(), extra = 0.8)
+            )
+        }
+        assertEquals(3, module.scoreData.measures[0].items.size)
+        val m1Groups = module.scoreData.measures[0].items.map { it.tuplet!!.groupId }.distinct()
+        assertEquals(1, m1Groups.size)
+        assertEquals(1, module.scoreData.measures[1].items.size)
+        val m2GroupId = module.scoreData.measures[1].items[0].tuplet!!.groupId
+        assertFalse(m2GroupId == m1Groups.single(), "Full triplet in bar 1 starts fresh groupId in bar 2")
+
+        // 3. Copy/paste allocates fresh distinct groupIds
+        val clip = ScoreEditing.copySelectionContent(
+            measures = module.scoreData.measures,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature(2, 4),
+            selectedLocations = sel,
+            selectedMeasures = emptySet(),
+            selectedClefChange = null,
+            selectedDynamics = emptySet(),
+        )
+        val pasteTargetMeasures = ScoreEditing.appendEmptyMeasure(module.scoreData.measures)
+        val pasteResult = ScoreEditing.pasteClipboardContent(
+            measures = pasteTargetMeasures,
+            content = clip!!,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature(2, 4),
+            initialClef = Clef.TREBLE,
+            cursorPosition = ScoreCursorPosition(2, 0),
+        )!!
+        val pastedGroupId = pasteResult.measures[2].items[0].tuplet!!.groupId
+        assertFalse(pastedGroupId == m1Groups.single())
+        assertFalse(pastedGroupId == m2GroupId)
+
+        // 4. JSON serialization round-trip preserves tuplet metadata accurately
+        val serGraph = GraphState()
+        serGraph.addModule(module, Offset.Zero)
+        module.scoreData.replaceMeasures(wrapped)
+        val json = GraphSerializer.serialize(serGraph, serGraph.modules)
+        val restoredGraph = GraphState()
+        val restoredScore = GraphSerializer.deserialize(restoredGraph, json).filterIsInstance<ScoreModule>().single()
+        val restoredItems = restoredScore.scoreData.measures[0].items
+        assertEquals(3, restoredItems.size)
+        assertTrue(restoredItems.all { it.tuplet == wrapped[0].items[0].tuplet })
+    }
+
+    @Test
+    fun testIncompleteTupletBarExpandsForEntryAndRestoresNormalWidthWhenFull() {
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val t = ScoreTuplet("t1", 3, 2, baseTicks = NoteDuration.QUARTER.ticks)
+        val incompleteScore = ScoreData().apply {
+            replaceMeasures(listOf(ScoreMeasure(1, listOf(ScoreItem.Note(c4, NoteDuration.QUARTER, tuplet = t)))))
+        }
+        val completeScore = ScoreData().apply {
+            replaceMeasures(
+                listOf(
+                    ScoreMeasure(
+                        1,
+                        List(3) { ScoreItem.Note(c4, NoteDuration.QUARTER, tuplet = t) },
+                    )
+                )
+            )
+        }
+
+        val partialLayout = ScoreRenderer.render(
+            score = incompleteScore,
+            target = RecordingDrawTarget(),
+            staffSpacePx = 10f,
+            minWidthPx = 400f,
+            colors = ScoreRenderColors.forTheme(darkMode = false),
+            activeTupletRatio = 3 to 2,
+        )
+        val partialPm = partialLayout.placedMeasures[0]
+        val partialTg = partialPm.tupletGroups.single()
+        val firstNote = partialPm.items.single()
+        val partialAvailableRight = partialPm.barlineX - firstNote.boxRight
+        assertTrue(partialAvailableRight > 50f, "Incomplete tuplet bar reserves generous room to the right of note 1")
+        assertTrue(partialTg.endX - firstNote.boxRight > 40f, "Orange tuplet bar spans across entry room")
+
+        // Clicking well to the right of note 1 stays inside M1 and does NOT collide with note 1's chord column
+        val clickX = firstNote.boxRight + 24f
+        val clickY = firstNote.centerY
+        assertEquals(null, partialLayout.itemColumnAt(clickX, clickY))
+        val target = partialLayout.insertionTargetAt(clickX, clickY)
+        assertNotNull(target)
+        assertEquals(0, target.measureIdx)
+        assertEquals(1, target.itemIdx)
+        assertFalse(target.appendNewMeasure)
+
+        // Normal full 3-note tuplet snaps bar width back to tight engraved spacing (no extra trailing padding)
+        val fullLayout = ScoreRenderer.render(
+            score = completeScore,
+            target = RecordingDrawTarget(),
+            staffSpacePx = 10f,
+            minWidthPx = 400f,
+            colors = ScoreRenderColors.forTheme(darkMode = false),
+            activeTupletRatio = 3 to 2,
+        )
+        val normalLayout = ScoreRenderer.render(
+            score = completeScore,
+            target = RecordingDrawTarget(),
+            staffSpacePx = 10f,
+            minWidthPx = 400f,
+            colors = ScoreRenderColors.forTheme(darkMode = false),
+            activeTupletRatio = null,
+        )
+        assertEquals(
+            normalLayout.placedMeasures[0].barlineX,
+            fullLayout.placedMeasures[0].barlineX,
+            0.01f,
+            "Once full, the bar uses its normal width",
+        )
+    }
+
+    @Test
+    fun testMidMeasureIncompleteTupletBeforeFollowingNoteExpandsAndJoinsOnInsert() {
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val g4 = SpelledPitch(NoteLetter.G, 0, 4)
+        // Repro: two quarter notes in a measure, select first note, apply 3:2 tuplet.
+        val initialMeasures = listOf(
+            ScoreMeasure(
+                1,
+                listOf(
+                    ScoreItem.Note(c4, NoteDuration.QUARTER),
+                    ScoreItem.Note(g4, NoteDuration.QUARTER),
+                ),
+            )
+        )
+        val wrapped = ScoreEditing.applyTupletOnSelection(
+            measures = initialMeasures,
+            selection = setOf(ScoreItemLocation(0, 0)),
+            ratio = 3 to 2,
+        )
+        val score = ScoreData().apply { replaceMeasures(wrapped) }
+        val layout = ScoreRenderer.render(
+            score = score,
+            target = RecordingDrawTarget(),
+            staffSpacePx = 10f,
+            minWidthPx = 500f,
+            colors = ScoreRenderColors.forTheme(darkMode = false),
+        )
+        val pm = layout.placedMeasures[0]
+        val tg = pm.tupletGroups.single()
+        assertFalse(tg.isFull, "Single wrapped quarter note in 3:2 must stay incomplete")
+        val firstNote = pm.items[0]
+        val secondNote = pm.items[1]
+        assertTrue(secondNote.boxLeft - firstNote.boxRight > 60f, "Following quarter note shifts right cleanly")
+        assertTrue(tg.endX - firstNote.boxRight > 50f, "Incomplete tuplet bar extends across entry room before Q2")
+
+        // Clicking inside the orange bracket misses Q1's chord hitbox and targets itemIdx = 1
+        val clickX = firstNote.boxRight + 24f
+        val clickY = firstNote.centerY
+        assertEquals(null, layout.itemColumnAt(clickX, clickY))
+        val target = layout.insertionTargetAt(clickX, clickY)
+        assertNotNull(target)
+        assertEquals(0, target.measureIdx)
+        assertEquals(1, target.itemIdx)
+
+        // Even with stepRecordTupletRatio == null, clicking under the incomplete bar joins it
+        val module = ScoreModule()
+        assertEquals(null, module.stepRecordTupletRatio)
+        val tupletFor2nd = module.resolveTupletForInsertion(
+            measures = wrapped,
+            measureIdx = target.measureIdx,
+            insertIdx = target.itemIdx,
+            baseTicks = NoteDuration.QUARTER.ticks,
+            joinPrecedingIncomplete = clickX <= tg.endX + 3.5f,
+        )
+        assertNotNull(tupletFor2nd)
+        assertEquals(wrapped[0].items[0].tuplet!!.groupId, tupletFor2nd.groupId)
+
+        val (after2nd, _) = ScoreEditing.insertItem(
+            measures = wrapped,
+            measureIdx = 0,
+            itemIdx = 1,
+            item = ScoreItem.Note(c4, NoteDuration.QUARTER, tuplet = tupletFor2nd),
+        )
+        val tupletFor3rd = module.resolveTupletForInsertion(
+            measures = after2nd,
+            measureIdx = 0,
+            insertIdx = 2,
+            baseTicks = NoteDuration.QUARTER.ticks,
+            joinPrecedingIncomplete = true,
+        )
+        val (after3rd, _) = ScoreEditing.insertItem(
+            measures = after2nd,
+            measureIdx = 0,
+            itemIdx = 2,
+            item = ScoreItem.Note(c4, NoteDuration.QUARTER, tuplet = tupletFor3rd),
+        )
+        val completedGroups = ScoreEditing.computeTupletGroups(
+            measure = after3rd[0],
+            measureIdx = 0,
+            openingClef = Clef.TREBLE,
+            timeSignature = TimeSignature.COMMON_TIME,
+        )
+        assertTrue(completedGroups.single().isFull, "Adding 2nd and 3rd notes completes the 3:2 tuplet")
+    }
 }

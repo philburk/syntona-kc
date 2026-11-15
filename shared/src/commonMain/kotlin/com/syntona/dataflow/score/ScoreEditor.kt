@@ -70,6 +70,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isAltPressed
 import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isShiftPressed as isKeyShiftPressed
@@ -215,6 +216,9 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
     var openPalette by remember { mutableStateOf<ScorePaletteKind?>(null) }
     var pendingAccidental by remember { mutableStateOf<Accidental?>(null) }
     var pendingStaccato by remember { mutableStateOf(false) }
+    var customTupletDialogOpen by remember { mutableStateOf(false) }
+    var customTupletActualText by remember { mutableStateOf("3") }
+    var customTupletNormalText by remember { mutableStateOf("2") }
     var selectedLocations by remember { mutableStateOf<Set<ScoreItemLocation>>(emptySet()) }
     var selectedMeasures by remember { mutableStateOf<Set<Int>>(emptySet()) }
     var selectedClefChange by remember { mutableStateOf<ScoreClefLocation?>(null) }
@@ -529,6 +533,35 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         val next = !entryIsDotted
         entryIsDotted = next
         module.stepRecordDotted = next
+    }
+
+    fun applyTupletRatio(ratio: Pair<Int, Int>?) {
+        if (selectedLocations.isNotEmpty()) {
+            val prevSelection = selectedLocations
+            val affectedStaves = prevSelection.map { it.staff }.toSet()
+            updateMeasuresAcrossStaves(
+                staves = affectedStaves,
+                transform = { staffId, ms ->
+                    val staffLocs = prevSelection.filterTo(mutableSetOf()) { it.staff == staffId }
+                    ScoreEditing.applyTupletOnSelection(ms, staffLocs, ratio)
+                },
+                onAfterRestore = { _ ->
+                    selectedLocations = filterValidLocations(prevSelection)
+                    refreshPitchDisplayFromSelection(selection = selectedLocations)
+                },
+            )
+            return
+        }
+        val nextRatio = when {
+            ratio == null -> null
+            module.stepRecordTupletRatio == ratio && (editorMode == ScoreEditMode.ENTRY || module.isStepRecording) -> null
+            else -> ratio
+        }
+        module.stepRecordTupletRatio = nextRatio
+        if (nextRatio != null && !module.isStepRecording) {
+            editorMode = ScoreEditMode.ENTRY
+            module.placeCursor(null)
+        }
     }
 
     fun applyDurationToSelection(duration: NoteDuration, isDotted: Boolean) {
@@ -877,7 +910,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
     }
 
     fun handleKeyEvent(event: KeyEvent): Boolean {
-        if (editingTimeSig != null) return false
+        if (editingTimeSig != null || customTupletDialogOpen) return false
         if (event.type != KeyEventType.KeyDown) return false
         if (event.isMetaPressed || event.isCtrlPressed) return false
         if (event.key == Key.Escape) {
@@ -894,6 +927,9 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 module.exitStepRecording()
                 editorMode = ScoreEditMode.SELECT
                 hoverPos = null
+            } else if (editorMode == ScoreEditMode.ENTRY && module.stepRecordTupletRatio != null) {
+                durationEditState = null
+                module.stepRecordTupletRatio = null
             } else {
                 durationEditState = null
                 editorMode = ScoreEditMode.SELECT
@@ -912,6 +948,40 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         }
 
         val keyChar = event.utf16CodePoint.toChar().lowercaseChar()
+        if (event.isAltPressed) {
+            when (keyChar) {
+                'n' -> {
+                    openPalette = null
+                    customTupletActualText = (module.stepRecordTupletRatio?.first ?: 3).toString()
+                    customTupletNormalText = (module.stepRecordTupletRatio?.second ?: 2).toString()
+                    customTupletDialogOpen = true
+                    return true
+                }
+                '0', '1' -> {
+                    openPalette = null
+                    applyTupletRatio(null)
+                    return true
+                }
+                in '2'..'9' -> {
+                    openPalette = null
+                    val n = keyChar - '0'
+                    val presetRatio = when (n) {
+                        2 -> 2 to 3
+                        3 -> 3 to 2
+                        4 -> 4 to 3
+                        5 -> 5 to 4
+                        6 -> 6 to 4
+                        7 -> 7 to 4
+                        8 -> 8 to 6
+                        9 -> 9 to 8
+                        else -> n to 2
+                    }
+                    applyTupletRatio(presetRatio)
+                    return true
+                }
+            }
+            return false
+        }
         val charDuration = when (keyChar) {
             't' -> NoteDuration.THIRTY_SECOND
             's' -> NoteDuration.SIXTEENTH
@@ -1160,6 +1230,24 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 onSelect = { applyTimeSignature(it, setOf(0)) },
             )
 
+            ScoreTupletSelector(
+                activeRatio = module.stepRecordTupletRatio,
+                hasSelection = selectedLocations.isNotEmpty(),
+                textColor = toolbarText,
+                accentColor = accentColor,
+                borderMuted = borderMuted,
+                isDark = isDark,
+                onSelect = { ratio ->
+                    applyTupletRatio(ratio)
+                    focusRequester.requestFocus()
+                },
+                onOpenCustom = {
+                    customTupletActualText = (module.stepRecordTupletRatio?.first ?: 3).toString()
+                    customTupletNormalText = (module.stepRecordTupletRatio?.second ?: 2).toString()
+                    customTupletDialogOpen = true
+                },
+            )
+
             TextButton(
                 onClick = {
                     val beforeInst = score.instruments.toList()
@@ -1334,6 +1422,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         entryIsDotted = entryIsDotted,
                         activeAlter = activeAlter,
                         staccatoActive = staccatoActive,
+                        activeTupletRatio = module.stepRecordTupletRatio,
                         isDark = isDark,
                         toolbarText = toolbarText,
                         accentColor = accentColor,
@@ -1365,6 +1454,17 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         onToggleStaccato = {
                             toggleStaccato()
                             focusRequester.requestFocus()
+                        },
+                        onSelectTuplet = { ratio ->
+                            applyTupletRatio(ratio)
+                            openPalette = null
+                            focusRequester.requestFocus()
+                        },
+                        onOpenCustomTuplet = {
+                            openPalette = null
+                            customTupletActualText = (module.stepRecordTupletRatio?.first ?: 3).toString()
+                            customTupletNormalText = (module.stepRecordTupletRatio?.second ?: 2).toString()
+                            customTupletDialogOpen = true
                         },
                         onSelectBeamTool = {
                             module.exitStepRecording()
@@ -1478,6 +1578,14 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     val staffSpacePx = with(density) { staffSpaceDp.dp.toPx() }
                     val minWidthPx = with(density) { viewportWidth.toPx() }.coerceAtLeast(600f)
                     val instrumentsSnapshot = score.instruments.toList()
+                    val activeTupletRatio = module.stepRecordTupletRatio
+                    val layoutTupletRatio = if (!module.isStepRecording && editorMode == ScoreEditMode.ENTRY) {
+                        activeTupletRatio
+                    } else if (module.isStepRecording) {
+                        activeTupletRatio
+                    } else {
+                        null
+                    }
                     val layout = remember(
                         instrumentsSnapshot,
                         score.clef,
@@ -1485,12 +1593,14 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         score.timeSignature,
                         staffSpacePx,
                         minWidthPx,
+                        layoutTupletRatio,
                     ) {
                         ScoreRenderer.computeLayout(
                             score = score,
                             staffSpacePx = staffSpacePx,
                             minWidthPx = minWidthPx,
                             measureGlyphWidth = measureGlyphWidth,
+                            activeTupletRatio = layoutTupletRatio,
                         )
                     }
                     val currentLayout by rememberUpdatedState(layout)
@@ -1589,6 +1699,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 pendingAccidental,
                 pendingStaccato,
                 editingTimeSig,
+                activeTupletRatio,
             ) {
                 if (module.isStepRecording || editorMode != ScoreEditMode.ENTRY || dragState != null || editingTimeSig != null) {
                     return@remember null
@@ -1605,6 +1716,19 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 } else {
                     pos.x - layout.staffSpacePx * 0.65f
                 }
+                val tupletText = activeTupletRatio?.let { ratio ->
+                    val target = layout.insertionTargetAt(pos.x, pos.y)
+                    val targetPm = target?.let { hoverStaff.placedMeasures.getOrNull(it.measureIdx) }
+                    val prevIdx = (target?.itemIdx ?: 0) - 1
+                    val joinsIncomplete = targetPm?.tupletGroups?.any { grp ->
+                        !grp.isFull && prevIdx in grp.itemIndices &&
+                            grp.tuplet.actualCount == ratio.first && grp.tuplet.normalCount == ratio.second
+                    } == true
+                    if (joinsIncomplete) null
+                    else ScoreTuplet("preview", ratio.first, ratio.second).displayText(
+                        targetPm?.activeTimeSignature ?: score.timeSignature
+                    )
+                }
                 ScoreGhostPreview(
                     x = snappedX,
                     staffStep = step,
@@ -1614,6 +1738,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     accidental = if (entryIsRest) null else pendingAccidental,
                     isStaccato = if (entryIsRest) false else pendingStaccato,
                     staff = hoverStaff.staffId,
+                    tupletText = tupletText,
                 )
             }
 
@@ -1963,7 +2088,11 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
 
                                         if (isDifferentKindOrDuration) {
                                             if (entryIsRest) {
-                                                val newRest = ScoreItem.Rest(entryDuration, isDotted = entryIsDotted)
+                                                val newRest = ScoreItem.Rest(
+                                                    entryDuration,
+                                                    isDotted = entryIsDotted,
+                                                    tuplet = hit.item.tuplet,
+                                                )
                                                 val after = ScoreEditing.replaceItem(beforeMeasures, hit.location, newRest)
                                                 selectedLocations = setOf(hit.location)
                                                 activePitchText = null
@@ -1992,6 +2121,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                     duration = entryDuration,
                                                     isDotted = entryIsDotted,
                                                     isStaccato = pendingStaccato,
+                                                    tuplet = hit.item.tuplet,
                                                 )
                                                 pendingAccidental = null
                                                 val after = ScoreEditing.replaceItem(beforeMeasures, hit.location, newNote)
@@ -2036,6 +2166,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                     duration = entryDuration,
                                                     isDotted = entryIsDotted,
                                                     isStaccato = pendingStaccato,
+                                                    tuplet = colItem.item.tuplet,
                                                 )
                                                 pendingAccidental = null
                                                 val after = ScoreEditing.replaceItem(beforeMeasures, colItem.location, newNote)
@@ -2095,8 +2226,28 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                             val targetStaff = target.staff
                                             activeStaff = targetStaff
                                             val beforeMeasures = score.staffMeasures(targetStaff).toList()
+                                            val clickedPm = lyt.staves
+                                                .firstOrNull { it.staffId == targetStaff }
+                                                ?.placedMeasures
+                                                ?.getOrNull(target.measureIdx)
+                                            val joinPrecedingIncomplete = clickedPm?.tupletGroups?.any { tg ->
+                                                !tg.isFull &&
+                                                    target.itemIdx == tg.itemIndices.last() + 1 &&
+                                                    downPos.x <= tg.endX + sp * 0.35f
+                                            } == true
+                                            val insertedTuplet = module.resolveTupletForInsertion(
+                                                measures = beforeMeasures,
+                                                measureIdx = target.measureIdx,
+                                                insertIdx = target.itemIdx,
+                                                baseTicks = entryDuration.totalTicks(entryIsDotted),
+                                                joinPrecedingIncomplete = joinPrecedingIncomplete,
+                                            )
                                             if (entryIsRest) {
-                                                val newRest = ScoreItem.Rest(entryDuration, isDotted = entryIsDotted)
+                                                val newRest = ScoreItem.Rest(
+                                                    entryDuration,
+                                                    isDotted = entryIsDotted,
+                                                    tuplet = insertedTuplet,
+                                                )
                                                 val (after, insertedLoc) = ScoreEditing.insertItem(
                                                     measures = beforeMeasures,
                                                     measureIdx = target.measureIdx,
@@ -2128,6 +2279,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                     duration = entryDuration,
                                                     isDotted = entryIsDotted,
                                                     isStaccato = pendingStaccato,
+                                                    tuplet = insertedTuplet,
                                                 )
                                                 pendingAccidental = null
                                                 val (after, insertedLoc) = ScoreEditing.insertItem(
@@ -2315,6 +2467,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         cursorPosition = module.cursorPosition,
                         isStepRecording = module.isStepRecording,
                         activeItemsByStaff = module.activeItemsByStaff,
+                        activeTupletRatio = layoutTupletRatio,
                     )
                 }
 
@@ -2506,6 +2659,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             val dotPrefix = if (entryIsDotted) "Dotted " else ""
+            val tupletSuffix = module.stepRecordTupletRatio?.let { (n, m) -> " [${n}:${m} Tuplet]" }.orEmpty()
             val modeSummary = when {
                 durationEditState == DurationEditPendingState.AWAITING_DURATION ->
                     "Set Duration: press t/s/e/q/h/w (or d for dotted), Esc to cancel"
@@ -2513,7 +2667,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     "Set Dotted Duration: press t/s/e/q/h/w, Esc to cancel"
                 durationEditState == DurationEditPendingState.AWAITING_OPTIONAL_DOT ->
                     "Duration: ${durationEditLastDur.displayLabel} (press d for dot)"
-                module.isStepRecording -> "Mode: Step Record ($dotPrefix${entryDuration.displayLabel})"
+                module.isStepRecording -> "Mode: Step Record ($dotPrefix${entryDuration.displayLabel}$tupletSuffix)"
                 editorMode == ScoreEditMode.SELECT ->
                     if (entryIsDotted) "Mode: Select (Dot On)" else "Mode: Select"
                 editorMode == ScoreEditMode.DYNAMIC ->
@@ -2522,7 +2676,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     "Mode: Beam — click a note to beam/un-beam (Esc to exit)"
                 editorMode == ScoreEditMode.TIE ->
                     "Mode: Tie — click a note to tie/untie to next note (Esc to exit)"
-                else -> "Mode: $dotPrefix${entryDuration.displayLabel} ${if (entryIsRest) "Rest" else "Note"}"
+                else -> "Mode: $dotPrefix${entryDuration.displayLabel} ${if (entryIsRest) "Rest" else "Note"}$tupletSuffix"
             }
             Text(
                 modeSummary,
@@ -2598,10 +2752,43 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             Spacer(modifier = Modifier.weight(1f))
 
             Text(
-                text = "Esc: Select | t s e q h w: Dur | p/f: Dyn | Shift+B: Beam | d: Dot | 1..4: Artic/Acc | Del: Delete",
+                text = "Esc: Select | t s e q h w: Dur | Alt+2..9/n: Tuplet | p/f: Dyn | Shift+B: Beam | d: Dot | Del: Delete",
                 fontSize = 10.sp,
                 color = toolbarText.copy(alpha = 0.8f),
                 maxLines = 1,
+            )
+        }
+
+        if (customTupletDialogOpen) {
+            CustomTupletDialog(
+                actualText = customTupletActualText,
+                normalText = customTupletNormalText,
+                isDark = isDark,
+                accentColor = accentColor,
+                borderMuted = borderMuted,
+                onActualChange = { customTupletActualText = it },
+                onNormalChange = { customTupletNormalText = it },
+                onPresetClick = { ratio ->
+                    customTupletActualText = ratio.first.toString()
+                    customTupletNormalText = ratio.second.toString()
+                },
+                onDismiss = {
+                    customTupletDialogOpen = false
+                    focusRequester.requestFocus()
+                },
+                onConfirm = { actual, normal ->
+                    customTupletDialogOpen = false
+                    if (selectedLocations.isEmpty() && module.stepRecordTupletRatio == (actual to normal)) {
+                        module.stepRecordTupletRatio = actual to normal
+                        if (!module.isStepRecording) {
+                            editorMode = ScoreEditMode.ENTRY
+                            module.placeCursor(null)
+                        }
+                    } else {
+                        applyTupletRatio(actual to normal)
+                    }
+                    focusRequester.requestFocus()
+                },
             )
         }
 
@@ -3074,6 +3261,208 @@ private fun ScoreTimeSigSelector(
 }
 
 @Composable
+private fun ScoreTupletSelector(
+    activeRatio: Pair<Int, Int>?,
+    hasSelection: Boolean,
+    textColor: Color,
+    accentColor: Color,
+    borderMuted: Color,
+    isDark: Boolean,
+    onSelect: (Pair<Int, Int>?) -> Unit,
+    onOpenCustom: () -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val active = activeRatio != null && !hasSelection
+    val tupletOrange = if (isDark) Color(0xFFFF9800) else Color(0xFFE65100)
+    val chipColor = if (active) tupletOrange else textColor
+    Box {
+        TextButton(
+            onClick = { expanded = true },
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+            modifier = Modifier
+                .height(28.dp)
+                .border(
+                    width = if (active) 1.5.dp else 1.dp,
+                    color = if (active) tupletOrange else borderMuted.copy(alpha = 0.6f),
+                    shape = RoundedCornerShape(4.dp),
+                )
+                .focusProperties { canFocus = false },
+        ) {
+            val label = activeRatio?.let { "${it.first}:${it.second}" } ?: "Off"
+            Text(
+                text = "Tuplet: $label",
+                fontSize = 11.sp,
+                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
+                color = chipColor,
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            CompactDropdownMenuItem(
+                text = { Text(if (hasSelection) "Clear Tuplet" else "Off (Normal)") },
+                onClick = {
+                    onSelect(null)
+                    expanded = false
+                },
+            )
+            HorizontalDivider()
+            ScoreTuplet.PRESETS.forEach { preset ->
+                val isCurrent = !hasSelection && activeRatio == preset
+                CompactDropdownMenuItem(
+                    text = {
+                        Text(
+                            text = "${preset.first}:${preset.second}",
+                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isCurrent) accentColor else Color.Unspecified,
+                        )
+                    },
+                    onClick = {
+                        onSelect(preset)
+                        expanded = false
+                    },
+                )
+            }
+            HorizontalDivider()
+            CompactDropdownMenuItem(
+                text = { Text("Custom N:M… (Alt+N)") },
+                onClick = {
+                    expanded = false
+                    onOpenCustom()
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun CustomTupletDialog(
+    actualText: String,
+    normalText: String,
+    isDark: Boolean,
+    accentColor: Color,
+    borderMuted: Color,
+    onActualChange: (String) -> Unit,
+    onNormalChange: (String) -> Unit,
+    onPresetClick: (Pair<Int, Int>) -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: (Int, Int) -> Unit,
+) {
+    val dialogBg = if (isDark) Color(0xFF1E223B) else Color(0xFFFFFFFF)
+    val fieldBg = if (isDark) Color(0xFF111428) else Color(0xFFF1F5F9)
+    val textColor = if (isDark) Color(0xFFE2E8F0) else Color(0xFF0F172A)
+    val mutedText = if (isDark) Color(0xFF94A3B8) else Color(0xFF475569)
+
+    val actualVal = actualText.trim().toIntOrNull()?.takeIf { it in 2..32 }
+    val normalVal = normalText.trim().toIntOrNull()?.takeIf { it in 1..32 }
+    val valid = actualVal != null && normalVal != null
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = dialogBg,
+        title = {
+            Text(
+                text = "Custom Tuplet Ratio",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = textColor,
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text("Fit", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = textColor)
+                    Box(
+                        modifier = Modifier
+                            .width(56.dp)
+                            .background(fieldBg, RoundedCornerShape(6.dp))
+                            .border(1.dp, if (actualVal != null) accentColor else Color(0xFFEF4444), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                    ) {
+                        BasicTextField(
+                            value = actualText,
+                            onValueChange = { next ->
+                                if (next.length <= 2 && next.all { it.isDigit() }) onActualChange(next)
+                            },
+                            singleLine = true,
+                            textStyle = TextStyle(
+                                color = textColor,
+                                fontSize = 14.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center,
+                            ),
+                            cursorBrush = SolidColor(accentColor),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    Text("into", fontSize = 13.sp, fontWeight = FontWeight.Medium, color = textColor)
+                    Box(
+                        modifier = Modifier
+                            .width(56.dp)
+                            .background(fieldBg, RoundedCornerShape(6.dp))
+                            .border(1.dp, if (normalVal != null) accentColor else Color(0xFFEF4444), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 8.dp, vertical = 6.dp)
+                    ) {
+                        BasicTextField(
+                            value = normalText,
+                            onValueChange = { next ->
+                                if (next.length <= 2 && next.all { it.isDigit() }) onNormalChange(next)
+                            },
+                            singleLine = true,
+                            textStyle = TextStyle(
+                                color = textColor,
+                                fontSize = 14.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center,
+                            ),
+                            cursorBrush = SolidColor(accentColor),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+                Text("Common Ratios", fontSize = 11.sp, color = mutedText)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ScoreTuplet.PRESETS.forEach { preset ->
+                        val isSel = actualVal == preset.first && normalVal == preset.second
+                        Surface(
+                            shape = RoundedCornerShape(5.dp),
+                            color = if (isSel) accentColor.copy(alpha = 0.2f) else fieldBg,
+                            modifier = Modifier
+                                .border(1.dp, if (isSel) accentColor else borderMuted, RoundedCornerShape(5.dp))
+                                .pointerHoverIcon(PointerIcon.Hand)
+                                .clickable { onPresetClick(preset) }
+                        ) {
+                            Text(
+                                text = "${preset.first}:${preset.second}",
+                                fontSize = 11.sp,
+                                color = if (isSel) accentColor else textColor,
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onDismiss) {
+                    Text("Cancel")
+                }
+                Button(
+                    onClick = { if (actualVal != null && normalVal != null) onConfirm(actualVal, normalVal) },
+                    enabled = valid,
+                ) {
+                    Text("Apply")
+                }
+            }
+        },
+    )
+}
+
+@Composable
 private fun ScorePalettePanel(
     openPalette: ScorePaletteKind?,
     editorMode: ScoreEditMode,
@@ -3259,6 +3648,7 @@ private fun NotesRestsPalettePopup(
     entryIsDotted: Boolean,
     activeAlter: Int?,
     staccatoActive: Boolean,
+    activeTupletRatio: Pair<Int, Int>?,
     isDark: Boolean,
     toolbarText: Color,
     accentColor: Color,
@@ -3269,6 +3659,8 @@ private fun NotesRestsPalettePopup(
     onToggleDot: () -> Unit,
     onApplyAccidental: (Accidental) -> Unit,
     onToggleStaccato: () -> Unit,
+    onSelectTuplet: (Pair<Int, Int>?) -> Unit,
+    onOpenCustomTuplet: () -> Unit,
     onSelectBeamTool: () -> Unit,
     onSelectTieTool: () -> Unit,
     onDismiss: () -> Unit,
@@ -3494,6 +3886,78 @@ private fun NotesRestsPalettePopup(
                             fontFamily = FontFamily.Monospace,
                             fontWeight = if (staccatoActive) FontWeight.Bold else FontWeight.Medium,
                             color = staccContentColor.copy(alpha = if (staccatoActive) 1f else 0.8f),
+                        )
+                    }
+                }
+
+                // Tuplets row
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
+                ) {
+                    Text(
+                        text = "Tuplets",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = toolbarText,
+                        modifier = Modifier.width(62.dp),
+                    )
+                    val tupletChipColor = if (isDark) Color(0xFFFF9800) else Color(0xFFE65100)
+                    val offSel = activeTupletRatio == null
+                    Row(
+                        modifier = Modifier
+                            .background(if (offSel) accentColor.copy(alpha = 0.2f) else tileBg, RoundedCornerShape(5.dp))
+                            .border(
+                                width = if (offSel) 1.5.dp else 1.dp,
+                                color = if (offSel) accentColor else borderMuted,
+                                shape = RoundedCornerShape(5.dp),
+                            )
+                            .pointerHoverIcon(PointerIcon.Hand)
+                            .clickable { onSelectTuplet(null) }
+                            .padding(horizontal = 6.dp, vertical = 3.dp),
+                    ) {
+                        Text(
+                            text = "Off",
+                            fontSize = 9.sp,
+                            fontWeight = if (offSel) FontWeight.SemiBold else FontWeight.Medium,
+                            color = if (offSel && isDark) Color.White else if (offSel) accentColor else toolbarText,
+                        )
+                    }
+                    ScoreTuplet.PRESETS.forEach { preset ->
+                        val isSel = activeTupletRatio == preset
+                        Row(
+                            modifier = Modifier
+                                .background(if (isSel) tupletChipColor.copy(alpha = 0.22f) else tileBg, RoundedCornerShape(5.dp))
+                                .border(
+                                    width = if (isSel) 1.5.dp else 1.dp,
+                                    color = if (isSel) tupletChipColor else borderMuted,
+                                    shape = RoundedCornerShape(5.dp),
+                                )
+                                .pointerHoverIcon(PointerIcon.Hand)
+                                .clickable { onSelectTuplet(preset) }
+                                .padding(horizontal = 5.dp, vertical = 3.dp),
+                        ) {
+                            Text(
+                                text = "${preset.first}:${preset.second}",
+                                fontSize = 9.sp,
+                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSel && isDark) Color.White else if (isSel) tupletChipColor else toolbarText,
+                            )
+                        }
+                    }
+                    Row(
+                        modifier = Modifier
+                            .background(tileBg, RoundedCornerShape(5.dp))
+                            .border(1.dp, borderMuted, RoundedCornerShape(5.dp))
+                            .pointerHoverIcon(PointerIcon.Hand)
+                            .clickable { onOpenCustomTuplet() }
+                            .padding(horizontal = 5.dp, vertical = 3.dp),
+                    ) {
+                        Text(
+                            text = "N:M…",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = toolbarText,
                         )
                     }
                 }

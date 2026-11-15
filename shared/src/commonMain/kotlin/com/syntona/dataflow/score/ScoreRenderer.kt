@@ -19,6 +19,7 @@ data class ScoreRenderColors(
     val ghostNote: Color,
     val cursor: Color,
     val stepCursor: Color,
+    val incompleteTuplet: Color = Color(0xFFF57C00),
 ) {
     companion object {
         fun forTheme(darkMode: Boolean): ScoreRenderColors = if (darkMode) {
@@ -34,6 +35,7 @@ data class ScoreRenderColors(
                 ghostNote = Color(0x6694A3B8),
                 cursor = Color(0xFF60A5FA),
                 stepCursor = Color(0xFFEF4444),
+                incompleteTuplet = Color(0xFFFF9800),
             )
         } else {
             ScoreRenderColors(
@@ -48,6 +50,7 @@ data class ScoreRenderColors(
                 ghostNote = Color(0x6664748B),
                 cursor = Color(0xFF2563EB),
                 stepCursor = Color(0xFFDC2626),
+                incompleteTuplet = Color(0xFFE65100),
             )
         }
     }
@@ -146,6 +149,23 @@ data class ScorePlacedTimeSignature(
     val staff: ScoreStaffId = ScoreStaffId(0, 0),
 )
 
+data class ScorePlacedTupletGroup(
+    val measureIdx: Int,
+    val itemIndices: List<Int>,
+    val tuplet: ScoreTuplet,
+    val displayText: String,
+    val drawBracket: Boolean,
+    val isFull: Boolean,
+    val aboveStaff: Boolean,
+    val startX: Float,
+    val endX: Float,
+    val bracketY: Float,
+    val numberX: Float,
+    val numberBaselineY: Float,
+    val numberWidth: Float,
+    val numberEmPx: Float,
+)
+
 data class ScorePlacedMeasure(
     val measureIdx: Int,
     val measure: ScoreMeasure,
@@ -166,6 +186,7 @@ data class ScorePlacedMeasure(
     val activeClosingClef: Clef = Clef.TREBLE,
     val dynamics: List<ScorePlacedDynamic> = emptyList(),
     val beamGroups: List<ScorePlacedBeamGroup> = emptyList(),
+    val tupletGroups: List<ScorePlacedTupletGroup> = emptyList(),
     val staff: ScoreStaffId = ScoreStaffId(0, 0),
 )
 
@@ -186,6 +207,7 @@ data class ScoreGhostPreview(
     val accidental: Accidental? = null,
     val isStaccato: Boolean = false,
     val staff: ScoreStaffId = ScoreStaffId(0, 0),
+    val tupletText: String? = null,
 )
 
 data class ScoreRubberBand(
@@ -638,6 +660,7 @@ object ScoreRenderer {
         staffSpacePx: Float,
         minWidthPx: Float,
         measureGlyphWidth: (String, Float) -> Float,
+        activeTupletRatio: Pair<Int, Int>? = null,
     ): Pair<List<StaffLayoutResult>, ScoreLayout> {
         val sp = staffSpacePx.coerceAtLeast(4f)
         val emPx = sp * 4f
@@ -866,6 +889,7 @@ object ScoreRenderer {
                 val itemsInMeasure: MutableList<ScorePlacedItem>,
                 val midClefChanges: List<ScorePlacedClefChange>,
                 val beamGroups: List<ScoreBeamGroup>,
+                val tupletGroups: List<ScoreTupletGroup>,
                 val measureClosingClef: Clef,
                 val measureTicks: Int,
                 val measureCapacity: Int,
@@ -895,16 +919,30 @@ object ScoreRenderer {
                     }
                 }
                 val measureCapacity = prep.activeTimeAfter.measureCapacityTicks
+                val capacityRatio = RationalTicks.of(measureCapacity)
                 val activeAlters = mutableMapOf<Int, Int>()
                 val itemsInMeasure = mutableListOf<ScorePlacedItem>()
                 val midClefChanges = mutableListOf<ScorePlacedClefChange>()
-                var measureTicks = 0
+                var measureTicks = RationalTicks.ZERO
                 val beamGroups = ScoreEditing.computeBeamGroups(
                     measure = measure,
                     measureIdx = mIdx,
                     openingClef = prep.measureOpeningClef,
                     timeSignature = prep.activeTimeAfter,
                 )
+                val tupletGroups = ScoreEditing.computeTupletGroups(
+                    measure = measure,
+                    measureIdx = mIdx,
+                    openingClef = prep.measureOpeningClef,
+                    timeSignature = prep.activeTimeAfter,
+                )
+                val incompleteTupletEndingAt = mutableMapOf<Int, ScoreTupletGroup>()
+                for (tg in tupletGroups) {
+                    if (!tg.isFull) {
+                        val lastIdx = tg.itemIndices.lastOrNull() ?: continue
+                        incompleteTupletEndingAt[lastIdx] = tg
+                    }
+                }
                 val beamGroupByItemIdx = mutableMapOf<Int, ScoreBeamGroup>()
                 for (bg in beamGroups) {
                     for (bIdx in bg.itemIndices) {
@@ -935,9 +973,9 @@ object ScoreRenderer {
                             stX += ccW + sp * 0.55f
                         }
                     }
-                    val itemTicks = item.totalTicks
+                    val itemTicks = item.exactTicks()
                     val newMeasureTicks = measureTicks + itemTicks
-                    val isOverflow = newMeasureTicks > measureCapacity
+                    val isOverflow = newMeasureTicks > capacityRatio
                     measureTicks = newMeasureTicks
 
                     val pitches = item.soundingPitches()
@@ -1128,6 +1166,14 @@ object ScoreRenderer {
                         )
                         stX += advanceForItem(item, sp)
                     }
+                    // Reserve extra room immediately after a mid-measure incomplete tuplet so
+                    // following notes in the same measure shift right and leave entry space.
+                    if (iIdx < measure.items.lastIndex) {
+                        incompleteTupletEndingAt[iIdx]?.let { incTg ->
+                            val remainingSlots = incompleteTupletRemainingSlots(measure, incTg)
+                            stX += remainingSlots * sp * 3.4f + sp * 0.8f
+                        }
+                    }
                 }
 
                 for ((clefKey, clefVal) in measure.clefChanges.entries.sortedBy { it.key }) {
@@ -1153,7 +1199,28 @@ object ScoreRenderer {
                     }
                 }
                 val measureClosingClef = st.effectiveClef
-                stX += if (measure.items.isEmpty()) sp * 6f else sp * 0.6f
+                val trailingIncompleteTuplet = if (measure.items.isNotEmpty()) {
+                    incompleteTupletEndingAt[measure.items.lastIndex]
+                } else {
+                    null
+                }
+                val trailingCompletedTuplet = tupletGroups.lastOrNull()
+                    ?.let { it.isFull && it.itemIndices.lastOrNull() == measure.items.lastIndex } == true
+                val trailingPad = when {
+                    trailingIncompleteTuplet != null -> {
+                        val remainingSlots = incompleteTupletRemainingSlots(measure, trailingIncompleteTuplet)
+                        remainingSlots * sp * 3.4f + sp * 1.4f
+                    }
+                    activeTupletRatio != null && measure.items.isEmpty() -> {
+                        max(sp * 6f, activeTupletRatio.first * sp * 3.0f)
+                    }
+                    activeTupletRatio != null && !trailingCompletedTuplet && measureTicks < capacityRatio -> {
+                        sp * 0.6f + activeTupletRatio.first * sp * 2.6f
+                    }
+                    measure.items.isEmpty() -> sp * 6f
+                    else -> sp * 0.6f
+                }
+                stX += trailingPad
 
                 val nextMeasure = st.measures.getOrNull(mIdx + 1)
                 val nextBeat1Clef = nextMeasure?.clefChanges?.get(0)
@@ -1169,8 +1236,9 @@ object ScoreRenderer {
                     itemsInMeasure = itemsInMeasure,
                     midClefChanges = midClefChanges,
                     beamGroups = beamGroups,
+                    tupletGroups = tupletGroups,
                     measureClosingClef = measureClosingClef,
-                    measureTicks = measureTicks,
+                    measureTicks = measureTicks.toDoubleTicks().roundToInt(),
                     measureCapacity = measureCapacity,
                     endBeforeBarClefX = stX,
                     nextBeat1Clef = if (barClefW > 0f) nextBeat1Clef else null,
@@ -1214,6 +1282,18 @@ object ScoreRenderer {
                     itemsInMeasure = body.itemsInMeasure,
                     sp = sp,
                     stemThick = stemThick,
+                )
+                val placedTupletGroups = buildPlacedTupletGroups(
+                    measureIdx = mIdx,
+                    tupletGroups = body.tupletGroups,
+                    itemsInMeasure = body.itemsInMeasure,
+                    midClefChanges = body.midClefChanges,
+                    placedBeamGroups = placedBeamGroups,
+                    barlineX = barlineX,
+                    topStaffY = st.topStaffY,
+                    bottomStaffY = st.bottomStaffY,
+                    sp = sp,
+                    measureGlyphWidth = measureGlyphWidth,
                 )
                 val placedDynamicsForMeasure = if (measure.dynamics.isEmpty()) {
                     emptyList()
@@ -1280,6 +1360,7 @@ object ScoreRenderer {
                         activeClosingClef = body.measureClosingClef,
                         dynamics = placedDynamicsForMeasure,
                         beamGroups = placedBeamGroups,
+                        tupletGroups = placedTupletGroups,
                         staff = st.staffId,
                     )
                 )
@@ -1362,7 +1443,28 @@ object ScoreRenderer {
         staffSpacePx: Float,
         minWidthPx: Float,
         measureGlyphWidth: (String, Float) -> Float,
-    ): ScoreLayout = computeHeaderAndMeasures(score, staffSpacePx, minWidthPx, measureGlyphWidth).second
+    ): ScoreLayout = computeHeaderAndMeasures(
+        score = score,
+        staffSpacePx = staffSpacePx,
+        minWidthPx = minWidthPx,
+        measureGlyphWidth = measureGlyphWidth,
+        activeTupletRatio = null,
+    ).second
+
+    /** Computes the [ScoreLayout] with an optional active tuplet ratio reserving entry space. */
+    fun computeLayout(
+        score: ScoreData,
+        staffSpacePx: Float,
+        minWidthPx: Float,
+        activeTupletRatio: Pair<Int, Int>?,
+        measureGlyphWidth: (String, Float) -> Float,
+    ): ScoreLayout = computeHeaderAndMeasures(
+        score = score,
+        staffSpacePx = staffSpacePx,
+        minWidthPx = minWidthPx,
+        measureGlyphWidth = measureGlyphWidth,
+        activeTupletRatio = activeTupletRatio,
+    ).second
 
     /**
      * Renders [score] onto [target] using SMuFL coordinates scaled by [staffSpacePx]
@@ -1384,12 +1486,14 @@ object ScoreRenderer {
         cursorPosition: ScoreCursorPosition? = null,
         isStepRecording: Boolean = false,
         activeItemsByStaff: Map<ScoreStaffId, Int> = emptyMap(),
+        activeTupletRatio: Pair<Int, Int>? = null,
     ): ScoreLayout {
         val (_, layout) = computeHeaderAndMeasures(
             score = score,
             staffSpacePx = staffSpacePx,
             minWidthPx = minWidthPx,
             measureGlyphWidth = target::measureGlyphWidth,
+            activeTupletRatio = activeTupletRatio,
         )
         val sp = layout.staffSpacePx
         val emPx = sp * 4f
@@ -1593,6 +1697,25 @@ object ScoreRenderer {
                     )
                 }
 
+                for (ptg in pm.tupletGroups) {
+                    val groupItems = ptg.itemIndices.mapNotNull { pm.items.getOrNull(it) }
+                    if (groupItems.isEmpty()) continue
+                    val tupletColor = when {
+                        !ptg.isFull -> colors.incompleteTuplet
+                        groupItems.any { staffActiveIdx == it.globalIdx } -> colors.activeNote
+                        groupItems.all { it.isOverflow || (it.chordNotes.isNotEmpty() && it.outOfRangeChordIndices.size == it.chordNotes.size) } ->
+                            colors.overflowNote
+                        groupItems.all { it.location in selectedLocations } -> colors.selectedNote
+                        else -> colors.ink
+                    }
+                    drawTupletGroup(
+                        target = target,
+                        tupletGroup = ptg,
+                        sp = sp,
+                        color = tupletColor,
+                    )
+                }
+
                 val clefsToDraw = buildList {
                     addAll(pm.clefChanges)
                     pm.barlineClefChange?.let { add(it) }
@@ -1699,6 +1822,40 @@ object ScoreRenderer {
                 ledgerThick = ledgerThick,
                 ledgerExt = ledgerExt,
             )
+            val ghostTupletText = ghostPreview.tupletText
+            if (ghostTupletText != null) {
+                val staffTop = ghostStaff?.topStaffY ?: layout.topStaffY
+                val bracketY = min(staffTop - sp * 1.4f, yFn(ghostPreview.staffStep) - sp * 1.6f)
+                val barLeft = ghostPreview.x - sp * 0.25f
+                val targetSlots = activeTupletRatio?.first ?: 3
+                val desiredRight = ghostPreview.x + targetSlots * sp * 2.5f
+                val enclosingPm = ghostStaff?.placedMeasures?.firstOrNull {
+                    ghostPreview.x >= it.startX && ghostPreview.x <= it.barlineX
+                }
+                val barRight = if (enclosingPm != null) {
+                    min(max(ghostPreview.x + sp * 2.8f, enclosingPm.barlineX - sp * 0.55f), desiredRight)
+                } else {
+                    desiredRight
+                }
+                val tupletEmPx = sp * 3.2f
+                val tupletGlyph = SmuflGlyphs.tupletNumber(ghostTupletText)
+                val numW = (ghostTupletText.length * sp * 0.65f).coerceAtLeast(sp * 0.7f)
+                drawTupletBracketAndLabel(
+                    target = target,
+                    startX = barLeft,
+                    endX = barRight,
+                    bracketY = bracketY,
+                    aboveStaff = true,
+                    drawBracket = true,
+                    glyph = tupletGlyph,
+                    numberX = (barLeft + barRight) * 0.5f,
+                    numberBaselineY = bracketY + sp * 0.52f,
+                    numberWidth = numW,
+                    numberEmPx = tupletEmPx,
+                    sp = sp,
+                    color = colors.incompleteTuplet,
+                )
+            }
         }
 
         // Optional vertical insertion / step-record cursor on its target staff
@@ -2311,8 +2468,201 @@ object ScoreRenderer {
         Accidental.NATURAL -> SmuflGlyphs.ACCIDENTAL_NATURAL_WIDTH * sp
     }
 
+    private fun incompleteTupletRemainingSlots(
+        measure: ScoreMeasure,
+        tg: ScoreTupletGroup,
+    ): Int {
+        val t = tg.tuplet
+        return if (t.baseTicks > 0) {
+            val unscaledSum = tg.itemIndices.sumOf { measure.items[it].totalTicks }
+            val remTicks = (t.actualCount * t.baseTicks - unscaledSum).coerceAtLeast(t.baseTicks)
+            ((remTicks + t.baseTicks - 1) / t.baseTicks).coerceAtLeast(1)
+        } else {
+            (t.actualCount - tg.itemIndices.size).coerceAtLeast(1)
+        }
+    }
+
+    private fun buildPlacedTupletGroups(
+        measureIdx: Int,
+        tupletGroups: List<ScoreTupletGroup>,
+        itemsInMeasure: List<ScorePlacedItem>,
+        midClefChanges: List<ScorePlacedClefChange>,
+        placedBeamGroups: List<ScorePlacedBeamGroup>,
+        barlineX: Float,
+        topStaffY: Float,
+        bottomStaffY: Float,
+        sp: Float,
+        measureGlyphWidth: (String, Float) -> Float,
+    ): List<ScorePlacedTupletGroup> {
+        if (tupletGroups.isEmpty()) return emptyList()
+        val result = ArrayList<ScorePlacedTupletGroup>(tupletGroups.size)
+        val tupletEmPx = sp * 3.2f
+        for (tg in tupletGroups) {
+            val placed = tg.itemIndices.mapNotNull { itemsInMeasure.getOrNull(it) }
+            if (placed.isEmpty()) continue
+            val matchingBeam = placedBeamGroups.firstOrNull { bg ->
+                tg.itemIndices.first() in bg.itemIndices && tg.itemIndices.last() in bg.itemIndices
+            }
+            val tupletGlyph = SmuflGlyphs.tupletNumber(tg.displayText)
+            val measuredW = measureGlyphWidth(tupletGlyph, tupletEmPx)
+                .coerceAtLeast(tg.displayText.length * sp * 0.65f)
+
+            val first = placed.first()
+            val last = placed.last()
+            val aboveStaff = when {
+                matchingBeam != null -> !matchingBeam.stemDown
+                placed.any { it.item is ScoreItem.Rest } -> true
+                placed.all { it.stemDown } -> false
+                else -> true
+            }
+
+            if (!tg.drawBracket && matchingBeam != null) {
+                val bx1 = matchingBeam.stemXsByItemIdx[tg.itemIndices.first()] ?: matchingBeam.firstStemX
+                val by1 = matchingBeam.stemTipsByItemIdx[tg.itemIndices.first()] ?: matchingBeam.firstTipY
+                val bx2 = matchingBeam.stemXsByItemIdx[tg.itemIndices.last()] ?: matchingBeam.lastStemX
+                val by2 = matchingBeam.stemTipsByItemIdx[tg.itemIndices.last()] ?: matchingBeam.lastTipY
+                val midX = (bx1 + bx2) * 0.5f
+                val midBeamY = (by1 + by2) * 0.5f
+                val baselineY = if (aboveStaff) {
+                    midBeamY - sp * 0.55f
+                } else {
+                    midBeamY + sp * 1.65f
+                }
+                result.add(
+                    ScorePlacedTupletGroup(
+                        measureIdx = measureIdx,
+                        itemIndices = tg.itemIndices,
+                        tuplet = tg.tuplet,
+                        displayText = tg.displayText,
+                        drawBracket = false,
+                        isFull = tg.isFull,
+                        aboveStaff = aboveStaff,
+                        startX = bx1,
+                        endX = bx2,
+                        bracketY = midBeamY,
+                        numberX = midX,
+                        numberBaselineY = baselineY,
+                        numberWidth = measuredW,
+                        numberEmPx = tupletEmPx,
+                    )
+                )
+            } else {
+                val startX = first.x - sp * 0.25f
+                val normalEndX = if (placed.size >= 2) {
+                    max(last.boxRight, last.x + last.width + sp * 0.25f)
+                } else {
+                    max(first.boxRight + sp * 0.3f, first.x + advanceForItem(first.item, sp) * 0.9f)
+                }
+                val endX = if (!tg.isFull) {
+                    val afterIdx = tg.itemIndices.last() + 1
+                    val nextItem = itemsInMeasure.getOrNull(afterIdx)
+                    val nextClef = midClefChanges.firstOrNull {
+                        it.itemIdx == afterIdx || (nextItem == null && it.itemIdx > tg.itemIndices.last())
+                    }
+                    val trailingLimitX = when {
+                        nextClef != null && nextItem != null -> min(nextClef.x, nextItem.boxLeft) - sp * 0.35f
+                        nextClef != null -> nextClef.x - sp * 0.35f
+                        nextItem != null -> nextItem.boxLeft - sp * 0.35f
+                        else -> barlineX - sp * 0.55f
+                    }
+                    max(normalEndX, trailingLimitX)
+                } else {
+                    normalEndX
+                }
+                val bracketY = if (aboveStaff) {
+                    min(topStaffY - sp * 1.45f, placed.minOf { it.boxTop } - sp * 0.7f)
+                } else {
+                    max(bottomStaffY + sp * 1.45f, placed.maxOf { it.boxBottom } + sp * 0.7f)
+                }
+                result.add(
+                    ScorePlacedTupletGroup(
+                        measureIdx = measureIdx,
+                        itemIndices = tg.itemIndices,
+                        tuplet = tg.tuplet,
+                        displayText = tg.displayText,
+                        drawBracket = tg.drawBracket,
+                        isFull = tg.isFull,
+                        aboveStaff = aboveStaff,
+                        startX = startX,
+                        endX = endX,
+                        bracketY = bracketY,
+                        numberX = (startX + endX) * 0.5f,
+                        numberBaselineY = bracketY + sp * 0.52f,
+                        numberWidth = measuredW,
+                        numberEmPx = tupletEmPx,
+                    )
+                )
+            }
+        }
+        return result
+    }
+
+    private fun drawTupletGroup(
+        target: ScoreDrawTarget,
+        tupletGroup: ScorePlacedTupletGroup,
+        sp: Float,
+        color: Color,
+    ) {
+        drawTupletBracketAndLabel(
+            target = target,
+            startX = tupletGroup.startX,
+            endX = tupletGroup.endX,
+            bracketY = tupletGroup.bracketY,
+            aboveStaff = tupletGroup.aboveStaff,
+            drawBracket = tupletGroup.drawBracket,
+            glyph = SmuflGlyphs.tupletNumber(tupletGroup.displayText),
+            numberX = tupletGroup.numberX,
+            numberBaselineY = tupletGroup.numberBaselineY,
+            numberWidth = tupletGroup.numberWidth,
+            numberEmPx = tupletGroup.numberEmPx,
+            sp = sp,
+            color = color,
+        )
+    }
+
+    private fun drawTupletBracketAndLabel(
+        target: ScoreDrawTarget,
+        startX: Float,
+        endX: Float,
+        bracketY: Float,
+        aboveStaff: Boolean,
+        drawBracket: Boolean,
+        glyph: String,
+        numberX: Float,
+        numberBaselineY: Float,
+        numberWidth: Float,
+        numberEmPx: Float,
+        sp: Float,
+        color: Color,
+    ) {
+        if (drawBracket) {
+            val thick = (SmuflGlyphs.TUPLET_BRACKET_THICKNESS * sp).coerceAtLeast(1.1f)
+            val hookDir = if (aboveStaff) 1f else -1f
+            val hookLen = sp * 0.65f
+            val gapHalf = numberWidth * 0.5f + sp * 0.3f
+            val gapLeft = (numberX - gapHalf).coerceAtLeast(startX)
+            val gapRight = (numberX + gapHalf).coerceAtMost(endX)
+
+            target.drawLine(startX, bracketY + hookDir * hookLen, startX, bracketY, thick, color)
+            target.drawLine(endX, bracketY + hookDir * hookLen, endX, bracketY, thick, color)
+            if (gapLeft > startX + sp * 0.1f) {
+                target.drawLine(startX, bracketY, gapLeft, bracketY, thick, color)
+            }
+            if (endX > gapRight + sp * 0.1f) {
+                target.drawLine(gapRight, bracketY, endX, bracketY, thick, color)
+            }
+        }
+        target.drawGlyph(
+            glyph = glyph,
+            x = numberX - numberWidth * 0.5f,
+            baselineY = numberBaselineY,
+            fontSizePx = numberEmPx,
+            color = color,
+        )
+    }
+
     private fun advanceForItem(item: ScoreItem, sp: Float): Float {
-        val base = when (item.duration) {
+        val rawBase = when (item.duration) {
             NoteDuration.WHOLE -> 5.8f
             NoteDuration.HALF -> 4.4f
             NoteDuration.QUARTER -> 3.3f
@@ -2320,6 +2670,9 @@ object ScoreRenderer {
             NoteDuration.SIXTEENTH -> 2.0f
             NoteDuration.THIRTY_SECOND -> 1.85f
         }
+        val base = item.tuplet?.let { t ->
+            (rawBase * (t.normalCount.toFloat() / t.actualCount.toFloat())).coerceAtLeast(1.85f)
+        } ?: rawBase
         val dotBonus = if (item.isDotted) 0.7f else 0f
         return (base + dotBonus) * sp
     }

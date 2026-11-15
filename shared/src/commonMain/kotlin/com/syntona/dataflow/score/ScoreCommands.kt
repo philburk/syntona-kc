@@ -67,12 +67,23 @@ class StepRecordScoreNoteCommand(
                 measureIdx = prevCursor.measureIdx,
             )
             val spelled = SpelledPitch.fromMidiPitch(midiPitch, activeKey)
+            val insertMIdx = prevCursor.measureIdx.coerceIn(0, prevMeasures.lastIndex.coerceAtLeast(0))
+            val insertIIdx = prevMeasures.getOrNull(insertMIdx)?.let {
+                prevCursor.itemIdx.coerceIn(0, it.items.size)
+            } ?: 0
+            val activeTuplet = module.resolveTupletForInsertion(
+                measures = prevMeasures,
+                measureIdx = insertMIdx,
+                insertIdx = insertIIdx,
+                baseTicks = module.stepRecordDuration.totalTicks(module.stepRecordDotted),
+            )
             val note = ScoreItem.Note(
                 pitch = spelled,
                 duration = module.stepRecordDuration,
                 isDotted = module.stepRecordDotted,
                 amplitude = amplitude.coerceIn(0.05, 1.0),
                 isStaccato = module.stepRecordStaccato,
+                tuplet = activeTuplet,
             )
             val activeTime = ScoreEditing.effectiveTimeAtMeasure(
                 measures = prevMeasures,
