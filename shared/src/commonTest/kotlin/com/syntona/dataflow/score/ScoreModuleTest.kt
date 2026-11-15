@@ -3248,4 +3248,466 @@ class ScoreModuleTest {
         assertFalse((loadedScore[0].items[1] as ScoreItem.Note).isTiedToNext)
         assertEquals(setOf(c4.midiPitch), (loadedScore[0].items[2] as ScoreItem.Chord).tiedMidiPitches)
     }
+
+    @Test
+    fun testInstrumentPresetsTypesAndAutoClefAndStaffRecommendation() {
+        assertEquals(7, InstrumentType.entries.size)
+        assertTrue("Pizzicato" in InstrumentType.BOWED_STRINGS.availableArticulations)
+        assertTrue("Pizzicato" in InstrumentType.PLUCKED_STRINGS.availableArticulations)
+
+        // Default 88-key piano range A0..C8 (21..108) -> 2 staves (Treble + Bass)
+        assertEquals(21, ScoreInstrumentPart.parsePitchOrMidi("A0"))
+        assertEquals(108, ScoreInstrumentPart.parsePitchOrMidi("c8"))
+        assertEquals(61, ScoreInstrumentPart.parsePitchOrMidi("C#4"))
+        assertEquals(58, ScoreInstrumentPart.parsePitchOrMidi("Bb3"))
+        assertEquals(21, ScoreInstrumentPart.parsePitchOrMidi("21"))
+        assertNull(ScoreInstrumentPart.parsePitchOrMidi("not-a-note"))
+        assertNull(ScoreInstrumentPart.parsePitchOrMidi("140"))
+
+        val defaultRec = ScoreInstrumentPart.recommendStaffSetup(
+            ScoreInstrumentPart.DEFAULT_MIN_MIDI,
+            ScoreInstrumentPart.DEFAULT_MAX_MIDI,
+        )
+        assertEquals(2, defaultRec.staffCount)
+        assertEquals(Clef.TREBLE, defaultRec.clef)
+        assertEquals(Clef.BASS, defaultRec.lowerClef)
+
+        // Built-in presets map to appropriate clefs and staff counts
+        val violinRec = ScoreInstrumentPart.recommendStaffSetup(
+            InstrumentPreset.VIOLIN.minMidiPitch,
+            InstrumentPreset.VIOLIN.maxMidiPitch,
+        )
+        assertEquals(1, violinRec.staffCount)
+        assertEquals(Clef.TREBLE, violinRec.clef)
+
+        val violaRec = ScoreInstrumentPart.recommendStaffSetup(
+            InstrumentPreset.VIOLA.minMidiPitch,
+            InstrumentPreset.VIOLA.maxMidiPitch,
+        )
+        assertEquals(1, violaRec.staffCount)
+        assertEquals(Clef.ALTO, violaRec.clef)
+
+        val celloRec = ScoreInstrumentPart.recommendStaffSetup(
+            InstrumentPreset.CELLO.minMidiPitch,
+            InstrumentPreset.CELLO.maxMidiPitch,
+        )
+        assertEquals(1, celloRec.staffCount)
+        assertEquals(Clef.BASS, celloRec.clef)
+
+        val guitarRec = ScoreInstrumentPart.recommendStaffSetup(
+            InstrumentPreset.GUITAR.minMidiPitch,
+            InstrumentPreset.GUITAR.maxMidiPitch,
+        )
+        assertEquals(1, guitarRec.staffCount)
+        assertEquals(Clef.TREBLE_8VB, guitarRec.clef)
+
+        val pianoRec = ScoreInstrumentPart.recommendStaffSetup(
+            InstrumentPreset.PIANO.minMidiPitch,
+            InstrumentPreset.PIANO.maxMidiPitch,
+        )
+        assertEquals(2, pianoRec.staffCount)
+        assertEquals(Clef.TREBLE, pianoRec.clef)
+        assertEquals(Clef.BASS, pianoRec.lowerClef)
+
+        val trumpetRec = ScoreInstrumentPart.recommendStaffSetup(
+            InstrumentPreset.TRUMPET.minMidiPitch,
+            InstrumentPreset.TRUMPET.maxMidiPitch,
+        )
+        assertEquals(1, trumpetRec.staffCount)
+        assertEquals(Clef.TREBLE, trumpetRec.clef)
+    }
+
+    @Test
+    fun testMultiInstrumentOutputsUndoRedoAndSyncedPlaybackRouting() {
+        val engine = TestEngine()
+        val patch = com.syntona.dataflow.modules.PatchModule()
+        val graph = patch.graphState
+        val module = ScoreModule()
+        module.setEngine(engine)
+        graph.addModule(module, Offset.Zero)
+
+        val beforeInst = module.scoreData.instruments.toList()
+        val pianoInst = ScoreInstrumentPart(
+            id = "inst-2",
+            name = "Piano",
+            instrumentType = InstrumentType.KEYBOARDS,
+            minMidiPitch = InstrumentPreset.PIANO.minMidiPitch,
+            maxMidiPitch = InstrumentPreset.PIANO.maxMidiPitch,
+            staffCount = 2,
+            clef = Clef.TREBLE,
+            lowerClef = Clef.BASS,
+            jackName = "Piano",
+            measures = listOf(
+                ScoreMeasure(1, listOf(ScoreItem.Note(SpelledPitch(NoteLetter.E, 0, 5), NoteDuration.WHOLE))),
+                ScoreMeasure(2, listOf(ScoreItem.Note(SpelledPitch(NoteLetter.G, 0, 5), NoteDuration.HALF))),
+            ),
+            lowerMeasures = listOf(
+                ScoreMeasure(1, listOf(ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 3), NoteDuration.HALF))),
+                ScoreMeasure(2, listOf(ScoreItem.Note(SpelledPitch(NoteLetter.G, 0, 2), NoteDuration.QUARTER))),
+            ),
+        )
+        val celloInst = ScoreInstrumentPart(
+            id = "inst-3",
+            name = "Cello",
+            instrumentType = InstrumentType.BOWED_STRINGS,
+            minMidiPitch = InstrumentPreset.CELLO.minMidiPitch,
+            maxMidiPitch = InstrumentPreset.CELLO.maxMidiPitch,
+            staffCount = 1,
+            clef = Clef.BASS,
+            jackName = "Cello",
+            measures = listOf(
+                ScoreMeasure(1, listOf(ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 2), NoteDuration.QUARTER))),
+                ScoreMeasure(2, listOf(ScoreItem.Note(SpelledPitch(NoteLetter.D, 0, 3), NoteDuration.QUARTER))),
+            ),
+        )
+        val leadInst = beforeInst.single().copy(
+            measures = listOf(
+                ScoreMeasure(1, listOf(ScoreItem.Note(SpelledPitch(NoteLetter.A, 0, 4), NoteDuration.HALF))),
+                ScoreMeasure(2, listOf(ScoreItem.Note(SpelledPitch(NoteLetter.B, 0, 4), NoteDuration.QUARTER))),
+            )
+        )
+
+        val cmd = ReplaceScoreInstrumentsCommand(
+            module = module,
+            beforeInstruments = beforeInst,
+            afterInstruments = listOf(leadInst, pianoInst, celloInst),
+        )
+        cmd.execute()
+        assertEquals(listOf("out", "Piano", "Cello"), module.outputs.map { it.name })
+
+        val recvLead = VoiceReceiver()
+        val recvPiano = VoiceReceiver()
+        val recvCello = VoiceReceiver()
+        graph.addModule(recvLead, Offset(200f, 0f))
+        graph.addModule(recvPiano, Offset(200f, 100f))
+        graph.addModule(recvCello, Offset(200f, 200f))
+        val outLead = module.outputForInstrument(0)
+        val outPiano = module.outputForInstrument(1)
+        val outCello = module.outputForInstrument(2)
+        graph.connect(outLead, recvLead.inJack)
+        graph.connect(outPiano, recvPiano.inJack)
+        graph.connect(outCello, recvCello.inJack)
+        assertTrue(outPiano in graph.connections.map { it.output })
+
+        // Start playback at 120 BPM (bar 1 = 2.0s in 4/4)
+        module.scoreData.timeSignature = TimeSignature.COMMON_TIME
+        module.tempo.setValue(120.0)
+        module.start.receive(Message.FloatValue(ScoreTime(0L), 1.0))
+
+        // Record NOTE times (in seconds) per receiver
+        val leadNotes = mutableListOf<Pair<Double, Int>>()
+        val pianoNotes = mutableListOf<Pair<Double, Int>>()
+        val celloNotes = mutableListOf<Pair<Double, Int>>()
+        for ((time, action) in engine.scheduled.sortedBy { it.first.nanoseconds }) {
+            val delaySec = time.nanoseconds / 1_000_000_000.0
+            val prevLead = recvLead.received.size
+            val prevPiano = recvPiano.received.size
+            val prevCello = recvCello.received.size
+            action()
+            recvLead.received.drop(prevLead).filter { it.opcode == Message.VoiceOpcode.NOTE }
+                .forEach { leadNotes.add(delaySec to it.value.toInt()) }
+            recvPiano.received.drop(prevPiano).filter { it.opcode == Message.VoiceOpcode.NOTE }
+                .forEach { pianoNotes.add(delaySec to it.value.toInt()) }
+            recvCello.received.drop(prevCello).filter { it.opcode == Message.VoiceOpcode.NOTE }
+                .forEach { celloNotes.add(delaySec to it.value.toInt()) }
+        }
+
+        // Instrument 0 only receives A4 (69) at t=0 and B4 (71) at bar 2 t=2.0s
+        assertEquals(listOf(0.0 to 69, 2.0 to 71), leadNotes)
+        // Instrument 1 (2-staff Grand Staff Piano) routes both upper (E5=76, G5=79) and lower (C3=48, G2=43) to Piano jack
+        assertEquals(setOf(76, 48, 79, 43), pianoNotes.map { it.second }.toSet())
+        assertTrue(pianoNotes.any { it.second == 79 && kotlin.math.abs(it.first - 2.0) < 1e-6 })
+        assertTrue(pianoNotes.any { it.second == 43 && kotlin.math.abs(it.first - 2.0) < 1e-6 })
+        // Instrument 2 (Cello) only receives C2 (36) at t=0 and D3 (50) synced cleanly at bar 2 t=2.0s
+        assertEquals(listOf(0.0 to 36, 2.0 to 50), celloNotes)
+
+        // Undo restores single instrument and disconnects/removes extra outputs
+        cmd.undo()
+        assertEquals(listOf("out"), module.outputs.map { it.name })
+        assertFalse(outPiano in graph.connections.map { it.output })
+        cmd.execute()
+        assertEquals(listOf("out", "Piano", "Cello"), module.outputs.map { it.name })
+    }
+
+    @Test
+    fun testOutOfRangeNotesPlayableAndRenderedRed() {
+        val engine = TestEngine()
+        val module = ScoreModule()
+        module.setEngine(engine)
+        val recv = VoiceReceiver()
+        module.output.connect(recv.inJack)
+
+        val c3 = SpelledPitch(NoteLetter.C, 0, 3) // MIDI 48 (< Violin min G3=55 -> out of range!)
+        val a4 = SpelledPitch(NoteLetter.A, 0, 4) // MIDI 69 (in range)
+        val violinPart = ScoreInstrumentPart(
+            id = "inst-1",
+            name = "Violin",
+            instrumentType = InstrumentType.BOWED_STRINGS,
+            minMidiPitch = InstrumentPreset.VIOLIN.minMidiPitch,
+            maxMidiPitch = InstrumentPreset.VIOLIN.maxMidiPitch,
+            staffCount = 1,
+            clef = Clef.TREBLE,
+            measures = listOf(
+                ScoreMeasure(
+                    1,
+                    listOf(
+                        ScoreItem.Note(c3, NoteDuration.QUARTER),
+                        ScoreItem.Chord(listOf(c3, a4), NoteDuration.QUARTER),
+                    ),
+                )
+            ),
+        )
+        module.scoreData.replaceAllInstruments(listOf(violinPart))
+
+        val colors = ScoreRenderColors.forTheme(false)
+        val target = RecordingDrawTarget()
+        val layout = ScoreRenderer.render(
+            score = module.scoreData,
+            target = target,
+            staffSpacePx = 12f,
+            minWidthPx = 800f,
+            colors = colors,
+        )
+        val placedItems = layout.placedMeasures[0].items
+        assertTrue(placedItems[0].isOutOfRange)
+        assertEquals(setOf(0), placedItems[0].outOfRangeChordIndices)
+        assertTrue(placedItems[1].isOutOfRange)
+        assertEquals(setOf(0), placedItems[1].outOfRangeChordIndices)
+
+        val redNoteheads = target.glyphs.filter { it.color == colors.overflowNote && it.glyph == NoteDuration.QUARTER.noteheadGlyph }
+        val normalNoteheads = target.glyphs.filter { it.color == colors.ink && it.glyph == NoteDuration.QUARTER.noteheadGlyph }
+        assertEquals(2, redNoteheads.size) // Both C3 noteheads rendered red
+        assertEquals(1, normalNoteheads.size) // In-range A4 rendered normal ink
+
+        // Out-of-range notes still play normally
+        module.start.receive(Message.FloatValue(ScoreTime(0L), 1.0))
+        for ((_, action) in engine.scheduled) action()
+        val playedMidis = recv.received.filter { it.opcode == Message.VoiceOpcode.NOTE }.map { it.value.toInt() }
+        assertTrue(c3.midiPitch in playedMidis)
+        assertTrue(a4.midiPitch in playedMidis)
+    }
+
+    @Test
+    fun testMultiInstrumentAlignedBarlinesGrandStaffAndHitTesting() {
+        val score = ScoreData()
+        score.replaceAllInstruments(
+            listOf(
+                ScoreInstrumentPart(
+                    id = "inst-1",
+                    name = "Piano",
+                    instrumentType = InstrumentType.KEYBOARDS,
+                    minMidiPitch = 21,
+                    maxMidiPitch = 108,
+                    staffCount = 2,
+                    clef = Clef.TREBLE,
+                    lowerClef = Clef.BASS,
+                    measures = listOf(
+                        ScoreMeasure(1, listOf(ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 5), NoteDuration.QUARTER))),
+                        ScoreMeasure(2, emptyList()),
+                    ),
+                    lowerMeasures = listOf(
+                        ScoreMeasure(
+                            1,
+                            listOf(
+                                ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 3), NoteDuration.SIXTEENTH),
+                                ScoreItem.Note(SpelledPitch(NoteLetter.D, 0, 3), NoteDuration.SIXTEENTH),
+                                ScoreItem.Note(SpelledPitch(NoteLetter.E, 0, 3), NoteDuration.SIXTEENTH),
+                                ScoreItem.Note(SpelledPitch(NoteLetter.F, 0, 3), NoteDuration.SIXTEENTH),
+                            ),
+                        ),
+                        ScoreMeasure(2, emptyList()),
+                    ),
+                ),
+                ScoreInstrumentPart(
+                    id = "inst-2",
+                    name = "Violin",
+                    instrumentType = InstrumentType.BOWED_STRINGS,
+                    minMidiPitch = 55,
+                    maxMidiPitch = 105,
+                    staffCount = 1,
+                    clef = Clef.TREBLE,
+                    jackName = "Violin",
+                    measures = listOf(
+                        ScoreMeasure(1, listOf(ScoreItem.Note(SpelledPitch(NoteLetter.G, 0, 4), NoteDuration.HALF))),
+                        ScoreMeasure(2, emptyList()),
+                    ),
+                ),
+            )
+        )
+
+        val target = RecordingDrawTarget()
+        val layout = ScoreRenderer.render(
+            score = score,
+            target = target,
+            staffSpacePx = 12f,
+            minWidthPx = 900f,
+            colors = ScoreRenderColors.forTheme(false),
+        )
+        assertEquals(3, layout.staves.size)
+        assertEquals(2, layout.instrumentGroups.size)
+        assertTrue(layout.showInstrumentLabels)
+        assertTrue(target.texts.any { it.text == "Piano" })
+        assertTrue(target.texts.any { it.text == "Violin" })
+
+        // All 3 staves share identical synchronized barline X coordinates
+        val bar1X = layout.staves[0].placedMeasures[0].barlineX
+        assertEquals(bar1X, layout.staves[1].placedMeasures[0].barlineX, 0.01f)
+        assertEquals(bar1X, layout.staves[2].placedMeasures[0].barlineX, 0.01f)
+
+        // Vertical hit-testing resolves each distinct staff and item accurately
+        val violinStaff = layout.staves[2]
+        val violinItem = violinStaff.placedMeasures[0].items[0]
+        val hit = layout.itemAt((violinItem.boxLeft + violinItem.boxRight) * 0.5f, (violinItem.boxTop + violinItem.boxBottom) * 0.5f)
+        assertNotNull(hit)
+        assertEquals(ScoreStaffId(1, 0), hit.staff)
+
+        val bassStaff = layout.staves[1]
+        val bassItem = bassStaff.placedMeasures[0].items[2]
+        val hitBass = layout.itemAt((bassItem.boxLeft + bassItem.boxRight) * 0.5f, (bassItem.boxTop + bassItem.boxBottom) * 0.5f)
+        assertNotNull(hitBass)
+        assertEquals(ScoreStaffId(0, 1), hitBass.staff)
+        assertEquals(2, hitBass.itemIdx)
+    }
+
+    @Test
+    fun testMultiInstrumentAndWiredOutputsSurviveGraphSerializerRoundTrip() {
+        val graph = GraphState()
+        val scoreMod = ScoreModule()
+        val sink0 = ScoreModule()
+        val sink1 = ScoreModule()
+        graph.addModule(scoreMod, Offset.Zero)
+        graph.addModule(sink0, Offset(240f, 0f))
+        graph.addModule(sink1, Offset(240f, 160f))
+
+        scoreMod.scoreData.replaceAllInstruments(
+            listOf(
+                ScoreInstrumentPart(
+                    id = "inst-1",
+                    name = "Grand Piano",
+                    instrumentType = InstrumentType.KEYBOARDS,
+                    minMidiPitch = 21,
+                    maxMidiPitch = 108,
+                    staffCount = 2,
+                    clef = Clef.TREBLE,
+                    lowerClef = Clef.BASS,
+                    jackName = "out",
+                    measures = listOf(ScoreMeasure(1, listOf(ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 5), NoteDuration.QUARTER)))),
+                    lowerMeasures = listOf(ScoreMeasure(1, listOf(ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 3), NoteDuration.HALF)))),
+                ),
+                ScoreInstrumentPart(
+                    id = "inst-2",
+                    name = "Trumpet",
+                    instrumentType = InstrumentType.BRASS,
+                    minMidiPitch = 52,
+                    maxMidiPitch = 86,
+                    staffCount = 1,
+                    clef = Clef.TREBLE,
+                    jackName = "Trumpet",
+                    measures = listOf(ScoreMeasure(1, listOf(ScoreItem.Note(SpelledPitch(NoteLetter.G, 0, 4), NoteDuration.WHOLE)))),
+                ),
+            )
+        )
+        scoreMod.syncInstrumentOutputs()
+        graph.connect(scoreMod.outputForInstrument(0), sink0.input)
+        graph.connect(scoreMod.outputForInstrument(1), sink1.input)
+
+        val json = GraphSerializer.serialize(graph, graph.modules)
+        val restoredGraph = GraphState()
+        val restoredModules = GraphSerializer.deserialize(restoredGraph, json)
+        val restoredScore = restoredModules.filterIsInstance<ScoreModule>().first()
+
+        assertEquals(2, restoredScore.scoreData.instruments.size)
+        val rPiano = restoredScore.scoreData.instruments[0]
+        assertEquals("Grand Piano", rPiano.name)
+        assertEquals(2, rPiano.staffCount)
+        assertEquals(Clef.TREBLE, rPiano.clef)
+        assertEquals(Clef.BASS, rPiano.lowerClef)
+        assertEquals(1, rPiano.lowerMeasures[0].items.size)
+        val rTrumpet = restoredScore.scoreData.instruments[1]
+        assertEquals("Trumpet", rTrumpet.name)
+        assertEquals(InstrumentType.BRASS, rTrumpet.instrumentType)
+        assertEquals(52, rTrumpet.minMidiPitch)
+        assertEquals(86, rTrumpet.maxMidiPitch)
+        assertEquals("Trumpet", rTrumpet.jackName)
+
+        // Verify per-instrument output jacks AND wire connections were restored
+        assertEquals(listOf("out", "Trumpet"), restoredScore.outputs.map { it.name })
+        assertEquals(2, restoredGraph.connections.size)
+        assertTrue(restoredGraph.connections.any { it.output.module === restoredScore && it.output.name == "out" })
+        assertTrue(restoredGraph.connections.any { it.output.module === restoredScore && it.output.name == "Trumpet" })
+    }
+
+    @Test
+    fun testRenamingInstrumentsUpdatesOutputJackNamesUndoRedoAndSerialization() {
+        val patch = com.syntona.dataflow.modules.PatchModule()
+        val graph = patch.graphState
+        val module = ScoreModule()
+        val sink0 = ScoreModule()
+        val sink1 = ScoreModule()
+        graph.addModule(module, Offset.Zero)
+        graph.addModule(sink0, Offset(240f, 0f))
+        graph.addModule(sink1, Offset(240f, 160f))
+
+        // Start with Instrument 0 ("Instrument 1" / jack "out") and Instrument 1 ("Piano" / jack "Piano")
+        val inst0 = module.scoreData.instruments.first()
+        val inst1 = ScoreInstrumentPart(
+            id = "inst-2",
+            name = "Piano",
+            instrumentType = InstrumentType.KEYBOARDS,
+            jackName = "Piano",
+        )
+        ReplaceScoreInstrumentsCommand(
+            module = module,
+            beforeInstruments = listOf(inst0),
+            afterInstruments = listOf(inst0, inst1),
+        ).execute()
+        assertEquals(listOf("out", "Piano"), module.outputs.map { it.name })
+
+        graph.connect(module.outputForInstrument(0), sink0.input)
+        graph.connect(module.outputForInstrument(1), sink1.input)
+
+        // Rename Instrument 1 ("Piano") -> "Frog"
+        val renameSecondCmd = ReplaceScoreInstrumentsCommand(
+            module = module,
+            beforeInstruments = listOf(inst0, inst1),
+            afterInstruments = listOf(inst0, inst1.copy(name = "Frog", jackName = "Frog")),
+        )
+        renameSecondCmd.execute()
+        assertEquals(listOf("out", "Frog"), module.outputs.map { it.name })
+        assertEquals(2, graph.connections.size)
+
+        // Undo restores "Piano" jack name while keeping wire intact
+        renameSecondCmd.undo()
+        assertEquals(listOf("out", "Piano"), module.outputs.map { it.name })
+        assertEquals(2, graph.connections.size)
+
+        // Redo re-applies "Frog"
+        renameSecondCmd.execute()
+        assertEquals(listOf("out", "Frog"), module.outputs.map { it.name })
+
+        // Rename Instrument 0 ("Instrument 1") -> "Toad"
+        val afterSecond = module.scoreData.instruments.toList()
+        val renameFirstCmd = ReplaceScoreInstrumentsCommand(
+            module = module,
+            beforeInstruments = afterSecond,
+            afterInstruments = listOf(afterSecond[0].copy(name = "Toad", jackName = "Toad"), afterSecond[1]),
+        )
+        renameFirstCmd.execute()
+        assertEquals(listOf("Toad", "Frog"), module.outputs.map { it.name })
+        assertEquals(2, graph.connections.size)
+
+        // Verify JSON serialization/deserialization preserves renamed jacks and their wires
+        val json = GraphSerializer.serialize(graph, graph.modules)
+        val restoredGraph = GraphState()
+        val restoredModules = GraphSerializer.deserialize(restoredGraph, json)
+        val restoredScore = restoredModules.filterIsInstance<ScoreModule>().first()
+        assertEquals(listOf("Toad", "Frog"), restoredScore.outputs.map { it.name })
+        assertEquals(2, restoredGraph.connections.size)
+        assertTrue(restoredGraph.connections.any { it.output.module === restoredScore && it.output.name == "Toad" })
+        assertTrue(restoredGraph.connections.any { it.output.module === restoredScore && it.output.name == "Frog" })
+
+        // Undo restores Instrument 0 jack back to "out"
+        renameFirstCmd.undo()
+        assertEquals(listOf("out", "Frog"), module.outputs.map { it.name })
+    }
 }

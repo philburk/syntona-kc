@@ -487,12 +487,166 @@ data class ScoreDynamicMarking(
     val placement: DynamicPlacement = DynamicPlacement.BELOW,
 )
 
+/** Identifies one rendered staff belonging to an instrument (`staffIdx = 0` primary/upper, `1` lower/bass). */
+data class ScoreStaffId(
+    val instrumentIdx: Int,
+    val staffIdx: Int = 0,
+)
+
+/** Broad instrument family governing future idiomatic articulations (e.g. pizzicato for strings). */
+enum class InstrumentType(
+    val label: String,
+    val availableArticulations: List<String>,
+) {
+    PLUCKED_STRINGS("Plucked Strings", listOf("Natural", "Pizzicato", "Harmonic", "Mute")),
+    BOWED_STRINGS("Bowed String", listOf("Arco", "Pizzicato", "Spiccato", "Tremolo")),
+    BRASS("Brass", listOf("Open", "Muted", "Staccato", "Marcato")),
+    WOODWIND("Woodwind", listOf("Normal", "Staccato", "Legato", "Flutter")),
+    KEYBOARDS("Keyboards", listOf("Normal", "Staccato", "Tenuto", "Pedal")),
+    PERCUSSIVE("Percussive", listOf("Hit", "Rimshot", "Roll", "Mute")),
+    ELECTRONIC("Electronic", listOf("Normal", "Staccato", "Legato", "Glide")),
+}
+
+/** Built-in instrument presets with standard playable pitch ranges and types. */
+enum class InstrumentPreset(
+    val displayName: String,
+    val instrumentType: InstrumentType,
+    val minMidiPitch: Int,
+    val maxMidiPitch: Int,
+) {
+    VIOLIN("Violin", InstrumentType.BOWED_STRINGS, 55, 105),
+    VIOLA("Viola", InstrumentType.BOWED_STRINGS, 48, 88),
+    CELLO("Cello", InstrumentType.BOWED_STRINGS, 36, 81),
+    GUITAR("Guitar", InstrumentType.PLUCKED_STRINGS, 40, 83),
+    PIANO("Piano", InstrumentType.KEYBOARDS, 21, 108),
+    TRUMPET("Trumpet", InstrumentType.BRASS, 52, 86),
+}
+
+/** Clef and staff count recommendation derived automatically from an instrument's playable pitch range. */
+data class RecommendedStaffSetup(
+    val staffCount: Int,
+    val clef: Clef,
+    val lowerClef: Clef = Clef.BASS,
+)
+
+/**
+ * Single instrument part inside a multi-instrument score. Supports either 1 staff or 2 staves
+ * (e.g. Grand Staff piano with upper [measures]/[clef] and lower [lowerMeasures]/[lowerClef]).
+ */
+data class ScoreInstrumentPart(
+    val id: String,
+    val name: String = DEFAULT_NAME,
+    val instrumentType: InstrumentType = InstrumentType.KEYBOARDS,
+    val minMidiPitch: Int = DEFAULT_MIN_MIDI,
+    val maxMidiPitch: Int = DEFAULT_MAX_MIDI,
+    val staffCount: Int = 1,
+    val clef: Clef = Clef.TREBLE,
+    val lowerClef: Clef = Clef.BASS,
+    val jackName: String = DEFAULT_JACK_NAME,
+    val measures: List<ScoreMeasure> = listOf(ScoreMeasure(1, emptyList())),
+    val lowerMeasures: List<ScoreMeasure> = listOf(ScoreMeasure(1, emptyList())),
+) {
+    fun measuresForStaff(staffIdx: Int): List<ScoreMeasure> =
+        if (staffIdx == 1) lowerMeasures else measures
+
+    fun clefForStaff(staffIdx: Int): Clef =
+        if (staffIdx == 1) lowerClef else clef
+
+    fun withStaffMeasures(staffIdx: Int, updated: List<ScoreMeasure>): ScoreInstrumentPart {
+        val normalized = ScoreEditing.renumber(updated)
+        return if (staffIdx == 1) copy(lowerMeasures = normalized) else copy(measures = normalized)
+    }
+
+    fun withStaffClef(staffIdx: Int, updatedClef: Clef): ScoreInstrumentPart =
+        if (staffIdx == 1) copy(lowerClef = updatedClef) else copy(clef = updatedClef)
+
+    fun isMidiInRange(midiPitch: Int): Boolean = midiPitch in minMidiPitch..maxMidiPitch
+
+    fun rangeSummary(): String = "${formatMidiPitch(minMidiPitch)} – ${formatMidiPitch(maxMidiPitch)}"
+
+    companion object {
+        const val DEFAULT_MIN_MIDI = 21 // A0 (88-key piano bottom)
+        const val DEFAULT_MAX_MIDI = 108 // C8 (88-key piano top)
+        const val DEFAULT_NAME = "Instrument 1"
+        const val DEFAULT_JACK_NAME = "out"
+
+        /**
+         * Parses a note name (e.g. `"A0"`, `"G3"`, `"C#4"`, `"Eb5"`) or raw MIDI note number (`0..127`).
+         */
+        fun parsePitchOrMidi(text: String): Int? {
+            val trimmed = text.trim()
+            if (trimmed.isEmpty()) return null
+            trimmed.toIntOrNull()?.let { midi ->
+                return midi.takeIf { it in 0..127 }
+            }
+            val match = Regex("^([A-Ga-g])([#b]?)(-?[0-9])$").matchEntire(trimmed) ?: return null
+            val letter = when (match.groupValues[1].uppercase()) {
+                "C" -> NoteLetter.C
+                "D" -> NoteLetter.D
+                "E" -> NoteLetter.E
+                "F" -> NoteLetter.F
+                "G" -> NoteLetter.G
+                "A" -> NoteLetter.A
+                "B" -> NoteLetter.B
+                else -> return null
+            }
+            val alter = when (match.groupValues[2]) {
+                "#" -> 1
+                "b" -> -1
+                else -> 0
+            }
+            val octave = match.groupValues[3].toIntOrNull() ?: return null
+            val midi = (octave + 1) * 12 + letter.semitoneOffset + alter
+            return midi.takeIf { it in 0..127 }
+        }
+
+        fun formatMidiPitch(midiPitch: Int): String =
+            SpelledPitch.fromMidiPitch(midiPitch.coerceIn(0, 127), KeySignature.C_MAJOR).displayName()
+
+        /**
+         * Determines whether 1 or 2 staves are needed and the default clef(s) from `[minMidi, maxMidi]`.
+         */
+        fun recommendStaffSetup(minMidi: Int, maxMidi: Int): RecommendedStaffSetup {
+            val low = minOf(minMidi, maxMidi).coerceIn(0, 127)
+            val high = maxOf(minMidi, maxMidi).coerceIn(0, 127)
+            val span = high - low
+            val mid = (low + high) * 0.5
+            if (span >= 46 && low <= 48 && high >= 72) {
+                return RecommendedStaffSetup(staffCount = 2, clef = Clef.TREBLE, lowerClef = Clef.BASS)
+            }
+            val chosenClef = when {
+                low >= 52 && high >= 76 -> Clef.TREBLE
+                low in 45..51 && high in 74..90 -> Clef.ALTO
+                low in 38..44 && mid >= 60.0 -> Clef.TREBLE_8VB
+                high <= 66 && low < 36 -> Clef.BASS_8VB
+                mid < 59.5 -> Clef.BASS
+                mid < 63.0 && high < 78 -> Clef.ALTO
+                mid >= 82.0 -> Clef.TREBLE_8VA
+                else -> Clef.TREBLE
+            }
+            return RecommendedStaffSetup(staffCount = 1, clef = chosenClef, lowerClef = Clef.BASS)
+        }
+
+        /** Allocates a unique output jack name on [ScoreModule] for a newly added instrument. */
+        fun uniqueJackName(desiredName: String, existingNames: Collection<String>): String {
+            val base = desiredName.trim().ifEmpty { "inst" }
+            if (base !in existingNames) return base
+            var suffix = 2
+            while ("$base $suffix" in existingNames) {
+                suffix++
+            }
+            return "$base $suffix"
+        }
+    }
+}
+
 /**
  * Coordinates identifying an item-indexed dynamic marking inside a [ScoreMeasure].
  */
 data class ScoreDynamicLocation(
     val measureIdx: Int,
     val itemIdx: Int,
+    val staff: ScoreStaffId = ScoreStaffId(0, 0),
 )
 
 data class ScoreMeasure(
@@ -520,6 +674,7 @@ data class ScoreBeamGroup(
 data class ScoreClefLocation(
     val measureIdx: Int,
     val itemIdx: Int,
+    val staff: ScoreStaffId = ScoreStaffId(0, 0),
 )
 
 /**
@@ -529,6 +684,7 @@ data class ScoreItemLocation(
     val measureIdx: Int,
     val itemIdx: Int,
     val chordNoteIdx: Int? = null,
+    val staff: ScoreStaffId = ScoreStaffId(0, 0),
 ) {
     fun slotLocation(): ScoreItemLocation = if (chordNoteIdx == null) this else copy(chordNoteIdx = null)
 }
@@ -982,6 +1138,16 @@ object ScoreEditing {
     fun appendEmptyMeasure(measures: List<ScoreMeasure>): List<ScoreMeasure> =
         renumber(measures + ScoreMeasure(measures.size + 1, emptyList()))
 
+    fun padMeasuresToCount(measures: List<ScoreMeasure>, targetCount: Int): List<ScoreMeasure> {
+        val normalized = renumber(measures)
+        if (normalized.size >= targetCount) return normalized
+        val result = normalized.toMutableList()
+        while (result.size < targetCount) {
+            result.add(ScoreMeasure(result.size + 1, emptyList()))
+        }
+        return result
+    }
+
     fun clearToSingleEmptyMeasure(): List<ScoreMeasure> =
         listOf(ScoreMeasure(1, emptyList()))
 
@@ -1020,14 +1186,14 @@ object ScoreEditing {
             }
             ScoreStepInsertResult(
                 measures = finalMeasures,
-                insertedLocation = loc,
-                nextCursor = ScoreCursorPosition(nextMeasureIdx, 0),
+                insertedLocation = loc.copy(staff = cursor.staff),
+                nextCursor = ScoreCursorPosition(nextMeasureIdx, 0, cursor.staff),
             )
         } else {
             ScoreStepInsertResult(
                 measures = insertedMeasures,
-                insertedLocation = loc,
-                nextCursor = ScoreCursorPosition(loc.measureIdx, loc.itemIdx + 1),
+                insertedLocation = loc.copy(staff = cursor.staff),
+                nextCursor = ScoreCursorPosition(loc.measureIdx, loc.itemIdx + 1, cursor.staff),
             )
         }
     }
@@ -2289,6 +2455,7 @@ object ScoreEditing {
 data class ScoreCursorPosition(
     val measureIdx: Int,
     val itemIdx: Int,
+    val staff: ScoreStaffId = ScoreStaffId(0, 0),
 )
 
 /** Result of [ScoreEditing.stepInsertItem]. */
@@ -2389,29 +2556,187 @@ internal object ScoreClipboard {
     }
 }
 
-/** Observable score document for Phase 1 single-stave notation rendering & playback. */
+/** Observable multi-instrument score document supporting multiple instruments, per-instrument staves/clefs/ranges, and synchronized playback. */
 class ScoreData {
-    var clef by mutableStateOf(Clef.TREBLE)
     var keySignature by mutableStateOf(KeySignature.D_MAJOR)
     var timeSignature by mutableStateOf(TimeSignature.COMMON_TIME)
+    val instruments = mutableStateListOf<ScoreInstrumentPart>()
     val measures = mutableStateListOf<ScoreMeasure>()
+
+    var clef: Clef
+        get() = instruments.firstOrNull()?.clef ?: Clef.TREBLE
+        set(value) {
+            val first = instruments.firstOrNull() ?: return
+            if (first.clef != value) {
+                instruments[0] = first.copy(clef = value)
+            }
+        }
 
     init {
         loadDefaultSample()
     }
 
-    fun replaceMeasures(newMeasures: List<ScoreMeasure>) {
-        val normalized = ScoreEditing.renumber(newMeasures)
+    private fun syncPrimaryMeasuresFromInstruments() {
+        val primary = instruments.firstOrNull()?.measures ?: listOf(ScoreMeasure(1, emptyList()))
         measures.clear()
-        measures.addAll(normalized)
+        measures.addAll(primary)
+    }
+
+    fun maxMeasureCount(): Int {
+        var maxCount = 1
+        for (inst in instruments) {
+            if (inst.measures.size > maxCount) maxCount = inst.measures.size
+            if (inst.staffCount == 2 && inst.lowerMeasures.size > maxCount) maxCount = inst.lowerMeasures.size
+        }
+        return maxCount
+    }
+
+    fun instrumentAt(idx: Int): ScoreInstrumentPart? = instruments.getOrNull(idx)
+
+    fun allStaffIds(): List<ScoreStaffId> = buildList {
+        for (iIdx in instruments.indices) {
+            add(ScoreStaffId(iIdx, 0))
+            if (instruments[iIdx].staffCount >= 2) {
+                add(ScoreStaffId(iIdx, 1))
+            }
+        }
+    }
+
+    fun staffMeasures(staff: ScoreStaffId): List<ScoreMeasure> {
+        val part = instruments.getOrNull(staff.instrumentIdx) ?: return measures
+        return part.measuresForStaff(staff.staffIdx)
+    }
+
+    fun staffClef(staff: ScoreStaffId): Clef {
+        val part = instruments.getOrNull(staff.instrumentIdx) ?: return clef
+        return part.clefForStaff(staff.staffIdx)
+    }
+
+    fun replaceMeasures(newMeasures: List<ScoreMeasure>) {
+        replaceStaffMeasures(ScoreStaffId(0, 0), newMeasures)
+    }
+
+    fun replaceStaffMeasures(staff: ScoreStaffId, newMeasures: List<ScoreMeasure>) {
+        val part = instruments.getOrNull(staff.instrumentIdx) ?: return
+        val normalized = ScoreEditing.renumber(newMeasures)
+        instruments[staff.instrumentIdx] = part.withStaffMeasures(staff.staffIdx, normalized)
+        synchronizeMeasureCounts(minCount = normalized.size)
+        syncPrimaryMeasuresFromInstruments()
+    }
+
+    fun setStaffClef(staff: ScoreStaffId, newClef: Clef) {
+        val part = instruments.getOrNull(staff.instrumentIdx) ?: return
+        instruments[staff.instrumentIdx] = part.withStaffClef(staff.staffIdx, newClef)
+    }
+
+    fun createSyncedEmptyMeasures(templateCount: Int = maxMeasureCount()): List<ScoreMeasure> {
+        val reference = instruments.firstOrNull()?.measures.orEmpty()
+        return (0 until templateCount.coerceAtLeast(1)).map { mIdx ->
+            val refM = reference.getOrNull(mIdx)
+            ScoreMeasure(
+                number = mIdx + 1,
+                items = emptyList(),
+                keySignature = refM?.keySignature,
+                timeSignature = refM?.timeSignature,
+            )
+        }
+    }
+
+    fun nextInstrumentId(): String {
+        var idx = instruments.size + 1
+        while (instruments.any { it.id == "inst-$idx" }) {
+            idx++
+        }
+        return "inst-$idx"
+    }
+
+    fun allocateJackName(desiredName: String): String =
+        ScoreInstrumentPart.uniqueJackName(desiredName, instruments.map { it.jackName })
+
+    fun addInstrument(part: ScoreInstrumentPart): Int {
+        val count = maxMeasureCount()
+        val paddedUpper = if (part.measures.size == 1 && part.measures[0].items.isEmpty() && count > 1) {
+            createSyncedEmptyMeasures(count)
+        } else {
+            ScoreEditing.padMeasuresToCount(part.measures, count)
+        }
+        val paddedLower = if (part.staffCount >= 2) {
+            if (part.lowerMeasures.size == 1 && part.lowerMeasures[0].items.isEmpty() && count > 1) {
+                createSyncedEmptyMeasures(count)
+            } else {
+                ScoreEditing.padMeasuresToCount(part.lowerMeasures, count)
+            }
+        } else {
+            listOf(ScoreMeasure(1, emptyList()))
+        }
+        val resolved = part.copy(
+            measures = paddedUpper,
+            lowerMeasures = paddedLower,
+        )
+        instruments.add(resolved)
+        synchronizeMeasureCounts(minCount = count)
+        syncPrimaryMeasuresFromInstruments()
+        return instruments.lastIndex
+    }
+
+    fun replaceAllInstruments(newInstruments: List<ScoreInstrumentPart>) {
+        val nonEmpty = if (newInstruments.isEmpty()) {
+            listOf(ScoreInstrumentPart(id = "inst-1", measures = listOf(ScoreMeasure(1, emptyList()))))
+        } else {
+            newInstruments.map { part ->
+                part.copy(
+                    measures = ScoreEditing.renumber(part.measures),
+                    lowerMeasures = if (part.staffCount >= 2) ScoreEditing.renumber(part.lowerMeasures) else part.lowerMeasures,
+                )
+            }
+        }
+        instruments.clear()
+        instruments.addAll(nonEmpty)
+        synchronizeMeasureCounts()
+        syncPrimaryMeasuresFromInstruments()
+    }
+
+    private fun synchronizeMeasureCounts(minCount: Int = 1) {
+        val targetCount = maxOf(minCount, maxMeasureCount())
+        for (idx in instruments.indices) {
+            val part = instruments[idx]
+            val upper = if (part.measures.size < targetCount) {
+                ScoreEditing.padMeasuresToCount(part.measures, targetCount)
+            } else {
+                part.measures
+            }
+            val lower = if (part.staffCount >= 2 && part.lowerMeasures.size < targetCount) {
+                ScoreEditing.padMeasuresToCount(part.lowerMeasures, targetCount)
+            } else {
+                part.lowerMeasures
+            }
+            if (upper !== part.measures || lower !== part.lowerMeasures) {
+                instruments[idx] = part.copy(measures = upper, lowerMeasures = lower)
+            }
+        }
     }
 
     fun loadDefaultSample() {
-        clef = Clef.TREBLE
         keySignature = KeySignature.D_MAJOR
         timeSignature = TimeSignature.COMMON_TIME
-        measures.clear()
-        measures.addAll(defaultPhase1Measures())
+        val sample = defaultPhase1Measures()
+        instruments.clear()
+        instruments.add(
+            ScoreInstrumentPart(
+                id = "inst-1",
+                name = ScoreInstrumentPart.DEFAULT_NAME,
+                instrumentType = InstrumentType.KEYBOARDS,
+                minMidiPitch = ScoreInstrumentPart.DEFAULT_MIN_MIDI,
+                maxMidiPitch = ScoreInstrumentPart.DEFAULT_MAX_MIDI,
+                staffCount = 1,
+                clef = Clef.TREBLE,
+                lowerClef = Clef.BASS,
+                jackName = ScoreInstrumentPart.DEFAULT_JACK_NAME,
+                measures = sample,
+                lowerMeasures = listOf(ScoreMeasure(1, emptyList())),
+            )
+        )
+        syncPrimaryMeasuresFromInstruments()
     }
 
     companion object {

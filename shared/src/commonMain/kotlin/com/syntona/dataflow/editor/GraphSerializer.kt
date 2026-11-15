@@ -38,11 +38,14 @@ import com.syntona.dataflow.modules.PianoRollNote
 import com.syntona.dataflow.score.Clef
 import com.syntona.dataflow.score.DynamicMark
 import com.syntona.dataflow.score.DynamicPlacement
+import com.syntona.dataflow.score.InstrumentType
 import com.syntona.dataflow.score.KeySignature
 import com.syntona.dataflow.score.NoteDuration
 import com.syntona.dataflow.score.NoteLetter
+import com.syntona.dataflow.score.ScoreData
 import com.syntona.dataflow.score.ScoreDynamicMarking
 import com.syntona.dataflow.score.ScoreEditing
+import com.syntona.dataflow.score.ScoreInstrumentPart
 import com.syntona.dataflow.score.ScoreItem
 import com.syntona.dataflow.score.ScoreMeasure
 import com.syntona.dataflow.score.ScoreModule
@@ -565,73 +568,41 @@ object GraphSerializer {
                 module.windowY?.let { append(",\"windowY\":$it") }
                 module.windowWidth?.let { append(",\"windowWidth\":$it") }
                 module.windowHeight?.let { append(",\"windowHeight\":$it") }
-                append(",\"measures\":[")
-                module.scoreData.measures.forEachIndexed { mIdx, measure ->
-                    if (mIdx > 0) append(",")
-                    append("{\"num\":${measure.number}")
-                    measure.keySignature?.let { append(",\"key\":\"${it.name}\"") }
-                    measure.timeSignature?.let {
-                        append(",\"timeNum\":${it.numerator},\"timeDen\":${it.denominator}")
-                    }
-                    if (measure.clefChanges.isNotEmpty()) {
-                        append(",\"clefs\":[")
-                        measure.clefChanges.entries.sortedBy { it.key }.forEachIndexed { cIdx, (iIdx, clef) ->
-                            if (cIdx > 0) append(",")
-                            append("[$iIdx,\"${clef.name}\"]")
-                        }
-                        append("]")
-                    }
-                    if (measure.dynamics.isNotEmpty()) {
-                        append(",\"dynamics\":[")
-                        measure.dynamics.entries.sortedBy { it.key }.forEachIndexed { dIdx, (iIdx, dyn) ->
-                            if (dIdx > 0) append(",")
-                            append("[$iIdx,\"${dyn.mark.name}\",\"${dyn.placement.name}\"]")
-                        }
-                        append("]")
-                    }
-                    if (measure.beamOverrides.isNotEmpty()) {
-                        append(",\"beams\":[")
-                        measure.beamOverrides.entries.sortedBy { it.key }.forEachIndexed { bIdx, (iIdx, beamed) ->
-                            if (bIdx > 0) append(",")
-                            val flag = if (beamed) 1 else 0
-                            append("[$iIdx,$flag]")
-                        }
-                        append("]")
-                    }
-                    append(",\"items\":[")
-                    measure.items.forEachIndexed { iIdx, item ->
-                        if (iIdx > 0) append(",")
-                        when (item) {
-                            is ScoreItem.Note -> {
-                                val dotted = if (item.isDotted) 1 else 0
-                                val staccato = if (item.isStaccato) 1 else 0
-                                val tiedSuffix = if (item.isTiedToNext) ",1" else ""
-                                append("[\"N\",\"${item.pitch.letter.name}\",${item.pitch.alter},${item.pitch.octave},\"${item.duration.name}\",$dotted,${item.amplitude},$staccato$tiedSuffix]")
-                            }
-                            is ScoreItem.Chord -> {
-                                val dotted = if (item.isDotted) 1 else 0
-                                val staccato = if (item.isStaccato) 1 else 0
-                                val tiedSuffix = if (item.tiedMidiPitches.isNotEmpty()) {
-                                    ",[" + item.tiedMidiPitches.sorted().joinToString(",") + "]"
-                                } else {
-                                    ""
-                                }
-                                append("[\"C\",[")
-                                item.pitches.forEachIndexed { pIdx, p ->
-                                    if (pIdx > 0) append(",")
-                                    append("[\"${p.letter.name}\",${p.alter},${p.octave}]")
-                                }
-                                append("],\"${item.duration.name}\",$dotted,${item.amplitude},$staccato$tiedSuffix]")
-                            }
-                            is ScoreItem.Rest -> {
-                                val dotted = if (item.isDotted) 1 else 0
-                                append("[\"R\",\"${item.duration.name}\",$dotted]")
-                            }
-                        }
-                    }
-                    append("]}")
+                append(",\"measures\":")
+                appendScoreMeasuresJson(module.scoreData.measures)
+                val instruments = module.scoreData.instruments
+                val hasMultiOrCustomInstrument = instruments.size > 1 || instruments.any { inst ->
+                    inst.name != ScoreInstrumentPart.DEFAULT_NAME ||
+                        inst.instrumentType != InstrumentType.KEYBOARDS ||
+                        inst.minMidiPitch != ScoreInstrumentPart.DEFAULT_MIN_MIDI ||
+                        inst.maxMidiPitch != ScoreInstrumentPart.DEFAULT_MAX_MIDI ||
+                        inst.staffCount != 1 ||
+                        inst.jackName != ScoreInstrumentPart.DEFAULT_JACK_NAME ||
+                        inst.id != "inst-1"
                 }
-                append("]")
+                if (hasMultiOrCustomInstrument) {
+                    append(",\"instruments\":[")
+                    instruments.forEachIndexed { instIdx, inst ->
+                        if (instIdx > 0) append(",")
+                        append("{\"id\":\"${inst.id.jsonEscape}\"")
+                        append(",\"name\":\"${inst.name.jsonEscape}\"")
+                        append(",\"jackName\":\"${inst.jackName.jsonEscape}\"")
+                        append(",\"type\":\"${inst.instrumentType.name}\"")
+                        append(",\"minMidi\":${inst.minMidiPitch}")
+                        append(",\"maxMidi\":${inst.maxMidiPitch}")
+                        append(",\"staffCount\":${inst.staffCount}")
+                        append(",\"clef\":\"${inst.clef.name}\"")
+                        append(",\"lowerClef\":\"${inst.lowerClef.name}\"")
+                        append(",\"measures\":")
+                        appendScoreMeasuresJson(inst.measures)
+                        if (inst.staffCount >= 2) {
+                            append(",\"lowerMeasures\":")
+                            appendScoreMeasuresJson(inst.lowerMeasures)
+                        }
+                        append("}")
+                    }
+                    append("]")
+                }
             }
             if (module is EnvSegModule) {
                 val env = module.envelope
@@ -708,6 +679,220 @@ object GraphSerializer {
             append(",\"to\":$toIdx,\"toJack\":\"${conn.input.name.jsonEscape}\"}")
         }
         append("]}")
+    }
+
+    private fun StringBuilder.appendScoreMeasuresJson(measures: List<ScoreMeasure>) {
+        append("[")
+        measures.forEachIndexed { mIdx, measure ->
+            if (mIdx > 0) append(",")
+            append("{\"num\":${measure.number}")
+            measure.keySignature?.let { append(",\"key\":\"${it.name}\"") }
+            measure.timeSignature?.let {
+                append(",\"timeNum\":${it.numerator},\"timeDen\":${it.denominator}")
+            }
+            if (measure.clefChanges.isNotEmpty()) {
+                append(",\"clefs\":[")
+                measure.clefChanges.entries.sortedBy { it.key }.forEachIndexed { cIdx, (iIdx, clef) ->
+                    if (cIdx > 0) append(",")
+                    append("[$iIdx,\"${clef.name}\"]")
+                }
+                append("]")
+            }
+            if (measure.dynamics.isNotEmpty()) {
+                append(",\"dynamics\":[")
+                measure.dynamics.entries.sortedBy { it.key }.forEachIndexed { dIdx, (iIdx, dyn) ->
+                    if (dIdx > 0) append(",")
+                    append("[$iIdx,\"${dyn.mark.name}\",\"${dyn.placement.name}\"]")
+                }
+                append("]")
+            }
+            if (measure.beamOverrides.isNotEmpty()) {
+                append(",\"beams\":[")
+                measure.beamOverrides.entries.sortedBy { it.key }.forEachIndexed { bIdx, (iIdx, beamed) ->
+                    if (bIdx > 0) append(",")
+                    val flag = if (beamed) 1 else 0
+                    append("[$iIdx,$flag]")
+                }
+                append("]")
+            }
+            append(",\"items\":[")
+            measure.items.forEachIndexed { iIdx, item ->
+                if (iIdx > 0) append(",")
+                when (item) {
+                    is ScoreItem.Note -> {
+                        val dotted = if (item.isDotted) 1 else 0
+                        val staccato = if (item.isStaccato) 1 else 0
+                        val tiedSuffix = if (item.isTiedToNext) ",1" else ""
+                        append("[\"N\",\"${item.pitch.letter.name}\",${item.pitch.alter},${item.pitch.octave},\"${item.duration.name}\",$dotted,${item.amplitude},$staccato$tiedSuffix]")
+                    }
+                    is ScoreItem.Chord -> {
+                        val dotted = if (item.isDotted) 1 else 0
+                        val staccato = if (item.isStaccato) 1 else 0
+                        val tiedSuffix = if (item.tiedMidiPitches.isNotEmpty()) {
+                            ",[" + item.tiedMidiPitches.sorted().joinToString(",") + "]"
+                        } else {
+                            ""
+                        }
+                        append("[\"C\",[")
+                        item.pitches.forEachIndexed { pIdx, p ->
+                            if (pIdx > 0) append(",")
+                            append("[\"${p.letter.name}\",${p.alter},${p.octave}]")
+                        }
+                        append("],\"${item.duration.name}\",$dotted,${item.amplitude},$staccato$tiedSuffix]")
+                    }
+                    is ScoreItem.Rest -> {
+                        val dotted = if (item.isDotted) 1 else 0
+                        append("[\"R\",\"${item.duration.name}\",$dotted]")
+                    }
+                }
+            }
+            append("]}")
+        }
+        append("]")
+    }
+
+    private fun parseScoreMeasuresJson(measuresArr: List<JsonValue>): List<ScoreMeasure> {
+        val loadedMeasures = mutableListOf<ScoreMeasure>()
+        for ((mIdx, mVal) in measuresArr.withIndex()) {
+            val mObj = mVal as? JsonValue.Obj ?: continue
+            val mNum = (mObj.map["num"] as? JsonValue.Num)?.value?.toInt() ?: (mIdx + 1)
+            val mKeyStr = (mObj.map["key"] as? JsonValue.Str)?.value
+            val mKey = mKeyStr?.let { name -> KeySignature.entries.firstOrNull { it.name == name } }
+            val mTimeNum = (mObj.map["timeNum"] as? JsonValue.Num)?.value?.toInt()
+            val mTimeDen = (mObj.map["timeDen"] as? JsonValue.Num)?.value?.toInt()
+            val mTime = if (mTimeNum != null && mTimeDen != null && TimeSignature.isValid(mTimeNum, mTimeDen)) {
+                TimeSignature(mTimeNum, mTimeDen)
+            } else {
+                null
+            }
+            val clefsArr = (mObj.map["clefs"] as? JsonValue.Arr)?.items
+            val mClefs = if (clefsArr != null) {
+                buildMap {
+                    for (cVal in clefsArr) {
+                        val cPair = (cVal as? JsonValue.Arr)?.items ?: continue
+                        val cIdx = (cPair.getOrNull(0) as? JsonValue.Num)?.value?.toInt() ?: continue
+                        val cName = (cPair.getOrNull(1) as? JsonValue.Str)?.value ?: continue
+                        val clef = Clef.entries.firstOrNull { it.name == cName } ?: continue
+                        if (cIdx >= 0) put(cIdx, clef)
+                    }
+                }
+            } else {
+                emptyMap()
+            }
+            val dynArr = (mObj.map["dynamics"] as? JsonValue.Arr)?.items
+            val mDynamics = if (dynArr != null) {
+                buildMap {
+                    for (dVal in dynArr) {
+                        val dTuple = (dVal as? JsonValue.Arr)?.items ?: continue
+                        val dIdx = (dTuple.getOrNull(0) as? JsonValue.Num)?.value?.toInt() ?: continue
+                        val markName = (dTuple.getOrNull(1) as? JsonValue.Str)?.value ?: continue
+                        val mark = DynamicMark.entries.firstOrNull { it.name == markName } ?: continue
+                        val placementName = (dTuple.getOrNull(2) as? JsonValue.Str)?.value
+                        val placement = placementName?.let { p ->
+                            DynamicPlacement.entries.firstOrNull { it.name == p }
+                        } ?: DynamicPlacement.BELOW
+                        if (dIdx >= 0) put(dIdx, ScoreDynamicMarking(mark, placement))
+                    }
+                }
+            } else {
+                emptyMap()
+            }
+            val beamsArr = (mObj.map["beams"] as? JsonValue.Arr)?.items
+            val mBeams = if (beamsArr != null) {
+                buildMap {
+                    for (bVal in beamsArr) {
+                        val bPair = (bVal as? JsonValue.Arr)?.items ?: continue
+                        val bIdx = (bPair.getOrNull(0) as? JsonValue.Num)?.value?.toInt() ?: continue
+                        val bFlag = when (val raw = bPair.getOrNull(1)) {
+                            is JsonValue.Num -> raw.value.toInt() != 0
+                            is JsonValue.Bool -> raw.value
+                            else -> continue
+                        }
+                        if (bIdx >= 0) put(bIdx, bFlag)
+                    }
+                }
+            } else {
+                emptyMap()
+            }
+            val itemsArr = (mObj.map["items"] as? JsonValue.Arr)?.items ?: emptyList()
+            val loadedItems = mutableListOf<ScoreItem>()
+            for (itemVal in itemsArr) {
+                val arr = (itemVal as? JsonValue.Arr)?.items ?: continue
+                val kind = (arr.getOrNull(0) as? JsonValue.Str)?.value ?: continue
+                when (kind) {
+                    "N" -> {
+                        val letterName = (arr.getOrNull(1) as? JsonValue.Str)?.value ?: continue
+                        val letter = NoteLetter.entries.firstOrNull { it.name == letterName } ?: continue
+                        val alter = (arr.getOrNull(2) as? JsonValue.Num)?.value?.toInt()?.coerceIn(-1, 1) ?: 0
+                        val octave = (arr.getOrNull(3) as? JsonValue.Num)?.value?.toInt()?.coerceIn(0, 9) ?: 4
+                        val durName = (arr.getOrNull(4) as? JsonValue.Str)?.value ?: continue
+                        val dur = NoteDuration.entries.firstOrNull { it.name == durName } ?: continue
+                        val isDotted = ((arr.getOrNull(5) as? JsonValue.Num)?.value?.toInt() ?: 0) != 0
+                        val amp = (arr.getOrNull(6) as? JsonValue.Num)?.value ?: 0.25
+                        val isStaccato = ((arr.getOrNull(7) as? JsonValue.Num)?.value?.toInt() ?: 0) != 0
+                        val isTiedToNext = ((arr.getOrNull(8) as? JsonValue.Num)?.value?.toInt() ?: 0) != 0
+                        loadedItems.add(
+                            ScoreItem.Note(
+                                pitch = SpelledPitch(letter = letter, alter = alter, octave = octave),
+                                duration = dur,
+                                isDotted = isDotted,
+                                amplitude = amp,
+                                isStaccato = isStaccato,
+                                isTiedToNext = isTiedToNext,
+                            )
+                        )
+                    }
+                    "C" -> {
+                        val pitchArr = (arr.getOrNull(1) as? JsonValue.Arr)?.items ?: continue
+                        val chordPitches = mutableListOf<SpelledPitch>()
+                        for (pVal in pitchArr) {
+                            val pFields = (pVal as? JsonValue.Arr)?.items ?: continue
+                            val letterName = (pFields.getOrNull(0) as? JsonValue.Str)?.value ?: continue
+                            val letter = NoteLetter.entries.firstOrNull { it.name == letterName } ?: continue
+                            val alter = (pFields.getOrNull(1) as? JsonValue.Num)?.value?.toInt()?.coerceIn(-1, 1) ?: 0
+                            val octave = (pFields.getOrNull(2) as? JsonValue.Num)?.value?.toInt()?.coerceIn(0, 9) ?: 4
+                            chordPitches.add(SpelledPitch(letter = letter, alter = alter, octave = octave))
+                        }
+                        val durName = (arr.getOrNull(2) as? JsonValue.Str)?.value ?: continue
+                        val dur = NoteDuration.entries.firstOrNull { it.name == durName } ?: continue
+                        val isDotted = ((arr.getOrNull(3) as? JsonValue.Num)?.value?.toInt() ?: 0) != 0
+                        val amp = (arr.getOrNull(4) as? JsonValue.Num)?.value ?: 0.25
+                        val isStaccato = ((arr.getOrNull(5) as? JsonValue.Num)?.value?.toInt() ?: 0) != 0
+                        val tiedArr = (arr.getOrNull(6) as? JsonValue.Arr)?.items
+                        val tiedMidis = tiedArr
+                            ?.mapNotNull { (it as? JsonValue.Num)?.value?.toInt() }
+                            ?.toSet()
+                            ?: emptySet()
+                        ScoreEditing.itemFromPitches(
+                            pitches = chordPitches,
+                            duration = dur,
+                            isDotted = isDotted,
+                            amplitude = amp,
+                            isStaccato = isStaccato,
+                            tiedMidiPitches = tiedMidis,
+                        )?.let { loadedItems.add(it) }
+                    }
+                    "R" -> {
+                        val durName = (arr.getOrNull(1) as? JsonValue.Str)?.value ?: continue
+                        val dur = NoteDuration.entries.firstOrNull { it.name == durName } ?: continue
+                        val isDotted = ((arr.getOrNull(2) as? JsonValue.Num)?.value?.toInt() ?: 0) != 0
+                        loadedItems.add(ScoreItem.Rest(duration = dur, isDotted = isDotted))
+                    }
+                }
+            }
+            loadedMeasures.add(
+                ScoreMeasure(
+                    number = mNum,
+                    items = loadedItems,
+                    keySignature = mKey,
+                    timeSignature = mTime,
+                    clefChanges = mClefs,
+                    dynamics = mDynamics,
+                    beamOverrides = mBeams,
+                )
+            )
+        }
+        return loadedMeasures
     }
 
     private fun prettyPrintJson(json: String): String {
@@ -1604,149 +1789,86 @@ object GraphSerializer {
                 (obj?.map?.get("windowY") as? JsonValue.Num)?.value?.let { module.windowY = it.toFloat() }
                 (obj?.map?.get("windowWidth") as? JsonValue.Num)?.value?.let { module.windowWidth = it.toFloat() }
                 (obj?.map?.get("windowHeight") as? JsonValue.Num)?.value?.let { module.windowHeight = it.toFloat() }
-                val measuresArr = (obj?.map?.get("measures") as? JsonValue.Arr)?.items
-                if (measuresArr != null) {
-                    val loadedMeasures = mutableListOf<ScoreMeasure>()
-                    for ((mIdx, mVal) in measuresArr.withIndex()) {
-                        val mObj = mVal as? JsonValue.Obj ?: continue
-                        val mNum = (mObj.map["num"] as? JsonValue.Num)?.value?.toInt() ?: (mIdx + 1)
-                        val mKeyStr = (mObj.map["key"] as? JsonValue.Str)?.value
-                        val mKey = mKeyStr?.let { name -> KeySignature.entries.firstOrNull { it.name == name } }
-                        val mTimeNum = (mObj.map["timeNum"] as? JsonValue.Num)?.value?.toInt()
-                        val mTimeDen = (mObj.map["timeDen"] as? JsonValue.Num)?.value?.toInt()
-                        val mTime = if (mTimeNum != null && mTimeDen != null && TimeSignature.isValid(mTimeNum, mTimeDen)) {
-                            TimeSignature(mTimeNum, mTimeDen)
+
+                val instrumentsArr = (obj?.map?.get("instruments") as? JsonValue.Arr)?.items
+                if (!instrumentsArr.isNullOrEmpty()) {
+                    val loadedInstruments = mutableListOf<ScoreInstrumentPart>()
+                    for ((instIdx, instVal) in instrumentsArr.withIndex()) {
+                        val instObj = instVal as? JsonValue.Obj ?: continue
+                        val id = (instObj.map["id"] as? JsonValue.Str)?.value ?: "inst-${instIdx + 1}"
+                        val name = (instObj.map["name"] as? JsonValue.Str)?.value ?: "Instrument ${instIdx + 1}"
+                        val jackName = (instObj.map["jackName"] as? JsonValue.Str)?.value
+                            ?: if (instIdx == 0) ScoreInstrumentPart.DEFAULT_JACK_NAME else "out_${instIdx + 1}"
+                        val typeStr = (instObj.map["type"] as? JsonValue.Str)?.value
+                        val instType = InstrumentType.entries.firstOrNull { it.name == typeStr } ?: InstrumentType.KEYBOARDS
+                        val minMidi = ((instObj.map["minMidi"] as? JsonValue.Num)?.value?.toInt()
+                            ?: ScoreInstrumentPart.DEFAULT_MIN_MIDI).coerceIn(0, 127)
+                        val maxMidi = ((instObj.map["maxMidi"] as? JsonValue.Num)?.value?.toInt()
+                            ?: ScoreInstrumentPart.DEFAULT_MAX_MIDI).coerceIn(minMidi, 127)
+                        val staffCount = ((instObj.map["staffCount"] as? JsonValue.Num)?.value?.toInt() ?: 1).coerceIn(1, 2)
+                        val upperClef = Clef.entries.firstOrNull {
+                            it.name == (instObj.map["clef"] as? JsonValue.Str)?.value
+                        } ?: Clef.TREBLE
+                        val lowerClef = Clef.entries.firstOrNull {
+                            it.name == (instObj.map["lowerClef"] as? JsonValue.Str)?.value
+                        } ?: Clef.BASS
+                        val upperArr = (instObj.map["measures"] as? JsonValue.Arr)?.items
+                        val upperMeasures = if (upperArr != null) {
+                            parseScoreMeasuresJson(upperArr)
                         } else {
-                            null
+                            listOf(ScoreMeasure(1, emptyList()))
                         }
-                        val clefsArr = (mObj.map["clefs"] as? JsonValue.Arr)?.items
-                        val mClefs = if (clefsArr != null) {
-                            buildMap {
-                                for (cVal in clefsArr) {
-                                    val cPair = (cVal as? JsonValue.Arr)?.items ?: continue
-                                    val cIdx = (cPair.getOrNull(0) as? JsonValue.Num)?.value?.toInt() ?: continue
-                                    val cName = (cPair.getOrNull(1) as? JsonValue.Str)?.value ?: continue
-                                    val clef = Clef.entries.firstOrNull { it.name == cName } ?: continue
-                                    if (cIdx >= 0) put(cIdx, clef)
-                                }
-                            }
-                        } else {
-                            emptyMap()
-                        }
-                        val dynArr = (mObj.map["dynamics"] as? JsonValue.Arr)?.items
-                        val mDynamics = if (dynArr != null) {
-                            buildMap {
-                                for (dVal in dynArr) {
-                                    val dTuple = (dVal as? JsonValue.Arr)?.items ?: continue
-                                    val dIdx = (dTuple.getOrNull(0) as? JsonValue.Num)?.value?.toInt() ?: continue
-                                    val markName = (dTuple.getOrNull(1) as? JsonValue.Str)?.value ?: continue
-                                    val mark = DynamicMark.entries.firstOrNull { it.name == markName } ?: continue
-                                    val placementName = (dTuple.getOrNull(2) as? JsonValue.Str)?.value
-                                    val placement = placementName?.let { p ->
-                                        DynamicPlacement.entries.firstOrNull { it.name == p }
-                                    } ?: DynamicPlacement.BELOW
-                                    if (dIdx >= 0) put(dIdx, ScoreDynamicMarking(mark, placement))
-                                }
-                            }
-                        } else {
-                            emptyMap()
-                        }
-                        val beamsArr = (mObj.map["beams"] as? JsonValue.Arr)?.items
-                        val mBeams = if (beamsArr != null) {
-                            buildMap {
-                                for (bVal in beamsArr) {
-                                    val bPair = (bVal as? JsonValue.Arr)?.items ?: continue
-                                    val bIdx = (bPair.getOrNull(0) as? JsonValue.Num)?.value?.toInt() ?: continue
-                                    val bFlag = when (val raw = bPair.getOrNull(1)) {
-                                        is JsonValue.Num -> raw.value.toInt() != 0
-                                        is JsonValue.Bool -> raw.value
-                                        else -> continue
-                                    }
-                                    if (bIdx >= 0) put(bIdx, bFlag)
-                                }
-                            }
-                        } else {
-                            emptyMap()
-                        }
-                        val itemsArr = (mObj.map["items"] as? JsonValue.Arr)?.items ?: emptyList()
-                        val loadedItems = mutableListOf<ScoreItem>()
-                        for (itemVal in itemsArr) {
-                            val arr = (itemVal as? JsonValue.Arr)?.items ?: continue
-                            val kind = (arr.getOrNull(0) as? JsonValue.Str)?.value ?: continue
-                            when (kind) {
-                                "N" -> {
-                                    val letterName = (arr.getOrNull(1) as? JsonValue.Str)?.value ?: continue
-                                    val letter = NoteLetter.entries.firstOrNull { it.name == letterName } ?: continue
-                                    val alter = (arr.getOrNull(2) as? JsonValue.Num)?.value?.toInt()?.coerceIn(-1, 1) ?: 0
-                                    val octave = (arr.getOrNull(3) as? JsonValue.Num)?.value?.toInt()?.coerceIn(0, 9) ?: 4
-                                    val durName = (arr.getOrNull(4) as? JsonValue.Str)?.value ?: continue
-                                    val dur = NoteDuration.entries.firstOrNull { it.name == durName } ?: continue
-                                    val isDotted = ((arr.getOrNull(5) as? JsonValue.Num)?.value?.toInt() ?: 0) != 0
-                                    val amp = (arr.getOrNull(6) as? JsonValue.Num)?.value ?: 0.25
-                                    val isStaccato = ((arr.getOrNull(7) as? JsonValue.Num)?.value?.toInt() ?: 0) != 0
-                                    val isTiedToNext = ((arr.getOrNull(8) as? JsonValue.Num)?.value?.toInt() ?: 0) != 0
-                                    loadedItems.add(
-                                        ScoreItem.Note(
-                                            pitch = SpelledPitch(letter = letter, alter = alter, octave = octave),
-                                            duration = dur,
-                                            isDotted = isDotted,
-                                            amplitude = amp,
-                                            isStaccato = isStaccato,
-                                            isTiedToNext = isTiedToNext,
-                                        )
+                        val lowerArr = (instObj.map["lowerMeasures"] as? JsonValue.Arr)?.items
+                        val lowerMeasures = if (staffCount >= 2) {
+                            if (lowerArr != null) {
+                                parseScoreMeasuresJson(lowerArr)
+                            } else {
+                                upperMeasures.ifEmpty { listOf(ScoreMeasure(1, emptyList())) }.map { m ->
+                                    ScoreMeasure(
+                                        number = m.number,
+                                        items = emptyList(),
+                                        keySignature = m.keySignature,
+                                        timeSignature = m.timeSignature,
                                     )
                                 }
-                                "C" -> {
-                                    val pitchArr = (arr.getOrNull(1) as? JsonValue.Arr)?.items ?: continue
-                                    val chordPitches = mutableListOf<SpelledPitch>()
-                                    for (pVal in pitchArr) {
-                                        val pFields = (pVal as? JsonValue.Arr)?.items ?: continue
-                                        val letterName = (pFields.getOrNull(0) as? JsonValue.Str)?.value ?: continue
-                                        val letter = NoteLetter.entries.firstOrNull { it.name == letterName } ?: continue
-                                        val alter = (pFields.getOrNull(1) as? JsonValue.Num)?.value?.toInt()?.coerceIn(-1, 1) ?: 0
-                                        val octave = (pFields.getOrNull(2) as? JsonValue.Num)?.value?.toInt()?.coerceIn(0, 9) ?: 4
-                                        chordPitches.add(SpelledPitch(letter = letter, alter = alter, octave = octave))
-                                    }
-                                    val durName = (arr.getOrNull(2) as? JsonValue.Str)?.value ?: continue
-                                    val dur = NoteDuration.entries.firstOrNull { it.name == durName } ?: continue
-                                    val isDotted = ((arr.getOrNull(3) as? JsonValue.Num)?.value?.toInt() ?: 0) != 0
-                                    val amp = (arr.getOrNull(4) as? JsonValue.Num)?.value ?: 0.25
-                                    val isStaccato = ((arr.getOrNull(5) as? JsonValue.Num)?.value?.toInt() ?: 0) != 0
-                                    val tiedArr = (arr.getOrNull(6) as? JsonValue.Arr)?.items
-                                    val tiedMidis = tiedArr
-                                        ?.mapNotNull { (it as? JsonValue.Num)?.value?.toInt() }
-                                        ?.toSet()
-                                        ?: emptySet()
-                                    ScoreEditing.itemFromPitches(
-                                        pitches = chordPitches,
-                                        duration = dur,
-                                        isDotted = isDotted,
-                                        amplitude = amp,
-                                        isStaccato = isStaccato,
-                                        tiedMidiPitches = tiedMidis,
-                                    )?.let { loadedItems.add(it) }
-                                }
-                                "R" -> {
-                                    val durName = (arr.getOrNull(1) as? JsonValue.Str)?.value ?: continue
-                                    val dur = NoteDuration.entries.firstOrNull { it.name == durName } ?: continue
-                                    val isDotted = ((arr.getOrNull(2) as? JsonValue.Num)?.value?.toInt() ?: 0) != 0
-                                    loadedItems.add(ScoreItem.Rest(duration = dur, isDotted = isDotted))
-                                }
                             }
+                        } else {
+                            emptyList()
                         }
-                        loadedMeasures.add(
-                            ScoreMeasure(
-                                number = mNum,
-                                items = loadedItems,
-                                keySignature = mKey,
-                                timeSignature = mTime,
-                                clefChanges = mClefs,
-                                dynamics = mDynamics,
-                                beamOverrides = mBeams,
+                        loadedInstruments.add(
+                            ScoreInstrumentPart(
+                                id = id,
+                                name = name,
+                                jackName = jackName,
+                                instrumentType = instType,
+                                minMidiPitch = minMidi,
+                                maxMidiPitch = maxMidi,
+                                staffCount = staffCount,
+                                clef = upperClef,
+                                lowerClef = lowerClef,
+                                measures = upperMeasures.ifEmpty { listOf(ScoreMeasure(1, emptyList())) },
+                                lowerMeasures = lowerMeasures,
                             )
                         )
                     }
-                    module.scoreData.replaceMeasures(loadedMeasures)
+                    if (loadedInstruments.isNotEmpty()) {
+                        module.scoreData.replaceAllInstruments(loadedInstruments)
+                        module.syncInstrumentOutputs()
+                    }
+                } else {
+                    val measuresArr = (obj?.map?.get("measures") as? JsonValue.Arr)?.items
+                    val loadedMeasures = if (measuresArr != null) {
+                        parseScoreMeasuresJson(measuresArr)
+                    } else {
+                        module.scoreData.measures.toList()
+                    }
+                    val singleInst = ScoreInstrumentPart(
+                        id = "inst-1",
+                        clef = module.scoreData.clef,
+                        measures = loadedMeasures.ifEmpty { listOf(ScoreMeasure(1, emptyList())) },
+                    )
+                    module.scoreData.replaceAllInstruments(listOf(singleInst))
+                    module.syncInstrumentOutputs()
                 }
             }
             created.add(module)

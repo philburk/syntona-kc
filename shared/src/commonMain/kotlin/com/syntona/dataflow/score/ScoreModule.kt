@@ -36,6 +36,10 @@ class ScoreModule : Module("score"), EngineAware {
 
     val scoreData = ScoreData()
 
+    private val instrumentOutputs = linkedMapOf<String, VoiceOutputJack>().apply {
+        scoreData.instruments.firstOrNull()?.let { put(it.id, output) }
+    }
+
     var windowX: Float? = null
     var windowY: Float? = null
     var windowWidth: Float? = null
@@ -45,6 +49,9 @@ class ScoreModule : Module("score"), EngineAware {
         private set
 
     var activeItemIndex by mutableStateOf<Int?>(null)
+        private set
+
+    var activeItemsByStaff by mutableStateOf<Map<ScoreStaffId, Int>>(emptyMap())
         private set
 
     var isStepRecording by mutableStateOf(false)
@@ -65,7 +72,72 @@ class ScoreModule : Module("score"), EngineAware {
 
     private var engine: DataFlowEngine? = null
     private val scheduledEvents = mutableListOf<ScheduledEvent>()
-    private val soundingNotes = mutableMapOf<Int, Double>() // tag -> pitch
+    private val soundingNotesByOutput = linkedMapOf<VoiceOutputJack, MutableMap<Int, Double>>() // jack -> (tag -> pitch)
+
+    fun outputForInstrument(instrumentIdx: Int): VoiceOutputJack {
+        val part = scoreData.instruments.getOrNull(instrumentIdx) ?: return output
+        return instrumentOutputs[part.id] ?: output
+    }
+
+    fun syncInstrumentOutputs() {
+        val parts = scoreData.instruments.toList()
+        if (parts.isEmpty()) return
+
+        val activeIds = parts.map { it.id }.toSet()
+        val staleIds = instrumentOutputs.keys.filter { it !in activeIds }
+        for (staleId in staleIds) {
+            val staleJack = instrumentOutputs.remove(staleId)
+            if (staleJack != null && staleJack !== output) {
+                detachAndRemoveOutput(staleJack)
+            }
+        }
+
+        // Keep primary instrument anchored on `this.output` for patch compatibility, creating
+        // dedicated VoiceOutputJack instances for additional instruments.
+        val firstPart = parts.first()
+        if (instrumentOutputs[firstPart.id] !== output) {
+            instrumentOutputs[firstPart.id]?.let { oldJack ->
+                if (oldJack !== output) detachAndRemoveOutput(oldJack)
+            }
+            instrumentOutputs[firstPart.id] = output
+        }
+
+        for (iIdx in 1 until parts.size) {
+            val part = parts[iIdx]
+            if (part.id !in instrumentOutputs) {
+                val existingNames = outputs.map { it.name }
+                val jackName = ScoreInstrumentPart.uniqueJackName(part.jackName, existingNames)
+                instrumentOutputs[part.id] = addVoiceOutput(jackName)
+            }
+        }
+
+        // Synchronize jack names (including renames of existing instruments).
+        val assignedNames = outputs.filter { it !in instrumentOutputs.values }.map { it.name }.toMutableSet()
+        for (iIdx in scoreData.instruments.indices) {
+            val part = scoreData.instruments[iIdx]
+            val jack = if (iIdx == 0) output else instrumentOutputs[part.id] ?: continue
+            val uniqueName = ScoreInstrumentPart.uniqueJackName(part.jackName, assignedNames)
+            assignedNames.add(uniqueName)
+            if (uniqueName != part.jackName) {
+                scoreData.instruments[iIdx] = part.copy(jackName = uniqueName)
+            }
+            if (jack.name != uniqueName) {
+                jack.name = uniqueName
+            }
+        }
+    }
+
+    private fun detachAndRemoveOutput(jack: VoiceOutputJack) {
+        soundingNotesByOutput.remove(jack)
+        removeOutput(jack)
+        parentPatch?.graphState?.let { gs ->
+            val toDisconnect = gs.connections.filter { conn -> conn.output == jack }
+            toDisconnect.forEach { conn -> gs.disconnect(conn.output, conn.input) }
+            gs.jackOffsets.remove(jack)
+            gs.jackBounds.remove(jack)
+            gs.jackMarkerCenters.remove(jack)
+        }
+    }
 
     override fun setEngine(engine: DataFlowEngine) {
         this.engine = engine
@@ -99,8 +171,10 @@ class ScoreModule : Module("score"), EngineAware {
     }
 
     private fun handleIncomingVoiceMessage(msg: Message.VoiceMessage) {
+        val targetStaff = cursorPosition?.staff ?: ScoreStaffId(0, 0)
+        val targetOutput = outputForInstrument(targetStaff.instrumentIdx)
         if (!isPlaying) {
-            output.send(msg)
+            targetOutput.send(msg)
         }
         val isNoteOn = (msg.opcode == Message.VoiceOpcode.NOTE_ON || msg.opcode == Message.VoiceOpcode.NOTE) &&
             msg.extra > 0.0
@@ -161,12 +235,12 @@ class ScoreModule : Module("score"), EngineAware {
     }
 
     /**
-     * Sounds a short preview of [pitch] through [output]. Safe to call from the UI thread.
+     * Sounds a short preview of [pitch] through [instrumentIdx]'s output jack. Safe to call from the UI thread.
      */
-    fun previewPitch(pitch: Double, isStaccato: Boolean = false) {
+    fun previewPitch(pitch: Double, isStaccato: Boolean = false, instrumentIdx: Int = 0) {
         val e = engine ?: return
         val durationMs = if (isStaccato) STACCATO_PREVIEW_DURATION_MS else PREVIEW_DURATION_MS
-        e.post(PreviewScoreNoteCommand(output, pitch, durationMs))
+        e.post(PreviewScoreNoteCommand(outputForInstrument(instrumentIdx), pitch, durationMs))
     }
 
     private fun startPlayback(
@@ -178,185 +252,263 @@ class ScoreModule : Module("score"), EngineAware {
 
         val tempoVal = tempo.getDoubleValue(PianoRollTiming.DEFAULT_TEMPO).coerceAtLeast(1.0)
         val nsPerTick = PianoRollTiming.nanosPerTick(tempoVal)
-        val measures = scoreData.measures
-        if (measures.none { it.items.isNotEmpty() }) return
+        val staffIds = scoreData.allStaffIds()
+        if (staffIds.none { staff -> scoreData.staffMeasures(staff).any { it.items.isNotEmpty() } }) return
 
+        val maxMeasureCount = scoreData.maxMeasureCount()
         val targetCursor = startCursor?.let { raw ->
-            val clampedM = raw.measureIdx.coerceIn(0, measures.lastIndex)
-            val clampedI = raw.itemIdx.coerceIn(0, measures[clampedM].items.size)
-            ScoreCursorPosition(clampedM, clampedI)
+            val targetStaff = raw.staff.takeIf { it in staffIds } ?: ScoreStaffId(0, 0)
+            val staffMeasures = scoreData.staffMeasures(targetStaff)
+            val clampedM = raw.measureIdx.coerceIn(0, staffMeasures.lastIndex)
+            val clampedI = raw.itemIdx.coerceIn(0, staffMeasures[clampedM].items.size)
+            ScoreCursorPosition(clampedM, clampedI, targetStaff)
         }
         if (targetCursor != null) {
-            val hasRemainingItem = (targetCursor.measureIdx..measures.lastIndex).any { mIdx ->
+            val cursorStaffMeasures = scoreData.staffMeasures(targetCursor.staff)
+            val hasRemainingOnCursorStaff = (targetCursor.measureIdx..cursorStaffMeasures.lastIndex).any { mIdx ->
                 val startSlot = if (mIdx == targetCursor.measureIdx) targetCursor.itemIdx else 0
-                startSlot < measures[mIdx].items.size
+                startSlot < cursorStaffMeasures[mIdx].items.size
             }
-            if (!hasRemainingItem) return
+            val hasLaterMeasureOnOtherStaff = (targetCursor.measureIdx + 1 until maxMeasureCount).any { mIdx ->
+                staffIds.any { s -> scoreData.staffMeasures(s).getOrNull(mIdx)?.items?.isNotEmpty() == true }
+            }
+            if (!hasRemainingOnCursorStaff && !hasLaterMeasureOnOtherStaff) return
         }
 
-        var effectiveTime = measures.firstOrNull()?.timeSignature ?: scoreData.timeSignature
-        isPlaying = true
-        var tickCursor = 0L
-        var startTick: Long? = if (targetCursor == null) 0L else null
-        var globalIdx = 0
-        var nextVoiceTag = 0
-
         data class PlaybackSlot(
+            val staff: ScoreStaffId,
+            val targetOutput: VoiceOutputJack,
             val loc: ScoreItemLocation,
             val itemIdx: Int,
             val item: ScoreItem,
             val onsetTick: Long,
             val endTick: Long,
             val attackDyn: DynamicMark?,
-            val startsHighlight: Boolean,
         )
 
-        val slots = ArrayList<PlaybackSlot>()
-        val slotByLoc = HashMap<ScoreItemLocation, PlaybackSlot>()
-        val trailingRestTicks = ArrayList<Long>()
+        isPlaying = true
+        var effectiveTime = scoreData.instruments.firstOrNull()?.measures?.firstOrNull()?.timeSignature
+            ?: scoreData.timeSignature
+        var tickCursor = 0L
+        var cursorStartTick: Long? = if (targetCursor == null) 0L else null
+        var nextVoiceTag = 0
 
-        var sustainedDynamic: DynamicMark? = null
-        var hasActiveHighlight = false
-        for ((mIdx, measure) in measures.withIndex()) {
+        val slotsByStaff = linkedMapOf<ScoreStaffId, MutableList<PlaybackSlot>>()
+        val slotLookupByStaff = linkedMapOf<ScoreStaffId, MutableMap<ScoreItemLocation, PlaybackSlot>>()
+        val trailingRestTicksByStaff = linkedMapOf<ScoreStaffId, MutableList<Pair<Long, ScoreItemLocation?>>>()
+        val sustainedByStaff = staffIds.associateWith<ScoreStaffId, DynamicMark?> { null }.toMutableMap()
+        val globalIdxByStaff = staffIds.associateWith { 0 }.toMutableMap()
+        val hadSlotInBarBefore = staffIds.associateWith { false }.toMutableMap()
+
+        for (mIdx in 0 until maxMeasureCount) {
             if (mIdx > 0) {
-                measure.timeSignature?.let { effectiveTime = it }
+                scoreData.instruments.firstNotNullOfOrNull { it.measures.getOrNull(mIdx)?.timeSignature }
+                    ?.let { effectiveTime = it }
             }
             val measureCapacityTicks = effectiveTime.measureCapacityTicks.toLong().coerceAtLeast(0L)
             val measureStartTick = tickCursor
-            for ((slotIdx, item) in measure.items.withIndex()) {
-                if (startTick == null && targetCursor != null && mIdx == targetCursor.measureIdx && slotIdx >= targetCursor.itemIdx) {
-                    startTick = tickCursor
-                }
-                val (attackDyn, nextSustained) = ScoreEditing.resolvePlaybackDynamicStep(
-                    measure.dynamics[slotIdx],
-                    sustainedDynamic,
-                )
-                sustainedDynamic = nextSustained
-                val itemIdx = globalIdx++
-                val itemTicks = item.totalTicks.toLong()
-                val inPlaybackRange = startTick != null
-                if (inPlaybackRange) {
-                    hasActiveHighlight = true
-                }
-                val slot = PlaybackSlot(
-                    loc = ScoreItemLocation(mIdx, slotIdx),
-                    itemIdx = itemIdx,
-                    item = item,
-                    onsetTick = tickCursor,
-                    endTick = tickCursor + itemTicks,
-                    attackDyn = attackDyn,
-                    startsHighlight = inPlaybackRange,
-                )
-                slots.add(slot)
-                slotByLoc[slot.loc] = slot
-                tickCursor += itemTicks
-            }
-            if (startTick == null && targetCursor != null && mIdx == targetCursor.measureIdx && targetCursor.itemIdx >= measure.items.size) {
-                startTick = tickCursor
-            }
+            var maxStaffEndTick = measureStartTick
 
-            // Honor the time signature by treating missing space in empty/incomplete measures as rests.
-            for ((k, dyn) in measure.dynamics.entries.sortedBy { it.key }) {
-                if (k >= measure.items.size) {
-                    sustainedDynamic = ScoreEditing.resolvePlaybackDynamicStep(dyn, sustainedDynamic).second
-                }
-            }
-            val measureTicks = tickCursor - measureStartTick
-            if (measureTicks < measureCapacityTicks) {
-                if (hasActiveHighlight && startTick != null) {
-                    trailingRestTicks.add(tickCursor)
-                    hasActiveHighlight = false
-                }
-                tickCursor = measureStartTick + measureCapacityTicks
-            }
-        }
+            for (staff in staffIds) {
+                val staffMeasures = scoreData.staffMeasures(staff)
+                val measure = staffMeasures.getOrNull(mIdx)
+                val staffSlots = slotsByStaff.getOrPut(staff) { mutableListOf() }
+                val staffLookup = slotLookupByStaff.getOrPut(staff) { mutableMapOf() }
+                val staffOut = outputForInstrument(staff.instrumentIdx)
+                var staffCursor = measureStartTick
+                var sustainedDyn = sustainedByStaff[staff]
 
-        val resolvedStartTick = startTick ?: 0L
-        val continuedPitchesByLoc = HashMap<ScoreItemLocation, MutableSet<Int>>()
-
-        for (slot in slots) {
-            if (!slot.startsHighlight) continue
-            val item = slot.item
-            val relStartTick = slot.onsetTick - resolvedStartTick
-            val onTime = now + ScoreTime((relStartTick * nsPerTick).roundToLong())
-            val continuedMidis = continuedPitchesByLoc[slot.loc].orEmpty()
-            val attackPitches = item.soundingPitches().filter { it.midiPitch !in continuedMidis }
-
-            val effectiveAmp = if (slot.attackDyn != null) {
-                ((item.noteAmplitude() / 0.25) * slot.attackDyn.amplitude).coerceIn(0.0, 1.0)
-            } else {
-                item.noteAmplitude()
-            }
-
-            data class PitchAttackSpec(
-                val midiPitch: Double,
-                val tag: Int,
-                val soundingDurSec: Double,
-                val soundingOffTime: ScoreTime,
-            )
-
-            val attackSpecs = attackPitches.map { spelled ->
-                val targetMidi = spelled.midiPitch
-                var endSlot = slot
-                var curLoc = slot.loc
-                while (ScoreEditing.hasActiveTieForPitch(measures, curLoc.measureIdx, curLoc.itemIdx, targetMidi)) {
-                    val nextLoc = ScoreEditing.nextItemLocation(measures, curLoc.measureIdx, curLoc.itemIdx) ?: break
-                    val nextSlot = slotByLoc[nextLoc] ?: break
-                    continuedPitchesByLoc.getOrPut(nextLoc) { mutableSetOf() }.add(targetMidi)
-                    endSlot = nextSlot
-                    curLoc = nextLoc
-                }
-                val sustainDurSec = ((endSlot.endTick - slot.onsetTick).coerceAtLeast(0L) * nsPerTick) / 1_000_000_000.0
-                val soundingDurSec = if (endSlot.item.noteStaccato()) {
-                    val leadSec = ((endSlot.onsetTick - slot.onsetTick).coerceAtLeast(0L) * nsPerTick) / 1_000_000_000.0
-                    val lastNoteFullSec = ((endSlot.endTick - endSlot.onsetTick).coerceAtLeast(0L) * nsPerTick) / 1_000_000_000.0
-                    val staccatoTailSec = minOf(lastNoteFullSec * STACCATO_DURATION_FRACTION, MAX_STACCATO_SECONDS)
-                        .coerceAtLeast(minOf(MIN_STACCATO_SECONDS, lastNoteFullSec))
-                    leadSec + staccatoTailSec
-                } else {
-                    sustainDurSec
-                }
-                val soundingOffTime = onTime + ScoreTime((soundingDurSec * 1_000_000_000.0).roundToLong())
-                PitchAttackSpec(
-                    midiPitch = targetMidi.toDouble(),
-                    tag = nextVoiceTag++,
-                    soundingDurSec = soundingDurSec,
-                    soundingOffTime = soundingOffTime,
-                )
-            }
-
-            scheduledEvents.add(e.schedule(onTime) {
-                activeItemIndex = slot.itemIdx
-                for (spec in attackSpecs) {
-                    output.send(
-                        Message.VoiceMessage(
-                            time = onTime,
-                            opcode = Message.VoiceOpcode.NOTE,
-                            tag = spec.tag,
-                            value = spec.midiPitch,
-                            extra = effectiveAmp,
-                            duration = spec.soundingDurSec,
-                        )
+                val items = measure?.items.orEmpty()
+                for ((slotIdx, item) in items.withIndex()) {
+                    if (cursorStartTick == null &&
+                        targetCursor != null &&
+                        staff == targetCursor.staff &&
+                        mIdx == targetCursor.measureIdx &&
+                        slotIdx >= targetCursor.itemIdx
+                    ) {
+                        cursorStartTick = staffCursor
+                    }
+                    val (attackDyn, nextSustained) = ScoreEditing.resolvePlaybackDynamicStep(
+                        measure?.dynamics?.get(slotIdx),
+                        sustainedDyn,
                     )
-                    soundingNotes[spec.tag] = spec.midiPitch
+                    sustainedDyn = nextSustained
+                    val gIdx = (globalIdxByStaff[staff] ?: 0)
+                    globalIdxByStaff[staff] = gIdx + 1
+                    val itemTicks = item.totalTicks.toLong()
+                    val loc = ScoreItemLocation(mIdx, slotIdx, staff = staff)
+                    val slot = PlaybackSlot(
+                        staff = staff,
+                        targetOutput = staffOut,
+                        loc = loc,
+                        itemIdx = gIdx,
+                        item = item,
+                        onsetTick = staffCursor,
+                        endTick = staffCursor + itemTicks,
+                        attackDyn = attackDyn,
+                    )
+                    staffSlots.add(slot)
+                    staffLookup[loc] = slot
+                    staffCursor += itemTicks
                 }
-            })
-            for (spec in attackSpecs) {
-                scheduledEvents.add(e.schedule(spec.soundingOffTime) {
-                    soundingNotes.remove(spec.tag)
+
+                if (cursorStartTick == null &&
+                    targetCursor != null &&
+                    staff == targetCursor.staff &&
+                    mIdx == targetCursor.measureIdx &&
+                    targetCursor.itemIdx >= items.size
+                ) {
+                    cursorStartTick = staffCursor
+                }
+
+                if (measure != null) {
+                    for ((k, dyn) in measure.dynamics.entries.sortedBy { it.key }) {
+                        if (k >= items.size) {
+                            sustainedDyn = ScoreEditing.resolvePlaybackDynamicStep(dyn, sustainedDyn).second
+                        }
+                    }
+                }
+                sustainedByStaff[staff] = sustainedDyn
+
+                val staffTicks = staffCursor - measureStartTick
+                if (staffTicks < measureCapacityTicks && items.isNotEmpty()) {
+                    // Schedule highlight clear when the last item of an incomplete bar finishes.
+                    trailingRestTicksByStaff.getOrPut(staff) { mutableListOf() }
+                        .add(staffCursor to null)
+                } else if (items.isEmpty()) {
+                    trailingRestTicksByStaff.getOrPut(staff) { mutableListOf() }
+                        .add(measureStartTick to null)
+                }
+                if (staffCursor > maxStaffEndTick) {
+                    maxStaffEndTick = staffCursor
+                }
+            }
+            tickCursor = maxOf(measureStartTick + measureCapacityTicks, maxStaffEndTick)
+        }
+
+        val resolvedStartTick = cursorStartTick ?: 0L
+        var anyItemScheduled = false
+
+        for (staff in staffIds) {
+            val staffMeasures = scoreData.staffMeasures(staff)
+            val staffSlots = slotsByStaff[staff].orEmpty()
+            val slotByLoc = slotLookupByStaff[staff].orEmpty()
+            val continuedPitchesByLoc = HashMap<ScoreItemLocation, MutableSet<Int>>()
+            var hasActiveHighlightForStaff = false
+
+            for (slot in staffSlots) {
+                if (slot.onsetTick < resolvedStartTick) continue
+                anyItemScheduled = true
+                hasActiveHighlightForStaff = true
+                val item = slot.item
+                val relStartTick = slot.onsetTick - resolvedStartTick
+                val onTime = now + ScoreTime((relStartTick * nsPerTick).roundToLong())
+                val continuedMidis = continuedPitchesByLoc[slot.loc].orEmpty()
+                val attackPitches = item.soundingPitches().filter { it.midiPitch !in continuedMidis }
+
+                val effectiveAmp = if (slot.attackDyn != null) {
+                    ((item.noteAmplitude() / 0.25) * slot.attackDyn.amplitude).coerceIn(0.0, 1.0)
+                } else {
+                    item.noteAmplitude()
+                }
+
+                data class PitchAttackSpec(
+                    val midiPitch: Double,
+                    val tag: Int,
+                    val soundingDurSec: Double,
+                    val soundingOffTime: ScoreTime,
+                )
+
+                val attackSpecs = attackPitches.map { spelled ->
+                    val targetMidi = spelled.midiPitch
+                    var endSlot = slot
+                    var curLoc = slot.loc
+                    while (ScoreEditing.hasActiveTieForPitch(staffMeasures, curLoc.measureIdx, curLoc.itemIdx, targetMidi)) {
+                        val nextBase = ScoreEditing.nextItemLocation(staffMeasures, curLoc.measureIdx, curLoc.itemIdx) ?: break
+                        val nextLoc = nextBase.copy(staff = staff)
+                        val nextSlot = slotByLoc[nextLoc] ?: break
+                        continuedPitchesByLoc.getOrPut(nextLoc) { mutableSetOf() }.add(targetMidi)
+                        endSlot = nextSlot
+                        curLoc = nextLoc
+                    }
+                    val sustainDurSec = ((endSlot.endTick - slot.onsetTick).coerceAtLeast(0L) * nsPerTick) / 1_000_000_000.0
+                    val soundingDurSec = if (endSlot.item.noteStaccato()) {
+                        val leadSec = ((endSlot.onsetTick - slot.onsetTick).coerceAtLeast(0L) * nsPerTick) / 1_000_000_000.0
+                        val lastNoteFullSec = ((endSlot.endTick - endSlot.onsetTick).coerceAtLeast(0L) * nsPerTick) / 1_000_000_000.0
+                        val staccatoTailSec = minOf(lastNoteFullSec * STACCATO_DURATION_FRACTION, MAX_STACCATO_SECONDS)
+                            .coerceAtLeast(minOf(MIN_STACCATO_SECONDS, lastNoteFullSec))
+                        leadSec + staccatoTailSec
+                    } else {
+                        sustainDurSec
+                    }
+                    val soundingOffTime = onTime + ScoreTime((soundingDurSec * 1_000_000_000.0).roundToLong())
+                    PitchAttackSpec(
+                        midiPitch = targetMidi.toDouble(),
+                        tag = nextVoiceTag++,
+                        soundingDurSec = soundingDurSec,
+                        soundingOffTime = soundingOffTime,
+                    )
+                }
+
+                val targetOutput = slot.targetOutput
+                scheduledEvents.add(e.schedule(onTime) {
+                    activeItemsByStaff = activeItemsByStaff + (staff to slot.itemIdx)
+                    if (staff == ScoreStaffId(0, 0)) {
+                        activeItemIndex = slot.itemIdx
+                    }
+                    val activeMap = soundingNotesByOutput.getOrPut(targetOutput) { mutableMapOf() }
+                    for (spec in attackSpecs) {
+                        targetOutput.send(
+                            Message.VoiceMessage(
+                                time = onTime,
+                                opcode = Message.VoiceOpcode.NOTE,
+                                tag = spec.tag,
+                                value = spec.midiPitch,
+                                extra = effectiveAmp,
+                                duration = spec.soundingDurSec,
+                            )
+                        )
+                        activeMap[spec.tag] = spec.midiPitch
+                    }
                 })
+                for (spec in attackSpecs) {
+                    scheduledEvents.add(e.schedule(spec.soundingOffTime) {
+                        soundingNotesByOutput[targetOutput]?.remove(spec.tag)
+                    })
+                }
+            }
+
+            // Emit highlight clear whenever playback enters an empty/incomplete region after active notes.
+            for (slot in staffSlots) {
+                if (slot.onsetTick < resolvedStartTick) continue
+                hadSlotInBarBefore[staff] = true
+            }
+            if (hasActiveHighlightForStaff) {
+                for ((restTick, _) in trailingRestTicksByStaff[staff].orEmpty()) {
+                    if (restTick >= resolvedStartTick) {
+                        val hasPreviousPlayedNote = staffSlots.any { it.onsetTick >= resolvedStartTick && it.endTick <= restTick }
+                        if (hasPreviousPlayedNote) {
+                            val restStartTime = now + ScoreTime(((restTick - resolvedStartTick) * nsPerTick).roundToLong())
+                            scheduledEvents.add(e.schedule(restStartTime) {
+                                activeItemsByStaff = activeItemsByStaff - staff
+                                if (staff == ScoreStaffId(0, 0)) {
+                                    activeItemIndex = null
+                                }
+                            })
+                        }
+                    }
+                }
             }
         }
 
-        for (restTick in trailingRestTicks) {
-            val restStartTime = now + ScoreTime(((restTick - resolvedStartTick) * nsPerTick).roundToLong())
-            scheduledEvents.add(e.schedule(restStartTime) {
-                activeItemIndex = null
-            })
+        if (!anyItemScheduled && targetCursor != null) {
+            isPlaying = false
+            return
         }
 
         val endTime = now + ScoreTime(((tickCursor - resolvedStartTick).coerceAtLeast(0L) * nsPerTick).roundToLong()) + ScoreTime(1L)
         scheduledEvents.add(e.schedule(endTime) {
+            activeItemsByStaff = emptyMap()
             activeItemIndex = null
             isPlaying = false
             scheduledEvents.clear()
@@ -366,18 +518,22 @@ class ScoreModule : Module("score"), EngineAware {
     private fun stopPlayback(now: ScoreTime) {
         scheduledEvents.forEach { it.cancel() }
         scheduledEvents.clear()
-        for ((tag, pitch) in soundingNotes) {
-            output.send(
-                Message.VoiceMessage(
-                    time = now,
-                    opcode = Message.VoiceOpcode.NOTE_OFF,
-                    tag = tag,
-                    value = pitch,
-                    extra = 0.0,
+        for ((outJack, activeNotes) in soundingNotesByOutput) {
+            for ((tag, pitch) in activeNotes) {
+                outJack.send(
+                    Message.VoiceMessage(
+                        time = now,
+                        opcode = Message.VoiceOpcode.NOTE_OFF,
+                        tag = tag,
+                        value = pitch,
+                        extra = 0.0,
+                    )
                 )
-            )
+            }
+            activeNotes.clear()
         }
-        soundingNotes.clear()
+        soundingNotesByOutput.clear()
+        activeItemsByStaff = emptyMap()
         activeItemIndex = null
         isPlaying = false
     }

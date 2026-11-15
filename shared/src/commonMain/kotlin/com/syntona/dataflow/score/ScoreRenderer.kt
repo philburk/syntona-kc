@@ -87,8 +87,11 @@ data class ScorePlacedItem(
     val effectiveClef: Clef = Clef.TREBLE,
     val isBeamed: Boolean = false,
     val stemTipYOverride: Float? = null,
+    val staff: ScoreStaffId = ScoreStaffId(0, 0),
+    val isOutOfRange: Boolean = false,
+    val outOfRangeChordIndices: Set<Int> = emptySet(),
 ) {
-    val location: ScoreItemLocation get() = ScoreItemLocation(measureIdx, itemIdx)
+    val location: ScoreItemLocation get() = ScoreItemLocation(measureIdx, itemIdx, staff = staff)
 }
 
 data class ScorePlacedBeamGroup(
@@ -111,8 +114,9 @@ data class ScorePlacedClefChange(
     val width: Float,
     val topY: Float,
     val bottomY: Float,
+    val staff: ScoreStaffId = ScoreStaffId(0, 0),
 ) {
-    val location: ScoreClefLocation get() = ScoreClefLocation(measureIdx, itemIdx)
+    val location: ScoreClefLocation get() = ScoreClefLocation(measureIdx, itemIdx, staff = staff)
 }
 
 data class ScorePlacedDynamic(
@@ -125,8 +129,9 @@ data class ScorePlacedDynamic(
     val boxTop: Float,
     val boxRight: Float,
     val boxBottom: Float,
+    val staff: ScoreStaffId = ScoreStaffId(0, 0),
 ) {
-    val location: ScoreDynamicLocation get() = ScoreDynamicLocation(measureIdx, itemIdx)
+    val location: ScoreDynamicLocation get() = ScoreDynamicLocation(measureIdx, itemIdx, staff = staff)
 }
 
 data class ScorePlacedTimeSignature(
@@ -138,6 +143,7 @@ data class ScorePlacedTimeSignature(
     val denWidth: Float,
     val topY: Float,
     val bottomY: Float,
+    val staff: ScoreStaffId = ScoreStaffId(0, 0),
 )
 
 data class ScorePlacedMeasure(
@@ -160,6 +166,7 @@ data class ScorePlacedMeasure(
     val activeClosingClef: Clef = Clef.TREBLE,
     val dynamics: List<ScorePlacedDynamic> = emptyList(),
     val beamGroups: List<ScorePlacedBeamGroup> = emptyList(),
+    val staff: ScoreStaffId = ScoreStaffId(0, 0),
 )
 
 data class ScoreInsertionTarget(
@@ -167,6 +174,7 @@ data class ScoreInsertionTarget(
     val itemIdx: Int,
     val appendNewMeasure: Boolean,
     val afterClefChange: Boolean = true,
+    val staff: ScoreStaffId = ScoreStaffId(0, 0),
 )
 
 data class ScoreGhostPreview(
@@ -177,6 +185,7 @@ data class ScoreGhostPreview(
     val isDotted: Boolean = false,
     val accidental: Accidental? = null,
     val isStaccato: Boolean = false,
+    val staff: ScoreStaffId = ScoreStaffId(0, 0),
 )
 
 data class ScoreRubberBand(
@@ -186,10 +195,88 @@ data class ScoreRubberBand(
     val bottom: Float,
 )
 
+/** Layout geometry for one rendered instrument group (spanning 1 or 2 staves). */
+data class ScorePlacedInstrumentGroup(
+    val instrumentIdx: Int,
+    val instrument: ScoreInstrumentPart,
+    val topStaffY: Float,
+    val bottomStaffY: Float,
+    val labelLeft: Float,
+    val labelTop: Float,
+    val labelRight: Float,
+    val labelBottom: Float,
+    val braceX: Float,
+)
+
+/** Layout geometry for one rendered 5-line staff belonging to [staffId]. */
+data class ScorePlacedStaff(
+    val staffId: ScoreStaffId,
+    val instrument: ScoreInstrumentPart,
+    val staffSpacePx: Float,
+    val leftBarX: Float,
+    val topStaffY: Float,
+    val bottomStaffY: Float,
+    val rowTopY: Float,
+    val rowBottomY: Float,
+    val openingClef: Clef,
+    val clefX: Float,
+    val keyStartX: Float,
+    val keySteps: List<Int>,
+    val keyGlyph: String,
+    val keyGlyphStepWidth: Float,
+    val timeSigX: Float,
+    val timeSigWidth: Float,
+    val numWidth: Float,
+    val denWidth: Float,
+    val numStr: String,
+    val denStr: String,
+    val headerEndX: Float,
+    val placedMeasures: List<ScorePlacedMeasure>,
+    val placedTimeSignatures: List<ScorePlacedTimeSignature>,
+    val placedClefChanges: List<ScorePlacedClefChange>,
+    val placedDynamics: List<ScorePlacedDynamic>,
+) {
+    fun yForStep(stepFromBottom: Int): Float = bottomStaffY - stepFromBottom * (staffSpacePx * 0.5f)
+
+    fun stepAtY(y: Float, minStep: Int = -12, maxStep: Int = 20): Int =
+        ((bottomStaffY - y) / (staffSpacePx * 0.5f)).roundToInt().coerceIn(minStep, maxStep)
+
+    fun cursorXFor(cursor: ScoreCursorPosition): Float? {
+        val pm = placedMeasures.getOrNull(cursor.measureIdx) ?: return null
+        val sp = staffSpacePx
+        val trailingClef = pm.clefChanges.lastOrNull { it.itemIdx >= pm.items.size }
+        if (pm.items.isEmpty()) {
+            return if (trailingClef != null) {
+                trailingClef.x + trailingClef.width + sp * 0.35f
+            } else {
+                pm.contentStartX + sp * 1.1f
+            }
+        }
+        val clampedIdx = cursor.itemIdx.coerceIn(0, pm.items.size)
+        return when {
+            clampedIdx == 0 -> ((pm.contentStartX + sp * 0.35f) + pm.items.first().boxLeft) * 0.5f
+            clampedIdx >= pm.items.size -> {
+                val tailRight = maxOf(
+                    pm.items.last().boxRight,
+                    trailingClef?.let { it.x + it.width } ?: 0f,
+                )
+                val limit = min(pm.barlineX - sp * 0.25f, tailRight + sp * 0.9f)
+                max(tailRight + sp * 0.25f, (tailRight + limit) * 0.5f)
+            }
+            else -> {
+                val midClef = pm.clefChanges.lastOrNull { it.itemIdx == clampedIdx }
+                val leftEdge = midClef?.let { it.x + it.width } ?: pm.items[clampedIdx - 1].boxRight
+                (leftEdge + pm.items[clampedIdx].boxLeft) * 0.5f
+            }
+        }
+    }
+}
+
 data class ScoreLayout(
     val totalWidthPx: Float,
     val totalHeightPx: Float,
     val staffSpacePx: Float = 10f,
+    val leftBarX: Float = 0f,
     val topStaffY: Float = 0f,
     val bottomStaffY: Float = 0f,
     val headerEndX: Float = 0f,
@@ -199,11 +286,36 @@ data class ScoreLayout(
     val placedTimeSignatures: List<ScorePlacedTimeSignature> = emptyList(),
     val placedClefChanges: List<ScorePlacedClefChange> = emptyList(),
     val placedDynamics: List<ScorePlacedDynamic> = emptyList(),
+    val staves: List<ScorePlacedStaff> = emptyList(),
+    val instrumentGroups: List<ScorePlacedInstrumentGroup> = emptyList(),
+    val showInstrumentLabels: Boolean = false,
 ) {
-    fun yForStep(stepFromBottom: Int): Float = bottomStaffY - stepFromBottom * (staffSpacePx * 0.5f)
+    fun staffForId(id: ScoreStaffId): ScorePlacedStaff? =
+        staves.firstOrNull { it.staffId == id } ?: staves.firstOrNull()
 
-    fun stepAtY(y: Float, minStep: Int = -12, maxStep: Int = 20): Int =
-        ((bottomStaffY - y) / (staffSpacePx * 0.5f)).roundToInt().coerceIn(minStep, maxStep)
+    fun staffAtY(y: Float): ScorePlacedStaff? =
+        staves.firstOrNull { y >= it.rowTopY && y <= it.rowBottomY }
+            ?: staves.minByOrNull { abs(y - (it.topStaffY + it.bottomStaffY) * 0.5f) }
+
+    fun instrumentGroupAt(x: Float, y: Float): ScorePlacedInstrumentGroup? {
+        if (!showInstrumentLabels) return null
+        val sp = staffSpacePx
+        return instrumentGroups.firstOrNull { grp ->
+            x >= grp.labelLeft - sp * 0.5f && x <= grp.labelRight + sp * 0.5f &&
+                y >= grp.labelTop - sp * 0.5f && y <= grp.labelBottom + sp * 0.5f
+        }
+    }
+
+    fun yForStep(stepFromBottom: Int, staffId: ScoreStaffId = ScoreStaffId(0, 0)): Float {
+        val ps = staffForId(staffId)
+        return ps?.yForStep(stepFromBottom) ?: (bottomStaffY - stepFromBottom * (staffSpacePx * 0.5f))
+    }
+
+    fun stepAtY(y: Float, staffId: ScoreStaffId = ScoreStaffId(0, 0), minStep: Int = -12, maxStep: Int = 20): Int {
+        val ps = staffForId(staffId)
+        return ps?.stepAtY(y, minStep, maxStep)
+            ?: ((bottomStaffY - y) / (staffSpacePx * 0.5f)).roundToInt().coerceIn(minStep, maxStep)
+    }
 
     /** Returns the [ScorePlacedClefChange] under `(x, y)`, or `null` if none. */
     fun clefChangeAt(x: Float, y: Float): ScorePlacedClefChange? {
@@ -260,9 +372,11 @@ data class ScoreLayout(
      * placing a dynamic above or below the stave in a measure.
      */
     fun dynamicTargetAt(x: Float, y: Float): Pair<ScoreDynamicLocation, DynamicPlacement>? {
-        if (placedMeasures.isEmpty()) return null
-        val pm = placedMeasures.firstOrNull { x >= it.startX && x <= it.barlineX }
-            ?: placedMeasures.minByOrNull { m ->
+        val targetStaff = staffAtY(y)
+        val measures = targetStaff?.placedMeasures ?: placedMeasures
+        if (measures.isEmpty()) return null
+        val pm = measures.firstOrNull { x >= it.startX && x <= it.barlineX }
+            ?: measures.minByOrNull { m ->
                 when {
                     x < m.startX -> m.startX - x
                     x > m.barlineX -> x - m.barlineX
@@ -270,7 +384,9 @@ data class ScoreLayout(
                 }
             }
             ?: return null
-        val placement = if (y < (topStaffY + bottomStaffY) * 0.5f) {
+        val staffTop = targetStaff?.topStaffY ?: topStaffY
+        val staffBottom = targetStaff?.bottomStaffY ?: bottomStaffY
+        val placement = if (y < (staffTop + staffBottom) * 0.5f) {
             DynamicPlacement.ABOVE
         } else {
             DynamicPlacement.BELOW
@@ -286,7 +402,8 @@ data class ScoreLayout(
                 pm.items.minByOrNull { pi -> abs(x - (pi.x + pi.width * 0.5f)) }?.itemIdx ?: 0
             }
         }
-        return ScoreDynamicLocation(pm.measureIdx, itemIdx) to placement
+        val staffId = targetStaff?.staffId ?: ScoreStaffId(0, 0)
+        return ScoreDynamicLocation(pm.measureIdx, itemIdx, staff = staffId) to placement
     }
 
     /** Returns the [ScorePlacedItem] under `(x, y)`, preferring the nearest item center if boxes touch. */
@@ -294,18 +411,26 @@ data class ScoreLayout(
         val sp = staffSpacePx
         var best: ScorePlacedItem? = null
         var bestDist = Float.MAX_VALUE
-        for (pm in placedMeasures) {
-            for (pi in pm.items) {
-                val padX = sp * 0.4f
-                val padY = if (pi.item is ScoreItem.Rest) sp * 0.4f else sp * 0.6f
-                if (x >= pi.boxLeft - padX && x <= pi.boxRight + padX &&
-                    y >= pi.boxTop - padY && y <= pi.boxBottom + padY
-                ) {
-                    val cx = pi.x + pi.width * 0.5f
-                    val dist = abs(x - cx) + abs(y - pi.centerY) * 0.35f
-                    if (dist < bestDist) {
-                        bestDist = dist
-                        best = pi
+        val candidateStaves = if (staves.isNotEmpty()) {
+            staves
+        } else {
+            return null
+        }
+        for (ps in candidateStaves) {
+            if (y < ps.rowTopY - sp * 2f || y > ps.rowBottomY + sp * 2f) continue
+            for (pm in ps.placedMeasures) {
+                for (pi in pm.items) {
+                    val padX = sp * 0.4f
+                    val padY = if (pi.item is ScoreItem.Rest) sp * 0.4f else sp * 0.6f
+                    if (x >= pi.boxLeft - padX && x <= pi.boxRight + padX &&
+                        y >= pi.boxTop - padY && y <= pi.boxBottom + padY
+                    ) {
+                        val cx = pi.x + pi.width * 0.5f
+                        val dist = abs(x - cx) + abs(y - pi.centerY) * 0.35f
+                        if (dist < bestDist) {
+                            bestDist = dist
+                            best = pi
+                        }
                     }
                 }
             }
@@ -332,14 +457,15 @@ data class ScoreLayout(
     }
 
     /**
-     * Returns an existing non-rest [ScorePlacedItem] whose notehead column aligns horizontally with
-     * [x], used in Entry mode to stack notes vertically onto an existing note or chord.
+     * Returns an existing non-rest [ScorePlacedItem] on the staff under [y] whose notehead column
+     * aligns horizontally with [x], used in Entry mode to stack notes vertically onto an existing note or chord.
      */
-    fun itemColumnAt(x: Float): ScorePlacedItem? {
+    fun itemColumnAt(x: Float, y: Float? = null): ScorePlacedItem? {
         val sp = staffSpacePx
+        val measures = if (y != null) staffAtY(y)?.placedMeasures ?: placedMeasures else placedMeasures
         var best: ScorePlacedItem? = null
         var bestDist = Float.MAX_VALUE
-        for (pm in placedMeasures) {
+        for (pm in measures) {
             for (pi in pm.items) {
                 if (pi.item is ScoreItem.Rest) continue
                 val minHeadX = pi.chordNotes.minOfOrNull { it.headX } ?: pi.x
@@ -357,29 +483,34 @@ data class ScoreLayout(
         return best
     }
 
-    /** Returns all items whose visual bounding box intersects the given rectangle. */
+    /** Returns all items whose visual bounding box intersects the given rectangle across all staves. */
     fun itemsInRect(left: Float, top: Float, right: Float, bottom: Float): Set<ScoreItemLocation> {
         val result = linkedSetOf<ScoreItemLocation>()
-        for (pm in placedMeasures) {
-            for (pi in pm.items) {
-                if (pi.boxRight >= left && pi.boxLeft <= right &&
-                    pi.boxBottom >= top && pi.boxTop <= bottom
-                ) {
-                    result.add(pi.location)
+        for (ps in staves) {
+            for (pm in ps.placedMeasures) {
+                for (pi in pm.items) {
+                    if (pi.boxRight >= left && pi.boxLeft <= right &&
+                        pi.boxBottom >= top && pi.boxTop <= bottom
+                    ) {
+                        result.add(pi.location)
+                    }
                 }
             }
         }
         return result
     }
 
-    /** Computes where a new item clicked at [x] should be inserted, or `null` if inside the clef/key header. */
-    fun insertionTargetAt(x: Float): ScoreInsertionTarget? {
-        val firstStart = placedMeasures.firstOrNull()?.startX ?: headerEndX
+    /** Computes where a new item clicked at `(x, y)` should be inserted, or `null` if inside the clef/key header. */
+    fun insertionTargetAt(x: Float, y: Float? = null): ScoreInsertionTarget? {
+        val targetStaff = if (y != null) staffAtY(y) else staves.firstOrNull()
+        val staffId = targetStaff?.staffId ?: ScoreStaffId(0, 0)
+        val measures = targetStaff?.placedMeasures ?: placedMeasures
+        val firstStart = measures.firstOrNull()?.startX ?: (targetStaff?.headerEndX ?: headerEndX)
         if (x < firstStart - staffSpacePx * 0.5f) return null
-        if (placedMeasures.isEmpty()) {
-            return ScoreInsertionTarget(measureIdx = 0, itemIdx = 0, appendNewMeasure = true)
+        if (measures.isEmpty()) {
+            return ScoreInsertionTarget(measureIdx = 0, itemIdx = 0, appendNewMeasure = true, staff = staffId)
         }
-        for (pm in placedMeasures) {
+        for (pm in measures) {
             if (x <= pm.barlineX) {
                 val insertIdx = pm.items.indexOfFirst { x < it.x + it.width * 0.5f }
                     .let { if (it < 0) pm.items.size else it }
@@ -390,24 +521,28 @@ data class ScoreLayout(
                     itemIdx = insertIdx,
                     appendNewMeasure = false,
                     afterClefChange = afterClefChange,
+                    staff = staffId,
                 )
             }
         }
-        val lastPm = placedMeasures.last()
+        val lastPm = measures.last()
         return if (lastPm.measure.items.isEmpty()) {
-            ScoreInsertionTarget(measureIdx = lastPm.measureIdx, itemIdx = 0, appendNewMeasure = false)
+            ScoreInsertionTarget(measureIdx = lastPm.measureIdx, itemIdx = 0, appendNewMeasure = false, staff = staffId)
         } else {
-            ScoreInsertionTarget(measureIdx = placedMeasures.size, itemIdx = 0, appendNewMeasure = true)
+            ScoreInsertionTarget(measureIdx = measures.size, itemIdx = 0, appendNewMeasure = true, staff = staffId)
         }
     }
 
-    /** Returns the effective [Clef] for an insertion or hover at canvas horizontal coordinate [x]. */
-    fun effectiveClefAtX(x: Float): Clef {
-        val target = insertionTargetAt(x) ?: return openingClef
-        if (target.appendNewMeasure || target.measureIdx >= placedMeasures.size) {
-            return placedMeasures.lastOrNull()?.activeClosingClef ?: openingClef
+    /** Returns the effective [Clef] for an insertion or hover at canvas coordinate `(x, y)`. */
+    fun effectiveClefAtX(x: Float, y: Float? = null): Clef {
+        val targetStaff = if (y != null) staffAtY(y) else staves.firstOrNull()
+        val measures = targetStaff?.placedMeasures ?: placedMeasures
+        val fallbackClef = targetStaff?.openingClef ?: openingClef
+        val target = insertionTargetAt(x, y) ?: return fallbackClef
+        if (target.appendNewMeasure || target.measureIdx >= measures.size) {
+            return measures.lastOrNull()?.activeClosingClef ?: fallbackClef
         }
-        val pm = placedMeasures[target.measureIdx]
+        val pm = measures[target.measureIdx]
         var clef = pm.activeOpeningClef
         for (cc in pm.clefChanges) {
             if (cc.itemIdx > 0 && x >= cc.x + cc.width * 0.5f) {
@@ -418,14 +553,17 @@ data class ScoreLayout(
     }
 
     /**
-     * Resolves a selection-mode click at [x] to a [ScoreCursorPosition] inside an empty measure
+     * Resolves a selection-mode click at `(x, y)` to a [ScoreCursorPosition] inside an empty measure
      * or between/around notes, or `null` if inside the clef/key header.
      */
-    fun cursorPositionAt(x: Float): ScoreCursorPosition? {
-        val firstStart = placedMeasures.firstOrNull()?.startX ?: headerEndX
+    fun cursorPositionAt(x: Float, y: Float? = null): ScoreCursorPosition? {
+        val targetStaff = if (y != null) staffAtY(y) else staves.firstOrNull()
+        val staffId = targetStaff?.staffId ?: ScoreStaffId(0, 0)
+        val measures = targetStaff?.placedMeasures ?: placedMeasures
+        val firstStart = measures.firstOrNull()?.startX ?: (targetStaff?.headerEndX ?: headerEndX)
         if (x < firstStart - staffSpacePx * 0.5f) return null
-        if (placedMeasures.isEmpty()) return ScoreCursorPosition(0, 0)
-        for (pm in placedMeasures) {
+        if (measures.isEmpty()) return ScoreCursorPosition(0, 0, staff = staffId)
+        for (pm in measures) {
             if (x <= pm.barlineX) {
                 val itemIdx = if (pm.items.isEmpty()) {
                     0
@@ -433,17 +571,19 @@ data class ScoreLayout(
                     pm.items.indexOfFirst { x < it.x + it.width * 0.5f }
                         .let { if (it < 0) pm.items.size else it }
                 }
-                return ScoreCursorPosition(measureIdx = pm.measureIdx, itemIdx = itemIdx)
+                return ScoreCursorPosition(measureIdx = pm.measureIdx, itemIdx = itemIdx, staff = staffId)
             }
         }
-        val lastPm = placedMeasures.last()
-        return ScoreCursorPosition(measureIdx = lastPm.measureIdx, itemIdx = lastPm.items.size)
+        val lastPm = measures.last()
+        return ScoreCursorPosition(measureIdx = lastPm.measureIdx, itemIdx = lastPm.items.size, staff = staffId)
     }
 
-    /** Returns the 0-based measure index under [x], or `null` if outside measure bounds (e.g. header). */
-    fun measureAt(x: Float): Int? {
-        for ((idx, pm) in placedMeasures.withIndex()) {
-            val leftBound = if (idx == 0) pm.startX - staffSpacePx * 0.5f else placedMeasures[idx - 1].barlineX
+    /** Returns the 0-based measure index under `(x, y)`, or `null` if outside measure bounds. */
+    fun measureAt(x: Float, y: Float? = null): Int? {
+        val targetStaff = if (y != null) staffAtY(y) else staves.firstOrNull()
+        val measures = targetStaff?.placedMeasures ?: placedMeasures
+        for ((idx, pm) in measures.withIndex()) {
+            val leftBound = if (idx == 0) pm.startX - staffSpacePx * 0.5f else measures[idx - 1].barlineX
             if (x >= leftBound && x <= pm.barlineX) {
                 return pm.measureIdx
             }
@@ -451,10 +591,13 @@ data class ScoreLayout(
         return null
     }
 
-    /** Returns the indices of all measures whose horizontal bounds intersect `[left, right]` across the staff. */
+    /** Returns the indices of all measures whose horizontal bounds intersect `[left, right]` and intersect any staff vertically. */
     fun measuresInRect(left: Float, top: Float, right: Float, bottom: Float): Set<Int> {
         val sp = staffSpacePx
-        if (bottom < topStaffY - sp || top > bottomStaffY + sp) return emptySet()
+        val intersectsAnyStaff = staves.any { ps ->
+            bottom >= ps.topStaffY - sp && top <= ps.bottomStaffY + sp
+        }
+        if (!intersectsAnyStaff) return emptySet()
         val result = linkedSetOf<Int>()
         for ((idx, pm) in placedMeasures.withIndex()) {
             val leftBound = if (idx == 0) pm.startX else placedMeasures[idx - 1].barlineX
@@ -467,33 +610,8 @@ data class ScoreLayout(
 
     /** Computes the horizontal canvas coordinate for rendering the vertical cursor at [cursor]. */
     fun cursorXFor(cursor: ScoreCursorPosition): Float? {
-        val pm = placedMeasures.getOrNull(cursor.measureIdx) ?: return null
-        val sp = staffSpacePx
-        val trailingClef = pm.clefChanges.lastOrNull { it.itemIdx >= pm.items.size }
-        if (pm.items.isEmpty()) {
-            return if (trailingClef != null) {
-                trailingClef.x + trailingClef.width + sp * 0.35f
-            } else {
-                pm.contentStartX + sp * 1.1f
-            }
-        }
-        val clampedIdx = cursor.itemIdx.coerceIn(0, pm.items.size)
-        return when {
-            clampedIdx == 0 -> ((pm.contentStartX + sp * 0.35f) + pm.items.first().boxLeft) * 0.5f
-            clampedIdx >= pm.items.size -> {
-                val tailRight = maxOf(
-                    pm.items.last().boxRight,
-                    trailingClef?.let { it.x + it.width } ?: 0f,
-                )
-                val limit = min(pm.barlineX - sp * 0.25f, tailRight + sp * 0.9f)
-                max(tailRight + sp * 0.25f, (tailRight + limit) * 0.5f)
-            }
-            else -> {
-                val midClef = pm.clefChanges.lastOrNull { it.itemIdx == clampedIdx }
-                val leftEdge = midClef?.let { it.x + it.width } ?: pm.items[clampedIdx - 1].boxRight
-                (leftEdge + pm.items[clampedIdx].boxLeft) * 0.5f
-            }
-        }
+        val targetStaff = staffForId(cursor.staff) ?: return null
+        return targetStaff.cursorXFor(cursor)
     }
 }
 
@@ -509,25 +627,10 @@ object ScoreRenderer {
     private const val BOTTOM_MARGIN_SPACES = 4.5f
     private const val CLEF_CHANGE_SCALE = 0.72f
 
-    private data class HeaderLayout(
-        val leftMargin: Float,
-        val rightMargin: Float,
-        val topStaffY: Float,
-        val bottomStaffY: Float,
-        val totalHeight: Float,
-        val openingClef: Clef,
-        val clefX: Float,
-        val keyStartX: Float,
-        val keySteps: List<Int>,
-        val keyGlyph: String,
-        val keyGlyphStepWidth: Float,
-        val timeSigX: Float,
-        val timeSigWidth: Float,
-        val numWidth: Float,
-        val denWidth: Float,
-        val numStr: String,
-        val denStr: String,
-        val headerEndX: Float,
+    private data class StaffLayoutResult(
+        val staff: ScorePlacedStaff,
+        val instrumentIdx: Int,
+        val isLastStaffInInstrument: Boolean,
     )
 
     private fun computeHeaderAndMeasures(
@@ -535,40 +638,131 @@ object ScoreRenderer {
         staffSpacePx: Float,
         minWidthPx: Float,
         measureGlyphWidth: (String, Float) -> Float,
-    ): Pair<HeaderLayout, ScoreLayout> {
+    ): Pair<List<StaffLayoutResult>, ScoreLayout> {
         val sp = staffSpacePx.coerceAtLeast(4f)
         val emPx = sp * 4f
-        val leftMargin = sp * 2.0f
+        val changeEmPx = emPx * CLEF_CHANGE_SCALE
+        val instruments = score.instruments.ifEmpty { listOf(ScoreInstrumentPart(id = "inst-1")) }
+        val showInstrumentLabels = instruments.size > 1 ||
+            instruments.any { it.staffCount > 1 || it.name != ScoreInstrumentPart.DEFAULT_NAME }
+        val leftMargin = if (showInstrumentLabels) sp * 8.5f else sp * 2.0f
         val rightMargin = sp * 2.0f
 
-        // Bottom line (step 0) is bottomStaffY; step 8 is top line (topStaffY = bottomStaffY - 4 * sp)
-        val topStaffY = TOP_MARGIN_SPACES * sp
-        val bottomStaffY = topStaffY + 4f * sp
-        val totalHeight = bottomStaffY + BOTTOM_MARGIN_SPACES * sp
+        data class StaffBuildState(
+            val staffId: ScoreStaffId,
+            val instrumentIdx: Int,
+            val instrument: ScoreInstrumentPart,
+            val measures: List<ScoreMeasure>,
+            val openingClef: Clef,
+            val topStaffY: Float,
+            val bottomStaffY: Float,
+            var rowTopY: Float = 0f,
+            var rowBottomY: Float = 0f,
+            var keySteps: List<Int> = emptyList(),
+            var keyGlyph: String = SmuflGlyphs.ACCIDENTAL_SHARP,
+            var keyGlyphStepWidth: Float = SmuflGlyphs.ACCIDENTAL_SHARP_WIDTH * sp + sp * 0.18f,
+            var effectiveClef: Clef = openingClef,
+            var effectiveKey: KeySignature = score.keySignature,
+            var effectiveTime: TimeSignature = score.timeSignature,
+            var globalIdx: Int = 0,
+            val placedMeasures: MutableList<ScorePlacedMeasure> = mutableListOf(),
+            val placedTimeSignatures: MutableList<ScorePlacedTimeSignature> = mutableListOf(),
+            val placedClefChanges: MutableList<ScorePlacedClefChange> = mutableListOf(),
+            val placedDynamics: MutableList<ScorePlacedDynamic> = mutableListOf(),
+        ) {
+            fun yForStep(stepFromBottom: Int): Float = bottomStaffY - stepFromBottom * (sp * 0.5f)
+        }
 
-        fun yForStep(stepFromBottom: Int): Float = bottomStaffY - stepFromBottom * (sp * 0.5f)
+        val staffStates = mutableListOf<StaffBuildState>()
+        var nextTopY = TOP_MARGIN_SPACES * sp
+        for ((instIdx, inst) in instruments.withIndex()) {
+            if (instIdx > 0) {
+                nextTopY += 9.5f * sp
+            }
+            for (sIdx in 0 until inst.staffCount) {
+                if (sIdx > 0) {
+                    nextTopY += 7.5f * sp
+                }
+                val topY = nextTopY
+                val bottomY = topY + 4f * sp
+                nextTopY = bottomY
+                val ms = inst.measuresForStaff(sIdx)
+                val openClef = ms.firstOrNull()?.clefChanges?.get(0) ?: inst.clefForStaff(sIdx)
+                staffStates.add(
+                    StaffBuildState(
+                        staffId = ScoreStaffId(instIdx, sIdx),
+                        instrumentIdx = instIdx,
+                        instrument = inst,
+                        measures = ms,
+                        openingClef = openClef,
+                        topStaffY = topY,
+                        bottomStaffY = bottomY,
+                        effectiveClef = openClef,
+                    )
+                )
+            }
+        }
+        val totalHeight = nextTopY + BOTTOM_MARGIN_SPACES * sp
+        for ((idx, st) in staffStates.withIndex()) {
+            st.rowTopY = if (idx == 0) {
+                0f
+            } else {
+                (staffStates[idx - 1].bottomStaffY + st.topStaffY) * 0.5f
+            }
+            st.rowBottomY = if (idx == staffStates.lastIndex) {
+                totalHeight
+            } else {
+                (st.bottomStaffY + staffStates[idx + 1].topStaffY) * 0.5f
+            }
+        }
 
+        val instrumentGroups = instruments.mapIndexed { instIdx, inst ->
+            val groupStaves = staffStates.filter { it.instrumentIdx == instIdx }
+            val grpTop = groupStaves.first().topStaffY
+            val grpBottom = groupStaves.last().bottomStaffY
+            val midY = (grpTop + grpBottom) * 0.5f
+            val halfLabelH = max(sp * 1.8f, (grpBottom - grpTop) * 0.5f + sp * 0.5f)
+            ScorePlacedInstrumentGroup(
+                instrumentIdx = instIdx,
+                instrument = inst,
+                topStaffY = grpTop,
+                bottomStaffY = grpBottom,
+                labelLeft = sp * 0.4f,
+                labelTop = midY - halfLabelH,
+                labelRight = leftMargin - sp * 1.15f,
+                labelBottom = midY + halfLabelH,
+                braceX = leftMargin - sp * 0.55f,
+            )
+        }
+
+        // Opening header aligned horizontally across all staves
         var cursorX = leftMargin + sp * 0.7f
-
-        val openingClef = score.measures.firstOrNull()?.clefChanges?.get(0) ?: score.clef
         val clefX = cursorX
-        val clefWidth = max(measureGlyphWidth(openingClef.glyph, emPx), sp * 2.6f)
-        cursorX += clefWidth + sp * 0.8f
-
-        val openingKey = score.measures.firstOrNull()?.keySignature ?: score.keySignature
-        val keySteps = openingKey.staffSteps(openingClef)
-        val keyGlyph = if (openingKey.fifths >= 0) SmuflGlyphs.ACCIDENTAL_SHARP else SmuflGlyphs.ACCIDENTAL_FLAT
-        val keyGlyphStepWidth = if (openingKey.fifths >= 0) {
-            SmuflGlyphs.ACCIDENTAL_SHARP_WIDTH * sp + sp * 0.18f
-        } else {
-            SmuflGlyphs.ACCIDENTAL_FLAT_WIDTH * sp + sp * 0.14f
+        val maxClefWidth = staffStates.maxOf { st ->
+            max(measureGlyphWidth(st.openingClef.glyph, emPx), sp * 2.6f)
         }
+        cursorX += maxClefWidth + sp * 0.8f
+
+        val openingKey = staffStates.firstOrNull()?.measures?.firstOrNull()?.keySignature ?: score.keySignature
         val keyStartX = cursorX
-        if (keySteps.isNotEmpty()) {
-            cursorX += keySteps.size * keyGlyphStepWidth + sp * 0.7f
+        var maxKeyBlockWidth = 0f
+        for (st in staffStates) {
+            st.effectiveKey = st.measures.firstOrNull()?.keySignature ?: score.keySignature
+            val ks = st.effectiveKey.staffSteps(st.openingClef)
+            st.keySteps = ks
+            st.keyGlyph = if (st.effectiveKey.fifths >= 0) SmuflGlyphs.ACCIDENTAL_SHARP else SmuflGlyphs.ACCIDENTAL_FLAT
+            st.keyGlyphStepWidth = if (st.effectiveKey.fifths >= 0) {
+                SmuflGlyphs.ACCIDENTAL_SHARP_WIDTH * sp + sp * 0.18f
+            } else {
+                SmuflGlyphs.ACCIDENTAL_FLAT_WIDTH * sp + sp * 0.14f
+            }
+            if (ks.isNotEmpty()) {
+                maxKeyBlockWidth = max(maxKeyBlockWidth, ks.size * st.keyGlyphStepWidth + sp * 0.7f)
+            }
         }
+        cursorX += maxKeyBlockWidth
 
-        val openingTime = score.measures.firstOrNull()?.timeSignature ?: score.timeSignature
+        val openingTime = staffStates.firstOrNull()?.measures?.firstOrNull()?.timeSignature ?: score.timeSignature
         val numStr = SmuflGlyphs.timeSigNumber(openingTime.numerator)
         val denStr = SmuflGlyphs.timeSigNumber(openingTime.denominator)
         val timeSigX = cursorX
@@ -578,464 +772,588 @@ object ScoreRenderer {
         cursorX += timeSigWidth + sp * 1.6f
         val headerEndX = cursorX
 
-        val placedMeasures = mutableListOf<ScorePlacedMeasure>()
-        val placedTimeSignatures = mutableListOf(
-            ScorePlacedTimeSignature(
+        val allTimeSignatures = mutableListOf<ScorePlacedTimeSignature>()
+        val allClefChanges = mutableListOf<ScorePlacedClefChange>()
+        val allDynamics = mutableListOf<ScorePlacedDynamic>()
+        for (st in staffStates) {
+            st.effectiveTime = st.measures.firstOrNull()?.timeSignature ?: score.timeSignature
+            val ts = ScorePlacedTimeSignature(
                 measureIdx = 0,
-                timeSignature = openingTime,
+                timeSignature = st.effectiveTime,
                 x = timeSigX,
                 width = timeSigWidth,
                 numWidth = numWidth,
                 denWidth = denWidth,
-                topY = topStaffY,
-                bottomY = bottomStaffY,
+                topY = st.topStaffY,
+                bottomY = st.bottomStaffY,
+                staff = st.staffId,
             )
-        )
-        var globalIdx = 0
-        var effectiveClef = openingClef
-        var effectiveKey = openingKey
-        var effectiveTime = openingTime
-        val changeEmPx = emPx * CLEF_CHANGE_SCALE
-        val allClefChanges = mutableListOf<ScorePlacedClefChange>()
-        val allDynamics = mutableListOf<ScorePlacedDynamic>()
-
-        for ((mIdx, measure) in score.measures.withIndex()) {
-            val mStartX = cursorX
-            val measureOpeningClef = effectiveClef
-            val keyChangeX = cursorX
-            val keyChangeGlyphs = if (mIdx > 0 && measure.keySignature != null && measure.keySignature != effectiveKey) {
-                ScoreEditing.midMeasureKeyGlyphs(effectiveKey, measure.keySignature, effectiveClef).also {
-                    effectiveKey = measure.keySignature
-                }
-            } else {
-                emptyList()
-            }
-            if (keyChangeGlyphs.isNotEmpty()) {
-                val (_, endKeyX) = keyChangeGlyphLayout(keyChangeX, keyChangeGlyphs, sp)
-                cursorX = endKeyX + sp * 0.45f
-            }
-            val timeChange = if (mIdx > 0 && measure.timeSignature != null && measure.timeSignature != effectiveTime) {
-                measure.timeSignature.also { effectiveTime = it }
-            } else {
-                null
-            }
-            val placedTimeChange = if (timeChange != null) {
-                val tsX = cursorX
-                val cNumStr = SmuflGlyphs.timeSigNumber(timeChange.numerator)
-                val cDenStr = SmuflGlyphs.timeSigNumber(timeChange.denominator)
-                val cNumW = measureGlyphWidth(cNumStr, emPx)
-                val cDenW = measureGlyphWidth(cDenStr, emPx)
-                val tsWidth = max(cNumW, cDenW).coerceAtLeast(sp * 1.6f)
-                cursorX += tsWidth + sp * 0.6f
-                ScorePlacedTimeSignature(
-                    measureIdx = mIdx,
-                    timeSignature = timeChange,
-                    x = tsX,
-                    width = tsWidth,
-                    numWidth = cNumW,
-                    denWidth = cDenW,
-                    topY = topStaffY,
-                    bottomY = bottomStaffY,
-                ).also { placedTimeSignatures.add(it) }
-            } else {
-                null
-            }
-            val measureCapacity = effectiveTime.measureCapacityTicks
-            val contentStartX = cursorX
-            val activeAlters = mutableMapOf<Int, Int>()
-            val itemsInMeasure = mutableListOf<ScorePlacedItem>()
-            val midClefChanges = mutableListOf<ScorePlacedClefChange>()
-            var measureTicks = 0
-            val beamGroups = ScoreEditing.computeBeamGroups(
-                measure = measure,
-                measureIdx = mIdx,
-                openingClef = measureOpeningClef,
-                timeSignature = effectiveTime,
-            )
-            val beamGroupByItemIdx = mutableMapOf<Int, ScoreBeamGroup>()
-            for (bg in beamGroups) {
-                for (bIdx in bg.itemIndices) {
-                    beamGroupByItemIdx[bIdx] = bg
-                }
-            }
-
-            cursorX += sp * 1.1f
-            val stemThick = SmuflGlyphs.STEM_THICKNESS * sp
-            for ((iIdx, item) in measure.items.withIndex()) {
-                if (iIdx > 0) {
-                    val midClef = measure.clefChanges[iIdx]
-                    if (midClef != null && midClef != effectiveClef) {
-                        val ccW = max(measureGlyphWidth(midClef.glyph, changeEmPx), sp * 1.9f)
-                        val cc = ScorePlacedClefChange(
-                            measureIdx = mIdx,
-                            itemIdx = iIdx,
-                            clef = midClef,
-                            x = cursorX,
-                            width = ccW,
-                            topY = topStaffY,
-                            bottomY = bottomStaffY,
-                        )
-                        midClefChanges.add(cc)
-                        allClefChanges.add(cc)
-                        effectiveClef = midClef
-                        cursorX += ccW + sp * 0.55f
-                    }
-                }
-                val itemTicks = item.totalTicks
-                val newMeasureTicks = measureTicks + itemTicks
-                val isOverflow = newMeasureTicks > measureCapacity
-                measureTicks = newMeasureTicks
-
-                val pitches = item.soundingPitches()
-                val noteWidth = when (item) {
-                    is ScoreItem.Rest -> sp * 1.2f
-                    is ScoreItem.Note, is ScoreItem.Chord -> if (item.duration == NoteDuration.WHOLE) {
-                        SmuflGlyphs.NOTEHEAD_WHOLE_WIDTH * sp
-                    } else {
-                        SmuflGlyphs.NOTEHEAD_WIDTH * sp
-                    }
-                }
-
-                if (pitches.isNotEmpty()) {
-                    val steps = pitches.map { effectiveClef.staffStepFromBottom(it) }
-                    val bottomStep = steps.first()
-                    val topStep = steps.last()
-                    val stemDown = beamGroupByItemIdx[iIdx]?.stemDown ?: ((topStep - 4) >= (4 - bottomStep))
-
-                    // Displace adjacent seconds horizontally so noteheads never overlap
-                    val headXOffsets = FloatArray(pitches.size)
-                    val dispWidth = (noteWidth - stemThick).coerceAtLeast(0f)
-                    if (!stemDown) {
-                        var prevNormal = true
-                        for (i in 1 until pitches.size) {
-                            if (steps[i] - steps[i - 1] <= 1 && prevNormal) {
-                                headXOffsets[i] = dispWidth
-                                prevNormal = false
-                            } else {
-                                prevNormal = true
-                            }
-                        }
-                    } else {
-                        var nextNormal = true
-                        for (i in (pitches.lastIndex - 1) downTo 0) {
-                            if (steps[i + 1] - steps[i] <= 1 && nextNormal) {
-                                headXOffsets[i] = -dispWidth
-                                nextNormal = false
-                            } else {
-                                nextNormal = true
-                            }
-                        }
-                    }
-                    val leftDispPx = -(headXOffsets.minOrNull() ?: 0f).coerceAtMost(0f)
-                    val rightDispPx = (headXOffsets.maxOrNull() ?: 0f).coerceAtLeast(0f)
-
-                    // Compute accidentals per chord note & stagger columns when vertically < 5 steps apart
-                    val noteAccs = arrayOfNulls<Accidental>(pitches.size)
-                    for (i in pitches.indices) {
-                        val p = pitches[i]
-                        val keyDefault = effectiveKey.defaultAlter(p.letter)
-                        val dStep = p.diatonicStep
-                        val currentAlter = activeAlters[dStep] ?: keyDefault
-                        if (p.alter != currentAlter) {
-                            noteAccs[i] = when (p.alter) {
-                                1 -> Accidental.SHARP
-                                -1 -> Accidental.FLAT
-                                else -> Accidental.NATURAL
-                            }
-                            activeAlters[dStep] = p.alter
-                        }
-                    }
-
-                    val accColumnByNote = IntArray(pitches.size) { -1 }
-                    val columnLastStep = mutableListOf<Int>()
-                    val columnWidths = mutableListOf<Float>()
-                    for (i in pitches.indices.reversed()) {
-                        val acc = noteAccs[i] ?: continue
-                        val s = steps[i]
-                        val w = accidentalWidth(acc, sp)
-                        var chosenCol = columnLastStep.indexOfFirst { lastStep -> lastStep - s >= 5 }
-                        if (chosenCol < 0) {
-                            chosenCol = columnLastStep.size
-                            columnLastStep.add(s)
-                            columnWidths.add(w)
-                        } else {
-                            columnLastStep[chosenCol] = s
-                            columnWidths[chosenCol] = max(columnWidths[chosenCol], w)
-                        }
-                        accColumnByNote[i] = chosenCol
-                    }
-
-                    val accGap = sp * 0.25f
-                    val colOffsetsFromLeftEdge = FloatArray(columnWidths.size)
-                    var runningOffset = 0f
-                    for (c in columnWidths.indices) {
-                        runningOffset += columnWidths[c] + accGap
-                        colOffsetsFromLeftEdge[c] = runningOffset
-                    }
-                    val totalAccWidth = if (columnWidths.isNotEmpty()) runningOffset + sp * 0.1f else 0f
-
-                    cursorX += leftDispPx + totalAccWidth
-                    val itemX = cursorX
-                    val chordAnchorLeft = itemX - leftDispPx
-
-                    val chordNotes = pitches.mapIndexed { idx, p ->
-                        val s = steps[idx]
-                        val y = yForStep(s)
-                        val hx = itemX + headXOffsets[idx]
-                        val acc = noteAccs[idx]
-                        val col = accColumnByNote[idx]
-                        val accX = if (acc != null && col >= 0) {
-                            chordAnchorLeft - colOffsetsFromLeftEdge[col]
-                        } else {
-                            null
-                        }
-                        ScorePlacedChordNote(
-                            noteIdx = idx,
-                            pitch = p,
-                            staffStep = s,
-                            accidental = acc,
-                            headX = hx,
-                            y = y,
-                            accX = accX,
-                            boxLeft = min(hx - sp * 0.12f, accX ?: hx),
-                            boxTop = y - sp * 0.55f,
-                            boxRight = hx + noteWidth + sp * 0.12f,
-                            boxBottom = y + sp * 0.55f,
-                        )
-                    }
-
-                    val minLeft = chordNotes.minOf { it.boxLeft }
-                    val maxRight = max(
-                        chordNotes.maxOf { it.headX } + noteWidth + (if (item.isDotted) sp * 0.7f else sp * 0.15f),
-                        chordNotes.maxOf { it.boxRight },
-                    )
-                    val topY = yForStep(topStep)
-                    val bottomY = yForStep(bottomStep)
-                    val (boxTop, boxBottom) = if (!item.duration.hasStem) {
-                        (topY - sp * 0.75f) to (bottomY + sp * 0.75f)
-                    } else {
-                        val stemLen = stemLengthSpaces(item.duration) * sp
-                        if (!stemDown) {
-                            (topY - stemLen - sp * 0.25f) to (bottomY + sp * 0.75f)
-                        } else {
-                            (topY - sp * 0.75f) to (bottomY + stemLen + sp * 0.25f)
-                        }
-                    }
-
-                    itemsInMeasure.add(
-                        ScorePlacedItem(
-                            measureIdx = mIdx,
-                            itemIdx = iIdx,
-                            globalIdx = globalIdx++,
-                            item = item,
-                            x = itemX,
-                            width = noteWidth,
-                            accidental = chordNotes.firstOrNull()?.accidental,
-                            staffStep = bottomStep,
-                            centerY = (topY + bottomY) * 0.5f,
-                            boxLeft = minLeft,
-                            boxTop = boxTop,
-                            boxRight = maxRight,
-                            boxBottom = boxBottom,
-                            isOverflow = isOverflow,
-                            chordNotes = chordNotes,
-                            stemDown = stemDown,
-                            effectiveClef = effectiveClef,
-                        )
-                    )
-                    cursorX += advanceForItem(item, sp) + rightDispPx
-                } else {
-                    val itemX = cursorX
-                    val itemCenterY = yForStep(if (item.duration == NoteDuration.WHOLE) 6 else 4)
-                    itemsInMeasure.add(
-                        ScorePlacedItem(
-                            measureIdx = mIdx,
-                            itemIdx = iIdx,
-                            globalIdx = globalIdx++,
-                            item = item,
-                            x = itemX,
-                            width = noteWidth,
-                            accidental = null,
-                            staffStep = null,
-                            centerY = itemCenterY,
-                            boxLeft = itemX - sp * 0.15f,
-                            boxTop = topStaffY + sp * 0.2f,
-                            boxRight = itemX + noteWidth + (if (item.isDotted) sp * 0.7f else sp * 0.15f),
-                            boxBottom = bottomStaffY - sp * 0.2f,
-                            isOverflow = isOverflow,
-                            effectiveClef = effectiveClef,
-                        )
-                    )
-                    cursorX += advanceForItem(item, sp)
-                }
-            }
-
-            // Trailing mid-measure clef changes positioned after all existing items in this bar
-            for ((clefKey, clefVal) in measure.clefChanges.entries.sortedBy { it.key }) {
-                if (clefKey == 0) continue
-                if (clefKey >= measure.items.size && clefVal != effectiveClef) {
-                    cursorX += if (measure.items.isEmpty()) sp * 2.0f else sp * 0.35f
-                    val ccW = max(measureGlyphWidth(clefVal.glyph, changeEmPx), sp * 1.9f)
-                    val cc = ScorePlacedClefChange(
-                        measureIdx = mIdx,
-                        itemIdx = clefKey,
-                        clef = clefVal,
-                        x = cursorX,
-                        width = ccW,
-                        topY = topStaffY,
-                        bottomY = bottomStaffY,
-                    )
-                    midClefChanges.add(cc)
-                    allClefChanges.add(cc)
-                    effectiveClef = clefVal
-                    cursorX += ccW + sp * 0.55f
-                }
-            }
-            val measureClosingClef = effectiveClef
-
-            cursorX += if (measure.items.isEmpty()) sp * 6f else sp * 0.6f
-
-            // If next measure changes clef on beat 1, draw the new clef right before this barline
-            val nextMeasure = score.measures.getOrNull(mIdx + 1)
-            val nextBeat1Clef = nextMeasure?.clefChanges?.get(0)
-            val barlineClefChange = if (nextMeasure != null && nextBeat1Clef != null && nextBeat1Clef != effectiveClef) {
-                val ccW = max(measureGlyphWidth(nextBeat1Clef.glyph, changeEmPx), sp * 1.9f)
-                val cc = ScorePlacedClefChange(
-                    measureIdx = mIdx + 1,
-                    itemIdx = 0,
-                    clef = nextBeat1Clef,
-                    x = cursorX,
-                    width = ccW,
-                    topY = topStaffY,
-                    bottomY = bottomStaffY,
-                )
-                allClefChanges.add(cc)
-                effectiveClef = nextBeat1Clef
-                cursorX += ccW + sp * 0.5f
-                cc
-            } else {
-                null
-            }
-            val barlineX = cursorX
-            val placedBeamGroups = buildPlacedBeamGroups(
-                measureIdx = mIdx,
-                beamGroups = beamGroups,
-                itemsInMeasure = itemsInMeasure,
-                sp = sp,
-                stemThick = stemThick,
-            )
-            val placedDynamicsForMeasure = if (measure.dynamics.isEmpty()) {
-                emptyList()
-            } else {
-                buildList {
-                    for ((dIdx, marking) in measure.dynamics.entries.sortedBy { it.key }) {
-                        val anchorItem = itemsInMeasure.getOrNull(dIdx)
-                        val rawX = when {
-                            anchorItem != null -> anchorItem.x
-                            itemsInMeasure.isNotEmpty() -> (itemsInMeasure.last().boxRight + sp * 1.1f)
-                                .coerceAtMost(barlineX - sp * 2.2f)
-                            else -> contentStartX + sp * 0.5f
-                        }
-                        val estWidth = max(sp * 1.5f, (marking.mark.label.length * 0.9f + 0.55f) * sp)
-                        val drawX = rawX - estWidth * 0.22f
-                        val baselineY = when (marking.placement) {
-                            DynamicPlacement.BELOW -> maxOf(
-                                bottomStaffY + sp * 3.1f,
-                                (anchorItem?.boxBottom ?: bottomStaffY) + sp * 2.0f,
-                            )
-                            DynamicPlacement.ABOVE -> minOf(
-                                topStaffY - sp * 2.0f,
-                                (anchorItem?.boxTop ?: topStaffY) - sp * 0.9f,
-                            )
-                        }
-                        add(
-                            ScorePlacedDynamic(
-                                measureIdx = mIdx,
-                                itemIdx = dIdx,
-                                marking = marking,
-                                x = drawX,
-                                baselineY = baselineY,
-                                boxLeft = drawX - sp * 0.15f,
-                                boxTop = baselineY - sp * 1.45f,
-                                boxRight = drawX + estWidth + sp * 0.15f,
-                                boxBottom = baselineY + sp * 0.45f,
-                            )
-                        )
-                    }
-                }
-            }
-            allDynamics.addAll(placedDynamicsForMeasure)
-            placedMeasures.add(
-                ScorePlacedMeasure(
-                    measureIdx = mIdx,
-                    measure = measure,
-                    startX = mStartX,
-                    barlineX = barlineX,
-                    items = itemsInMeasure,
-                    totalTicks = measureTicks,
-                    capacityTicks = measureCapacity,
-                    contentStartX = contentStartX,
-                    keyChangeX = keyChangeX,
-                    keyChangeGlyphs = keyChangeGlyphs,
-                    activeKeySignature = effectiveKey,
-                    timeChange = placedTimeChange,
-                    activeTimeSignature = effectiveTime,
-                    clefChanges = midClefChanges,
-                    barlineClefChange = barlineClefChange,
-                    activeOpeningClef = measureOpeningClef,
-                    activeClosingClef = measureClosingClef,
-                    dynamics = placedDynamicsForMeasure,
-                    beamGroups = placedBeamGroups,
-                )
-            )
-            cursorX += sp * 0.6f
+            st.placedTimeSignatures.add(ts)
+            allTimeSignatures.add(ts)
         }
 
+        val measureCount = score.maxMeasureCount().coerceAtLeast(1)
+        val stemThick = SmuflGlyphs.STEM_THICKNESS * sp
+
+        for (mIdx in 0 until measureCount) {
+            val mStartX = cursorX
+            val keyChangeX = mStartX
+
+            data class MeasureHeaderPrep(
+                val measure: ScoreMeasure,
+                val measureOpeningClef: Clef,
+                val keyChangeGlyphs: List<Pair<Int, Accidental>>,
+                val keyWidth: Float,
+                val timeChange: TimeSignature?,
+                val timeWidth: Float,
+                val numW: Float,
+                val denW: Float,
+                val activeKeyAfter: KeySignature,
+                val activeTimeAfter: TimeSignature,
+            )
+
+            val preps = staffStates.map { st ->
+                val measure = st.measures.getOrNull(mIdx) ?: ScoreMeasure(number = mIdx + 1, items = emptyList())
+                val measureOpeningClef = st.effectiveClef
+                val kGlyphs = if (mIdx > 0 && measure.keySignature != null && measure.keySignature != st.effectiveKey) {
+                    ScoreEditing.midMeasureKeyGlyphs(st.effectiveKey, measure.keySignature, st.effectiveClef).also {
+                        st.effectiveKey = measure.keySignature
+                    }
+                } else {
+                    emptyList()
+                }
+                val kEnd = if (kGlyphs.isNotEmpty()) {
+                    keyChangeGlyphLayout(keyChangeX, kGlyphs, sp).second - keyChangeX + sp * 0.45f
+                } else {
+                    0f
+                }
+                val tChange = if (mIdx > 0 && measure.timeSignature != null && measure.timeSignature != st.effectiveTime) {
+                    measure.timeSignature.also { st.effectiveTime = it }
+                } else {
+                    null
+                }
+                var tNumW = 0f
+                var tDenW = 0f
+                val tWidth = if (tChange != null) {
+                    tNumW = measureGlyphWidth(SmuflGlyphs.timeSigNumber(tChange.numerator), emPx)
+                    tDenW = measureGlyphWidth(SmuflGlyphs.timeSigNumber(tChange.denominator), emPx)
+                    max(tNumW, tDenW).coerceAtLeast(sp * 1.6f) + sp * 0.6f
+                } else {
+                    0f
+                }
+                MeasureHeaderPrep(
+                    measure = measure,
+                    measureOpeningClef = measureOpeningClef,
+                    keyChangeGlyphs = kGlyphs,
+                    keyWidth = kEnd,
+                    timeChange = tChange,
+                    timeWidth = tWidth,
+                    numW = tNumW,
+                    denW = tDenW,
+                    activeKeyAfter = st.effectiveKey,
+                    activeTimeAfter = st.effectiveTime,
+                )
+            }
+
+            val maxKeyW = preps.maxOf { it.keyWidth }
+            val maxTimeW = preps.maxOf { it.timeWidth }
+            val tsStartX = keyChangeX + maxKeyW
+            val contentStartX = tsStartX + maxTimeW
+
+            data class MeasureBodyResult(
+                val prep: MeasureHeaderPrep,
+                val placedTimeChange: ScorePlacedTimeSignature?,
+                val itemsInMeasure: MutableList<ScorePlacedItem>,
+                val midClefChanges: List<ScorePlacedClefChange>,
+                val beamGroups: List<ScoreBeamGroup>,
+                val measureClosingClef: Clef,
+                val measureTicks: Int,
+                val measureCapacity: Int,
+                val endBeforeBarClefX: Float,
+                val nextBeat1Clef: Clef?,
+                val nextBeat1ClefWidth: Float,
+            )
+
+            val bodies = staffStates.mapIndexed { sIdx, st ->
+                val prep = preps[sIdx]
+                val measure = prep.measure
+                val placedTimeChange = prep.timeChange?.let { tc ->
+                    val tsBoxWidth = (prep.timeWidth - sp * 0.6f).coerceAtLeast(sp * 1.6f)
+                    ScorePlacedTimeSignature(
+                        measureIdx = mIdx,
+                        timeSignature = tc,
+                        x = tsStartX,
+                        width = tsBoxWidth,
+                        numWidth = prep.numW,
+                        denWidth = prep.denW,
+                        topY = st.topStaffY,
+                        bottomY = st.bottomStaffY,
+                        staff = st.staffId,
+                    ).also {
+                        st.placedTimeSignatures.add(it)
+                        allTimeSignatures.add(it)
+                    }
+                }
+                val measureCapacity = prep.activeTimeAfter.measureCapacityTicks
+                val activeAlters = mutableMapOf<Int, Int>()
+                val itemsInMeasure = mutableListOf<ScorePlacedItem>()
+                val midClefChanges = mutableListOf<ScorePlacedClefChange>()
+                var measureTicks = 0
+                val beamGroups = ScoreEditing.computeBeamGroups(
+                    measure = measure,
+                    measureIdx = mIdx,
+                    openingClef = prep.measureOpeningClef,
+                    timeSignature = prep.activeTimeAfter,
+                )
+                val beamGroupByItemIdx = mutableMapOf<Int, ScoreBeamGroup>()
+                for (bg in beamGroups) {
+                    for (bIdx in bg.itemIndices) {
+                        beamGroupByItemIdx[bIdx] = bg
+                    }
+                }
+
+                var stX = contentStartX + sp * 1.1f
+                for ((iIdx, item) in measure.items.withIndex()) {
+                    if (iIdx > 0) {
+                        val midClef = measure.clefChanges[iIdx]
+                        if (midClef != null && midClef != st.effectiveClef) {
+                            val ccW = max(measureGlyphWidth(midClef.glyph, changeEmPx), sp * 1.9f)
+                            val cc = ScorePlacedClefChange(
+                                measureIdx = mIdx,
+                                itemIdx = iIdx,
+                                clef = midClef,
+                                x = stX,
+                                width = ccW,
+                                topY = st.topStaffY,
+                                bottomY = st.bottomStaffY,
+                                staff = st.staffId,
+                            )
+                            midClefChanges.add(cc)
+                            st.placedClefChanges.add(cc)
+                            allClefChanges.add(cc)
+                            st.effectiveClef = midClef
+                            stX += ccW + sp * 0.55f
+                        }
+                    }
+                    val itemTicks = item.totalTicks
+                    val newMeasureTicks = measureTicks + itemTicks
+                    val isOverflow = newMeasureTicks > measureCapacity
+                    measureTicks = newMeasureTicks
+
+                    val pitches = item.soundingPitches()
+                    val noteWidth = when (item) {
+                        is ScoreItem.Rest -> sp * 1.2f
+                        is ScoreItem.Note, is ScoreItem.Chord -> if (item.duration == NoteDuration.WHOLE) {
+                            SmuflGlyphs.NOTEHEAD_WHOLE_WIDTH * sp
+                        } else {
+                            SmuflGlyphs.NOTEHEAD_WIDTH * sp
+                        }
+                    }
+
+                    if (pitches.isNotEmpty()) {
+                        val steps = pitches.map { st.effectiveClef.staffStepFromBottom(it) }
+                        val bottomStep = steps.first()
+                        val topStep = steps.last()
+                        val stemDown = beamGroupByItemIdx[iIdx]?.stemDown ?: ((topStep - 4) >= (4 - bottomStep))
+
+                        val outOfRangeIndices = pitches.indices
+                            .filterTo(mutableSetOf()) { !st.instrument.isMidiInRange(pitches[it].midiPitch) }
+                        val isOutOfRange = outOfRangeIndices.isNotEmpty()
+
+                        val headXOffsets = FloatArray(pitches.size)
+                        val dispWidth = (noteWidth - stemThick).coerceAtLeast(0f)
+                        if (!stemDown) {
+                            var prevNormal = true
+                            for (i in 1 until pitches.size) {
+                                if (steps[i] - steps[i - 1] <= 1 && prevNormal) {
+                                    headXOffsets[i] = dispWidth
+                                    prevNormal = false
+                                } else {
+                                    prevNormal = true
+                                }
+                            }
+                        } else {
+                            var nextNormal = true
+                            for (i in (pitches.lastIndex - 1) downTo 0) {
+                                if (steps[i + 1] - steps[i] <= 1 && nextNormal) {
+                                    headXOffsets[i] = -dispWidth
+                                    nextNormal = false
+                                } else {
+                                    nextNormal = true
+                                }
+                            }
+                        }
+                        val leftDispPx = -(headXOffsets.minOrNull() ?: 0f).coerceAtMost(0f)
+                        val rightDispPx = (headXOffsets.maxOrNull() ?: 0f).coerceAtLeast(0f)
+
+                        val noteAccs = arrayOfNulls<Accidental>(pitches.size)
+                        for (i in pitches.indices) {
+                            val p = pitches[i]
+                            val keyDefault = prep.activeKeyAfter.defaultAlter(p.letter)
+                            val dStep = p.diatonicStep
+                            val currentAlter = activeAlters[dStep] ?: keyDefault
+                            if (p.alter != currentAlter) {
+                                noteAccs[i] = when (p.alter) {
+                                    1 -> Accidental.SHARP
+                                    -1 -> Accidental.FLAT
+                                    else -> Accidental.NATURAL
+                                }
+                                activeAlters[dStep] = p.alter
+                            }
+                        }
+
+                        val accColumnByNote = IntArray(pitches.size) { -1 }
+                        val columnLastStep = mutableListOf<Int>()
+                        val columnWidths = mutableListOf<Float>()
+                        for (i in pitches.indices.reversed()) {
+                            val acc = noteAccs[i] ?: continue
+                            val s = steps[i]
+                            val w = accidentalWidth(acc, sp)
+                            var chosenCol = columnLastStep.indexOfFirst { lastStep -> lastStep - s >= 5 }
+                            if (chosenCol < 0) {
+                                chosenCol = columnLastStep.size
+                                columnLastStep.add(s)
+                                columnWidths.add(w)
+                            } else {
+                                columnLastStep[chosenCol] = s
+                                columnWidths[chosenCol] = max(columnWidths[chosenCol], w)
+                            }
+                            accColumnByNote[i] = chosenCol
+                        }
+
+                        val accGap = sp * 0.25f
+                        val colOffsetsFromLeftEdge = FloatArray(columnWidths.size)
+                        var runningOffset = 0f
+                        for (c in columnWidths.indices) {
+                            runningOffset += columnWidths[c] + accGap
+                            colOffsetsFromLeftEdge[c] = runningOffset
+                        }
+                        val totalAccWidth = if (columnWidths.isNotEmpty()) runningOffset + sp * 0.1f else 0f
+
+                        stX += leftDispPx + totalAccWidth
+                        val itemX = stX
+                        val chordAnchorLeft = itemX - leftDispPx
+
+                        val chordNotes = pitches.mapIndexed { idx, p ->
+                            val s = steps[idx]
+                            val y = st.yForStep(s)
+                            val hx = itemX + headXOffsets[idx]
+                            val acc = noteAccs[idx]
+                            val col = accColumnByNote[idx]
+                            val accX = if (acc != null && col >= 0) {
+                                chordAnchorLeft - colOffsetsFromLeftEdge[col]
+                            } else {
+                                null
+                            }
+                            ScorePlacedChordNote(
+                                noteIdx = idx,
+                                pitch = p,
+                                staffStep = s,
+                                accidental = acc,
+                                headX = hx,
+                                y = y,
+                                accX = accX,
+                                boxLeft = min(hx - sp * 0.12f, accX ?: hx),
+                                boxTop = y - sp * 0.55f,
+                                boxRight = hx + noteWidth + sp * 0.12f,
+                                boxBottom = y + sp * 0.55f,
+                            )
+                        }
+
+                        val minLeft = chordNotes.minOf { it.boxLeft }
+                        val maxRight = max(
+                            chordNotes.maxOf { it.headX } + noteWidth + (if (item.isDotted) sp * 0.7f else sp * 0.15f),
+                            chordNotes.maxOf { it.boxRight },
+                        )
+                        val topY = st.yForStep(topStep)
+                        val bottomY = st.yForStep(bottomStep)
+                        val (boxTop, boxBottom) = if (!item.duration.hasStem) {
+                            (topY - sp * 0.75f) to (bottomY + sp * 0.75f)
+                        } else {
+                            val stemLen = stemLengthSpaces(item.duration) * sp
+                            if (!stemDown) {
+                                (topY - stemLen - sp * 0.25f) to (bottomY + sp * 0.75f)
+                            } else {
+                                (topY - sp * 0.75f) to (bottomY + stemLen + sp * 0.25f)
+                            }
+                        }
+
+                        itemsInMeasure.add(
+                            ScorePlacedItem(
+                                measureIdx = mIdx,
+                                itemIdx = iIdx,
+                                globalIdx = st.globalIdx++,
+                                item = item,
+                                x = itemX,
+                                width = noteWidth,
+                                accidental = chordNotes.firstOrNull()?.accidental,
+                                staffStep = bottomStep,
+                                centerY = (topY + bottomY) * 0.5f,
+                                boxLeft = minLeft,
+                                boxTop = boxTop,
+                                boxRight = maxRight,
+                                boxBottom = boxBottom,
+                                isOverflow = isOverflow,
+                                chordNotes = chordNotes,
+                                stemDown = stemDown,
+                                effectiveClef = st.effectiveClef,
+                                staff = st.staffId,
+                                isOutOfRange = isOutOfRange,
+                                outOfRangeChordIndices = outOfRangeIndices,
+                            )
+                        )
+                        stX += advanceForItem(item, sp) + rightDispPx
+                    } else {
+                        val itemX = stX
+                        val itemCenterY = st.yForStep(if (item.duration == NoteDuration.WHOLE) 6 else 4)
+                        itemsInMeasure.add(
+                            ScorePlacedItem(
+                                measureIdx = mIdx,
+                                itemIdx = iIdx,
+                                globalIdx = st.globalIdx++,
+                                item = item,
+                                x = itemX,
+                                width = noteWidth,
+                                accidental = null,
+                                staffStep = null,
+                                centerY = itemCenterY,
+                                boxLeft = itemX - sp * 0.15f,
+                                boxTop = st.topStaffY + sp * 0.2f,
+                                boxRight = itemX + noteWidth + (if (item.isDotted) sp * 0.7f else sp * 0.15f),
+                                boxBottom = st.bottomStaffY - sp * 0.2f,
+                                isOverflow = isOverflow,
+                                effectiveClef = st.effectiveClef,
+                                staff = st.staffId,
+                            )
+                        )
+                        stX += advanceForItem(item, sp)
+                    }
+                }
+
+                for ((clefKey, clefVal) in measure.clefChanges.entries.sortedBy { it.key }) {
+                    if (clefKey == 0) continue
+                    if (clefKey >= measure.items.size && clefVal != st.effectiveClef) {
+                        stX += if (measure.items.isEmpty()) sp * 2.0f else sp * 0.35f
+                        val ccW = max(measureGlyphWidth(clefVal.glyph, changeEmPx), sp * 1.9f)
+                        val cc = ScorePlacedClefChange(
+                            measureIdx = mIdx,
+                            itemIdx = clefKey,
+                            clef = clefVal,
+                            x = stX,
+                            width = ccW,
+                            topY = st.topStaffY,
+                            bottomY = st.bottomStaffY,
+                            staff = st.staffId,
+                        )
+                        midClefChanges.add(cc)
+                        st.placedClefChanges.add(cc)
+                        allClefChanges.add(cc)
+                        st.effectiveClef = clefVal
+                        stX += ccW + sp * 0.55f
+                    }
+                }
+                val measureClosingClef = st.effectiveClef
+                stX += if (measure.items.isEmpty()) sp * 6f else sp * 0.6f
+
+                val nextMeasure = st.measures.getOrNull(mIdx + 1)
+                val nextBeat1Clef = nextMeasure?.clefChanges?.get(0)
+                val barClefW = if (nextMeasure != null && nextBeat1Clef != null && nextBeat1Clef != st.effectiveClef) {
+                    max(measureGlyphWidth(nextBeat1Clef.glyph, changeEmPx), sp * 1.9f)
+                } else {
+                    0f
+                }
+
+                MeasureBodyResult(
+                    prep = prep,
+                    placedTimeChange = placedTimeChange,
+                    itemsInMeasure = itemsInMeasure,
+                    midClefChanges = midClefChanges,
+                    beamGroups = beamGroups,
+                    measureClosingClef = measureClosingClef,
+                    measureTicks = measureTicks,
+                    measureCapacity = measureCapacity,
+                    endBeforeBarClefX = stX,
+                    nextBeat1Clef = if (barClefW > 0f) nextBeat1Clef else null,
+                    nextBeat1ClefWidth = barClefW,
+                )
+            }
+
+            val maxEndBeforeBarClef = bodies.maxOf { it.endBeforeBarClefX }
+            val maxBarClefBlock = bodies.maxOf { body ->
+                if (body.nextBeat1Clef != null) body.nextBeat1ClefWidth + sp * 0.5f else 0f
+            }
+            val barlineX = maxEndBeforeBarClef + maxBarClefBlock
+
+            for ((sIdx, st) in staffStates.withIndex()) {
+                val body = bodies[sIdx]
+                val prep = body.prep
+                val measure = prep.measure
+                val barlineClefChange = if (body.nextBeat1Clef != null) {
+                    val ccW = body.nextBeat1ClefWidth
+                    val cc = ScorePlacedClefChange(
+                        measureIdx = mIdx + 1,
+                        itemIdx = 0,
+                        clef = body.nextBeat1Clef,
+                        x = barlineX - ccW - sp * 0.5f,
+                        width = ccW,
+                        topY = st.topStaffY,
+                        bottomY = st.bottomStaffY,
+                        staff = st.staffId,
+                    )
+                    st.placedClefChanges.add(cc)
+                    allClefChanges.add(cc)
+                    st.effectiveClef = body.nextBeat1Clef
+                    cc
+                } else {
+                    null
+                }
+
+                val placedBeamGroups = buildPlacedBeamGroups(
+                    measureIdx = mIdx,
+                    beamGroups = body.beamGroups,
+                    itemsInMeasure = body.itemsInMeasure,
+                    sp = sp,
+                    stemThick = stemThick,
+                )
+                val placedDynamicsForMeasure = if (measure.dynamics.isEmpty()) {
+                    emptyList()
+                } else {
+                    buildList {
+                        for ((dIdx, marking) in measure.dynamics.entries.sortedBy { it.key }) {
+                            val anchorItem = body.itemsInMeasure.getOrNull(dIdx)
+                            val rawX = when {
+                                anchorItem != null -> anchorItem.x
+                                body.itemsInMeasure.isNotEmpty() -> (body.itemsInMeasure.last().boxRight + sp * 1.1f)
+                                    .coerceAtMost(barlineX - sp * 2.2f)
+                                else -> contentStartX + sp * 0.5f
+                            }
+                            val estWidth = max(sp * 1.5f, (marking.mark.label.length * 0.9f + 0.55f) * sp)
+                            val drawX = rawX - estWidth * 0.22f
+                            val baselineY = when (marking.placement) {
+                                DynamicPlacement.BELOW -> maxOf(
+                                    st.bottomStaffY + sp * 3.1f,
+                                    (anchorItem?.boxBottom ?: st.bottomStaffY) + sp * 2.0f,
+                                )
+                                DynamicPlacement.ABOVE -> minOf(
+                                    st.topStaffY - sp * 2.0f,
+                                    (anchorItem?.boxTop ?: st.topStaffY) - sp * 0.9f,
+                                )
+                            }
+                            add(
+                                ScorePlacedDynamic(
+                                    measureIdx = mIdx,
+                                    itemIdx = dIdx,
+                                    marking = marking,
+                                    x = drawX,
+                                    baselineY = baselineY,
+                                    boxLeft = drawX - sp * 0.15f,
+                                    boxTop = baselineY - sp * 1.45f,
+                                    boxRight = drawX + estWidth + sp * 0.15f,
+                                    boxBottom = baselineY + sp * 0.45f,
+                                    staff = st.staffId,
+                                )
+                            )
+                        }
+                    }
+                }
+                st.placedDynamics.addAll(placedDynamicsForMeasure)
+                allDynamics.addAll(placedDynamicsForMeasure)
+
+                st.placedMeasures.add(
+                    ScorePlacedMeasure(
+                        measureIdx = mIdx,
+                        measure = measure,
+                        startX = mStartX,
+                        barlineX = barlineX,
+                        items = body.itemsInMeasure,
+                        totalTicks = body.measureTicks,
+                        capacityTicks = body.measureCapacity,
+                        contentStartX = contentStartX,
+                        keyChangeX = keyChangeX,
+                        keyChangeGlyphs = prep.keyChangeGlyphs,
+                        activeKeySignature = prep.activeKeyAfter,
+                        timeChange = body.placedTimeChange,
+                        activeTimeSignature = prep.activeTimeAfter,
+                        clefChanges = body.midClefChanges,
+                        barlineClefChange = barlineClefChange,
+                        activeOpeningClef = prep.measureOpeningClef,
+                        activeClosingClef = body.measureClosingClef,
+                        dynamics = placedDynamicsForMeasure,
+                        beamGroups = placedBeamGroups,
+                        staff = st.staffId,
+                    )
+                )
+            }
+            cursorX = barlineX + sp * 0.6f
+        }
+
+        val primaryMeasures = staffStates.first().placedMeasures
         val finalEndX = max(cursorX + sp * 0.8f + rightMargin, minWidthPx)
-        val staffEndX = if (placedMeasures.isNotEmpty()) {
+        val staffEndX = if (primaryMeasures.isNotEmpty()) {
             max(
-                placedMeasures.last().barlineX + SmuflGlyphs.THICK_BARLINE_THICKNESS * sp + sp * 1.5f,
+                primaryMeasures.last().barlineX + SmuflGlyphs.THICK_BARLINE_THICKNESS * sp + sp * 1.5f,
                 minWidthPx - rightMargin,
             )
         } else {
             finalEndX - rightMargin
         }
 
-        val header = HeaderLayout(
-            leftMargin = leftMargin,
-            rightMargin = rightMargin,
-            topStaffY = topStaffY,
-            bottomStaffY = bottomStaffY,
-            totalHeight = totalHeight,
-            openingClef = openingClef,
-            clefX = clefX,
-            keyStartX = keyStartX,
-            keySteps = keySteps,
-            keyGlyph = keyGlyph,
-            keyGlyphStepWidth = keyGlyphStepWidth,
-            timeSigX = timeSigX,
-            timeSigWidth = timeSigWidth,
-            numWidth = numWidth,
-            denWidth = denWidth,
-            numStr = numStr,
-            denStr = denStr,
-            headerEndX = headerEndX,
-        )
+        val staffResults = staffStates.mapIndexed { idx, st ->
+            val nextInst = staffStates.getOrNull(idx + 1)?.instrumentIdx
+            val placedStaff = ScorePlacedStaff(
+                staffId = st.staffId,
+                instrument = st.instrument,
+                staffSpacePx = sp,
+                leftBarX = leftMargin,
+                topStaffY = st.topStaffY,
+                bottomStaffY = st.bottomStaffY,
+                rowTopY = st.rowTopY,
+                rowBottomY = st.rowBottomY,
+                openingClef = st.openingClef,
+                clefX = clefX,
+                keyStartX = keyStartX,
+                keySteps = st.keySteps,
+                keyGlyph = st.keyGlyph,
+                keyGlyphStepWidth = st.keyGlyphStepWidth,
+                timeSigX = timeSigX,
+                timeSigWidth = timeSigWidth,
+                numWidth = numWidth,
+                denWidth = denWidth,
+                numStr = numStr,
+                denStr = denStr,
+                headerEndX = headerEndX,
+                placedMeasures = st.placedMeasures,
+                placedTimeSignatures = st.placedTimeSignatures,
+                placedClefChanges = st.placedClefChanges,
+                placedDynamics = st.placedDynamics,
+            )
+            StaffLayoutResult(
+                staff = placedStaff,
+                instrumentIdx = st.instrumentIdx,
+                isLastStaffInInstrument = nextInst != st.instrumentIdx,
+            )
+        }
+
+        val primaryStaff = staffResults.first().staff
         val layout = ScoreLayout(
             totalWidthPx = (staffEndX + rightMargin).coerceAtLeast(minWidthPx),
             totalHeightPx = totalHeight.roundToInt().toFloat(),
             staffSpacePx = sp,
-            topStaffY = topStaffY,
-            bottomStaffY = bottomStaffY,
+            leftBarX = leftMargin,
+            topStaffY = primaryStaff.topStaffY,
+            bottomStaffY = primaryStaff.bottomStaffY,
             headerEndX = headerEndX,
             staffEndX = staffEndX,
-            openingClef = openingClef,
-            placedMeasures = placedMeasures,
-            placedTimeSignatures = placedTimeSignatures,
+            openingClef = primaryStaff.openingClef,
+            placedMeasures = primaryStaff.placedMeasures,
+            placedTimeSignatures = allTimeSignatures,
             placedClefChanges = allClefChanges,
             placedDynamics = allDynamics,
+            staves = staffResults.map { it.staff },
+            instrumentGroups = instrumentGroups,
+            showInstrumentLabels = showInstrumentLabels,
         )
-        return header to layout
+        return staffResults to layout
     }
 
     /** Computes the [ScoreLayout] without drawing, for hit-testing and coordinate mapping. */
@@ -1065,8 +1383,9 @@ object ScoreRenderer {
         rubberBand: ScoreRubberBand? = null,
         cursorPosition: ScoreCursorPosition? = null,
         isStepRecording: Boolean = false,
+        activeItemsByStaff: Map<ScoreStaffId, Int> = emptyMap(),
     ): ScoreLayout {
-        val (header, layout) = computeHeaderAndMeasures(
+        val (_, layout) = computeHeaderAndMeasures(
             score = score,
             staffSpacePx = staffSpacePx,
             minWidthPx = minWidthPx,
@@ -1075,242 +1394,292 @@ object ScoreRenderer {
         val sp = layout.staffSpacePx
         val emPx = sp * 4f
         val changeEmPx = emPx * CLEF_CHANGE_SCALE
-        val topStaffY = header.topStaffY
-        val bottomStaffY = header.bottomStaffY
         val staffEndX = layout.staffEndX
-
-        // 1. Draw the 5 staff lines
         val staffLineThick = SmuflGlyphs.STAFF_LINE_THICKNESS * sp
-        for (lineIdx in 0..4) {
-            val y = layout.yForStep(lineIdx * 2)
-            target.drawLine(header.leftMargin, y, staffEndX, y, staffLineThick, colors.staffLine)
-        }
-
-        // 2. Draw clef, key signature, time signature
-        val clefBaselineY = layout.yForStep(header.openingClef.glyphLineFromBottom * 2)
-        target.drawGlyph(header.openingClef.glyph, header.clefX, clefBaselineY, emPx, colors.ink)
-
-        header.keySteps.forEachIndexed { idx, stepOffset ->
-            val kx = header.keyStartX + idx * header.keyGlyphStepWidth
-            target.drawGlyph(header.keyGlyph, kx, layout.yForStep(stepOffset), emPx, colors.ink)
-        }
-
-        val headerNumX = header.timeSigX + (header.timeSigWidth - header.numWidth) * 0.5f
-        val headerDenX = header.timeSigX + (header.timeSigWidth - header.denWidth) * 0.5f
-        target.drawGlyph(header.numStr, headerNumX, layout.yForStep(6), emPx, colors.ink)
-        target.drawGlyph(header.denStr, headerDenX, layout.yForStep(2), emPx, colors.ink)
-
-        // 3. Draw measures, barlines, notes, and rests
         val thinBar = SmuflGlyphs.THIN_BARLINE_THICKNESS * sp
         val thickBar = SmuflGlyphs.THICK_BARLINE_THICKNESS * sp
         val stemThick = SmuflGlyphs.STEM_THICKNESS * sp
         val ledgerThick = SmuflGlyphs.LEGER_LINE_THICKNESS * sp
         val ledgerExt = SmuflGlyphs.LEGER_LINE_EXTENSION * sp
 
-        for ((idx, pm) in layout.placedMeasures.withIndex()) {
-            if (pm.measureIdx in selectedMeasureIndices) {
-                val hlLeft = if (idx == 0) pm.startX else layout.placedMeasures[idx - 1].barlineX
-                val hlTop = topStaffY - sp * 0.55f
-                val hlBottom = bottomStaffY + sp * 0.55f
-                val borderThick = (sp * 0.12f).coerceAtLeast(1f)
-                target.fillRect(hlLeft, hlTop, (pm.barlineX - hlLeft).coerceAtLeast(1f), hlBottom - hlTop, colors.selectedBoxFill)
-                target.drawLine(hlLeft, hlTop, pm.barlineX, hlTop, borderThick, colors.selectedBoxBorder)
-                target.drawLine(hlLeft, hlBottom, pm.barlineX, hlBottom, borderThick, colors.selectedBoxBorder)
-            }
-
-            if (pm.keyChangeGlyphs.isNotEmpty()) {
-                val (glyphXs, _) = keyChangeGlyphLayout(pm.keyChangeX, pm.keyChangeGlyphs, sp)
-                pm.keyChangeGlyphs.forEachIndexed { gIdx, (kStep, acc) ->
-                    target.drawGlyph(acc.glyph, glyphXs[gIdx], layout.yForStep(kStep), emPx, colors.ink)
-                }
-            }
-
-            pm.timeChange?.let { ts ->
-                val cNumStr = SmuflGlyphs.timeSigNumber(ts.timeSignature.numerator)
-                val cDenStr = SmuflGlyphs.timeSigNumber(ts.timeSignature.denominator)
-                val cNumX = ts.x + (ts.width - ts.numWidth) * 0.5f
-                val cDenX = ts.x + (ts.width - ts.denWidth) * 0.5f
-                target.drawGlyph(cNumStr, cNumX, layout.yForStep(6), emPx, colors.ink)
-                target.drawGlyph(cDenStr, cDenX, layout.yForStep(2), emPx, colors.ink)
-            }
-
-            if (idx > 0) {
+        // 0. Draw instrument labels & Grand Staff braces on the left system margin
+        if (layout.showInstrumentLabels) {
+            for (grp in layout.instrumentGroups) {
+                val midY = (grp.topStaffY + grp.bottomStaffY) * 0.5f
                 target.drawText(
-                    text = pm.measure.number.toString(),
-                    x = pm.startX - sp * 0.35f,
-                    baselineY = topStaffY - sp * 1.1f,
-                    fontSizePx = sp * 1.15f,
+                    text = grp.instrument.name,
+                    x = grp.labelLeft,
+                    baselineY = midY + sp * 0.15f,
+                    fontSizePx = sp * 1.35f,
+                    color = colors.ink,
+                )
+                val rangeText = "${ScoreInstrumentPart.formatMidiPitch(grp.instrument.minMidiPitch)}–" +
+                    ScoreInstrumentPart.formatMidiPitch(grp.instrument.maxMidiPitch)
+                target.drawText(
+                    text = rangeText,
+                    x = grp.labelLeft,
+                    baselineY = midY + sp * 1.45f,
+                    fontSizePx = sp * 0.95f,
                     color = colors.measureNumber,
                 )
-            }
-
-            for (pi in pm.items) {
-                val isSelected = pi.location in selectedLocations
-                val selectedChordIndices = if (isSelected) {
-                    emptySet()
-                } else {
-                    selectedLocations.mapNotNull { loc ->
-                        if (loc.measureIdx == pi.measureIdx && loc.itemIdx == pi.itemIdx) loc.chordNoteIdx else null
-                    }.toSet()
+                if (grp.instrument.staffCount >= 2) {
+                    drawGrandStaffBrace(
+                        target = target,
+                        x = grp.braceX,
+                        topY = grp.topStaffY,
+                        bottomY = grp.bottomStaffY,
+                        sp = sp,
+                        color = colors.ink,
+                    )
                 }
-                val isPlaying = pi.globalIdx == activeItemGlobalIndex
-
-                fun drawSelectionBox(left: Float, top: Float, right: Float, bottom: Float) {
-                    val pad = sp * 0.25f
-                    val rx = left - pad
-                    val ry = top - pad
-                    val rw = (right - left) + pad * 2f
-                    val rh = (bottom - top) + pad * 2f
-                    target.fillRect(rx, ry, rw, rh, colors.selectedBoxFill)
-                    val borderThick = (sp * 0.12f).coerceAtLeast(1f)
-                    target.drawLine(rx, ry, rx + rw, ry, borderThick, colors.selectedBoxBorder)
-                    target.drawLine(rx, ry + rh, rx + rw, ry + rh, borderThick, colors.selectedBoxBorder)
-                    target.drawLine(rx, ry, rx, ry + rh, borderThick, colors.selectedBoxBorder)
-                    target.drawLine(rx + rw, ry, rx + rw, ry + rh, borderThick, colors.selectedBoxBorder)
-                }
-
-                if (isSelected) {
-                    drawSelectionBox(pi.boxLeft, pi.boxTop, pi.boxRight, pi.boxBottom)
-                } else {
-                    for (cnIdx in selectedChordIndices) {
-                        pi.chordNotes.getOrNull(cnIdx)?.let { cn ->
-                            drawSelectionBox(cn.boxLeft, cn.boxTop, cn.boxRight, cn.boxBottom)
-                        }
-                    }
-                }
-
-                val itemColor = when {
-                    isPlaying -> colors.activeNote
-                    pi.isOverflow -> colors.overflowNote
-                    isSelected -> colors.selectedNote
-                    else -> colors.ink
-                }
-                val chordNoteHighlightColor = when {
-                    isPlaying -> colors.activeNote
-                    pi.isOverflow -> colors.overflowNote
-                    else -> colors.selectedNote
-                }
-
-                drawScoreItem(
-                    target = target,
-                    layout = layout,
-                    item = pi.item,
-                    x = pi.x,
-                    staffStep = pi.staffStep,
-                    accidental = pi.accidental,
-                    color = itemColor,
-                    sp = sp,
-                    emPx = emPx,
-                    stemThick = stemThick,
-                    ledgerThick = ledgerThick,
-                    ledgerExt = ledgerExt,
-                    placedChordNotes = pi.chordNotes,
-                    stemDownOverride = pi.stemDown,
-                    selectedChordNoteIndices = selectedChordIndices,
-                    selectedNoteColor = chordNoteHighlightColor,
-                    suppressFlags = pi.isBeamed,
-                    stemTipYOverride = pi.stemTipYOverride,
-                )
-            }
-
-            // Beams shared across beamed note groups in this measure
-            for (pbg in pm.beamGroups) {
-                val groupItems = pbg.itemIndices.mapNotNull { pm.items.getOrNull(it) }
-                if (groupItems.size < 2) continue
-                val beamColor = when {
-                    groupItems.any { activeItemGlobalIndex == it.globalIdx } -> colors.activeNote
-                    groupItems.all { it.isOverflow } -> colors.overflowNote
-                    groupItems.all { it.location in selectedLocations } -> colors.selectedNote
-                    else -> colors.ink
-                }
-                drawBeamGroup(
-                    target = target,
-                    beamGroup = pbg,
-                    itemsInGroup = groupItems,
-                    sp = sp,
-                    stemThick = stemThick,
-                    color = beamColor,
-                )
-            }
-
-            // Mid-measure and before-barline clef changes (drawn at 72% size)
-            val clefsToDraw = buildList {
-                addAll(pm.clefChanges)
-                pm.barlineClefChange?.let { add(it) }
-            }
-            for (cc in clefsToDraw) {
-                val isClefSelected = cc.location == selectedClefChange
-                if (isClefSelected) {
-                    val pad = sp * 0.25f
-                    val rx = cc.x - pad
-                    val ry = topStaffY - sp * 0.4f
-                    val rw = cc.width + pad * 2f
-                    val rh = (bottomStaffY - topStaffY) + sp * 0.8f
-                    target.fillRect(rx, ry, rw, rh, colors.selectedBoxFill)
-                    val borderThick = (sp * 0.12f).coerceAtLeast(1f)
-                    target.drawLine(rx, ry, rx + rw, ry, borderThick, colors.selectedBoxBorder)
-                    target.drawLine(rx, ry + rh, rx + rw, ry + rh, borderThick, colors.selectedBoxBorder)
-                    target.drawLine(rx, ry, rx, ry + rh, borderThick, colors.selectedBoxBorder)
-                    target.drawLine(rx + rw, ry, rx + rw, ry + rh, borderThick, colors.selectedBoxBorder)
-                }
-                val clefColor = if (isClefSelected) colors.selectedNote else colors.ink
-                val clefY = layout.yForStep(cc.clef.glyphLineFromBottom * 2)
-                target.drawGlyph(cc.clef.glyph, cc.x, clefY, changeEmPx, clefColor)
-            }
-
-            // Dynamic markings attached to this measure
-            for (pd in pm.dynamics) {
-                val isDynSelected = pd.location in selectedDynamics
-                if (isDynSelected) {
-                    val pad = sp * 0.2f
-                    val rx = pd.boxLeft - pad
-                    val ry = pd.boxTop - pad
-                    val rw = (pd.boxRight - pd.boxLeft) + pad * 2f
-                    val rh = (pd.boxBottom - pd.boxTop) + pad * 2f
-                    target.fillRect(rx, ry, rw, rh, colors.selectedBoxFill)
-                    val borderThick = (sp * 0.12f).coerceAtLeast(1f)
-                    target.drawLine(rx, ry, rx + rw, ry, borderThick, colors.selectedBoxBorder)
-                    target.drawLine(rx, ry + rh, rx + rw, ry + rh, borderThick, colors.selectedBoxBorder)
-                    target.drawLine(rx, ry, rx, ry + rh, borderThick, colors.selectedBoxBorder)
-                    target.drawLine(rx + rw, ry, rx + rw, ry + rh, borderThick, colors.selectedBoxBorder)
-                }
-                val dynColor = if (isDynSelected) colors.selectedNote else colors.ink
-                target.drawGlyph(pd.marking.mark.glyph, pd.x, pd.baselineY, emPx, dynColor)
-            }
-
-            // Barline at end of measure
-            val isLast = idx == layout.placedMeasures.lastIndex
-            if (isLast) {
-                val sep = SmuflGlyphs.THIN_THICK_SEPARATION * sp
-                val doubleBarEndX = max(pm.barlineX + thickBar + sep + thinBar, min(staffEndX, pm.barlineX + sp * 1.2f))
-                val thickX = doubleBarEndX - thickBar * 0.5f
-                val thinX = thickX - sep - thickBar * 0.5f - thinBar * 0.5f
-                target.drawLine(thinX, topStaffY, thinX, bottomStaffY, thinBar, colors.ink)
-                target.drawLine(thickX, topStaffY, thickX, bottomStaffY, thickBar, colors.ink)
-            } else {
-                target.drawLine(pm.barlineX, topStaffY, pm.barlineX, bottomStaffY, thinBar, colors.ink)
             }
         }
 
-        // Ties within a measure and across barlines
-        drawTies(
-            target = target,
-            layout = layout,
-            colors = colors,
-            selectedLocations = selectedLocations,
-            activeItemGlobalIndex = activeItemGlobalIndex,
-        )
+        // 1. Render every instrument staff
+        for ((staffIdx, ps) in layout.staves.withIndex()) {
+            val staffActiveIdx = activeItemsByStaff[ps.staffId]
+                ?: if (ps.staffId == ScoreStaffId(0, 0)) activeItemGlobalIndex else null
 
-        // Initial left barline closing the stave cleanly
-        target.drawLine(header.leftMargin, topStaffY, header.leftMargin, bottomStaffY, thinBar, colors.ink)
+            for (lineIdx in 0..4) {
+                val y = ps.yForStep(lineIdx * 2)
+                target.drawLine(ps.leftBarX, y, staffEndX, y, staffLineThick, colors.staffLine)
+            }
+
+            val clefBaselineY = ps.yForStep(ps.openingClef.glyphLineFromBottom * 2)
+            target.drawGlyph(ps.openingClef.glyph, ps.clefX, clefBaselineY, emPx, colors.ink)
+
+            ps.keySteps.forEachIndexed { idx, stepOffset ->
+                val kx = ps.keyStartX + idx * ps.keyGlyphStepWidth
+                target.drawGlyph(ps.keyGlyph, kx, ps.yForStep(stepOffset), emPx, colors.ink)
+            }
+
+            val headerNumX = ps.timeSigX + (ps.timeSigWidth - ps.numWidth) * 0.5f
+            val headerDenX = ps.timeSigX + (ps.timeSigWidth - ps.denWidth) * 0.5f
+            target.drawGlyph(ps.numStr, headerNumX, ps.yForStep(6), emPx, colors.ink)
+            target.drawGlyph(ps.denStr, headerDenX, ps.yForStep(2), emPx, colors.ink)
+
+            for ((idx, pm) in ps.placedMeasures.withIndex()) {
+                if (pm.measureIdx in selectedMeasureIndices) {
+                    val hlLeft = if (idx == 0) pm.startX else ps.placedMeasures[idx - 1].barlineX
+                    val hlTop = ps.topStaffY - sp * 0.55f
+                    val hlBottom = ps.bottomStaffY + sp * 0.55f
+                    val borderThick = (sp * 0.12f).coerceAtLeast(1f)
+                    target.fillRect(hlLeft, hlTop, (pm.barlineX - hlLeft).coerceAtLeast(1f), hlBottom - hlTop, colors.selectedBoxFill)
+                    target.drawLine(hlLeft, hlTop, pm.barlineX, hlTop, borderThick, colors.selectedBoxBorder)
+                    target.drawLine(hlLeft, hlBottom, pm.barlineX, hlBottom, borderThick, colors.selectedBoxBorder)
+                }
+
+                if (pm.keyChangeGlyphs.isNotEmpty()) {
+                    val (glyphXs, _) = keyChangeGlyphLayout(pm.keyChangeX, pm.keyChangeGlyphs, sp)
+                    pm.keyChangeGlyphs.forEachIndexed { gIdx, (kStep, acc) ->
+                        target.drawGlyph(acc.glyph, glyphXs[gIdx], ps.yForStep(kStep), emPx, colors.ink)
+                    }
+                }
+
+                pm.timeChange?.let { ts ->
+                    val cNumStr = SmuflGlyphs.timeSigNumber(ts.timeSignature.numerator)
+                    val cDenStr = SmuflGlyphs.timeSigNumber(ts.timeSignature.denominator)
+                    val cNumX = ts.x + (ts.width - ts.numWidth) * 0.5f
+                    val cDenX = ts.x + (ts.width - ts.denWidth) * 0.5f
+                    target.drawGlyph(cNumStr, cNumX, ps.yForStep(6), emPx, colors.ink)
+                    target.drawGlyph(cDenStr, cDenX, ps.yForStep(2), emPx, colors.ink)
+                }
+
+                if (staffIdx == 0 && idx > 0) {
+                    target.drawText(
+                        text = pm.measure.number.toString(),
+                        x = pm.startX - sp * 0.35f,
+                        baselineY = ps.topStaffY - sp * 1.1f,
+                        fontSizePx = sp * 1.15f,
+                        color = colors.measureNumber,
+                    )
+                }
+
+                for (pi in pm.items) {
+                    val isSelected = pi.location in selectedLocations
+                    val selectedChordIndices = if (isSelected) {
+                        emptySet()
+                    } else {
+                        selectedLocations.mapNotNull { loc ->
+                            if (loc.staff == pi.staff && loc.measureIdx == pi.measureIdx && loc.itemIdx == pi.itemIdx) {
+                                loc.chordNoteIdx
+                            } else {
+                                null
+                            }
+                        }.toSet()
+                    }
+                    val isPlaying = pi.globalIdx == staffActiveIdx
+
+                    fun drawSelectionBox(left: Float, top: Float, right: Float, bottom: Float) {
+                        val pad = sp * 0.25f
+                        val rx = left - pad
+                        val ry = top - pad
+                        val rw = (right - left) + pad * 2f
+                        val rh = (bottom - top) + pad * 2f
+                        target.fillRect(rx, ry, rw, rh, colors.selectedBoxFill)
+                        val borderThick = (sp * 0.12f).coerceAtLeast(1f)
+                        target.drawLine(rx, ry, rx + rw, ry, borderThick, colors.selectedBoxBorder)
+                        target.drawLine(rx, ry + rh, rx + rw, ry + rh, borderThick, colors.selectedBoxBorder)
+                        target.drawLine(rx, ry, rx, ry + rh, borderThick, colors.selectedBoxBorder)
+                        target.drawLine(rx + rw, ry, rx + rw, ry + rh, borderThick, colors.selectedBoxBorder)
+                    }
+
+                    if (isSelected) {
+                        drawSelectionBox(pi.boxLeft, pi.boxTop, pi.boxRight, pi.boxBottom)
+                    } else {
+                        for (cnIdx in selectedChordIndices) {
+                            pi.chordNotes.getOrNull(cnIdx)?.let { cn ->
+                                drawSelectionBox(cn.boxLeft, cn.boxTop, cn.boxRight, cn.boxBottom)
+                            }
+                        }
+                    }
+
+                    val allOutOfRange = pi.chordNotes.isNotEmpty() &&
+                        pi.outOfRangeChordIndices.size == pi.chordNotes.size
+                    val itemColor = when {
+                        isPlaying -> colors.activeNote
+                        pi.isOverflow || allOutOfRange -> colors.overflowNote
+                        isSelected -> colors.selectedNote
+                        else -> colors.ink
+                    }
+                    val chordNoteHighlightColor = when {
+                        isPlaying -> colors.activeNote
+                        pi.isOverflow -> colors.overflowNote
+                        else -> colors.selectedNote
+                    }
+                    val outOfRangeNoteColor = if (isPlaying) colors.activeNote else colors.overflowNote
+
+                    drawScoreItem(
+                        target = target,
+                        yForStep = ps::yForStep,
+                        item = pi.item,
+                        x = pi.x,
+                        staffStep = pi.staffStep,
+                        accidental = pi.accidental,
+                        color = itemColor,
+                        sp = sp,
+                        emPx = emPx,
+                        stemThick = stemThick,
+                        ledgerThick = ledgerThick,
+                        ledgerExt = ledgerExt,
+                        placedChordNotes = pi.chordNotes,
+                        stemDownOverride = pi.stemDown,
+                        selectedChordNoteIndices = selectedChordIndices,
+                        selectedNoteColor = chordNoteHighlightColor,
+                        outOfRangeChordNoteIndices = pi.outOfRangeChordIndices,
+                        outOfRangeColor = outOfRangeNoteColor,
+                        suppressFlags = pi.isBeamed,
+                        stemTipYOverride = pi.stemTipYOverride,
+                    )
+                }
+
+                for (pbg in pm.beamGroups) {
+                    val groupItems = pbg.itemIndices.mapNotNull { pm.items.getOrNull(it) }
+                    if (groupItems.size < 2) continue
+                    val beamColor = when {
+                        groupItems.any { staffActiveIdx == it.globalIdx } -> colors.activeNote
+                        groupItems.all { it.isOverflow || (it.chordNotes.isNotEmpty() && it.outOfRangeChordIndices.size == it.chordNotes.size) } ->
+                            colors.overflowNote
+                        groupItems.all { it.location in selectedLocations } -> colors.selectedNote
+                        else -> colors.ink
+                    }
+                    drawBeamGroup(
+                        target = target,
+                        beamGroup = pbg,
+                        itemsInGroup = groupItems,
+                        sp = sp,
+                        stemThick = stemThick,
+                        color = beamColor,
+                    )
+                }
+
+                val clefsToDraw = buildList {
+                    addAll(pm.clefChanges)
+                    pm.barlineClefChange?.let { add(it) }
+                }
+                for (cc in clefsToDraw) {
+                    val isClefSelected = cc.location == selectedClefChange
+                    if (isClefSelected) {
+                        val pad = sp * 0.25f
+                        val rx = cc.x - pad
+                        val ry = ps.topStaffY - sp * 0.4f
+                        val rw = cc.width + pad * 2f
+                        val rh = (ps.bottomStaffY - ps.topStaffY) + sp * 0.8f
+                        target.fillRect(rx, ry, rw, rh, colors.selectedBoxFill)
+                        val borderThick = (sp * 0.12f).coerceAtLeast(1f)
+                        target.drawLine(rx, ry, rx + rw, ry, borderThick, colors.selectedBoxBorder)
+                        target.drawLine(rx, ry + rh, rx + rw, ry + rh, borderThick, colors.selectedBoxBorder)
+                        target.drawLine(rx, ry, rx, ry + rh, borderThick, colors.selectedBoxBorder)
+                        target.drawLine(rx + rw, ry, rx + rw, ry + rh, borderThick, colors.selectedBoxBorder)
+                    }
+                    val clefColor = if (isClefSelected) colors.selectedNote else colors.ink
+                    val clefY = ps.yForStep(cc.clef.glyphLineFromBottom * 2)
+                    target.drawGlyph(cc.clef.glyph, cc.x, clefY, changeEmPx, clefColor)
+                }
+
+                for (pd in pm.dynamics) {
+                    val isDynSelected = pd.location in selectedDynamics
+                    if (isDynSelected) {
+                        val pad = sp * 0.2f
+                        val rx = pd.boxLeft - pad
+                        val ry = pd.boxTop - pad
+                        val rw = (pd.boxRight - pd.boxLeft) + pad * 2f
+                        val rh = (pd.boxBottom - pd.boxTop) + pad * 2f
+                        target.fillRect(rx, ry, rw, rh, colors.selectedBoxFill)
+                        val borderThick = (sp * 0.12f).coerceAtLeast(1f)
+                        target.drawLine(rx, ry, rx + rw, ry, borderThick, colors.selectedBoxBorder)
+                        target.drawLine(rx, ry + rh, rx + rw, ry + rh, borderThick, colors.selectedBoxBorder)
+                        target.drawLine(rx, ry, rx, ry + rh, borderThick, colors.selectedBoxBorder)
+                        target.drawLine(rx + rw, ry, rx + rw, ry + rh, borderThick, colors.selectedBoxBorder)
+                    }
+                    val dynColor = if (isDynSelected) colors.selectedNote else colors.ink
+                    target.drawGlyph(pd.marking.mark.glyph, pd.x, pd.baselineY, emPx, dynColor)
+                }
+            }
+
+            // Ties for this staff (within measures and across barlines)
+            drawTies(
+                target = target,
+                staffMeasures = ps.placedMeasures,
+                sp = sp,
+                colors = colors,
+                selectedLocations = selectedLocations,
+                activeItemGlobalIndex = staffActiveIdx,
+            )
+        }
+
+        // 2. Shared barlines per instrument group (spanning single or Grand Staff height cleanly)
+        val firstMeasures = layout.staves.firstOrNull()?.placedMeasures.orEmpty()
+        for ((idx, pm) in firstMeasures.withIndex()) {
+            val isLast = idx == firstMeasures.lastIndex
+            for (grp in layout.instrumentGroups) {
+                if (isLast) {
+                    val sep = SmuflGlyphs.THIN_THICK_SEPARATION * sp
+                    val doubleBarEndX = max(pm.barlineX + thickBar + sep + thinBar, min(staffEndX, pm.barlineX + sp * 1.2f))
+                    val thickX = doubleBarEndX - thickBar * 0.5f
+                    val thinX = thickX - sep - thickBar * 0.5f - thinBar * 0.5f
+                    target.drawLine(thinX, grp.topStaffY, thinX, grp.bottomStaffY, thinBar, colors.ink)
+                    target.drawLine(thickX, grp.topStaffY, thickX, grp.bottomStaffY, thickBar, colors.ink)
+                } else {
+                    target.drawLine(pm.barlineX, grp.topStaffY, pm.barlineX, grp.bottomStaffY, thinBar, colors.ink)
+                }
+            }
+        }
+
+        // Initial left system barline connecting all staves cleanly
+        val sysTopY = layout.staves.firstOrNull()?.topStaffY ?: layout.topStaffY
+        val sysBottomY = layout.staves.lastOrNull()?.bottomStaffY ?: layout.bottomStaffY
+        target.drawLine(layout.leftBarX, sysTopY, layout.leftBarX, sysBottomY, thinBar, colors.ink)
 
         // Optional ghost preview while hovering in entry mode
         if (ghostPreview != null) {
+            val ghostStaff = layout.staffForId(ghostPreview.staff)
+            val yFn: (Int) -> Float = ghostStaff?.let { it::yForStep } ?: { step -> layout.yForStep(step, ghostPreview.staff) }
             val ghostItem = if (ghostPreview.isRest) {
                 ScoreItem.Rest(ghostPreview.duration, isDotted = ghostPreview.isDotted)
             } else {
                 ScoreItem.Note(
-                    pitch = SpelledPitch(NoteLetter.C, 0, 4), // pitch unused because staffStep is passed explicitly
+                    pitch = SpelledPitch(NoteLetter.C, 0, 4),
                     duration = ghostPreview.duration,
                     isDotted = ghostPreview.isDotted,
                     isStaccato = ghostPreview.isStaccato,
@@ -1318,7 +1687,7 @@ object ScoreRenderer {
             }
             drawScoreItem(
                 target = target,
-                layout = layout,
+                yForStep = yFn,
                 item = ghostItem,
                 x = ghostPreview.x,
                 staffStep = ghostPreview.staffStep,
@@ -1332,12 +1701,14 @@ object ScoreRenderer {
             )
         }
 
-        // Optional vertical insertion / step-record cursor
+        // Optional vertical insertion / step-record cursor on its target staff
         if (cursorPosition != null) {
-            layout.cursorXFor(cursorPosition)?.let { cx ->
+            val cursorStaff = layout.staffForId(cursorPosition.staff)
+            val cx = cursorStaff?.cursorXFor(cursorPosition)
+            if (cx != null) {
                 val cursorColor = if (isStepRecording) colors.stepCursor else colors.cursor
-                val cursorTop = topStaffY - sp * 1.35f
-                val cursorBottom = bottomStaffY + sp * 1.35f
+                val cursorTop = cursorStaff.topStaffY - sp * 1.35f
+                val cursorBottom = cursorStaff.bottomStaffY + sp * 1.35f
                 val cursorStroke = max(2f, sp * 0.2f)
                 val capHalf = sp * 0.35f
                 target.drawLine(cx, cursorTop, cx, cursorBottom, cursorStroke, cursorColor)
@@ -1361,9 +1732,48 @@ object ScoreRenderer {
         return layout
     }
 
+    private fun drawGrandStaffBrace(
+        target: ScoreDrawTarget,
+        x: Float,
+        topY: Float,
+        bottomY: Float,
+        sp: Float,
+        color: Color,
+    ) {
+        val midY = (topY + bottomY) * 0.5f
+        val braceStroke = (sp * 0.24f).coerceAtLeast(1.8f)
+        val tipX = x - sp * 0.55f
+        val bellyX = x + sp * 0.15f
+        val controlX = x - sp * 0.85f
+        target.drawCubicBezier(
+            x0 = x,
+            y0 = topY,
+            cx1 = controlX,
+            cy1 = topY + (midY - topY) * 0.32f,
+            cx2 = bellyX,
+            cy2 = midY - (midY - topY) * 0.28f,
+            x3 = tipX,
+            y3 = midY,
+            strokeWidth = braceStroke,
+            color = color,
+        )
+        target.drawCubicBezier(
+            x0 = tipX,
+            y0 = midY,
+            cx1 = bellyX,
+            cy1 = midY + (bottomY - midY) * 0.28f,
+            cx2 = controlX,
+            cy2 = bottomY - (bottomY - midY) * 0.32f,
+            x3 = x,
+            y3 = bottomY,
+            strokeWidth = braceStroke,
+            color = color,
+        )
+    }
+
     private fun drawScoreItem(
         target: ScoreDrawTarget,
-        layout: ScoreLayout,
+        yForStep: (Int) -> Float,
         item: ScoreItem,
         x: Float,
         staffStep: Int?,
@@ -1378,6 +1788,8 @@ object ScoreRenderer {
         stemDownOverride: Boolean? = null,
         selectedChordNoteIndices: Set<Int> = emptySet(),
         selectedNoteColor: Color = color,
+        outOfRangeChordNoteIndices: Set<Int> = emptySet(),
+        outOfRangeColor: Color = color,
         suppressFlags: Boolean = false,
         stemTipYOverride: Float? = null,
     ) {
@@ -1392,7 +1804,7 @@ object ScoreRenderer {
                     placedChordNotes
                 } else {
                     val s = staffStep ?: 4
-                    val ny = layout.yForStep(s)
+                    val ny = yForStep(s)
                     val accX = accidental?.let { acc -> x - accidentalWidth(acc, sp) - sp * 0.25f }
                     val fallbackPitch = when (item) {
                         is ScoreItem.Note -> item.pitch
@@ -1424,11 +1836,10 @@ object ScoreRenderer {
                 val maxHeadRight = notesToDraw.maxOf { it.headX } + noteheadWidth
                 val stemDown = stemDownOverride ?: ((topStep - 4) >= (4 - bottomStep))
 
-                // Ledger lines below staff (step <= -2) and above staff (step >= 10)
                 if (bottomStep <= -2) {
                     var ls = -2
                     while (ls >= bottomStep) {
-                        val ly = layout.yForStep(ls)
+                        val ly = yForStep(ls)
                         target.drawLine(
                             minHeadX - ledgerExt,
                             ly,
@@ -1443,7 +1854,7 @@ object ScoreRenderer {
                 if (topStep >= 10) {
                     var ls = 10
                     while (ls <= topStep) {
-                        val ly = layout.yForStep(ls)
+                        val ly = yForStep(ls)
                         target.drawLine(
                             minHeadX - ledgerExt,
                             ly,
@@ -1456,9 +1867,12 @@ object ScoreRenderer {
                     }
                 }
 
-                // Accidentals & noteheads
                 for (cn in notesToDraw) {
-                    val noteColor = if (cn.noteIdx in selectedChordNoteIndices) selectedNoteColor else color
+                    val noteColor = when {
+                        cn.noteIdx in outOfRangeChordNoteIndices -> outOfRangeColor
+                        cn.noteIdx in selectedChordNoteIndices -> selectedNoteColor
+                        else -> color
+                    }
                     cn.accidental?.let { acc ->
                         val ax = cn.accX ?: (cn.headX - accidentalWidth(acc, sp) - sp * 0.25f)
                         target.drawGlyph(acc.glyph, ax, cn.y, emPx, noteColor)
@@ -1466,7 +1880,6 @@ object ScoreRenderer {
                     target.drawGlyph(item.duration.noteheadGlyph, cn.headX, cn.y, emPx, noteColor)
                 }
 
-                // Stem + Flag (connects bottom to top notehead, extending by stemLen)
                 if (item.duration.hasStem) {
                     val stemLen = stemLengthSpaces(item.duration) * sp
                     if (!stemDown) {
@@ -1510,7 +1923,6 @@ object ScoreRenderer {
                     }
                 }
 
-                // Augmentation dot(s)
                 if (item.isDotted) {
                     val dotX = maxHeadRight + sp * 0.35f
                     val usedDotSteps = HashSet<Int>(notesToDraw.size)
@@ -1524,23 +1936,23 @@ object ScoreRenderer {
                             }
                             usedDotSteps.add(dotStep)
                         }
+                        val dotColor = if (cn.noteIdx in outOfRangeChordNoteIndices) outOfRangeColor else color
                         target.drawGlyph(
                             SmuflGlyphs.AUGMENTATION_DOT,
                             dotX,
-                            layout.yForStep(dotStep),
+                            yForStep(dotStep),
                             emPx,
-                            color,
+                            dotColor,
                         )
                     }
                 }
 
-                // Staccato dot (placed opposite the stem on the outer notehead, or above whole notes)
                 if (item.noteStaccato()) {
                     val placeBelow = item.duration.hasStem && !stemDown
                     val extremeNote = if (placeBelow) bottomNote else topNote
                     val staccatoStep = staccatoStepForNote(extremeNote.staffStep, placeBelow)
                     val dotX = extremeNote.headX + noteheadWidth * 0.5f - SmuflGlyphs.ARTIC_STACCATO_WIDTH * sp * 0.5f
-                    val dotY = layout.yForStep(staccatoStep) +
+                    val dotY = yForStep(staccatoStep) +
                         if (placeBelow) -SmuflGlyphs.ARTIC_STACCATO_WIDTH * sp * 0.5f else SmuflGlyphs.ARTIC_STACCATO_WIDTH * sp * 0.5f
                     val staccatoGlyph = if (placeBelow) {
                         SmuflGlyphs.ARTIC_STACCATO_BELOW
@@ -1552,13 +1964,13 @@ object ScoreRenderer {
             }
             is ScoreItem.Rest -> {
                 val restStep = if (item.duration == NoteDuration.WHOLE) 6 else 4
-                val restY = layout.yForStep(restStep)
+                val restY = yForStep(restStep)
                 target.drawGlyph(item.duration.restGlyph, x, restY, emPx, color)
                 if (item.isDotted) {
                     target.drawGlyph(
                         SmuflGlyphs.AUGMENTATION_DOT,
                         x + sp * 1.45f,
-                        layout.yForStep(5),
+                        yForStep(5),
                         emPx,
                         color,
                     )
@@ -1756,12 +2168,12 @@ object ScoreRenderer {
 
     private fun drawTies(
         target: ScoreDrawTarget,
-        layout: ScoreLayout,
+        staffMeasures: List<ScorePlacedMeasure>,
+        sp: Float,
         colors: ScoreRenderColors,
         selectedLocations: Set<ScoreItemLocation>,
         activeItemGlobalIndex: Int?,
     ) {
-        val sp = layout.staffSpacePx
         val tieStroke = (sp * 0.18f).coerceAtLeast(1.5f)
         data class TieNotePos(
             val midiPitch: Int,
@@ -1799,12 +2211,12 @@ object ScoreRenderer {
             is ScoreItem.Rest -> emptyList()
         }
 
-        for ((pmIdx, pm) in layout.placedMeasures.withIndex()) {
+        for ((pmIdx, pm) in staffMeasures.withIndex()) {
             for ((piIdx, pi) in pm.items.withIndex()) {
                 val srcNotes = tieNotesForItem(pi)
                 if (srcNotes.none { it.isTied }) continue
                 val nextPi = pm.items.getOrNull(piIdx + 1)
-                    ?: layout.placedMeasures.getOrNull(pmIdx + 1)?.items?.firstOrNull()
+                    ?: staffMeasures.getOrNull(pmIdx + 1)?.items?.firstOrNull()
                     ?: continue
                 val dstNotes = tieNotesForItem(nextPi)
                 if (dstNotes.isEmpty()) continue
@@ -1851,7 +2263,8 @@ object ScoreRenderer {
                         activeItemGlobalIndex != null &&
                             (pi.globalIdx == activeItemGlobalIndex || nextPi.globalIdx == activeItemGlobalIndex) ->
                             colors.activeNote
-                        pi.isOverflow -> colors.overflowNote
+                        pi.isOverflow ||
+                            (src.chordNoteIdx ?: 0) in pi.outOfRangeChordIndices -> colors.overflowNote
                         noteSelected -> colors.selectedNote
                         else -> colors.ink
                     }
