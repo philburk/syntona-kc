@@ -2,6 +2,14 @@ package com.syntona.dataflow.editor
 
 expect fun showOpenFileDialog(onResult: (path: String, content: String) -> Unit)
 
+/** Shows a cross-platform open dialog filtered by [extensions] and passes the file path and UTF-8 text to [onResult]. */
+expect fun showOpenTextFileDialog(
+    extensions: List<String>,
+    filterDescription: String,
+    dialogTitle: String,
+    onResult: (path: String, content: String) -> Unit,
+)
+
 expect fun showSaveFileDialog(content: String, defaultName: String, onSaved: (path: String) -> Unit)
 
 expect fun showExportSourceFileDialog(

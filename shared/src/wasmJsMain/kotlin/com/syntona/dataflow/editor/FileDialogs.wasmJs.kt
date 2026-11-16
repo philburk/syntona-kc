@@ -248,6 +248,64 @@ actual fun showOpenFileDialog(onResult: (path: String, content: String) -> Unit)
     jsOpenFilePicker(onResult)
 }
 
+@JsFun("""(acceptCsv, filterDescription, callback) => {
+    var exts = acceptCsv.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+    function fallbackInput() {
+        var input = document.createElement('input');
+        input.type = 'file';
+        if (exts.length > 0) input.accept = exts.join(',');
+        input.onchange = function(e) {
+            var file = e.target.files[0];
+            if (!file) return;
+            var reader = new FileReader();
+            reader.onload = function(ev) { callback(file.name, ev.target.result); };
+            reader.readAsText(file);
+        };
+        input.click();
+    }
+
+    if (typeof window !== 'undefined' && window.showOpenFilePicker && exts.length > 0) {
+        window.showOpenFilePicker({
+            types: [{
+                description: filterDescription,
+                accept: { 'text/xml': exts }
+            }],
+            multiple: false
+        }).then(async function(handles) {
+            if (!handles || handles.length === 0) return;
+            var handle = handles[0];
+            var file = await handle.getFile();
+            var text = await file.text();
+            callback(handle.name, text);
+        }).catch(function(err) {
+            if (err.name !== 'AbortError') {
+                console.error("Open text file picker failed, trying fallback:", err);
+                fallbackInput();
+            }
+        });
+    } else {
+        fallbackInput();
+    }
+}""")
+private external fun jsOpenTextFilePicker(
+    acceptCsv: String,
+    filterDescription: String,
+    callback: (String, String) -> Unit,
+)
+
+actual fun showOpenTextFileDialog(
+    extensions: List<String>,
+    filterDescription: String,
+    dialogTitle: String,
+    onResult: (path: String, content: String) -> Unit,
+) {
+    val acceptCsv = extensions.joinToString(",") { ext ->
+        val clean = ext.removePrefix(".")
+        if (clean.isEmpty()) "" else ".$clean"
+    }
+    jsOpenTextFilePicker(acceptCsv, filterDescription, onResult)
+}
+
 actual fun showSaveFileDialog(content: String, defaultName: String, onSaved: (path: String) -> Unit) {
     jsSaveFileWithPicker(content, defaultName, onSaved)
 }

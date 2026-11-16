@@ -126,6 +126,8 @@ class ScoreMusicXmlTest {
                 ),
                 ScoreMeasure(
                     number = 4,
+                    keySignature = KeySignature.C_MAJOR,
+                    timeSignature = TimeSignature.FIVE_FOUR,
                     items = emptyList(),
                 ),
             )
@@ -151,6 +153,8 @@ class ScoreMusicXmlTest {
                 ),
                 ScoreMeasure(
                     number = 4,
+                    keySignature = KeySignature.C_MAJOR,
+                    timeSignature = TimeSignature.FIVE_FOUR,
                     items = listOf(
                         ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 3), NoteDuration.WHOLE),
                         ScoreItem.Note(SpelledPitch(NoteLetter.G, 0, 2), NoteDuration.QUARTER),
@@ -287,5 +291,308 @@ class ScoreMusicXmlTest {
         assertContains(xml, "<sign>G</sign>")
         assertContains(xml, "<line>2</line>")
         assertContains(xml, "<clef-octave-change>-1</clef-octave-change>")
+    }
+
+    @Test
+    fun testRoundTripExportAndImportPreservesMultiInstrumentScore() {
+        val score = ScoreData().apply {
+            keySignature = KeySignature.D_MAJOR
+            timeSignature = TimeSignature.COMMON_TIME
+            instruments.clear()
+
+            val quintuplet = ScoreTuplet("t1", actualCount = 5, normalCount = 4)
+            val triplet = ScoreTuplet("t2", actualCount = 3, normalCount = 2)
+
+            val violinMeasures = listOf(
+                ScoreMeasure(
+                    number = 1,
+                    items = listOf(
+                        ScoreItem.Note(SpelledPitch(NoteLetter.A, 0, 4), NoteDuration.QUARTER),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.D, 0, 5), NoteDuration.QUARTER),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.A, 0, 4), NoteDuration.EIGHTH, isStaccato = true),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.C, 1, 5), NoteDuration.EIGHTH, isStaccato = true),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.E, 0, 5), NoteDuration.QUARTER),
+                    ),
+                ),
+                ScoreMeasure(
+                    number = 2,
+                    items = listOf(
+                        ScoreItem.Note(SpelledPitch(NoteLetter.E, 0, 4), NoteDuration.EIGHTH, tuplet = quintuplet),
+                        ScoreItem.Rest(NoteDuration.EIGHTH, tuplet = quintuplet),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.B, 0, 4), NoteDuration.EIGHTH, tuplet = quintuplet),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.A, 0, 4), NoteDuration.EIGHTH, tuplet = quintuplet),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.G, 0, 4), NoteDuration.EIGHTH, tuplet = quintuplet),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.B, 0, 4), NoteDuration.QUARTER),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.B, 0, 4), NoteDuration.QUARTER),
+                    ),
+                ),
+                ScoreMeasure(
+                    number = 3,
+                    items = listOf(
+                        ScoreItem.Note(SpelledPitch(NoteLetter.A, 0, 4), NoteDuration.EIGHTH),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.B, -1, 4), NoteDuration.EIGHTH),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.B, -1, 4), NoteDuration.QUARTER),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 5), NoteDuration.HALF),
+                    ),
+                    // Manual beam break between index 0 and 1
+                    beamOverrides = mapOf(0 to false),
+                ),
+                ScoreMeasure(
+                    number = 4,
+                    keySignature = KeySignature.C_MAJOR,
+                    timeSignature = TimeSignature.FIVE_FOUR,
+                    items = listOf(
+                        ScoreItem.Note(SpelledPitch(NoteLetter.F, 0, 4), NoteDuration.EIGHTH, isDotted = true),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.E, 0, 4), NoteDuration.SIXTEENTH),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 4), NoteDuration.QUARTER),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.A, 0, 3), NoteDuration.HALF),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.G, 0, 3), NoteDuration.QUARTER),
+                    ),
+                    clefChanges = mapOf(2 to Clef.BASS),
+                ),
+            )
+
+            val pianoUpper = listOf(
+                ScoreMeasure(
+                    number = 1,
+                    items = listOf(
+                        ScoreItem.Chord(
+                            listOf(SpelledPitch(NoteLetter.C, 1, 5), SpelledPitch(NoteLetter.E, 0, 5)),
+                            NoteDuration.HALF,
+                        ),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.D, 0, 5), NoteDuration.HALF),
+                    ),
+                    dynamics = mapOf(0 to ScoreDynamicMarking(DynamicMark.FF, DynamicPlacement.BELOW)),
+                ),
+                ScoreMeasure(
+                    number = 2,
+                    items = listOf(
+                        ScoreItem.Note(SpelledPitch(NoteLetter.A, 0, 4), NoteDuration.EIGHTH, tuplet = triplet),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.D, 0, 5), NoteDuration.EIGHTH, tuplet = triplet),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.E, 0, 5), NoteDuration.EIGHTH, tuplet = triplet),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.F, 1, 5), NoteDuration.HALF),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.D, 0, 5), NoteDuration.QUARTER),
+                    ),
+                ),
+                ScoreMeasure(
+                    number = 3,
+                    items = listOf(ScoreItem.Note(SpelledPitch(NoteLetter.B, 0, 4), NoteDuration.WHOLE)),
+                ),
+                ScoreMeasure(
+                    number = 4,
+                    keySignature = KeySignature.C_MAJOR,
+                    timeSignature = TimeSignature.FIVE_FOUR,
+                    items = emptyList(),
+                ),
+            )
+
+            val pianoLower = listOf(
+                ScoreMeasure(
+                    number = 1,
+                    items = listOf(
+                        ScoreItem.Note(SpelledPitch(NoteLetter.D, 0, 3), NoteDuration.HALF),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.D, 0, 3), NoteDuration.HALF, isTiedToNext = true),
+                    ),
+                ),
+                ScoreMeasure(
+                    number = 2,
+                    items = listOf(
+                        ScoreItem.Note(SpelledPitch(NoteLetter.D, 0, 3), NoteDuration.QUARTER),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.F, 1, 3), NoteDuration.HALF, isDotted = true),
+                    ),
+                ),
+                ScoreMeasure(
+                    number = 3,
+                    items = emptyList(),
+                ),
+                ScoreMeasure(
+                    number = 4,
+                    keySignature = KeySignature.C_MAJOR,
+                    timeSignature = TimeSignature.FIVE_FOUR,
+                    items = listOf(
+                        ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 3), NoteDuration.WHOLE),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.G, 0, 2), NoteDuration.QUARTER),
+                    ),
+                    dynamics = mapOf(0 to ScoreDynamicMarking(DynamicMark.PP, DynamicPlacement.ABOVE)),
+                ),
+            )
+
+            instruments.add(
+                ScoreInstrumentPart(
+                    id = "inst-1",
+                    name = "Violin",
+                    staffCount = 1,
+                    clef = Clef.TREBLE,
+                    measures = violinMeasures,
+                )
+            )
+            instruments.add(
+                ScoreInstrumentPart(
+                    id = "inst-2",
+                    name = "Piano",
+                    staffCount = 2,
+                    clef = Clef.TREBLE,
+                    lowerClef = Clef.BASS,
+                    measures = pianoUpper,
+                    lowerMeasures = pianoLower,
+                )
+            )
+            replaceMeasures(violinMeasures)
+        }
+
+        val fixedMeta = ScoreMusicXml.defaultMetadata(title = "RoundTrip", composer = "Tester", date = "2026-11-16")
+        val exportedXml = ScoreMusicXml.exportToString(score, tempoBpm = 108.0, metadata = fixedMeta)
+        val imported = ScoreMusicXml.importFromString(exportedXml)
+
+        assertEquals(KeySignature.D_MAJOR, imported.keySignature)
+        assertEquals(TimeSignature.COMMON_TIME, imported.timeSignature)
+        assertEquals(108.0, imported.tempoBpm)
+        assertEquals(2, imported.instruments.size)
+
+        // Compare both instruments across all staves & measures (tuplet groupIds normalized)
+        for (iIdx in score.instruments.indices) {
+            val orig = score.instruments[iIdx]
+            val imp = imported.instruments[iIdx]
+            assertEquals(orig.name, imp.name)
+            assertEquals(orig.staffCount, imp.staffCount)
+            assertEquals(orig.clef, imp.clef)
+            assertEquals(orig.lowerClef, imp.lowerClef)
+            for (sIdx in 0 until orig.staffCount) {
+                val origStaff = orig.measuresForStaff(sIdx)
+                val impStaff = imp.measuresForStaff(sIdx)
+                assertEquals(origStaff.size, impStaff.size, "Measure count mismatch inst=$iIdx staff=$sIdx")
+                for (mIdx in origStaff.indices) {
+                    assertMeasuresMusicallyEqual(origStaff[mIdx], impStaff[mIdx], "inst=$iIdx staff=$sIdx m=$mIdx")
+                }
+            }
+        }
+
+        // Verify re-export idempotence
+        val reimportedScore = ScoreData().apply {
+            keySignature = imported.keySignature
+            timeSignature = imported.timeSignature
+            replaceAllInstruments(imported.instruments)
+        }
+        val reExportedXml = ScoreMusicXml.exportToString(reimportedScore, tempoBpm = 108.0, metadata = fixedMeta)
+        assertEquals(exportedXml, reExportedXml)
+    }
+
+    @Test
+    fun testImportIgnoresUnsupportedFeaturesAndUndoRestoresScore() {
+        val module = ScoreModule()
+        val originalInstCount = module.scoreData.instruments.size
+        val originalKey = module.scoreData.keySignature
+        val originalTempo = module.tempo.getValue()
+
+        val xml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <score-partwise version="3.1">
+              <part-list>
+                <score-part id="P1"><part-name>Violin</part-name></score-part>
+                <score-part id="P2"><part-name>Custom Synth</part-name></score-part>
+              </part-list>
+              <part id="P1">
+                <measure number="1">
+                  <attributes>
+                    <divisions>4</divisions>
+                    <key><fifths>1</fifths><mode>major</mode></key>
+                    <time><beats>3</beats><beat-type>4</beat-type></time>
+                    <clef><sign>G</sign><line>2</line></clef>
+                  </attributes>
+                  <direction placement="above">
+                    <direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>132</per-minute></metronome></direction-type>
+                    <sound tempo="132"/>
+                  </direction>
+                  <note>
+                    <pitch><step>G</step><octave>4</octave></pitch>
+                    <duration>4</duration><voice>1</voice><type>quarter</type>
+                    <lyric><text>la</text></lyric>
+                  </note>
+                  <note>
+                    <pitch><step>B</step><octave>4</octave></pitch>
+                    <duration>8</duration><voice>1</voice><type>half</type>
+                  </note>
+                  <backup><duration>12</duration></backup>
+                  <note>
+                    <pitch><step>D</step><octave>4</octave></pitch>
+                    <duration>12</duration><voice>2</voice><type>half</type><dot/>
+                  </note>
+                </measure>
+              </part>
+              <part id="P2">
+                <measure number="1">
+                  <attributes>
+                    <divisions>4</divisions>
+                    <key><fifths>1</fifths></key>
+                    <time><beats>3</beats><beat-type>4</beat-type></time>
+                    <clef><sign>G</sign><line>2</line><clef-octave-change>-1</clef-octave-change></clef>
+                  </attributes>
+                  <note>
+                    <pitch><step>D</step><octave>3</octave></pitch>
+                    <duration>12</duration><voice>1</voice><type>half</type><dot/>
+                  </note>
+                </measure>
+              </part>
+            </score-partwise>
+        """.trimIndent()
+
+        val imported = ScoreMusicXml.importFromString(xml)
+        val cmd = ReplaceScoreInstrumentsCommand(
+            module = module,
+            beforeInstruments = module.scoreData.instruments.toList(),
+            afterInstruments = imported.instruments,
+            beforeKeySignature = module.scoreData.keySignature,
+            afterKeySignature = imported.keySignature,
+            beforeTimeSignature = module.scoreData.timeSignature,
+            afterTimeSignature = imported.timeSignature,
+            beforeTempo = module.tempo.getValue(),
+            afterTempo = imported.tempoBpm,
+        )
+        cmd.execute()
+
+        assertEquals(KeySignature.G_MAJOR, module.scoreData.keySignature)
+        assertEquals(TimeSignature.THREE_FOUR, module.scoreData.timeSignature)
+        assertEquals(132.0, module.tempo.getValue())
+        assertEquals(2, module.scoreData.instruments.size)
+        assertEquals(Clef.TREBLE_8VB, module.scoreData.instruments[1].clef)
+        // Secondary voice 2 ignored cleanly; primary voice 1 retained
+        assertEquals(2, module.scoreData.instruments[0].measures[0].items.size)
+
+        cmd.undo()
+        assertEquals(originalKey, module.scoreData.keySignature)
+        assertEquals(originalInstCount, module.scoreData.instruments.size)
+        assertEquals(originalTempo, module.tempo.getValue())
+    }
+
+    private fun assertMeasuresMusicallyEqual(
+        expected: ScoreMeasure,
+        actual: ScoreMeasure,
+        context: String,
+    ) {
+        assertEquals(expected.number, actual.number, "$context number")
+        assertEquals(expected.keySignature, actual.keySignature, "$context keySignature")
+        assertEquals(expected.timeSignature, actual.timeSignature, "$context timeSignature")
+        assertEquals(expected.clefChanges, actual.clefChanges, "$context clefChanges")
+        assertEquals(expected.dynamics, actual.dynamics, "$context dynamics")
+        assertEquals(expected.beamOverrides, actual.beamOverrides, "$context beamOverrides")
+        assertEquals(expected.items.size, actual.items.size, "$context item count")
+
+        val tupletIdMap = mutableMapOf<String, String>()
+        for (idx in expected.items.indices) {
+            val eItem = expected.items[idx]
+            val aItem = actual.items[idx]
+            val normalizedActual = when {
+                eItem.tuplet == null && aItem.tuplet == null -> aItem
+                eItem.tuplet != null && aItem.tuplet != null -> {
+                    val mappedId = tupletIdMap.getOrPut(aItem.tuplet!!.groupId) { eItem.tuplet!!.groupId }
+                    ScoreEditing.withTuplet(
+                        aItem,
+                        aItem.tuplet!!.copy(groupId = mappedId),
+                    )
+                }
+                else -> aItem
+            }
+            assertEquals(eItem, normalizedActual, "$context item[$idx]")
+        }
     }
 }

@@ -2,6 +2,7 @@ package com.syntona.util.musicxml
 
 import kotlin.test.Test
 import kotlin.test.assertContains
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class MusicXmlWriterTest {
@@ -98,5 +99,52 @@ class MusicXmlWriterTest {
         }
         assertContains(xml, """<barline location="right">""")
         assertContains(xml, "<bar-style>light-heavy</bar-style>")
+
+        // Round-trip through MusicXmlReader recovers exact model structure
+        val parsed = MusicXmlReader.read(xml)
+        assertEquals(score, parsed)
+    }
+
+    @Test
+    fun testReaderHandlesSingleQuotesCommentsGraceNotesAndEntities() {
+        val xml = """
+            <?xml version='1.0' encoding='UTF-8'?>
+            <!DOCTYPE score-partwise PUBLIC "-//Recordare//DTD MusicXML 3.0 Partwise//EN" "http://www.musicxml.org/dtds/partwise.dtd">
+            <score-partwise version='3.0'>
+                <work><work-title>Café &amp; Tea &#x266B;</work-title></work>
+                <part-list>
+                    <score-part id='P1'><part-name>Flute</part-name></score-part>
+                </part-list>
+                <part id='P1'>
+                    <!-- comment -->
+                    <measure number='1'>
+                        <attributes>
+                            <divisions>4</divisions>
+                            <key><fifths>-1</fifths><mode>major</mode></key>
+                            <time><beats>3</beats><beat-type>4</beat-type></time>
+                            <clef number='1'><sign>G</sign><line>2</line></clef>
+                        </attributes>
+                        <note><grace/><pitch><step>E</step><octave>5</octave></pitch><type>16th</type></note>
+                        <note>
+                            <pitch><step>F</step><alter>0.0</alter><octave>5</octave></pitch>
+                            <duration>12</duration>
+                            <voice>1</voice>
+                            <type>half</type>
+                            <dot/>
+                            <notations><fermata/><slur type='start'/></notations>
+                        </note>
+                    </measure>
+                </part>
+            </score-partwise>
+        """.trimIndent()
+        val parsed = MusicXmlReader.read(xml)
+        assertEquals("Café & Tea ♫", parsed.metadata.title)
+        assertEquals("Anonymous", parsed.metadata.composer)
+        assertEquals(1, parsed.parts.size)
+        val notes = parsed.parts[0].measures[0].elements.filterIsInstance<MusicXmlMeasureElement.Note>()
+        assertEquals(1, notes.size) // grace note skipped cleanly
+        assertEquals(MusicXmlPitch('F', 0, 5), notes[0].pitch)
+        assertEquals(12, notes[0].duration)
+        assertEquals(1, notes[0].dots)
     }
 }
