@@ -115,6 +115,7 @@ import com.syntona.dataflow.editor.scoreDynamicCursor
 import com.syntona.dataflow.editor.scoreSymbolCursor
 import com.syntona.dataflow.editor.scoreTieCursor
 import com.syntona.dataflow.editor.showExportSourceFileDialog
+import com.syntona.dataflow.editor.showOpenTextFileDialog
 import com.syntona.dataflow.engine.SyntonaCommand
 import com.syntona.ui.PlayIcon
 import com.syntona.ui.RecordIcon
@@ -237,8 +238,64 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
     var timeSigHadFocus by remember { mutableStateOf(false) }
     val timeSigFocusRequester = remember { FocusRequester() }
     var instrumentDialog by remember { mutableStateOf<InstrumentDialogState?>(null) }
+    var importErrorMessage by remember { mutableStateOf<String?>(null) }
 
     val score = module.scoreData
+
+    fun importMusicXmlContent(xmlContent: String) {
+        val imported = try {
+            ScoreMusicXml.importFromString(xmlContent)
+        } catch (ex: Exception) {
+            importErrorMessage = ex.message ?: "Unable to parse MusicXML file."
+            return
+        }
+        if (module.isPlaying) {
+            module.requestPlayToggle()
+        }
+        module.exitStepRecording()
+        val beforeInst = score.instruments.toList()
+        val beforeKey = score.keySignature
+        val beforeTime = score.timeSignature
+        val beforeTempo = module.tempo.getValue()
+        val afterTempo = imported.tempoBpm
+
+        selectedLocations = emptySet()
+        selectedMeasures = emptySet()
+        selectedClefChange = null
+        selectedDynamics = emptySet()
+        pendingAccidental = null
+        activePitchText = null
+        activeChordName = null
+        activeStaff = ScoreStaffId(0, 0)
+        module.placeCursor(null)
+
+        val cmd = ReplaceScoreInstrumentsCommand(
+            module = module,
+            beforeInstruments = beforeInst,
+            afterInstruments = imported.instruments,
+            beforeKeySignature = beforeKey,
+            afterKeySignature = imported.keySignature,
+            beforeTimeSignature = beforeTime,
+            afterTimeSignature = imported.timeSignature,
+            beforeTempo = if (afterTempo != null) beforeTempo else null,
+            afterTempo = afterTempo,
+            onSync = {
+                selectedLocations = emptySet()
+                selectedMeasures = emptySet()
+                selectedClefChange = null
+                selectedDynamics = emptySet()
+                module.placeCursor(null)
+                activeStaff = ScoreStaffId(0, 0)
+            },
+        )
+        val e = module.getEngine()
+        if (e != null) {
+            e.post(cmd)
+        } else {
+            cmd.execute()
+        }
+        coroutineScope.launch { scrollState.animateScrollTo(0) }
+    }
 
     fun resolvedActiveStaff(): ScoreStaffId {
         val part = score.instruments.getOrNull(activeStaff.instrumentIdx)
@@ -1368,6 +1425,16 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         ) {
             ScoreFileMenu(
                 textColor = toolbarText,
+                onImportMusicXml = {
+                    showOpenTextFileDialog(
+                        extensions = listOf("musicxml", "xml"),
+                        filterDescription = "MusicXML files (*.musicxml, *.xml)",
+                        dialogTitle = "Import MusicXML",
+                    ) { _, content ->
+                        importMusicXmlContent(content)
+                        focusRequester.requestFocus()
+                    }
+                },
                 onExportMusicXml = {
                     showExportSourceFileDialog(
                         defaultName = "${ScoreMusicXml.DEFAULT_TITLE}.musicxml",
@@ -2994,6 +3061,28 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             )
         }
 
+        val errorMsg = importErrorMessage
+        if (errorMsg != null) {
+            AlertDialog(
+                onDismissRequest = {
+                    importErrorMessage = null
+                    focusRequester.requestFocus()
+                },
+                title = { Text("Import MusicXML Failed") },
+                text = { Text(errorMsg) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            importErrorMessage = null
+                            focusRequester.requestFocus()
+                        }
+                    ) {
+                        Text("OK")
+                    }
+                },
+            )
+        }
+
         val activeDialog = instrumentDialog
         if (activeDialog != null) {
             InstrumentEditorDialog(
@@ -3403,6 +3492,7 @@ private fun ToolbarToggleChip(
 @Composable
 private fun ScoreFileMenu(
     textColor: Color,
+    onImportMusicXml: () -> Unit,
     onExportMusicXml: () -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -3417,6 +3507,13 @@ private fun ScoreFileMenu(
             Text("File", fontSize = 12.sp, color = textColor)
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            CompactDropdownMenuItem(
+                text = { Text("Import MusicXML...") },
+                onClick = {
+                    expanded = false
+                    onImportMusicXml()
+                },
+            )
             CompactDropdownMenuItem(
                 text = { Text("Export MusicXML...") },
                 onClick = {

@@ -16,6 +16,7 @@ import com.syntona.util.musicxml.MusicXmlNoteType
 import com.syntona.util.musicxml.MusicXmlPart
 import com.syntona.util.musicxml.MusicXmlPitch
 import com.syntona.util.musicxml.MusicXmlPlacement
+import com.syntona.util.musicxml.MusicXmlReader
 import com.syntona.util.musicxml.MusicXmlScore
 import com.syntona.util.musicxml.MusicXmlTieType
 import com.syntona.util.musicxml.MusicXmlTime
@@ -574,6 +575,735 @@ object ScoreMusicXml {
             dynamic = xmlDyn,
             placement = placement,
             staff = staffNumber,
+        )
+    }
+
+    /** Score content imported from a MusicXML `<score-partwise>` document. */
+    data class ImportResult(
+        val metadata: MusicXmlMetadata,
+        val keySignature: KeySignature,
+        val timeSignature: TimeSignature,
+        val tempoBpm: Double?,
+        val instruments: List<ScoreInstrumentPart>,
+    )
+
+    /** Parses a MusicXML `<score-partwise>` XML string into [ImportResult]. */
+    fun importFromString(xml: String): ImportResult =
+        fromMusicXmlScore(MusicXmlReader.read(xml))
+
+    /** Converts a parsed [MusicXmlScore] into [ImportResult], ignoring unsupported MusicXML features. */
+    fun fromMusicXmlScore(xmlScore: MusicXmlScore): ImportResult {
+        if (xmlScore.parts.isEmpty()) {
+            throw IllegalArgumentException("MusicXML document contains no <part> elements")
+        }
+
+        val measureCount = xmlScore.parts.maxOfOrNull { it.measures.size }?.coerceAtLeast(1) ?: 1
+        val tempoBpm = extractOpeningTempo(xmlScore)
+        val scoreHasBeamTags = xmlScore.parts.any { part ->
+            part.measures.any { m ->
+                m.elements.any { el -> el is MusicXmlMeasureElement.Note && el.beams.isNotEmpty() }
+            }
+        }
+
+        // First collect measure-level key and time signatures across parts so global score timeline matches.
+        val measureKeys = Array<KeySignature?>(measureCount) { null }
+        val measureTimes = Array<TimeSignature?>(measureCount) { null }
+        for (part in xmlScore.parts) {
+            for (mIdx in part.measures.indices) {
+                val attrs = part.measures[mIdx].attributes ?: continue
+                if (measureKeys[mIdx] == null) {
+                    attrs.key?.let { measureKeys[mIdx] = mapKeySignature(it) }
+                }
+                if (measureTimes[mIdx] == null) {
+                    attrs.time?.let { measureTimes[mIdx] = mapTimeSignature(it) }
+                }
+            }
+        }
+
+        val initialKey = measureKeys[0] ?: KeySignature.C_MAJOR
+        val initialTime = measureTimes[0] ?: TimeSignature.COMMON_TIME
+        val effectiveKeys = Array(measureCount) { initialKey }
+        val effectiveTimes = Array(measureCount) { initialTime }
+        var runningKey = initialKey
+        var runningTime = initialTime
+        for (mIdx in 0 until measureCount) {
+            if (mIdx > 0) {
+                measureKeys[mIdx]?.let { runningKey = it }
+                measureTimes[mIdx]?.let { runningTime = it }
+            }
+            effectiveKeys[mIdx] = runningKey
+            effectiveTimes[mIdx] = runningTime
+        }
+
+        val usedJackNames = mutableSetOf<String>()
+        val importedParts = xmlScore.parts.mapIndexed { instIdx, part ->
+            importPart(
+                part = part,
+                instIdx = instIdx,
+                measureCount = measureCount,
+                effectiveKeys = effectiveKeys,
+                effectiveTimes = effectiveTimes,
+                scoreHasBeamTags = scoreHasBeamTags,
+                usedJackNames = usedJackNames,
+            )
+        }
+
+        // Propagate measure-level key and time signature changes to all staves of all instruments
+        // so ScoreRenderer displays and validates meter/key consistently across the grand staff and parts.
+        val deltaKeys = arrayOfNulls<KeySignature>(measureCount)
+        val deltaTimes = arrayOfNulls<TimeSignature>(measureCount)
+        var prevK = initialKey
+        var prevT = initialTime
+        for (mIdx in 1 until measureCount) {
+            val effK = effectiveKeys[mIdx]
+            val effT = effectiveTimes[mIdx]
+            deltaKeys[mIdx] = effK.takeIf { it != prevK }
+            deltaTimes[mIdx] = effT.takeIf { it != prevT }
+            prevK = effK
+            prevT = effT
+        }
+        val finalInstruments = importedParts.map { part ->
+            var updated = part.withStaffMeasures(
+                0,
+                part.measures.mapIndexed { mIdx, m ->
+                    m.copy(keySignature = deltaKeys[mIdx], timeSignature = deltaTimes[mIdx])
+                },
+            )
+            if (part.staffCount >= 2) {
+                updated = updated.withStaffMeasures(
+                    1,
+                    part.lowerMeasures.mapIndexed { mIdx, m ->
+                        m.copy(keySignature = deltaKeys[mIdx], timeSignature = deltaTimes[mIdx])
+                    },
+                )
+            }
+            updated
+        }
+
+        return ImportResult(
+            metadata = xmlScore.metadata,
+            keySignature = initialKey,
+            timeSignature = initialTime,
+            tempoBpm = tempoBpm,
+            instruments = finalInstruments,
+        )
+    }
+
+    private fun extractOpeningTempo(xmlScore: MusicXmlScore): Double? {
+        for (part in xmlScore.parts) {
+            val firstMeasure = part.measures.firstOrNull() ?: continue
+            val tempoDir = firstMeasure.elements
+                .filterIsInstance<MusicXmlMeasureElement.TempoDirection>()
+                .firstOrNull()
+            if (tempoDir != null) {
+                val multiplier = when (tempoDir.beatUnit) {
+                    MusicXmlNoteType.WHOLE -> 4.0
+                    MusicXmlNoteType.HALF -> 2.0
+                    MusicXmlNoteType.QUARTER -> 1.0
+                    MusicXmlNoteType.EIGHTH -> 0.5
+                    MusicXmlNoteType.SIXTEENTH -> 0.25
+                    MusicXmlNoteType.THIRTY_SECOND -> 0.125
+                }
+                return (tempoDir.bpm * multiplier).coerceIn(
+                    PianoRollTiming.MIN_TEMPO,
+                    PianoRollTiming.MAX_TEMPO,
+                )
+            }
+        }
+        return null
+    }
+
+    private data class RawSlot(
+        val startTick: Int,
+        val staffIdx: Int,
+        val voice: Int,
+        val primary: MusicXmlMeasureElement.Note,
+        val chordNotes: List<MusicXmlMeasureElement.Note>,
+        val divisions: Int,
+        val dynamics: List<ScoreDynamicMarking>,
+    )
+
+    private data class RawClefEvent(
+        val startTick: Int,
+        val staffIdx: Int,
+        val clef: Clef,
+    )
+
+    private data class ParsedItemInfo(
+        val item: ScoreItem,
+        val startTick: Int,
+        val beamLinkedToNext: Boolean?,
+        val outgoingTies: Set<Int>,
+    )
+
+    private fun importPart(
+        part: MusicXmlPart,
+        instIdx: Int,
+        measureCount: Int,
+        effectiveKeys: Array<KeySignature>,
+        effectiveTimes: Array<TimeSignature>,
+        scoreHasBeamTags: Boolean,
+        usedJackNames: MutableSet<String>,
+    ): ScoreInstrumentPart {
+        val staffCount = part.staves.coerceIn(1, 2)
+        val firstAttrs = part.measures.firstOrNull()?.attributes
+        val openingClef0 = firstAttrs?.clefs
+            ?.firstOrNull { it.number == null || it.number == 1 }
+            ?.let(::mapClef)
+            ?: Clef.TREBLE
+        val openingClef1 = firstAttrs?.clefs
+            ?.firstOrNull { it.number == 2 }
+            ?.let(::mapClef)
+            ?: Clef.BASS
+
+        val rawMeasuresUpper = MutableList(measureCount) { ScoreMeasure(it + 1, emptyList()) }
+        val rawMeasuresLower = MutableList(measureCount) { ScoreMeasure(it + 1, emptyList()) }
+        val outgoingTiesUpper = Array<List<Set<Int>>>(measureCount) { emptyList() }
+        val outgoingTiesLower = Array<List<Set<Int>>>(measureCount) { emptyList() }
+
+        var runningDivisions = 1
+        val runningClefs = mutableListOf(openingClef0, openingClef1)
+        val tupletUsedIds = mutableSetOf<String>()
+
+        for (mIdx in 0 until measureCount) {
+            val xmlMeasure = part.measures.getOrNull(mIdx)
+            if (xmlMeasure == null) {
+                rawMeasuresUpper[mIdx] = ScoreMeasure(mIdx + 1, emptyList())
+                rawMeasuresLower[mIdx] = ScoreMeasure(mIdx + 1, emptyList())
+                continue
+            }
+
+            xmlMeasure.attributes?.divisions?.takeIf { it > 0 }?.let { runningDivisions = it }
+
+            val clefEvents = mutableListOf<RawClefEvent>()
+            if (mIdx > 0) {
+                xmlMeasure.attributes?.clefs?.forEach { xmlClef ->
+                    val sIdx = ((xmlClef.number ?: 1) - 1).coerceIn(0, staffCount - 1)
+                    clefEvents.add(RawClefEvent(startTick = 0, staffIdx = sIdx, clef = mapClef(xmlClef)))
+                }
+            }
+
+            val slotsByStaff = Array(staffCount) { mutableListOf<RawSlot>() }
+            val pendingDynByStaff = linkedMapOf<Int, MutableList<ScoreDynamicMarking>>()
+            val unstaffedDyn = mutableListOf<ScoreDynamicMarking>()
+            var cursorDivs = 0
+            var lastPrimarySlot: RawSlot? = null
+            var lastStaffIdx = 0
+
+            for (el in xmlMeasure.elements) {
+                when (el) {
+                    is MusicXmlMeasureElement.AttributesChange -> {
+                        el.attributes.divisions?.takeIf { it > 0 }?.let { runningDivisions = it }
+                        el.attributes.clefs.forEach { xmlClef ->
+                            val sIdx = if (xmlClef.number != null) {
+                                (xmlClef.number - 1).coerceIn(0, staffCount - 1)
+                            } else {
+                                lastStaffIdx.coerceIn(0, staffCount - 1)
+                            }
+                            clefEvents.add(
+                                RawClefEvent(
+                                    startTick = cursorDivs,
+                                    staffIdx = sIdx,
+                                    clef = mapClef(xmlClef),
+                                )
+                            )
+                        }
+                    }
+
+                    is MusicXmlMeasureElement.DynamicDirection -> {
+                        val marking = toScoreDynamic(el.dynamic, el.placement)
+                        val targetStaff = el.staff?.let { (it - 1).coerceIn(0, staffCount - 1) }
+                        if (targetStaff != null) {
+                            pendingDynByStaff.getOrPut(targetStaff) { mutableListOf() }.add(marking)
+                        } else {
+                            unstaffedDyn.add(marking)
+                        }
+                    }
+
+                    is MusicXmlMeasureElement.TempoDirection -> {
+                        // Opening tempo already handled at score level.
+                    }
+
+                    is MusicXmlMeasureElement.Backup -> {
+                        cursorDivs = (cursorDivs - el.duration).coerceAtLeast(0)
+                        lastPrimarySlot = null
+                    }
+
+                    is MusicXmlMeasureElement.Forward -> {
+                        cursorDivs += el.duration
+                        lastPrimarySlot = null
+                        el.staff?.let { lastStaffIdx = (it - 1).coerceIn(0, staffCount - 1) }
+                    }
+
+                    is MusicXmlMeasureElement.Note -> {
+                        val noteStaff = ((el.staff ?: 1) - 1)
+                        if (el.isChord) {
+                            val prev = lastPrimarySlot
+                            if (prev != null) {
+                                val updatedChord = prev.chordNotes + el
+                                val idxInList = slotsByStaff[prev.staffIdx].lastIndex
+                                if (idxInList >= 0) {
+                                    val updated = prev.copy(chordNotes = updatedChord)
+                                    slotsByStaff[prev.staffIdx][idxInList] = updated
+                                    lastPrimarySlot = updated
+                                }
+                            }
+                        } else {
+                            val startTick = cursorDivs
+                            cursorDivs += el.duration.coerceAtLeast(0)
+                            if (noteStaff in 0 until staffCount) {
+                                lastStaffIdx = noteStaff
+                                val attachedDyns = mutableListOf<ScoreDynamicMarking>()
+                                pendingDynByStaff.remove(noteStaff)?.let { attachedDyns.addAll(it) }
+                                if (unstaffedDyn.isNotEmpty()) {
+                                    attachedDyns.addAll(unstaffedDyn)
+                                    unstaffedDyn.clear()
+                                }
+                                for (inlineDyn in el.inlineDynamics) {
+                                    attachedDyns.add(
+                                        toScoreDynamic(
+                                            inlineDyn.dynamic,
+                                            inlineDyn.placement ?: MusicXmlPlacement.BELOW,
+                                        )
+                                    )
+                                }
+                                val slot = RawSlot(
+                                    startTick = startTick,
+                                    staffIdx = noteStaff,
+                                    voice = el.voice,
+                                    primary = el,
+                                    chordNotes = emptyList(),
+                                    divisions = runningDivisions,
+                                    dynamics = attachedDyns,
+                                )
+                                slotsByStaff[noteStaff].add(slot)
+                                lastPrimarySlot = slot
+                            } else {
+                                lastPrimarySlot = null
+                            }
+                        }
+                    }
+                }
+            }
+
+            for (sIdx in 0 until staffCount) {
+                val built = buildImportedStaffMeasure(
+                    measureNumber = mIdx + 1,
+                    rawSlots = slotsByStaff[sIdx],
+                    clefEvents = clefEvents.filter { it.staffIdx == sIdx },
+                    openingClef = runningClefs[sIdx],
+                    effectiveKey = effectiveKeys[mIdx],
+                    effectiveTime = effectiveTimes[mIdx],
+                    scoreHasBeamTags = scoreHasBeamTags,
+                    tupletUsedIds = tupletUsedIds,
+                    trailingDyns = pendingDynByStaff[sIdx].orEmpty() +
+                        if (sIdx == 0) unstaffedDyn else emptyList(),
+                )
+                runningClefs[sIdx] = built.endingClef
+                if (sIdx == 0) {
+                    rawMeasuresUpper[mIdx] = built.measure
+                    outgoingTiesUpper[mIdx] = built.outgoingTiesByItem
+                } else {
+                    rawMeasuresLower[mIdx] = built.measure
+                    outgoingTiesLower[mIdx] = built.outgoingTiesByItem
+                }
+            }
+        }
+
+        val cleanedUpper = pruneOrphanedOutgoingTies(rawMeasuresUpper, outgoingTiesUpper)
+        val cleanedLower = if (staffCount >= 2) {
+            pruneOrphanedOutgoingTies(rawMeasuresLower, outgoingTiesLower)
+        } else {
+            listOf(ScoreMeasure(1, emptyList()))
+        }
+
+        val resolvedName = part.name.trim().ifEmpty { "Instrument ${instIdx + 1}" }
+        val profile = resolveInstrumentProfile(resolvedName, staffCount)
+        val jackName = ScoreInstrumentPart.uniqueJackName(resolvedName, usedJackNames)
+        usedJackNames.add(jackName)
+
+        return ScoreInstrumentPart(
+            id = "inst-${instIdx + 1}",
+            name = resolvedName,
+            instrumentType = profile.type,
+            minMidiPitch = profile.minMidi,
+            maxMidiPitch = profile.maxMidi,
+            staffCount = staffCount,
+            clef = openingClef0,
+            lowerClef = openingClef1,
+            jackName = jackName,
+            measures = ScoreEditing.renumber(cleanedUpper),
+            lowerMeasures = if (staffCount >= 2) ScoreEditing.renumber(cleanedLower) else listOf(ScoreMeasure(1, emptyList())),
+        )
+    }
+
+    private data class BuiltImportedMeasure(
+        val measure: ScoreMeasure,
+        val outgoingTiesByItem: List<Set<Int>>,
+        val endingClef: Clef,
+    )
+
+    private fun buildImportedStaffMeasure(
+        measureNumber: Int,
+        rawSlots: List<RawSlot>,
+        clefEvents: List<RawClefEvent>,
+        openingClef: Clef,
+        effectiveKey: KeySignature,
+        effectiveTime: TimeSignature,
+        scoreHasBeamTags: Boolean,
+        tupletUsedIds: MutableSet<String>,
+        trailingDyns: List<ScoreDynamicMarking>,
+    ): BuiltImportedMeasure {
+        // Pick the primary voice on this staff to keep Syntona's single-voice-per-staff model clean.
+        val primaryVoice = rawSlots.minOfOrNull { it.voice }
+        val voiceSlots = if (primaryVoice == null) emptyList() else rawSlots.filter { it.voice == primaryVoice }
+
+        val isInvisibleOrMeasureRestOnly = voiceSlots.size == 1 &&
+            voiceSlots[0].chordNotes.isEmpty() &&
+            voiceSlots[0].primary.pitch == null &&
+            (voiceSlots[0].primary.isMeasureRest || !voiceSlots[0].primary.printObject)
+
+        val effectiveSlots = if (isInvisibleOrMeasureRestOnly) emptyList() else voiceSlots
+
+        // Resolve tuplet groupings across the measure's slots.
+        val tupletAssignments = arrayOfNulls<ScoreTuplet>(effectiveSlots.size)
+        var sIdx = 0
+        while (sIdx < effectiveSlots.size) {
+            val tm = effectiveSlots[sIdx].primary.timeModification
+            if (tm == null) {
+                sIdx++
+                continue
+            }
+            val groupIndices = mutableListOf<Int>()
+            while (sIdx < effectiveSlots.size) {
+                val curr = effectiveSlots[sIdx].primary
+                val currTm = curr.timeModification ?: break
+                if (currTm.actualNotes != tm.actualNotes || currTm.normalNotes != tm.normalNotes) break
+                val startsNew = curr.tupletNotations.any { it.type == MusicXmlTieType.START }
+                if (groupIndices.isNotEmpty() && startsNew) break
+                groupIndices.add(sIdx)
+                sIdx++
+                if (curr.tupletNotations.any { it.type == MusicXmlTieType.STOP }) break
+                if (curr.tupletNotations.none { it.type == MusicXmlTieType.START || it.type == MusicXmlTieType.STOP } &&
+                    groupIndices.size >= tm.actualNotes
+                ) {
+                    // Without explicit <tuplet> markers, split consecutive runs by actualNotes count
+                    // unless unscaled durations haven't filled a group yet.
+                    break
+                }
+            }
+            val unscaledDurs = groupIndices.map { i ->
+                val (dur, dotted) = mapDuration(effectiveSlots[i].primary, effectiveSlots[i].divisions)
+                dur.totalTicks(dotted)
+            }
+            val unscaledSum = unscaledDurs.sum()
+            val allUniform = unscaledDurs.distinct().size <= 1
+            val minDur = unscaledDurs.minOrNull() ?: 0
+            val inferredBaseTicks = when {
+                groupIndices.size < tm.actualNotes && allUniform -> unscaledDurs.firstOrNull() ?: 0
+                groupIndices.size < tm.actualNotes && minDur > 0 && unscaledSum == tm.actualNotes * minDur -> minDur
+                else -> 0
+            }
+            val groupId = ScoreEditing.nextTupletGroupId(tupletUsedIds)
+            val scoreTuplet = ScoreTuplet(
+                groupId = groupId,
+                actualCount = tm.actualNotes,
+                normalCount = tm.normalNotes,
+                baseTicks = inferredBaseTicks,
+            )
+            for (idx in groupIndices) {
+                tupletAssignments[idx] = scoreTuplet
+            }
+        }
+
+        val parsedItems = mutableListOf<ParsedItemInfo>()
+        val dynamicsMap = mutableMapOf<Int, ScoreDynamicMarking>()
+
+        for ((idx, slot) in effectiveSlots.withIndex()) {
+            val (dur, dotted) = mapDuration(slot.primary, slot.divisions)
+            val tuplet = tupletAssignments[idx]
+            val staccato = slot.primary.isStaccato
+
+            val allXmlNotes = listOf(slot.primary) + slot.chordNotes
+            val isRest = slot.primary.pitch == null && slot.chordNotes.isEmpty()
+
+            val outgoing = mutableSetOf<Int>()
+            val scoreItem: ScoreItem = if (isRest) {
+                ScoreItem.Rest(duration = dur, isDotted = dotted, tuplet = tuplet)
+            } else {
+                val mappedPitches = allXmlNotes.mapNotNull { xmlNote ->
+                    val xp = xmlNote.pitch ?: return@mapNotNull null
+                    val spelled = mapPitch(xp, effectiveKey)
+                    val hasTieStart = MusicXmlTieType.START in xmlNote.ties ||
+                        MusicXmlTieType.START in xmlNote.tiedNotations
+                    if (hasTieStart) {
+                        outgoing.add(spelled.midiPitch)
+                    }
+                    spelled
+                }
+                val sortedUnique = mappedPitches
+                    .distinctBy { it.diatonicStep to it.midiPitch }
+                    .sortedWith(compareBy<SpelledPitch> { it.diatonicStep }.thenBy { it.midiPitch })
+                when (sortedUnique.size) {
+                    0 -> ScoreItem.Rest(duration = dur, isDotted = dotted, tuplet = tuplet)
+                    1 -> ScoreItem.Note(
+                        pitch = sortedUnique[0],
+                        duration = dur,
+                        isDotted = dotted,
+                        isStaccato = staccato,
+                        isTiedToNext = sortedUnique[0].midiPitch in outgoing,
+                        tuplet = tuplet,
+                    )
+                    else -> ScoreItem.Chord(
+                        pitches = sortedUnique,
+                        duration = dur,
+                        isDotted = dotted,
+                        isStaccato = staccato,
+                        tiedMidiPitches = outgoing,
+                        tuplet = tuplet,
+                    )
+                }
+            }
+
+            if (slot.dynamics.isNotEmpty()) {
+                dynamicsMap[idx] = slot.dynamics.last()
+            }
+            val level1Beam = slot.primary.beams[1]
+            val linkedToNext = when (level1Beam) {
+                MusicXmlBeamType.BEGIN, MusicXmlBeamType.CONTINUE -> true
+                else -> false
+            }
+            parsedItems.add(
+                ParsedItemInfo(
+                    item = scoreItem,
+                    startTick = slot.startTick,
+                    beamLinkedToNext = if (scoreHasBeamTags) linkedToNext else null,
+                    outgoingTies = outgoing,
+                )
+            )
+        }
+
+        // Preserve dynamic carried on an empty/measure-rest slot (place at slot 0).
+        if (effectiveSlots.isEmpty() && voiceSlots.isNotEmpty()) {
+            voiceSlots.firstOrNull { it.dynamics.isNotEmpty() }?.dynamics?.lastOrNull()?.let { dyn ->
+                dynamicsMap[0] = dyn
+            }
+        }
+        if (trailingDyns.isNotEmpty() && parsedItems.isNotEmpty()) {
+            val lastIdx = parsedItems.lastIndex
+            if (lastIdx !in dynamicsMap) {
+                dynamicsMap[lastIdx] = trailingDyns.last()
+            }
+        }
+
+        // Map clef changes onto item indices in this measure.
+        val clefChangesMap = mutableMapOf<Int, Clef>()
+        var runningClef = openingClef
+        for (ev in clefEvents.sortedBy { it.startTick }) {
+            val targetIdx = parsedItems.indexOfFirst { it.startTick >= ev.startTick }
+                .let { if (it < 0) parsedItems.size else it }
+            if (ev.clef != runningClef) {
+                clefChangesMap[targetIdx] = ev.clef
+                runningClef = ev.clef
+            }
+        }
+
+        val itemsList = parsedItems.map { it.item }
+        val baseMeasure = ScoreMeasure(
+            number = measureNumber,
+            items = itemsList,
+            clefChanges = clefChangesMap,
+            dynamics = dynamicsMap,
+        )
+
+        val beamOverrides = mutableMapOf<Int, Boolean>()
+        if (scoreHasBeamTags && itemsList.size >= 2) {
+            for (i in 0 until itemsList.lastIndex) {
+                val left = itemsList[i]
+                val right = itemsList[i + 1]
+                if (!ScoreEditing.isBeamableItem(left) || !ScoreEditing.isBeamableItem(right)) continue
+                val xmlLinked = parsedItems[i].beamLinkedToNext ?: continue
+                val auto = ScoreEditing.autoBeamedAfter(baseMeasure, openingClef, effectiveTime, i)
+                if (xmlLinked != auto) {
+                    beamOverrides[i] = xmlLinked
+                }
+            }
+        }
+
+        return BuiltImportedMeasure(
+            measure = if (beamOverrides.isEmpty()) baseMeasure else baseMeasure.copy(beamOverrides = beamOverrides),
+            outgoingTiesByItem = parsedItems.map { it.outgoingTies },
+            endingClef = runningClef,
+        )
+    }
+
+    private fun pruneOrphanedOutgoingTies(
+        measures: List<ScoreMeasure>,
+        outgoingByMeasure: Array<List<Set<Int>>>,
+    ): List<ScoreMeasure> {
+        return measures.mapIndexed { mIdx, m ->
+            val updatedItems = m.items.mapIndexed { iIdx, item ->
+                val wanted = outgoingByMeasure[mIdx].getOrNull(iIdx).orEmpty()
+                if (wanted.isEmpty()) {
+                    item
+                } else {
+                    val nextLoc = ScoreEditing.nextItemLocation(measures, mIdx, iIdx)
+                    val nextMidis = nextLoc?.let { ScoreEditing.itemAt(measures, it) }
+                        ?.soundingPitches()?.map { it.midiPitch }?.toSet()
+                        ?: emptySet()
+                    val validTies = wanted.intersect(nextMidis)
+                    when (item) {
+                        is ScoreItem.Note -> item.copy(isTiedToNext = item.pitch.midiPitch in validTies)
+                        is ScoreItem.Chord -> item.copy(tiedMidiPitches = validTies)
+                        is ScoreItem.Rest -> item
+                    }
+                }
+            }
+            if (updatedItems == m.items) m else m.copy(items = updatedItems)
+        }
+    }
+
+    private fun mapKeySignature(key: MusicXmlKey): KeySignature {
+        val clamped = key.fifths.coerceIn(-7, 7)
+        return KeySignature.entries.firstOrNull { it.fifths == clamped } ?: KeySignature.C_MAJOR
+    }
+
+    private fun mapTimeSignature(time: MusicXmlTime): TimeSignature {
+        val num = time.beats.coerceIn(TimeSignature.MIN_NUMERATOR, TimeSignature.MAX_NUMERATOR)
+        val den = if (time.beatType in TimeSignature.VALID_DENOMINATORS) {
+            time.beatType
+        } else {
+            TimeSignature.VALID_DENOMINATORS.minByOrNull { kotlin.math.abs(it - time.beatType) } ?: 4
+        }
+        return TimeSignature(num, den)
+    }
+
+    private fun mapClef(xmlClef: MusicXmlClef): Clef {
+        val sign = xmlClef.sign.uppercase()
+        val oct = xmlClef.octaveChange ?: 0
+        return when (sign) {
+            "G" -> when {
+                oct < 0 -> Clef.TREBLE_8VB
+                oct > 0 -> Clef.TREBLE_8VA
+                else -> Clef.TREBLE
+            }
+            "F" -> when {
+                oct < 0 -> Clef.BASS_8VB
+                oct > 0 -> Clef.BASS_8VA
+                else -> Clef.BASS
+            }
+            "C" -> if (xmlClef.line >= 4) Clef.TENOR else Clef.ALTO
+            else -> Clef.TREBLE
+        }
+    }
+
+    private fun mapDuration(note: MusicXmlMeasureElement.Note, divisions: Int): Pair<NoteDuration, Boolean> {
+        val dotted = note.dots >= 1
+        note.type?.let { t ->
+            val dur = when (t) {
+                MusicXmlNoteType.WHOLE -> NoteDuration.WHOLE
+                MusicXmlNoteType.HALF -> NoteDuration.HALF
+                MusicXmlNoteType.QUARTER -> NoteDuration.QUARTER
+                MusicXmlNoteType.EIGHTH -> NoteDuration.EIGHTH
+                MusicXmlNoteType.SIXTEENTH -> NoteDuration.SIXTEENTH
+                MusicXmlNoteType.THIRTY_SECOND -> NoteDuration.THIRTY_SECOND
+            }
+            return dur to dotted
+        }
+
+        val safeDivs = divisions.coerceAtLeast(1).toDouble()
+        val tm = note.timeModification
+        val unscaledQuarters = if (tm != null) {
+            (note.duration.toDouble() / safeDivs) * (tm.actualNotes.toDouble() / tm.normalNotes.toDouble())
+        } else {
+            note.duration.toDouble() / safeDivs
+        }
+        val candidates = NoteDuration.entries.flatMap { d ->
+            val baseQuarters = d.ticks.toDouble() / PianoRollTiming.TPB.toDouble()
+            listOf(
+                Triple(d, false, baseQuarters),
+                Triple(d, true, baseQuarters * 1.5),
+            )
+        }
+        val best = candidates.minByOrNull { kotlin.math.abs(it.third - unscaledQuarters) }
+        return (best?.first ?: NoteDuration.QUARTER) to (best?.second ?: dotted)
+    }
+
+    private fun mapPitch(pitch: MusicXmlPitch, activeKey: KeySignature): SpelledPitch {
+        val letter = when (pitch.step.uppercaseChar()) {
+            'C' -> NoteLetter.C
+            'D' -> NoteLetter.D
+            'E' -> NoteLetter.E
+            'F' -> NoteLetter.F
+            'G' -> NoteLetter.G
+            'A' -> NoteLetter.A
+            'B' -> NoteLetter.B
+            else -> NoteLetter.C
+        }
+        return if (pitch.alter in -1..1) {
+            SpelledPitch(letter = letter, alter = pitch.alter, octave = pitch.octave)
+        } else {
+            val midi = ((pitch.octave + 1) * 12 + letter.semitoneOffset + pitch.alter).coerceIn(0, 127)
+            SpelledPitch.fromMidiPitch(midi, activeKey)
+        }
+    }
+
+    private fun toScoreDynamic(
+        dyn: MusicXmlDynamic,
+        placement: MusicXmlPlacement,
+    ): ScoreDynamicMarking {
+        val mark = when (dyn) {
+            MusicXmlDynamic.PPPP -> DynamicMark.PPPP
+            MusicXmlDynamic.PPP -> DynamicMark.PPP
+            MusicXmlDynamic.PP -> DynamicMark.PP
+            MusicXmlDynamic.P -> DynamicMark.P
+            MusicXmlDynamic.MP -> DynamicMark.MP
+            MusicXmlDynamic.MF -> DynamicMark.MF
+            MusicXmlDynamic.F -> DynamicMark.F
+            MusicXmlDynamic.FF -> DynamicMark.FF
+            MusicXmlDynamic.FFF -> DynamicMark.FFF
+            MusicXmlDynamic.FFFF -> DynamicMark.FFFF
+            MusicXmlDynamic.FP -> DynamicMark.FP
+            MusicXmlDynamic.SF -> DynamicMark.SF
+            MusicXmlDynamic.SFZ -> DynamicMark.SFZ
+        }
+        val scorePlacement = when (placement) {
+            MusicXmlPlacement.ABOVE -> DynamicPlacement.ABOVE
+            MusicXmlPlacement.BELOW -> DynamicPlacement.BELOW
+        }
+        return ScoreDynamicMarking(mark = mark, placement = scorePlacement)
+    }
+
+    private data class InstrumentProfile(
+        val type: InstrumentType,
+        val minMidi: Int,
+        val maxMidi: Int,
+    )
+
+    private fun resolveInstrumentProfile(name: String, staffCount: Int): InstrumentProfile {
+        val preset = InstrumentPreset.entries.firstOrNull {
+            name.contains(it.displayName, ignoreCase = true)
+        }
+        if (preset != null) {
+            return InstrumentProfile(preset.instrumentType, preset.minMidiPitch, preset.maxMidiPitch)
+        }
+        val inferredType = when {
+            staffCount >= 2 -> InstrumentType.KEYBOARDS
+            name.contains("guitar", ignoreCase = true) ||
+                name.contains("harp", ignoreCase = true) -> InstrumentType.PLUCKED_STRINGS
+            name.contains("flute", ignoreCase = true) ||
+                name.contains("clarinet", ignoreCase = true) ||
+                name.contains("oboe", ignoreCase = true) ||
+                name.contains("sax", ignoreCase = true) -> InstrumentType.WOODWIND
+            name.contains("horn", ignoreCase = true) ||
+                name.contains("trombone", ignoreCase = true) ||
+                name.contains("tuba", ignoreCase = true) -> InstrumentType.BRASS
+            else -> InstrumentType.KEYBOARDS
+        }
+        return InstrumentProfile(
+            inferredType,
+            ScoreInstrumentPart.DEFAULT_MIN_MIDI,
+            ScoreInstrumentPart.DEFAULT_MAX_MIDI,
         )
     }
 }

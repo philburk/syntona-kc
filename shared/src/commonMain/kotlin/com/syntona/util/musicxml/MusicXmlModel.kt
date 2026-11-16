@@ -136,6 +136,12 @@ data class MusicXmlTupletNotation(
     val showNumber: String? = null,
 )
 
+/** Dynamic marking attached inside a `<note><notations><dynamics>` block. */
+data class MusicXmlInlineDynamic(
+    val dynamic: MusicXmlDynamic,
+    val placement: MusicXmlPlacement? = null,
+)
+
 /** Diatonic pitch spelling (`<pitch><step>...</step><alter>...</alter><octave>...</octave></pitch>`). */
 data class MusicXmlPitch(
     val step: Char,
@@ -193,5 +199,7 @@ sealed interface MusicXmlMeasureElement {
         val tiedNotations: List<MusicXmlTieType> = emptyList(),
         val tupletNotations: List<MusicXmlTupletNotation> = emptyList(),
         val isStaccato: Boolean = false,
+        val printObject: Boolean = true,
+        val inlineDynamics: List<MusicXmlInlineDynamic> = emptyList(),
     ) : MusicXmlMeasureElement
 }

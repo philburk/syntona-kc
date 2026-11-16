@@ -154,6 +154,28 @@ actual fun showOpenFileDialog(onResult: (path: String, content: String) -> Unit)
     }
 }
 
+actual fun showOpenTextFileDialog(
+    extensions: List<String>,
+    filterDescription: String,
+    dialogTitle: String,
+    onResult: (path: String, content: String) -> Unit,
+) {
+    val cleanExts = extensions.map { it.removePrefix(".") }.filter { it.isNotEmpty() }
+    val chooser = JFileChooser().apply {
+        this.dialogTitle = dialogTitle
+        if (cleanExts.isNotEmpty()) {
+            fileFilter = FileNameExtensionFilter(filterDescription, *cleanExts.toTypedArray())
+        }
+        if (!lastDocumentDirectory.exists()) lastDocumentDirectory.mkdirs()
+        currentDirectory = lastDocumentDirectory
+    }
+    if (chooser.showOpenDialog(null) == JFileChooser.APPROVE_OPTION) {
+        val file = chooser.selectedFile
+        updateLastDocumentDirectory(file.parentFile)
+        onResult(file.absolutePath, file.readText())
+    }
+}
+
 actual fun showSaveFileDialog(content: String, defaultName: String, onSaved: (path: String) -> Unit) {
     val chooser = JFileChooser().apply {
         dialogTitle = "Save Patch"
