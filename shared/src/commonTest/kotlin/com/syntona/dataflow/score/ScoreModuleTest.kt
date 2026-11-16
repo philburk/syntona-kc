@@ -4510,4 +4510,106 @@ class ScoreModuleTest {
             (module.scoreData.instruments[1].measures[0].items[0] as ScoreItem.Note).pitch,
         )
     }
+
+    @Test
+    fun testInsertEmptyMeasureBeforeSelectionAndDeleteMultipleMeasuresUndoRedo() {
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val d4 = SpelledPitch(NoteLetter.D, 0, 4)
+        val e4 = SpelledPitch(NoteLetter.E, 0, 4)
+
+        val base = listOf(
+            ScoreMeasure(1, listOf(ScoreItem.Note(c4, NoteDuration.QUARTER, isTiedToNext = true))),
+            ScoreMeasure(
+                2,
+                listOf(ScoreItem.Note(c4, NoteDuration.QUARTER)),
+                keySignature = KeySignature.D_MAJOR,
+                timeSignature = TimeSignature(5, 4),
+                clefChanges = mapOf(0 to Clef.BASS),
+            ),
+            ScoreMeasure(3, listOf(ScoreItem.Note(d4, NoteDuration.QUARTER))),
+            ScoreMeasure(4, listOf(ScoreItem.Note(e4, NoteDuration.QUARTER))),
+        )
+
+        // 1. Insert before measure 0 (beginning of piece) and before measure 1 (middle, breaks tie from 0->1)
+        val atStart = ScoreEditing.insertEmptyMeasureAt(base, 0)
+        assertEquals(5, atStart.size)
+        assertTrue(atStart[0].items.isEmpty())
+        assertEquals(c4, (atStart[1].items.single() as ScoreItem.Note).pitch)
+        assertEquals(listOf(1, 2, 3, 4, 5), atStart.map { it.number })
+
+        val beforeMid = ScoreEditing.insertEmptyMeasureAt(base, 1)
+        assertEquals(5, beforeMid.size)
+        assertFalse((beforeMid[0].items.single() as ScoreItem.Note).isTiedToNext, "Tie clears before inserted empty bar")
+        assertTrue(beforeMid[1].items.isEmpty())
+        assertEquals(KeySignature.D_MAJOR, beforeMid[2].keySignature)
+
+        // 2. Delete middle non-contiguous group {1, 3} -> leaves bars 0 & 2, clears dangling tie from 0->2 (c4!=d4)
+        val delMiddle = ScoreEditing.deleteMeasures(
+            initialKey = KeySignature.C_MAJOR,
+            initialTime = TimeSignature.COMMON_TIME,
+            initialClef = Clef.TREBLE,
+            measures = base,
+            indicesToDelete = setOf(1, 3),
+        )
+        assertEquals(2, delMiddle.measures.size)
+        assertEquals(KeySignature.C_MAJOR, delMiddle.initialKey)
+        assertFalse((delMiddle.measures[0].items.single() as ScoreItem.Note).isTiedToNext)
+        assertEquals(d4, (delMiddle.measures[1].items.single() as ScoreItem.Note).pitch)
+
+        // 3. Delete measure 0 -> promotes measure 1's key/time/clef cleanly with multi-instrument undo/redo
+        val module = ScoreModule()
+        val inst1 = ScoreInstrumentPart(
+            id = "inst-1",
+            name = "Inst 1",
+            instrumentType = InstrumentType.KEYBOARDS,
+            clef = Clef.TREBLE,
+            measures = base,
+        )
+        module.scoreData.replaceAllInstruments(listOf(inst1))
+        val delFirst = ScoreEditing.deleteMeasures(
+            initialKey = KeySignature.C_MAJOR,
+            initialTime = TimeSignature.COMMON_TIME,
+            initialClef = inst1.clef,
+            measures = inst1.measures,
+            indicesToDelete = setOf(0),
+        )
+        assertEquals(3, delFirst.measures.size)
+        assertEquals(KeySignature.D_MAJOR, delFirst.initialKey)
+        assertEquals(TimeSignature(5, 4), delFirst.initialTime)
+        assertEquals(Clef.BASS, delFirst.initialClef)
+        assertEquals(null, delFirst.measures[0].keySignature)
+        assertEquals(null, delFirst.measures[0].timeSignature)
+        assertFalse(0 in delFirst.measures[0].clefChanges)
+
+        val cmd = ReplaceScoreInstrumentsCommand(
+            module = module,
+            beforeInstruments = listOf(inst1),
+            afterInstruments = listOf(inst1.copy(clef = delFirst.initialClef, measures = delFirst.measures)),
+            beforeKeySignature = KeySignature.C_MAJOR,
+            afterKeySignature = delFirst.initialKey,
+            beforeTimeSignature = TimeSignature.COMMON_TIME,
+            afterTimeSignature = delFirst.initialTime,
+        )
+        cmd.execute()
+        assertEquals(KeySignature.D_MAJOR, module.scoreData.keySignature)
+        assertEquals(TimeSignature(5, 4), module.scoreData.timeSignature)
+        assertEquals(Clef.BASS, module.scoreData.instruments[0].clef)
+
+        cmd.undo()
+        assertEquals(KeySignature.C_MAJOR, module.scoreData.keySignature)
+        assertEquals(TimeSignature.COMMON_TIME, module.scoreData.timeSignature)
+        assertEquals(Clef.TREBLE, module.scoreData.instruments[0].clef)
+        assertEquals(4, module.scoreData.instruments[0].measures.size)
+
+        // 4. Deleting all bars leaves one clean empty measure
+        val delAll = ScoreEditing.deleteMeasures(
+            initialKey = KeySignature.C_MAJOR,
+            initialTime = TimeSignature.COMMON_TIME,
+            initialClef = Clef.TREBLE,
+            measures = base,
+            indicesToDelete = setOf(0, 1, 2, 3),
+        )
+        assertEquals(1, delAll.measures.size)
+        assertTrue(delAll.measures[0].items.isEmpty())
+    }
 }
