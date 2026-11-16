@@ -498,11 +498,149 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             score.staffMeasures(loc.staff).getOrNull(loc.measureIdx)?.dynamics?.containsKey(loc.itemIdx) == true
         }
 
+    fun insertEmptyBar() {
+        durationEditState = null
+        val beforeInst = score.instruments.toList()
+        val insertIdx = selectedMeasures.minOrNull()?.coerceIn(0, score.measures.size)
+        val afterInst = beforeInst.map { part ->
+            if (insertIdx != null) {
+                val updatedUpper = ScoreEditing.insertEmptyMeasureAt(part.measures, insertIdx)
+                if (part.staffCount >= 2) {
+                    val updatedLower = ScoreEditing.insertEmptyMeasureAt(part.lowerMeasures, insertIdx)
+                    part.copy(measures = updatedUpper, lowerMeasures = updatedLower)
+                } else {
+                    part.copy(measures = updatedUpper)
+                }
+            } else {
+                val updatedUpper = ScoreEditing.appendEmptyMeasure(part.measures)
+                if (part.staffCount >= 2) {
+                    val updatedLower = ScoreEditing.appendEmptyMeasure(part.lowerMeasures)
+                    part.copy(
+                        measures = ScoreEditing.renumber(updatedUpper),
+                        lowerMeasures = ScoreEditing.renumber(updatedLower),
+                    )
+                } else {
+                    part.copy(measures = ScoreEditing.renumber(updatedUpper))
+                }
+            }
+        }
+        if (insertIdx == null) {
+            postCommand(ReplaceScoreInstrumentsCommand(module, beforeInst, afterInst))
+            return
+        }
+        val prevMeasures = selectedMeasures
+        val prevLocs = selectedLocations
+        val prevDynamics = selectedDynamics
+        val prevClef = selectedClefChange
+        val prevCursor = module.cursorPosition
+        val afterMeasures = setOf(insertIdx)
+        val afterLocs = prevLocs.map { loc ->
+            if (loc.measureIdx >= insertIdx) loc.copy(measureIdx = loc.measureIdx + 1) else loc
+        }.toCollection(linkedSetOf())
+        val afterDynamics = prevDynamics.map { dyn ->
+            if (dyn.measureIdx >= insertIdx) dyn.copy(measureIdx = dyn.measureIdx + 1) else dyn
+        }.toCollection(linkedSetOf())
+        val afterClef = prevClef?.let { c ->
+            if (c.measureIdx >= insertIdx) c.copy(measureIdx = c.measureIdx + 1) else c
+        }
+        val afterCursor = prevCursor?.let { c ->
+            if (c.measureIdx >= insertIdx) c.copy(measureIdx = c.measureIdx + 1) else c
+        }
+        postCommand(
+            ReplaceScoreInstrumentsCommand(module, beforeInst, afterInst) {
+                if (score.instruments.toList() == beforeInst) {
+                    selectedMeasures = prevMeasures
+                    selectedLocations = prevLocs
+                    selectedDynamics = prevDynamics
+                    selectedClefChange = prevClef
+                    module.placeCursor(prevCursor)
+                } else {
+                    selectedMeasures = afterMeasures
+                    selectedLocations = afterLocs
+                    selectedDynamics = afterDynamics
+                    selectedClefChange = afterClef
+                    module.placeCursor(afterCursor)
+                }
+                refreshPitchDisplayFromSelection(selection = selectedLocations)
+            }
+        )
+    }
+
+    fun deleteMeasuresSelection(targetMeasures: Set<Int>) {
+        if (targetMeasures.isEmpty()) return
+        durationEditState = null
+        val beforeInst = score.instruments.toList()
+        val beforeKey = score.keySignature
+        val beforeTime = score.timeSignature
+        var nextKey = beforeKey
+        var nextTime = beforeTime
+        val afterInst = beforeInst.mapIndexed { instIdx, part ->
+            val res0 = ScoreEditing.deleteMeasures(beforeKey, beforeTime, part.clef, part.measures, targetMeasures)
+            if (instIdx == 0) {
+                nextKey = res0.initialKey
+                nextTime = res0.initialTime
+            }
+            if (part.staffCount >= 2) {
+                val res1 = ScoreEditing.deleteMeasures(beforeKey, beforeTime, part.lowerClef, part.lowerMeasures, targetMeasures)
+                part.copy(
+                    clef = res0.initialClef,
+                    lowerClef = res1.initialClef,
+                    measures = res0.measures,
+                    lowerMeasures = res1.measures,
+                )
+            } else {
+                part.copy(
+                    clef = res0.initialClef,
+                    measures = res0.measures,
+                )
+            }
+        }
+        if (afterInst == beforeInst && nextKey == beforeKey && nextTime == beforeTime) return
+        val prevMeasures = selectedMeasures
+        val prevLocs = selectedLocations
+        val prevDynamics = selectedDynamics
+        val prevClef = selectedClefChange
+        val prevCursor = module.cursorPosition
+        postCommand(
+            ReplaceScoreInstrumentsCommand(
+                module = module,
+                beforeInstruments = beforeInst,
+                afterInstruments = afterInst,
+                beforeKeySignature = beforeKey,
+                afterKeySignature = nextKey,
+                beforeTimeSignature = beforeTime,
+                afterTimeSignature = nextTime,
+            ) {
+                if (score.instruments.toList() == beforeInst) {
+                    selectedMeasures = prevMeasures
+                    selectedLocations = prevLocs
+                    selectedDynamics = prevDynamics
+                    selectedClefChange = prevClef
+                    module.placeCursor(prevCursor)
+                    refreshPitchDisplayFromSelection(selection = prevLocs)
+                } else {
+                    selectedMeasures = emptySet()
+                    selectedLocations = emptySet()
+                    selectedDynamics = emptySet()
+                    selectedClefChange = null
+                    activePitchText = null
+                    activeChordName = null
+                    module.placeCursor(null)
+                }
+            }
+        )
+    }
+
     fun deleteSelection() {
         durationEditState = null
         if (selectedLocations.isEmpty() && selectedDynamics.isEmpty()) {
-            selectedClefChange?.let { clefLoc ->
+            val clefLoc = selectedClefChange
+            if (clefLoc != null) {
                 applyClef(null, clefLoc)
+                return
+            }
+            if (selectedMeasures.isNotEmpty()) {
+                deleteMeasuresSelection(selectedMeasures)
             }
             return
         }
@@ -1345,20 +1483,8 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
 
             TextButton(
                 onClick = {
-                    val beforeInst = score.instruments.toList()
-                    val afterInst = beforeInst.map { part ->
-                        val updatedUpper = ScoreEditing.appendEmptyMeasure(part.measures)
-                        if (part.staffCount >= 2) {
-                            val updatedLower = ScoreEditing.appendEmptyMeasure(part.lowerMeasures)
-                            part.copy(
-                                measures = ScoreEditing.renumber(updatedUpper),
-                                lowerMeasures = ScoreEditing.renumber(updatedLower),
-                            )
-                        } else {
-                            part.copy(measures = ScoreEditing.renumber(updatedUpper))
-                        }
-                    }
-                    postCommand(ReplaceScoreInstrumentsCommand(module, beforeInst, afterInst))
+                    insertEmptyBar()
+                    focusRequester.requestFocus()
                 },
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                 modifier = Modifier
@@ -1368,49 +1494,23 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 Text("+ Bar", fontSize = 11.sp, color = toolbarText)
             }
 
+            val hasSelectedBars = selectedMeasures.isNotEmpty()
             TextButton(
+                enabled = hasSelectedBars,
                 onClick = {
-                    val nextNum = score.instruments.size + 1
-                    instrumentDialog = InstrumentDialogState(
-                        editingIndex = null,
-                        name = "Instrument $nextNum",
-                        instrumentType = InstrumentType.KEYBOARDS,
-                        lowPitchText = ScoreInstrumentPart.formatMidiPitch(ScoreInstrumentPart.DEFAULT_MIN_MIDI),
-                        highPitchText = ScoreInstrumentPart.formatMidiPitch(ScoreInstrumentPart.DEFAULT_MAX_MIDI),
-                        selectedPreset = null,
-                    )
+                    deleteMeasuresSelection(selectedMeasures)
+                    focusRequester.requestFocus()
                 },
                 contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
                 modifier = Modifier
                     .height(28.dp)
                     .focusProperties { canFocus = false },
             ) {
-                Text("+ Inst", fontSize = 11.sp, color = accentColor, fontWeight = FontWeight.SemiBold)
-            }
-
-            TextButton(
-                onClick = {
-                    val beforeInst = score.instruments.toList()
-                    val afterInst = beforeInst.map { part ->
-                        part.copy(
-                            measures = ScoreEditing.clearToSingleEmptyMeasure(),
-                            lowerMeasures = if (part.staffCount >= 2) ScoreEditing.clearToSingleEmptyMeasure() else part.lowerMeasures,
-                        )
-                    }
-                    selectedLocations = emptySet()
-                    selectedMeasures = emptySet()
-                    selectedDynamics = emptySet()
-                    selectedClefChange = null
-                    activePitchText = null
-                    activeChordName = null
-                    postCommand(ReplaceScoreInstrumentsCommand(module, beforeInst, afterInst))
-                },
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-                modifier = Modifier
-                    .height(28.dp)
-                    .focusProperties { canFocus = false },
-            ) {
-                Text("Clear", fontSize = 11.sp, color = toolbarText)
+                Text(
+                    "- Bar",
+                    fontSize = 11.sp,
+                    color = if (hasSelectedBars) toolbarText else toolbarText.copy(alpha = 0.35f),
+                )
             }
 
             Text("|", color = borderMuted)

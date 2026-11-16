@@ -314,11 +314,17 @@ class ReplaceScoreInstrumentsCommand(
     private val module: ScoreModule,
     private val beforeInstruments: List<ScoreInstrumentPart>,
     private val afterInstruments: List<ScoreInstrumentPart>,
+    private val beforeKeySignature: KeySignature? = null,
+    private val afterKeySignature: KeySignature? = null,
+    private val beforeTimeSignature: TimeSignature? = null,
+    private val afterTimeSignature: TimeSignature? = null,
     private val onSync: (() -> Unit)? = null,
 ) : SyntonaCommand {
     override val isUndoable = true
 
     override fun execute() {
+        afterKeySignature?.let { module.scoreData.keySignature = it }
+        afterTimeSignature?.let { module.scoreData.timeSignature = it }
         module.scoreData.replaceAllInstruments(afterInstruments)
         module.syncInstrumentOutputs()
         onSync?.invoke()
@@ -326,6 +332,8 @@ class ReplaceScoreInstrumentsCommand(
     }
 
     override fun undo() {
+        beforeKeySignature?.let { module.scoreData.keySignature = it }
+        beforeTimeSignature?.let { module.scoreData.timeSignature = it }
         module.scoreData.replaceAllInstruments(beforeInstruments)
         module.syncInstrumentOutputs()
         onSync?.invoke()

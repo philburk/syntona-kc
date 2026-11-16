@@ -831,6 +831,15 @@ data class ScoreItemLocation(
     fun slotLocation(): ScoreItemLocation = if (chordNoteIdx == null) this else copy(chordNoteIdx = null)
 }
 
+/** Result of deleting one or more measures, including updated score-opening header state. */
+data class ScoreDeleteMeasuresResult(
+    val initialKey: KeySignature,
+    val initialTime: TimeSignature,
+    val initialClef: Clef,
+    val measures: List<ScoreMeasure>,
+    val indexMap: Map<Int, Int>,
+)
+
 /** Mode controlling how pitch transposition steps selected notes. */
 enum class ScoreTransposeMode {
     /** Step diatonically along the active key signature's scale degrees. */
@@ -1501,8 +1510,130 @@ object ScoreEditing {
         return renumber(updated)
     }
 
+    private fun retainMatchingOutgoingTies(
+        item: ScoreItem,
+        validMidis: Set<Int>,
+    ): ScoreItem = when (item) {
+        is ScoreItem.Note -> {
+            val tied = item.isTiedToNext && item.pitch.midiPitch in validMidis
+            if (tied == item.isTiedToNext) item else item.copy(isTiedToNext = tied)
+        }
+        is ScoreItem.Chord -> {
+            val kept = item.tiedMidiPitches intersect validMidis
+            if (kept == item.tiedMidiPitches) item else item.copy(tiedMidiPitches = kept)
+        }
+        is ScoreItem.Rest -> item
+    }
+
     fun appendEmptyMeasure(measures: List<ScoreMeasure>): List<ScoreMeasure> =
         renumber(measures + ScoreMeasure(measures.size + 1, emptyList()))
+
+    /**
+     * Inserts an empty measure before [insertIdx] (`0..measures.size`), renumbering measures
+     * and clearing any cross-barline tie from `insertIdx - 1` into the vacated successor slot.
+     */
+    fun insertEmptyMeasureAt(
+        measures: List<ScoreMeasure>,
+        insertIdx: Int,
+    ): List<ScoreMeasure> {
+        val normalized = renumber(measures)
+        val clampedIdx = insertIdx.coerceIn(0, normalized.size)
+        val result = normalized.toMutableList()
+        if (clampedIdx > 0 && result[clampedIdx - 1].items.isNotEmpty()) {
+            val prev = result[clampedIdx - 1]
+            val cleanedLast = retainMatchingOutgoingTies(prev.items.last(), emptySet())
+            if (cleanedLast !== prev.items.last()) {
+                val updatedItems = prev.items.toMutableList().apply { set(lastIndex, cleanedLast) }
+                result[clampedIdx - 1] = prev.copy(items = updatedItems)
+            }
+        }
+        result.add(clampedIdx, ScoreMeasure(clampedIdx + 1, emptyList()))
+        return renumber(result)
+    }
+
+    /**
+     * Removes all measures whose 0-based index is in [indicesToDelete]. Always leaves at least
+     * one empty measure, promotes the opening key/time/clef from the first surviving measure if
+     * measure 0 was deleted, and prunes dangling cross-barline ties.
+     */
+    fun deleteMeasures(
+        initialKey: KeySignature,
+        initialTime: TimeSignature,
+        initialClef: Clef,
+        measures: List<ScoreMeasure>,
+        indicesToDelete: Set<Int>,
+    ): ScoreDeleteMeasuresResult {
+        val normalized = renumber(measures)
+        val validDelete = indicesToDelete.filterTo(mutableSetOf()) { it in normalized.indices }
+        if (validDelete.isEmpty()) {
+            return ScoreDeleteMeasuresResult(
+                initialKey = initialKey,
+                initialTime = initialTime,
+                initialClef = initialClef,
+                measures = normalized,
+                indexMap = normalized.indices.associateWith { it },
+            )
+        }
+        val keptOrigIndices = normalized.indices.filter { it !in validDelete }
+        if (keptOrigIndices.isEmpty()) {
+            return ScoreDeleteMeasuresResult(
+                initialKey = initialKey,
+                initialTime = initialTime,
+                initialClef = initialClef,
+                measures = clearToSingleEmptyMeasure(),
+                indexMap = emptyMap(),
+            )
+        }
+        val firstKeptOrig = keptOrigIndices.first()
+        val nextInitialKey = if (firstKeptOrig > 0) {
+            effectiveKeyAtMeasure(normalized, initialKey, firstKeptOrig)
+        } else {
+            initialKey
+        }
+        val nextInitialTime = if (firstKeptOrig > 0) {
+            effectiveTimeAtMeasure(normalized, initialTime, firstKeptOrig)
+        } else {
+            initialTime
+        }
+        val nextInitialClef = if (firstKeptOrig > 0) {
+            effectiveClefAt(normalized, initialClef, firstKeptOrig, itemIdx = 0)
+        } else {
+            initialClef
+        }
+        val indexMap = keptOrigIndices.withIndex().associate { (newIdx, origIdx) -> origIdx to newIdx }
+        val keptMutable = keptOrigIndices.mapIndexed { newIdx, origIdx ->
+            val orig = normalized[origIdx]
+            if (newIdx == 0 && firstKeptOrig > 0) {
+                val trimmedClefs = if (0 in orig.clefChanges) orig.clefChanges - 0 else orig.clefChanges
+                orig.copy(keySignature = null, timeSignature = null, clefChanges = trimmedClefs)
+            } else {
+                orig
+            }
+        }.toMutableList()
+        for ((newIdx, origIdx) in keptOrigIndices.withIndex()) {
+            if (origIdx + 1 in validDelete && keptMutable[newIdx].items.isNotEmpty()) {
+                val m = keptMutable[newIdx]
+                val nextMidis = nextItemLocation(keptMutable, newIdx, m.items.lastIndex)
+                    ?.let { itemAt(keptMutable, it) }
+                    ?.soundingPitches()
+                    ?.map { it.midiPitch }
+                    ?.toSet()
+                    ?: emptySet()
+                val cleanedLast = retainMatchingOutgoingTies(m.items.last(), nextMidis)
+                if (cleanedLast !== m.items.last()) {
+                    val updatedItems = m.items.toMutableList().apply { set(lastIndex, cleanedLast) }
+                    keptMutable[newIdx] = m.copy(items = updatedItems)
+                }
+            }
+        }
+        return ScoreDeleteMeasuresResult(
+            initialKey = nextInitialKey,
+            initialTime = nextInitialTime,
+            initialClef = nextInitialClef,
+            measures = renumber(keptMutable),
+            indexMap = indexMap,
+        )
+    }
 
     fun padMeasuresToCount(measures: List<ScoreMeasure>, targetCount: Int): List<ScoreMeasure> {
         val normalized = renumber(measures)
