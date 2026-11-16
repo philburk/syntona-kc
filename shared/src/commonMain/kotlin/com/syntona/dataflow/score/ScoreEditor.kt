@@ -109,10 +109,12 @@ import com.syntona.dataflow.editor.GraphState
 import com.syntona.dataflow.editor.GraphViewSettings
 import com.syntona.dataflow.editor.LocalMdiState
 import com.syntona.dataflow.editor.moveCursor
+import com.syntona.dataflow.editor.saveFileDirect
 import com.syntona.dataflow.editor.scoreBeamCursor
 import com.syntona.dataflow.editor.scoreDynamicCursor
 import com.syntona.dataflow.editor.scoreSymbolCursor
 import com.syntona.dataflow.editor.scoreTieCursor
+import com.syntona.dataflow.editor.showExportSourceFileDialog
 import com.syntona.dataflow.engine.SyntonaCommand
 import com.syntona.ui.PlayIcon
 import com.syntona.ui.RecordIcon
@@ -1364,6 +1366,23 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            ScoreFileMenu(
+                textColor = toolbarText,
+                onExportMusicXml = {
+                    showExportSourceFileDialog(
+                        defaultName = "${ScoreMusicXml.DEFAULT_TITLE}.musicxml",
+                        extension = "musicxml",
+                        dialogTitle = "Export MusicXML",
+                    ) { chosenPath ->
+                        val xml = ScoreMusicXml.exportModuleToString(module)
+                        saveFileDirect(chosenPath, xml)
+                        focusRequester.requestFocus()
+                    }
+                },
+            )
+
+            Text("|", color = borderMuted)
+
             TextButton(
                 onClick = {
                     module.requestRewind()
@@ -3378,6 +3397,34 @@ private fun ToolbarToggleChip(
             .focusProperties { canFocus = false },
     ) {
         content(contentColor)
+    }
+}
+
+@Composable
+private fun ScoreFileMenu(
+    textColor: Color,
+    onExportMusicXml: () -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        TextButton(
+            onClick = { expanded = true },
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+            modifier = Modifier
+                .height(28.dp)
+                .focusProperties { canFocus = false },
+        ) {
+            Text("File", fontSize = 12.sp, color = textColor)
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            CompactDropdownMenuItem(
+                text = { Text("Export MusicXML...") },
+                onClick = {
+                    expanded = false
+                    onExportMusicXml()
+                },
+            )
+        }
     }
 }
 
