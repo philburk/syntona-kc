@@ -259,6 +259,22 @@ Press UP or DOWN arrow keys on keyboard to transpose the notes within the curren
 If the SHIFT key is pressed while UP or DOWN are pressed then transpose the notes by single semitones.
 The notes may end up outside the current key.
 
+### Phase 19 - MusicXML Export
+Add a "File" menu at the far left of the Score toolbar.
+
+Put all the MusicXML specific code in a com.syntona.util.musicxml package so we can copy it to other applications or libraries.
+Try to avoid dependencies on the rest of Syntona in the MusicXML code.
+
+Phase A - Add a File menu item: "Export MusicXML...".
+This will allow us to export a score to Notion or other notation editors.
+Default values are Title = "Untitled", Composer="Anonymous" and Date={todays date}.
+
+Phase B - Add a File menu item: "Import MusicXML...".
+This will allow us to import a score from Notion or other notation editors.
+Features and articulations that are not supported should be ignored.
+
+Do round trip testing by exporting a score and then importing it.
+
 ### Phase ? - Articulations
 Add support for articulations such as pizzicato, mute, sustain pedal, and
 2 or 3 other very common articulations.
@@ -272,8 +288,6 @@ Put the select buttons for measure lines into a palette called "Measure Lines".
 
 Allow the user to enter the score name, composer and a date.
 
-### Phase ? - Export
-Add MusicXML support. This will allow us to export a score to Notion or other notation editors.
 
 
 ### Phase ?

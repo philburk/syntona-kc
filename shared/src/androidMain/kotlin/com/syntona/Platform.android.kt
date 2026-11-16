@@ -7,3 +7,5 @@ class AndroidPlatform : Platform {
 }
 
 actual fun getPlatform(): Platform = AndroidPlatform()
+
+actual fun currentIsoDate(): String = java.time.LocalDate.now().toString()

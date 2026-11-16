@@ -179,9 +179,14 @@ actual fun showExportSourceFileDialog(
     onChosen: (path: String) -> Unit
 ) {
     val cleanExt = extension.removePrefix(".")
+    val isMusicXml = cleanExt.equals("musicxml", ignoreCase = true)
     val chooser = JFileChooser().apply {
         this.dialogTitle = dialogTitle
-        fileFilter = FileNameExtensionFilter("Source files (*.$cleanExt)", cleanExt)
+        fileFilter = if (isMusicXml) {
+            FileNameExtensionFilter("MusicXML files (*.musicxml, *.xml)", "musicxml", "xml")
+        } else {
+            FileNameExtensionFilter("Source files (*.$cleanExt)", cleanExt)
+        }
         if (!lastDocumentDirectory.exists()) lastDocumentDirectory.mkdirs()
         currentDirectory = lastDocumentDirectory
         val initialName = if (defaultName.endsWith(".$cleanExt")) defaultName else "$defaultName.$cleanExt"
@@ -189,7 +194,9 @@ actual fun showExportSourceFileDialog(
     }
     if (chooser.showSaveDialog(null) == JFileChooser.APPROVE_OPTION) {
         val path = chooser.selectedFile.path
-        val fullPath = if (path.endsWith(".$cleanExt", ignoreCase = true)) path else "$path.$cleanExt"
+        val hasAcceptedExt = path.endsWith(".$cleanExt", ignoreCase = true) ||
+            (isMusicXml && path.endsWith(".xml", ignoreCase = true))
+        val fullPath = if (hasAcceptedExt) path else "$path.$cleanExt"
         val file = File(fullPath)
         updateLastDocumentDirectory(file.parentFile)
         if (file.exists()) {

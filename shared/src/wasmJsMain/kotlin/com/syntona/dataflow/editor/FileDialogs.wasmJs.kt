@@ -262,13 +262,19 @@ actual fun showSaveFileDialog(content: String, defaultName: String, onSaved: (pa
 
     if (typeof window !== 'undefined' && window.showSaveFilePicker) {
         var desc = 'Source files (*.' + cleanExt + ')';
+        var acceptTypes = {};
         if (cleanExt === 'kt') {
             desc = 'Kotlin source files (*.kt)';
+            acceptTypes['text/plain'] = ['.kt'];
         } else if (cleanExt === 'java') {
             desc = 'Java source files (*.java)';
+            acceptTypes['text/plain'] = ['.java'];
+        } else if (cleanExt === 'musicxml' || cleanExt === 'xml') {
+            desc = 'MusicXML files (*.musicxml, *.xml)';
+            acceptTypes['application/xml'] = ['.musicxml', '.xml'];
+        } else {
+            acceptTypes['text/plain'] = ['.' + cleanExt];
         }
-        var acceptTypes = {};
-        acceptTypes['text/plain'] = ['.' + cleanExt];
 
         window.showSaveFilePicker({
             suggestedName: initialName,

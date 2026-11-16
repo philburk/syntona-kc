@@ -11,6 +11,9 @@ interface Platform {
 
 expect fun getPlatform(): Platform
 
+/** Returns today's calendar date in ISO-8601 format (`YYYY-MM-DD`). */
+expect fun currentIsoDate(): String
+
 fun getEventCharCode(event: KeyEvent): Int {
     return when (event.key) {
         Key.A -> 'A'.code
