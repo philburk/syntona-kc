@@ -574,7 +574,7 @@ object GraphSerializer {
                 val instruments = module.scoreData.instruments
                 val hasMultiOrCustomInstrument = instruments.size > 1 || instruments.any { inst ->
                     inst.name != ScoreInstrumentPart.DEFAULT_NAME ||
-                        inst.instrumentType != InstrumentType.KEYBOARDS ||
+                        inst.instrumentType != ScoreInstrumentPart.DEFAULT_TYPE ||
                         inst.minMidiPitch != ScoreInstrumentPart.DEFAULT_MIN_MIDI ||
                         inst.maxMidiPitch != ScoreInstrumentPart.DEFAULT_MAX_MIDI ||
                         inst.staffCount != 1 ||
@@ -1829,7 +1829,7 @@ object GraphSerializer {
                         val jackName = (instObj.map["jackName"] as? JsonValue.Str)?.value
                             ?: if (instIdx == 0) ScoreInstrumentPart.DEFAULT_JACK_NAME else "out_${instIdx + 1}"
                         val typeStr = (instObj.map["type"] as? JsonValue.Str)?.value
-                        val instType = InstrumentType.entries.firstOrNull { it.name == typeStr } ?: InstrumentType.KEYBOARDS
+                        val instType = InstrumentType.entries.firstOrNull { it.name == typeStr } ?: ScoreInstrumentPart.DEFAULT_TYPE
                         val minMidi = ((instObj.map["minMidi"] as? JsonValue.Num)?.value?.toInt()
                             ?: ScoreInstrumentPart.DEFAULT_MIN_MIDI).coerceIn(0, 127)
                         val maxMidi = ((instObj.map["maxMidi"] as? JsonValue.Num)?.value?.toInt()

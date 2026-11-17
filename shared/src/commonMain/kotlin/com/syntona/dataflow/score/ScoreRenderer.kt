@@ -666,8 +666,7 @@ object ScoreRenderer {
         val emPx = sp * 4f
         val changeEmPx = emPx * CLEF_CHANGE_SCALE
         val instruments = score.instruments.ifEmpty { listOf(ScoreInstrumentPart(id = "inst-1")) }
-        val showInstrumentLabels = instruments.size > 1 ||
-            instruments.any { it.staffCount > 1 || it.name != ScoreInstrumentPart.DEFAULT_NAME }
+        val showInstrumentLabels = instruments.isNotEmpty()
         val leftMargin = if (showInstrumentLabels) sp * 8.5f else sp * 2.0f
         val rightMargin = sp * 2.0f
 

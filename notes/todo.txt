@@ -3,10 +3,21 @@
 
 MAKE SOME MUSIC!
 
-Add a command input jack. Maybe in a core/patches bundle.
+Staff Notation tutorial
+Overview and Preview Score
+score -> instru -> lineOut, open score, Note Palette, add some notes, play
+Note/Rest shortcuts, more notes, display pitch, selecting, dragging
+Augmented dot notation
+Build chords, see chord name
+MIDI input, step record
+Edit accidentals, select and transpose, SHIFT
+Tuplets, palette, keyboard shortcuts
+Change to 5:4 time signature
+Add new instrument, piano
+Export if need to print, Fill with Rests, Export MusicXML
 
-Add duration to _NOTE_ command to support staff notation.
-See staff.md file.
+
+Add a command input jack. Maybe in a core/patches bundle.
 
 Add drum grid modules, 4x8, 4x16, 8x16, cascadable for 8x32 and syncable for 16x16.
 

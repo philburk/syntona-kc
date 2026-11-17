@@ -2880,11 +2880,11 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                             val nextNum = score.instruments.size + 1
                             instrumentDialog = InstrumentDialogState(
                                 editingIndex = null,
-                                name = "Instrument $nextNum",
-                                instrumentType = InstrumentType.KEYBOARDS,
+                                name = "Synth $nextNum",
+                                instrumentType = ScoreInstrumentPart.DEFAULT_TYPE,
                                 lowPitchText = ScoreInstrumentPart.formatMidiPitch(ScoreInstrumentPart.DEFAULT_MIN_MIDI),
                                 highPitchText = ScoreInstrumentPart.formatMidiPitch(ScoreInstrumentPart.DEFAULT_MAX_MIDI),
-                                selectedPreset = null,
+                                selectedPreset = InstrumentPreset.SYNTH,
                             )
                         }
                         .padding(horizontal = 7.dp, vertical = 2.dp),
@@ -3091,7 +3091,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             }
 
             val curInst = score.instrumentAt(resolvedActiveStaff().instrumentIdx)
-            if (curInst != null && (score.instruments.size > 1 || curInst.staffCount > 1 || curInst.name != ScoreInstrumentPart.DEFAULT_NAME)) {
+            if (curInst != null) {
                 Spacer(modifier = Modifier.width(8.dp))
                 val rangeStr = "${ScoreInstrumentPart.formatMidiPitch(curInst.minMidiPitch)}–${ScoreInstrumentPart.formatMidiPitch(curInst.maxMidiPitch)}"
                 Text(

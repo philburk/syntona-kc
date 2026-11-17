@@ -144,8 +144,46 @@ class ScoreModuleTest {
     }
 
     @Test
+    fun testNewScoreStartsEmptyInKeyOfCFourFour() {
+        val module = ScoreModule()
+        assertEquals(KeySignature.C_MAJOR, module.scoreData.keySignature)
+        assertEquals(TimeSignature(4, 4), module.scoreData.timeSignature)
+        assertEquals(8, module.scoreData.measures.size)
+        assertEquals((1..8).toList(), module.scoreData.measures.map { it.number })
+        assertTrue(module.scoreData.measures.all { it.items.isEmpty() }, "New score module should start with 8 empty measures")
+        assertEquals(1, module.scoreData.instruments.size)
+        val defaultInst = module.scoreData.instruments[0]
+        assertEquals("Synth", defaultInst.name)
+        assertEquals(InstrumentType.ELECTRONIC, defaultInst.instrumentType)
+        assertEquals(50, defaultInst.minMidiPitch) // D3
+        assertEquals(91, defaultInst.maxMidiPitch) // G6
+        assertEquals("D3 – G6", defaultInst.rangeSummary())
+        assertEquals(1, defaultInst.staffCount)
+        assertEquals(Clef.TREBLE, defaultInst.clef)
+        assertEquals(8, defaultInst.measures.size)
+        assertTrue(defaultInst.measures.all { it.items.isEmpty() })
+
+        // Left instrument header is always rendered and clickable even for a single default instrument
+        val target = RecordingDrawTarget()
+        val layout = ScoreRenderer.render(
+            score = module.scoreData,
+            target = target,
+            staffSpacePx = 10f,
+            minWidthPx = 400f,
+            colors = ScoreRenderColors.forTheme(darkMode = false),
+        )
+        assertTrue(layout.showInstrumentLabels)
+        assertTrue(target.texts.any { it.text == "Synth" })
+        assertTrue(target.texts.any { it.text == "D3–G6" })
+        val grp = layout.instrumentGroups.single()
+        val hit = layout.instrumentGroupAt((grp.labelLeft + grp.braceX) * 0.5f, (grp.topStaffY + grp.bottomStaffY) * 0.5f)
+        assertNotNull(hit)
+        assertEquals(0, hit.instrumentIdx)
+    }
+
+    @Test
     fun testPhase1RenderEmitsStaffClefSignaturesNotesAndRests() {
-        val score = ScoreData()
+        val score = ScoreData().apply { loadDefaultSample() }
         val target = RecordingDrawTarget()
         val layout = ScoreRenderer.render(
             score = score,
@@ -218,7 +256,7 @@ class ScoreModuleTest {
     @Test
     fun testPlaybackEmitsNoteVoiceMessagesForNotesAndSkipsRests() {
         val engine = TestEngine()
-        val score = ScoreModule()
+        val score = ScoreModule().apply { scoreData.loadDefaultSample() }
         score.setEngine(engine)
 
         val receiver = VoiceReceiver()
@@ -488,7 +526,7 @@ class ScoreModuleTest {
 
     @Test
     fun testRubberBandSelectionAndSelectedBoxRendering() {
-        val score = ScoreData()
+        val score = ScoreData().apply { loadDefaultSample() }
         val colors = ScoreRenderColors.forTheme(darkMode = false)
         val layout = ScoreRenderer.computeLayout(score, staffSpacePx = 10f, minWidthPx = 800f) { _, fs -> fs * 0.35f }
 
@@ -3266,13 +3304,20 @@ class ScoreModuleTest {
         assertNull(ScoreInstrumentPart.parsePitchOrMidi("not-a-note"))
         assertNull(ScoreInstrumentPart.parsePitchOrMidi("140"))
 
+        // Default Synth range D3..G6 (50..91) -> 1 staff (Treble)
         val defaultRec = ScoreInstrumentPart.recommendStaffSetup(
             ScoreInstrumentPart.DEFAULT_MIN_MIDI,
             ScoreInstrumentPart.DEFAULT_MAX_MIDI,
         )
-        assertEquals(2, defaultRec.staffCount)
+        assertEquals(1, defaultRec.staffCount)
         assertEquals(Clef.TREBLE, defaultRec.clef)
-        assertEquals(Clef.BASS, defaultRec.lowerClef)
+
+        val synthRec = ScoreInstrumentPart.recommendStaffSetup(
+            InstrumentPreset.SYNTH.minMidiPitch,
+            InstrumentPreset.SYNTH.maxMidiPitch,
+        )
+        assertEquals(1, synthRec.staffCount)
+        assertEquals(Clef.TREBLE, synthRec.clef)
 
         // Built-in presets map to appropriate clefs and staff counts
         val violinRec = ScoreInstrumentPart.recommendStaffSetup(

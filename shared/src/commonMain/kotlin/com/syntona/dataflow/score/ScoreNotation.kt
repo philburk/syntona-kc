@@ -633,6 +633,7 @@ enum class InstrumentPreset(
     val minMidiPitch: Int,
     val maxMidiPitch: Int,
 ) {
+    SYNTH("Synth", InstrumentType.ELECTRONIC, 50, 91),
     VIOLIN("Violin", InstrumentType.BOWED_STRINGS, 55, 105),
     VIOLA("Viola", InstrumentType.BOWED_STRINGS, 48, 88),
     CELLO("Cello", InstrumentType.BOWED_STRINGS, 36, 81),
@@ -655,7 +656,7 @@ data class RecommendedStaffSetup(
 data class ScoreInstrumentPart(
     val id: String,
     val name: String = DEFAULT_NAME,
-    val instrumentType: InstrumentType = InstrumentType.KEYBOARDS,
+    val instrumentType: InstrumentType = DEFAULT_TYPE,
     val minMidiPitch: Int = DEFAULT_MIN_MIDI,
     val maxMidiPitch: Int = DEFAULT_MAX_MIDI,
     val staffCount: Int = 1,
@@ -684,9 +685,10 @@ data class ScoreInstrumentPart(
     fun rangeSummary(): String = "${formatMidiPitch(minMidiPitch)} – ${formatMidiPitch(maxMidiPitch)}"
 
     companion object {
-        const val DEFAULT_MIN_MIDI = 21 // A0 (88-key piano bottom)
-        const val DEFAULT_MAX_MIDI = 108 // C8 (88-key piano top)
-        const val DEFAULT_NAME = "Instrument 1"
+        const val DEFAULT_MIN_MIDI = 50 // D3
+        const val DEFAULT_MAX_MIDI = 91 // G6
+        const val DEFAULT_NAME = "Synth"
+        val DEFAULT_TYPE = InstrumentType.ELECTRONIC
         const val DEFAULT_JACK_NAME = "out"
 
         /**
@@ -3412,7 +3414,7 @@ internal object ScoreClipboard {
 
 /** Observable multi-instrument score document supporting multiple instruments, per-instrument staves/clefs/ranges, and synchronized playback. */
 class ScoreData {
-    var keySignature by mutableStateOf(KeySignature.D_MAJOR)
+    var keySignature by mutableStateOf(KeySignature.C_MAJOR)
     var timeSignature by mutableStateOf(TimeSignature.COMMON_TIME)
     val instruments = mutableStateListOf<ScoreInstrumentPart>()
     val measures = mutableStateListOf<ScoreMeasure>()
@@ -3427,7 +3429,7 @@ class ScoreData {
         }
 
     init {
-        loadDefaultSample()
+        loadEmpty()
     }
 
     private fun syncPrimaryMeasuresFromInstruments() {
@@ -3570,30 +3572,51 @@ class ScoreData {
         }
     }
 
-    fun loadDefaultSample() {
-        keySignature = KeySignature.D_MAJOR
-        timeSignature = TimeSignature.COMMON_TIME
-        val sample = defaultPhase1Measures()
+    private fun resetSingleInstrument(
+        key: KeySignature,
+        time: TimeSignature,
+        initialMeasures: List<ScoreMeasure>,
+    ) {
+        keySignature = key
+        timeSignature = time
         instruments.clear()
         instruments.add(
             ScoreInstrumentPart(
                 id = "inst-1",
                 name = ScoreInstrumentPart.DEFAULT_NAME,
-                instrumentType = InstrumentType.KEYBOARDS,
+                instrumentType = ScoreInstrumentPart.DEFAULT_TYPE,
                 minMidiPitch = ScoreInstrumentPart.DEFAULT_MIN_MIDI,
                 maxMidiPitch = ScoreInstrumentPart.DEFAULT_MAX_MIDI,
                 staffCount = 1,
                 clef = Clef.TREBLE,
                 lowerClef = Clef.BASS,
                 jackName = ScoreInstrumentPart.DEFAULT_JACK_NAME,
-                measures = sample,
+                measures = initialMeasures,
                 lowerMeasures = listOf(ScoreMeasure(1, emptyList())),
             )
         )
         syncPrimaryMeasuresFromInstruments()
     }
 
+    fun loadEmpty() {
+        resetSingleInstrument(
+            key = KeySignature.C_MAJOR,
+            time = TimeSignature.COMMON_TIME,
+            initialMeasures = (1..DEFAULT_MEASURE_COUNT).map { ScoreMeasure(it, emptyList()) },
+        )
+    }
+
+    fun loadDefaultSample() {
+        resetSingleInstrument(
+            key = KeySignature.D_MAJOR,
+            time = TimeSignature.COMMON_TIME,
+            initialMeasures = defaultPhase1Measures(),
+        )
+    }
+
     companion object {
+        const val DEFAULT_MEASURE_COUNT = 8
+
         /** Sample stave demonstrating key signature, time signature, and all common note & rest durations. */
         fun defaultPhase1Measures(): List<ScoreMeasure> = listOf(
             // Measure 1 (4/4): Quarter, Quarter, Eighth, Eighth, Quarter (shows D major F# in key sig & C# next bar)
