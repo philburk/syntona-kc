@@ -138,6 +138,72 @@ private enum class ScoreEditMode {
     TIE,
 }
 
+internal sealed interface ScoreAltTupletAction {
+    data object OpenCustomDialog : ScoreAltTupletAction
+    data class SetRatio(val ratio: Pair<Int, Int>?) : ScoreAltTupletAction
+}
+
+/**
+ * Resolves `Alt+N` / `Alt+0..9` tuplet shortcuts using physical [key] first so macOS Option-key
+ * symbol translation (`Option+3` -> `'£'`, `Option+N` -> dead key) does not swallow shortcuts.
+ */
+internal fun resolveAltTupletShortcut(key: Key, utf16CodePoint: Int): ScoreAltTupletAction? {
+    if (key == Key.N) return ScoreAltTupletAction.OpenCustomDialog
+
+    val digitFromKey: Int? = when (key) {
+        Key.Zero, Key.NumPad0 -> 0
+        Key.One, Key.NumPad1 -> 1
+        Key.Two, Key.NumPad2 -> 2
+        Key.Three, Key.NumPad3 -> 3
+        Key.Four, Key.NumPad4 -> 4
+        Key.Five, Key.NumPad5 -> 5
+        Key.Six, Key.NumPad6 -> 6
+        Key.Seven, Key.NumPad7 -> 7
+        Key.Eight, Key.NumPad8 -> 8
+        Key.Nine, Key.NumPad9 -> 9
+        else -> null
+    }
+
+    val keyChar = utf16CodePoint.toChar().lowercaseChar()
+    if (digitFromKey == null && (keyChar == 'n' || keyChar == '\u02dc')) {
+        return ScoreAltTupletAction.OpenCustomDialog
+    }
+    val resolvedDigit = digitFromKey ?: when (keyChar) {
+        in '0'..'9' -> keyChar - '0'
+        // Fallback for macOS US Option-key translated symbols when key enum isn't a digit
+        'º' -> 0
+        '¡' -> 1
+        '™' -> 2
+        '£' -> 3
+        '¢' -> 4
+        '∞' -> 5
+        '§' -> 6
+        '¶' -> 7
+        '•' -> 8
+        'ª' -> 9
+        else -> null
+    } ?: return null
+
+    return when (resolvedDigit) {
+        0, 1 -> ScoreAltTupletAction.SetRatio(null)
+        in 2..9 -> {
+            val ratio = when (resolvedDigit) {
+                2 -> 2 to 3
+                3 -> 3 to 2
+                4 -> 4 to 3
+                5 -> 5 to 4
+                6 -> 6 to 4
+                7 -> 7 to 4
+                8 -> 8 to 6
+                9 -> 9 to 8
+                else -> resolvedDigit to 2
+            }
+            ScoreAltTupletAction.SetRatio(ratio)
+        }
+        else -> null
+    }
+}
+
 private sealed interface ScoreDragState {
     class PitchDrag(
         var location: ScoreItemLocation,
@@ -745,8 +811,17 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         module.stepRecordDotted = next
     }
 
+    fun clearSelection() {
+        selectedLocations = emptySet()
+        selectedMeasures = emptySet()
+        selectedDynamics = emptySet()
+        selectedClefChange = null
+        activePitchText = null
+        activeChordName = null
+    }
+
     fun applyTupletRatio(ratio: Pair<Int, Int>?) {
-        if (selectedLocations.isNotEmpty()) {
+        if (selectedLocations.isNotEmpty() && editorMode == ScoreEditMode.SELECT && !module.isStepRecording) {
             val prevSelection = selectedLocations
             val affectedStaves = prevSelection.map { it.staff }.toSet()
             updateMeasuresAcrossStaves(
@@ -762,6 +837,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             )
             return
         }
+        clearSelection()
         val nextRatio = when {
             ratio == null -> null
             module.stepRecordTupletRatio == ratio && (editorMode == ScoreEditMode.ENTRY || module.isStepRecording) -> null
@@ -792,6 +868,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
     }
 
     fun selectDuration(duration: NoteDuration) {
+        clearSelection()
         if (module.isStepRecording) {
             entryDuration = duration
             entryIsRest = false
@@ -1222,41 +1299,24 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             return false
         }
 
-        val keyChar = event.utf16CodePoint.toChar().lowercaseChar()
         if (event.isAltPressed) {
-            when (keyChar) {
-                'n' -> {
+            when (val altAction = resolveAltTupletShortcut(event.key, event.utf16CodePoint)) {
+                ScoreAltTupletAction.OpenCustomDialog -> {
                     openPalette = null
                     customTupletActualText = (module.stepRecordTupletRatio?.first ?: 3).toString()
                     customTupletNormalText = (module.stepRecordTupletRatio?.second ?: 2).toString()
                     customTupletDialogOpen = true
                     return true
                 }
-                '0', '1' -> {
+                is ScoreAltTupletAction.SetRatio -> {
                     openPalette = null
-                    applyTupletRatio(null)
+                    applyTupletRatio(altAction.ratio)
                     return true
                 }
-                in '2'..'9' -> {
-                    openPalette = null
-                    val n = keyChar - '0'
-                    val presetRatio = when (n) {
-                        2 -> 2 to 3
-                        3 -> 3 to 2
-                        4 -> 4 to 3
-                        5 -> 5 to 4
-                        6 -> 6 to 4
-                        7 -> 7 to 4
-                        8 -> 8 to 6
-                        9 -> 9 to 8
-                        else -> n to 2
-                    }
-                    applyTupletRatio(presetRatio)
-                    return true
-                }
+                null -> return false
             }
-            return false
         }
+        val keyChar = event.utf16CodePoint.toChar().lowercaseChar()
         val charDuration = when (keyChar) {
             't' -> NoteDuration.THIRTY_SECOND
             's' -> NoteDuration.SIXTEENTH
@@ -1960,13 +2020,16 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             )
             val renderColors = ScoreRenderColors.forTheme(isDark)
 
+            val cursorTupletText = activeTupletRatio?.let { ratio ->
+                ScoreTuplet("cursor", ratio.first, ratio.second).displayText(score.timeSignature)
+            }
             val activeCursor = when {
                 dragState is ScoreDragState.PitchDrag -> moveCursor()
                 hoveringInstrument || hoveringTimeSig ||
                     (editorMode == ScoreEditMode.SELECT && !module.isStepRecording && (hoveringClef || hoveringDynamic)) ->
                     PointerIcon.Hand
                 !module.isStepRecording && editorMode == ScoreEditMode.ENTRY ->
-                    scoreSymbolCursor(entryDuration, entryIsRest, entryIsDotted, isDark)
+                    scoreSymbolCursor(entryDuration, entryIsRest, entryIsDotted, isDark, cursorTupletText)
                 !module.isStepRecording && editorMode == ScoreEditMode.DYNAMIC ->
                     scoreDynamicCursor(activeDynamic.label, isDark)
                 !module.isStepRecording && editorMode == ScoreEditMode.BEAM ->
@@ -3068,7 +3131,10 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 },
                 onConfirm = { actual, normal ->
                     customTupletDialogOpen = false
-                    if (selectedLocations.isEmpty() && module.stepRecordTupletRatio == (actual to normal)) {
+                    if ((selectedLocations.isEmpty() || editorMode != ScoreEditMode.SELECT) &&
+                        module.stepRecordTupletRatio == (actual to normal)
+                    ) {
+                        clearSelection()
                         module.stepRecordTupletRatio = actual to normal
                         if (!module.isStepRecording) {
                             editorMode = ScoreEditMode.ENTRY

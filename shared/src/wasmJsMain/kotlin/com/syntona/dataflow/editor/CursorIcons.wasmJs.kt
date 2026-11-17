@@ -22,6 +22,7 @@ private data class WasmCursorKey(
     val isRest: Boolean,
     val isDotted: Boolean,
     val isDarkMode: Boolean,
+    val tupletText: String? = null,
 )
 
 private val wasmScoreCursorCache = mutableMapOf<WasmCursorKey, PointerIcon>()
@@ -32,12 +33,21 @@ actual fun scoreSymbolCursor(
     isRest: Boolean,
     isDotted: Boolean,
     isDarkMode: Boolean,
+    tupletText: String?,
 ): PointerIcon {
-    val key = WasmCursorKey(duration, isRest, isDotted, isDarkMode)
+    val key = WasmCursorKey(duration, isRest, isDotted, isDarkMode, tupletText)
     wasmScoreCursorCache[key]?.let { return it }
     val fg = if (isDarkMode) "%23F8FAFC" else "%23111827"
     val halo = if (isDarkMode) "%230F172A" else "%23FFFFFF"
-    val body = svgSymbolBody(duration, isRest, isDotted, fg, halo)
+    val tupletFg = if (isDarkMode) "%23FF9800" else "%23E65100"
+    val body = svgSymbolBody(duration, isRest, isDotted, fg, halo) +
+        if (!tupletText.isNullOrEmpty()) {
+            val fs = if (tupletText.length >= 3) 9 else 11
+            val escaped = tupletText.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            "<text x='30' y='11' text-anchor='end' font-family='serif' font-weight='bold' font-style='italic' font-size='$fs' stroke='$halo' stroke-width='2.4' paint-order='stroke' fill='$tupletFg'>$escaped</text>"
+        } else {
+            ""
+        }
     val svg = "<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'>$body</svg>"
     val encoded = svg
         .replace("<", "%3C")
