@@ -66,4 +66,7 @@ Syntona is available online as a web app at: [softsynth.com/syntona](https://sof
 
 * **Application License:** Syntona is free software released under the terms of the [GNU Affero General Public License v3.0 (AGPLv3)](./LICENSE).
 * **Source Code:** [https://github.com/philburk/syntona-kc](https://github.com/philburk/syntona-kc)
-* **Libraries:** Core audio engine libraries ([KSyn](https://github.com/philburk/ksyn) and JSyn) are licensed separately under the Apache License, Version 2.0.
+
+### Acknowledgements
+* Core audio engine library ([KSyn](https://github.com/philburk/ksyn) licensed separately under the Apache License, Version 2.0.
+* [Leland Font](https://github.com/MuseScoreFonts/Leland) for music notation included under the SIL Open Font License 1.1.
