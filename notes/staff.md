@@ -275,20 +275,38 @@ Features and articulations that are not supported should be ignored.
 
 Do round trip testing by exporting a score and then importing it.
 
-### Phase ? - Articulations
-Add support for articulations such as pizzicato, mute, sustain pedal, and
-2 or 3 other very common articulations.
-Add M2-123-UM compatible articulations.
+### Phase 20 - Edit Menu
+
+Add an Edit menu next to the File menu in the Score.
+Add an item in the Edit menu "Fill with Rests".
+When selected, fill any measure that is not already full with rests
+For example, if a 4:4 measure has 3 quarter notes, add a quarter note rest.
 
 ### Phase ? - Measure Lines
 Add support for typical measure lines.
 Put the select buttons for measure lines into a palette called "Measure Lines".
 
+### Phase ? - Real Time Entry
+Add support for recording notes in real time into a stave while playing back on other staves.
+Transcribe the notes into a score. Try to detect dotted notes, and triplets.
+Quantize the note timing.
+Provide a way to specify the audio latency, which must be subtracted from the note timing.
+(What if the performer is already compensating for the latency by playing the notes a little early?!)
+
+### Phase ? - Looping
+Add a looping bar at the top for selecting a section of a score to loop.
+(Should we allow selecting beats or just measures?)
+This is similar to the looping feature in the timeline module.
+Also add a "Loop" toggle button to the Score toolbar.
+
+### Phase ? - Articulations
+Add support for articulations such as pizzicato, mute, sustain pedal, and
+2 or 3 other very common articulations.
+Add M2-123-UM compatible articulations.
+
 ### Phase ? - Document Name, Composer, Date and other fields
 
 Allow the user to enter the score name, composer and a date.
-
-
 
 ### Phase ?
 Add score modifications for selected notes. Include transpose, retrograde,
@@ -297,7 +315,7 @@ increase duration 2*, decrease duration 0.5x,
 ### Phase ?
 Add graphical staves, custom glyphs, text.
 
-### Phase - Save to PDF, All Together or as Parts HARDER THAN MusicXML
+### Phase ? - Save to PDF, All Together or as Parts HARDER THAN MusicXML
 
 ### Phase ?
 

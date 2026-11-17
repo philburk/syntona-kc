@@ -545,6 +545,19 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         }
     }
 
+    fun fillScoreWithRests() {
+        durationEditState = null
+        updateMeasuresAcrossStaves(
+            staves = score.allStaffIds().toSet(),
+            transform = { _, measures ->
+                ScoreEditing.fillMeasuresWithRests(measures, score.timeSignature)
+            },
+            onAfterRestore = {
+                refreshPitchDisplayFromSelection(selection = selectedLocations)
+            },
+        )
+    }
+
     fun filterValidLocations(locs: Set<ScoreItemLocation>): Set<ScoreItemLocation> =
         locs.filterTo(linkedSetOf()) { loc ->
             val ms = score.staffMeasures(loc.staff)
@@ -1445,6 +1458,14 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         saveFileDirect(chosenPath, xml)
                         focusRequester.requestFocus()
                     }
+                },
+            )
+
+            ScoreEditMenu(
+                textColor = toolbarText,
+                onFillWithRests = {
+                    fillScoreWithRests()
+                    focusRequester.requestFocus()
                 },
             )
 
@@ -3490,12 +3511,13 @@ private fun ToolbarToggleChip(
 }
 
 @Composable
-private fun ScoreFileMenu(
+private fun ScoreToolbarMenu(
+    label: String,
     textColor: Color,
-    onImportMusicXml: () -> Unit,
-    onExportMusicXml: () -> Unit,
+    menuContent: @Composable (dismiss: () -> Unit) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val dismiss = { expanded = false }
     Box {
         TextButton(
             onClick = { expanded = true },
@@ -3504,24 +3526,51 @@ private fun ScoreFileMenu(
                 .height(28.dp)
                 .focusProperties { canFocus = false },
         ) {
-            Text("File", fontSize = 12.sp, color = textColor)
+            Text(label, fontSize = 12.sp, color = textColor)
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            CompactDropdownMenuItem(
-                text = { Text("Import MusicXML...") },
-                onClick = {
-                    expanded = false
-                    onImportMusicXml()
-                },
-            )
-            CompactDropdownMenuItem(
-                text = { Text("Export MusicXML...") },
-                onClick = {
-                    expanded = false
-                    onExportMusicXml()
-                },
-            )
+        DropdownMenu(expanded = expanded, onDismissRequest = dismiss) {
+            menuContent(dismiss)
         }
+    }
+}
+
+@Composable
+private fun ScoreFileMenu(
+    textColor: Color,
+    onImportMusicXml: () -> Unit,
+    onExportMusicXml: () -> Unit,
+) {
+    ScoreToolbarMenu(label = "File", textColor = textColor) { dismiss ->
+        CompactDropdownMenuItem(
+            text = { Text("Import MusicXML...") },
+            onClick = {
+                dismiss()
+                onImportMusicXml()
+            },
+        )
+        CompactDropdownMenuItem(
+            text = { Text("Export MusicXML...") },
+            onClick = {
+                dismiss()
+                onExportMusicXml()
+            },
+        )
+    }
+}
+
+@Composable
+private fun ScoreEditMenu(
+    textColor: Color,
+    onFillWithRests: () -> Unit,
+) {
+    ScoreToolbarMenu(label = "Edit", textColor = textColor) { dismiss ->
+        CompactDropdownMenuItem(
+            text = { Text("Fill with Rests") },
+            onClick = {
+                dismiss()
+                onFillWithRests()
+            },
+        )
     }
 }
 

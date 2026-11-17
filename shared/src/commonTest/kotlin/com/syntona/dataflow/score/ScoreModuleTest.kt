@@ -4612,4 +4612,117 @@ class ScoreModuleTest {
         assertEquals(1, delAll.measures.size)
         assertTrue(delAll.measures[0].items.isEmpty())
     }
+
+    @Test
+    fun testFillMeasuresWithRestsSimpleMetersAndBoundaryCases() {
+        val c4 = ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 4), NoteDuration.QUARTER)
+        val e4 = ScoreItem.Note(SpelledPitch(NoteLetter.E, 0, 4), NoteDuration.EIGHTH)
+
+        // 4/4 with 3 quarter notes -> adds 1 quarter rest
+        val threeQuarters = ScoreMeasure(1, listOf(c4, c4, c4))
+        val filledQuarter = ScoreEditing.fillMeasureWithRests(threeQuarters, TimeSignature.COMMON_TIME)
+        assertEquals(4, filledQuarter.items.size)
+        assertEquals(ScoreItem.Rest(NoteDuration.QUARTER), filledQuarter.items.last())
+        assertEquals(RationalTicks.of(960), ScoreEditing.measureExactTicks(filledQuarter))
+
+        // 4/4 with 1 quarter note -> Quarter rest (beat 2) + Half rest (beats 3-4)
+        val oneQuarter = ScoreMeasure(1, listOf(c4))
+        val filledBeatAligned = ScoreEditing.fillMeasureWithRests(oneQuarter, TimeSignature.COMMON_TIME)
+        assertEquals(
+            listOf(
+                c4,
+                ScoreItem.Rest(NoteDuration.QUARTER),
+                ScoreItem.Rest(NoteDuration.HALF),
+            ),
+            filledBeatAligned.items,
+        )
+
+        // 4/4 with 1 eighth note -> Eighth + Quarter + Half rests
+        val oneEighth = ScoreMeasure(1, listOf(e4))
+        val filledEighth = ScoreEditing.fillMeasureWithRests(oneEighth, TimeSignature.COMMON_TIME)
+        assertEquals(
+            listOf(
+                e4,
+                ScoreItem.Rest(NoteDuration.EIGHTH),
+                ScoreItem.Rest(NoteDuration.QUARTER),
+                ScoreItem.Rest(NoteDuration.HALF),
+            ),
+            filledEighth.items,
+        )
+
+        // 4/4 empty measure -> Whole rest
+        val emptyFourFour = ScoreMeasure(1, emptyList())
+        val filledEmpty = ScoreEditing.fillMeasureWithRests(emptyFourFour, TimeSignature.COMMON_TIME)
+        assertEquals(listOf(ScoreItem.Rest(NoteDuration.WHOLE)), filledEmpty.items)
+
+        // Full and overfull measures stay untouched
+        val fullBar = ScoreMeasure(1, listOf(c4, c4, c4, c4))
+        assertEquals(fullBar, ScoreEditing.fillMeasureWithRests(fullBar, TimeSignature.COMMON_TIME))
+        val overfullBar = ScoreMeasure(1, listOf(c4, c4, c4, c4, c4))
+        assertEquals(overfullBar, ScoreEditing.fillMeasureWithRests(overfullBar, TimeSignature.COMMON_TIME))
+    }
+
+    @Test
+    fun testFillMeasuresWithRestsEffectiveTimeCompoundAndIncompleteTuplets() {
+        val c4 = ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 4), NoteDuration.QUARTER)
+        val e4 = ScoreItem.Note(SpelledPitch(NoteLetter.E, 0, 4), NoteDuration.EIGHTH)
+        val triplet = ScoreTuplet(groupId = "t1", actualCount = 3, normalCount = 2, baseTicks = NoteDuration.EIGHTH.ticks)
+        val tripletNote = ScoreItem.Note(SpelledPitch(NoteLetter.G, 0, 4), NoteDuration.EIGHTH, tuplet = triplet)
+
+        val measures = listOf(
+            // Measure 1 (4/4): incomplete triplet (2 of 3 eighth notes = 160 ticks) -> triplet eighth rest + Quarter + Half
+            ScoreMeasure(1, listOf(tripletNote, tripletNote)),
+            // Measure 2 (6/8): empty -> two dotted-quarter beat rests
+            ScoreMeasure(2, emptyList(), timeSignature = TimeSignature.SIX_EIGHT),
+            // Measure 3 (6/8): 1 eighth note -> eighth + eighth + dotted quarter
+            ScoreMeasure(3, listOf(e4)),
+            // Measure 4 (3/4): 1 quarter note -> quarter + quarter
+            ScoreMeasure(4, listOf(c4), timeSignature = TimeSignature.THREE_FOUR),
+        )
+
+        val filled = ScoreEditing.fillMeasuresWithRests(measures, TimeSignature.COMMON_TIME)
+        assertEquals(4, filled.size)
+
+        assertEquals(
+            listOf(
+                tripletNote,
+                tripletNote,
+                ScoreItem.Rest(NoteDuration.EIGHTH, tuplet = triplet),
+                ScoreItem.Rest(NoteDuration.QUARTER),
+                ScoreItem.Rest(NoteDuration.HALF),
+            ),
+            filled[0].items,
+        )
+        assertEquals(RationalTicks.of(960), ScoreEditing.measureExactTicks(filled[0]))
+
+        assertEquals(
+            listOf(
+                ScoreItem.Rest(NoteDuration.QUARTER, isDotted = true),
+                ScoreItem.Rest(NoteDuration.QUARTER, isDotted = true),
+            ),
+            filled[1].items,
+        )
+        assertEquals(RationalTicks.of(720), ScoreEditing.measureExactTicks(filled[1]))
+
+        assertEquals(
+            listOf(
+                e4,
+                ScoreItem.Rest(NoteDuration.EIGHTH),
+                ScoreItem.Rest(NoteDuration.EIGHTH),
+                ScoreItem.Rest(NoteDuration.QUARTER, isDotted = true),
+            ),
+            filled[2].items,
+        )
+        assertEquals(RationalTicks.of(720), ScoreEditing.measureExactTicks(filled[2]))
+
+        assertEquals(
+            listOf(
+                c4,
+                ScoreItem.Rest(NoteDuration.QUARTER),
+                ScoreItem.Rest(NoteDuration.QUARTER),
+            ),
+            filled[3].items,
+        )
+        assertEquals(RationalTicks.of(720), ScoreEditing.measureExactTicks(filled[3]))
+    }
 }
