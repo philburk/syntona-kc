@@ -3115,6 +3115,184 @@ object ScoreEditing {
             }
         )
     }
+
+    /**
+     * Fills every measure in [measures] whose total rhythmic duration is strictly less than
+     * its effective time-signature capacity by appending rests up to measure capacity.
+     */
+    fun fillMeasuresWithRests(
+        measures: List<ScoreMeasure>,
+        initialTimeSignature: TimeSignature,
+    ): List<ScoreMeasure> {
+        var changed = false
+        val updated = measures.mapIndexed { mIdx, measure ->
+            val effTime = effectiveTimeAtMeasure(measures, initialTimeSignature, mIdx)
+            val filled = fillMeasureWithRests(measure, effTime)
+            if (filled !== measure && filled != measure) {
+                changed = true
+            }
+            filled
+        }
+        return if (changed) renumber(updated) else measures
+    }
+
+    /**
+     * Appends standard rests to [measure] until its duration reaches [timeSignature]'s capacity.
+     * Leaves full or overfull measures unchanged. If [measure] ends with an incomplete tuplet
+     * that fits within remaining measure capacity, completes that tuplet with tuplet rests first.
+     */
+    fun fillMeasureWithRests(
+        measure: ScoreMeasure,
+        timeSignature: TimeSignature,
+    ): ScoreMeasure {
+        val capacity = RationalTicks.of(timeSignature.measureCapacityTicks)
+        var used = measureExactTicks(measure)
+        if (used >= capacity) return measure
+
+        val appended = mutableListOf<ScoreItem.Rest>()
+        val lastTuplet = measure.items.lastOrNull()?.tuplet
+        if (lastTuplet != null) {
+            val runStart = (measure.items.lastIndex downTo 0)
+                .takeWhile { measure.items[it].tuplet?.groupId == lastTuplet.groupId }
+                .last()
+            val runItems = measure.items.subList(runStart, measure.items.size)
+            val unscaledSum = runItems.sumOf { it.totalTicks }
+            if (lastTuplet.baseTicks > 0) {
+                val targetUnscaled = lastTuplet.actualCount * lastTuplet.baseTicks
+                val missingUnscaled = targetUnscaled - unscaledSum
+                if (missingUnscaled > 0) {
+                    val missingScaled = RationalTicks.simplified(
+                        missingUnscaled.toLong() * lastTuplet.normalCount.toLong(),
+                        lastTuplet.actualCount.toLong(),
+                    )
+                    if (used + missingScaled <= capacity) {
+                        var remUnscaled = missingUnscaled
+                        while (remUnscaled > 0) {
+                            val spec = (if (remUnscaled >= lastTuplet.baseTicks) durationForTicks(lastTuplet.baseTicks) else null)
+                                ?: largestRestSpecAtMost(remUnscaled)
+                                ?: break
+                            appended.add(ScoreItem.Rest(spec.duration, isDotted = spec.isDotted, tuplet = lastTuplet))
+                            remUnscaled -= spec.ticks
+                        }
+                        used += missingScaled
+                    }
+                }
+            } else if (runItems.size < lastTuplet.actualCount) {
+                val unitTicks = runItems.last().totalTicks
+                val unitSpec = durationForTicks(unitTicks) ?: largestRestSpecAtMost(unitTicks)
+                if (unitSpec != null) {
+                    val unitScaled = RationalTicks.simplified(
+                        unitSpec.ticks.toLong() * lastTuplet.normalCount.toLong(),
+                        lastTuplet.actualCount.toLong(),
+                    )
+                    repeat(lastTuplet.actualCount - runItems.size) {
+                        if (used + unitScaled <= capacity) {
+                            appended.add(ScoreItem.Rest(unitSpec.duration, isDotted = unitSpec.isDotted, tuplet = lastTuplet))
+                            used += unitScaled
+                        }
+                    }
+                }
+            }
+        }
+
+        val remaining = capacity - used
+        if (remaining > RationalTicks.ZERO) {
+            appended.addAll(decomposeRestTicks(used, remaining, timeSignature))
+        }
+        return if (appended.isEmpty()) measure else measure.copy(items = measure.items + appended)
+    }
+
+    /**
+     * Decomposes [remainingTicks] starting at [startTickInMeasure] into idiomatic rests ordered
+     * by beat alignment so rests neither cross strong beat/bar boundaries nor overflow.
+     */
+    fun decomposeRestTicks(
+        startTickInMeasure: RationalTicks,
+        remainingTicks: RationalTicks,
+        timeSignature: TimeSignature,
+    ): List<ScoreItem.Rest> {
+        if (remainingTicks <= RationalTicks.ZERO) return emptyList()
+        val compound = timeSignature.denominator == 8 &&
+            timeSignature.numerator >= 6 &&
+            timeSignature.numerator % 3 == 0
+        val compoundBeatTicks = NoteDuration.QUARTER.totalTicks(isDotted = true) // 360
+
+        val result = mutableListOf<ScoreItem.Rest>()
+        var cursor = startTickInMeasure
+        var rem = remainingTicks
+
+        while (rem > RationalTicks.ZERO) {
+            val picked = if (cursor.den == 1L && rem.den == 1L) {
+                val pos = cursor.num.toInt()
+                val remInt = rem.num.toInt()
+                pickAlignedRestSpec(pos, remInt, compound, compoundBeatTicks)
+                    ?: largestRestSpecAtMost(remInt)
+            } else {
+                val wholeFloor = (rem.num / rem.den).toInt()
+                if (wholeFloor > 0) largestRestSpecAtMost(wholeFloor) else null
+            } ?: break
+
+            result.add(ScoreItem.Rest(duration = picked.duration, isDotted = picked.isDotted))
+            val delta = RationalTicks.of(picked.ticks)
+            cursor += delta
+            rem -= delta
+        }
+        return result
+    }
+
+    private data class RestSpec(val duration: NoteDuration, val isDotted: Boolean, val ticks: Int)
+
+    private fun pickAlignedRestSpec(
+        pos: Int,
+        remInt: Int,
+        compound: Boolean,
+        compoundBeatTicks: Int,
+    ): RestSpec? {
+        if (compound) {
+            val compoundCandidates = listOf(
+                RestSpec(NoteDuration.QUARTER, true, compoundBeatTicks),
+                RestSpec(NoteDuration.EIGHTH, false, NoteDuration.EIGHTH.ticks),
+                RestSpec(NoteDuration.SIXTEENTH, false, NoteDuration.SIXTEENTH.ticks),
+                RestSpec(NoteDuration.THIRTY_SECOND, false, NoteDuration.THIRTY_SECOND.ticks),
+            )
+            for (c in compoundCandidates) {
+                val ticks = c.ticks
+                if (ticks > remInt || pos % ticks != 0) continue
+                if (ticks < compoundBeatTicks && (pos % compoundBeatTicks) + ticks > compoundBeatTicks) continue
+                return c
+            }
+            return null
+        }
+
+        for (dur in NoteDuration.entries) {
+            val ticks = dur.ticks
+            if (ticks <= remInt && pos % ticks == 0) {
+                return RestSpec(dur, false, ticks)
+            }
+        }
+        return null
+    }
+
+    private val ALL_REST_SPECS_DESC: List<RestSpec> = listOf(
+        RestSpec(NoteDuration.WHOLE, true, NoteDuration.WHOLE.totalTicks(true)),
+        RestSpec(NoteDuration.WHOLE, false, NoteDuration.WHOLE.ticks),
+        RestSpec(NoteDuration.HALF, true, NoteDuration.HALF.totalTicks(true)),
+        RestSpec(NoteDuration.HALF, false, NoteDuration.HALF.ticks),
+        RestSpec(NoteDuration.QUARTER, true, NoteDuration.QUARTER.totalTicks(true)),
+        RestSpec(NoteDuration.QUARTER, false, NoteDuration.QUARTER.ticks),
+        RestSpec(NoteDuration.EIGHTH, true, NoteDuration.EIGHTH.totalTicks(true)),
+        RestSpec(NoteDuration.EIGHTH, false, NoteDuration.EIGHTH.ticks),
+        RestSpec(NoteDuration.SIXTEENTH, true, NoteDuration.SIXTEENTH.totalTicks(true)),
+        RestSpec(NoteDuration.SIXTEENTH, false, NoteDuration.SIXTEENTH.ticks),
+        RestSpec(NoteDuration.THIRTY_SECOND, true, NoteDuration.THIRTY_SECOND.totalTicks(true)),
+        RestSpec(NoteDuration.THIRTY_SECOND, false, NoteDuration.THIRTY_SECOND.ticks),
+    )
+
+    private fun durationForTicks(ticks: Int): RestSpec? =
+        ALL_REST_SPECS_DESC.firstOrNull { it.ticks == ticks }
+
+    private fun largestRestSpecAtMost(maxTicks: Int): RestSpec? =
+        ALL_REST_SPECS_DESC.firstOrNull { it.ticks <= maxTicks }
 }
 
 /** Contiguous tuplet group inside one measure with precomputed label text and bracket rules. */
