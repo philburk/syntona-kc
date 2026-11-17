@@ -118,8 +118,9 @@ fun restoreWindowStates(
                         content = { GraphEditor(module.graphState) }
                     )
                     window.onGeometryChanged = {
-                        val newX = window.position.x / density
-                        val newY = window.position.y / density
+                        val d = if (mdiState.density > 0f) mdiState.density else 1f
+                        val newX = window.position.x / d
+                        val newY = window.position.y / d
                         val newW = window.width.value
                         val newH = window.height.value
                         if (module.windowWidth != null && (
@@ -180,8 +181,9 @@ fun openNewDocument(
         content = { GraphEditor(rootPatch.graphState) }
     )
     window.onGeometryChanged = {
-        rootPatch.windowX = window.position.x / density
-        rootPatch.windowY = window.position.y / density
+        val d = if (mdiState.density > 0f) mdiState.density else 1f
+        rootPatch.windowX = window.position.x / d
+        rootPatch.windowY = window.position.y / d
         rootPatch.windowWidth = window.width.value
         rootPatch.windowHeight = window.height.value
     }
@@ -397,8 +399,9 @@ fun App(
                     content = { GraphEditor(rootPatch.graphState) }
                 )
                 rootWindow.onGeometryChanged = {
-                    rootPatch.windowX = rootWindow.position.x / appDensity
-                    rootPatch.windowY = rootWindow.position.y / appDensity
+                    val d = if (mdi.density > 0f) mdi.density else 1f
+                    rootPatch.windowX = rootWindow.position.x / d
+                    rootPatch.windowY = rootWindow.position.y / d
                     rootPatch.windowWidth = rootWindow.width.value
                     rootPatch.windowHeight = rootWindow.height.value
                 }

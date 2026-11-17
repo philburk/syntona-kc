@@ -111,6 +111,7 @@ class MdiState {
     var containerHeight by mutableStateOf(0f)
     var desktopOffset by mutableStateOf(Offset.Zero)
     var density by mutableStateOf(1f)
+    private var hasObservedDensity = false
 
     // Position of the outermost App Box in screen coordinates, set by App
     var appRootOffset by mutableStateOf(Offset.Zero)
@@ -119,9 +120,51 @@ class MdiState {
     var treeDragCreator by mutableStateOf<(() -> Module)?>(null)
     var treeDragPosition by mutableStateOf(Offset.Zero)
 
+    fun updateDensity(newDensity: Float) {
+        val safeNew = if (newDensity > 0f) newDensity else 1f
+        if (!hasObservedDensity) {
+            hasObservedDensity = true
+            density = safeNew
+            return
+        }
+        val prev = if (density > 0f) density else 1f
+        if (safeNew != prev) {
+            val scale = safeNew / prev
+            density = safeNew
+            for (window in windows) {
+                window.position = Offset(window.position.x * scale, window.position.y * scale)
+            }
+            clampWindowsToContainer()
+        }
+    }
+
     fun updateContainerSize(widthPx: Float, heightPx: Float) {
         containerWidth = widthPx
         containerHeight = heightPx
+        clampWindowsToContainer()
+    }
+
+    private fun clampPosition(pos: Offset): Offset {
+        val d = if (density > 0f) density else 1f
+        val minGrabbable = 80f * d
+        val titleBarHeight = 28f * d
+        val maxX = if (containerWidth > 0f) (containerWidth - minGrabbable).coerceAtLeast(0f) else Float.MAX_VALUE
+        val maxY = if (containerHeight > 0f) (containerHeight - titleBarHeight).coerceAtLeast(0f) else Float.MAX_VALUE
+        return Offset(
+            pos.x.coerceIn(0f, maxX),
+            pos.y.coerceIn(0f, maxY),
+        )
+    }
+
+    fun clampWindowsToContainer() {
+        if (containerWidth <= 0f || containerHeight <= 0f) return
+        for (window in windows) {
+            val clamped = clampPosition(window.position)
+            if (clamped != window.position) {
+                window.position = clamped
+                window.onGeometryChanged?.invoke()
+            }
+        }
     }
 
     fun startTreeDrag(creator: () -> Module, globalPosition: Offset) {
@@ -192,6 +235,13 @@ class MdiState {
             bringToFront(existing)
         } else {
             cascadeIfOverlapping(window)
+            if (containerWidth > 0f && containerHeight > 0f) {
+                val clamped = clampPosition(window.position)
+                if (clamped != window.position) {
+                    window.position = clamped
+                    window.onGeometryChanged?.invoke()
+                }
+            }
             windows.add(window)
             window.graphState?.let { focusGraph(it) }
         }
@@ -315,15 +365,7 @@ class MdiState {
 
     fun updatePosition(id: Any, delta: Offset) {
         windows.find { it.id == id }?.let { window ->
-            // Keep at least 80px of title bar visible on all edges
-            val minGrabbable = 80f
-            val titleBarHeight = 28f
-            val maxX = if (containerWidth > 0f) (containerWidth - minGrabbable) else Float.MAX_VALUE
-            val maxY = if (containerHeight > 0f) (containerHeight - titleBarHeight) else Float.MAX_VALUE
-            window.position = Offset(
-                (window.position.x + delta.x).coerceIn(0f, maxX),
-                (window.position.y + delta.y).coerceIn(0f, maxY)
-            )
+            window.position = clampPosition(window.position + delta)
             window.onGeometryChanged?.invoke()
         }
     }

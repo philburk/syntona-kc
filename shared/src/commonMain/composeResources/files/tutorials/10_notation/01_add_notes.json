@@ -1,6 +1,6 @@
 {
-  "version": "0.8.3 beta",
-  "versionCode": 524291,
+  "version": "0.8.4 beta",
+  "versionCode": 524292,
   "modules": [
     {
       "id": 0,
@@ -552,6 +552,10 @@
       "key": "C_MAJOR",
       "timeNum": 4,
       "timeDen": 4,
+      "windowX": 98.899994,
+      "windowY": 514.125,
+      "windowWidth": 860,
+      "windowHeight": 340,
       "measures": [
         {
           "num": 1,

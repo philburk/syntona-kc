@@ -2715,8 +2715,9 @@ fun PatchModuleNode(module: PatchModule, state: GraphState) {
                         content = { GraphEditor(state = module.graphState) }
                     )
                     window.onGeometryChanged = {
-                        val newX = window.position.x / density.density
-                        val newY = window.position.y / density.density
+                        val d = if (mdiState.density > 0f) mdiState.density else 1f
+                        val newX = window.position.x / d
+                        val newY = window.position.y / d
                         val newW = window.width.value
                         val newH = window.height.value
                         if (module.windowWidth != null && (
@@ -3775,9 +3776,10 @@ private fun WindowedEditorModuleNode(
                         content = editorContent
                     )
                     window.onGeometryChanged = {
+                        val d = if (mdiState.density > 0f) mdiState.density else 1f
                         setWindowGeometry(
-                            window.position.x / density.density,
-                            window.position.y / density.density,
+                            window.position.x / d,
+                            window.position.y / d,
                             window.width.value,
                             window.height.value,
                         )
@@ -5546,8 +5548,9 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
         // Remembered on the track's patch, which is saved with the timeline, so the editor
         // reopens where it was left, in this session and after reloading the file.
         window.onGeometryChanged = {
-            val newX = window.position.x / density.density
-            val newY = window.position.y / density.density
+            val d = if (mdiState.density > 0f) mdiState.density else 1f
+            val newX = window.position.x / d
+            val newY = window.position.y / d
             val newW = window.width.value
             val newH = window.height.value
             if (patch.windowWidth != null && (
@@ -5623,8 +5626,9 @@ fun TimelineModuleNode(module: TimelineModule, state: GraphState) {
             }
         )
         window.onGeometryChanged = {
-            prModule.windowX = window.position.x / density.density
-            prModule.windowY = window.position.y / density.density
+            val d = if (mdiState.density > 0f) mdiState.density else 1f
+            prModule.windowX = window.position.x / d
+            prModule.windowY = window.position.y / d
             prModule.windowWidth = window.width.value
             prModule.windowHeight = window.height.value
         }

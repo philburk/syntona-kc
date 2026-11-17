@@ -281,4 +281,50 @@ class WindowMenuTest {
         assertTrue(win2.position.y > win1.position.y)
         assertEquals(Offset(128f, 128f), win2.position)
     }
+
+    @Test
+    fun testMonitorDensityChangeRescalesPositionsAndPreservesLayout() {
+        val mdi = MdiState()
+        // Window opened initially on Retina (2x) monitor: patch at (10dp, 10dp) = (20px, 20px)
+        val patchWindow = MdiWindowInfo(id = "patch", title = "root", position = Offset(20f, 20f), content = {})
+        mdi.open(patchWindow)
+        // Initial observation of Retina density must not rescale pre-scaled startup coordinates
+        mdi.updateDensity(2f)
+        mdi.updateContainerSize(2560f, 1600f)
+        assertEquals(Offset(20f, 20f), patchWindow.position)
+
+        // Score positioned nicely below patch at (40dp, 520dp) -> (80px, 1040px) on Retina
+        val scoreWindow = MdiWindowInfo(id = "score", title = "score", position = Offset(80f, 1040f), content = {})
+        mdi.open(scoreWindow)
+        assertEquals(Offset(80f, 1040f), scoreWindow.position)
+
+        // Drag app to external 1x monitor (density drops 2f -> 1f)
+        mdi.updateDensity(1f)
+        mdi.updateContainerSize(1280f, 800f)
+        assertEquals(Offset(10f, 10f), patchWindow.position)
+        assertEquals(Offset(40f, 520f), scoreWindow.position)
+
+        // Dragging back to Retina restores original 2x pixel positions cleanly
+        mdi.updateContainerSize(2560f, 1600f)
+        mdi.updateDensity(2f)
+        assertEquals(Offset(20f, 20f), patchWindow.position)
+        assertEquals(Offset(80f, 1040f), scoreWindow.position)
+    }
+
+    @Test
+    fun testContainerShrinkClampsWindowTitleBarIntoViewport() {
+        val mdi = MdiState()
+        mdi.updateDensity(1f)
+        mdi.updateContainerSize(1280f, 900f)
+        val scoreWindow = MdiWindowInfo(id = "score", title = "score", position = Offset(100f, 800f), content = {})
+        var geometryCallbackCount = 0
+        scoreWindow.onGeometryChanged = { geometryCallbackCount++ }
+        mdi.open(scoreWindow)
+        assertEquals(Offset(100f, 800f), scoreWindow.position)
+
+        // Moving to a shorter 700px container keeps title bar (28dp) reachable instead of off-screen
+        mdi.updateContainerSize(1000f, 700f)
+        assertEquals(Offset(100f, 672f), scoreWindow.position)
+        assertTrue(geometryCallbackCount > 0)
+    }
 }
