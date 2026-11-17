@@ -17,6 +17,7 @@ actual fun scoreSymbolCursor(
     isRest: Boolean,
     isDotted: Boolean,
     isDarkMode: Boolean,
+    tupletText: String?,
 ): PointerIcon = PointerIcon.Crosshair
 
 actual fun scoreDynamicCursor(

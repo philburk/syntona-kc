@@ -2,6 +2,7 @@ package com.syntona.dataflow.score
 
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
 import com.syntona.core.model.ScoreTime
 import com.syntona.dataflow.editor.EditActionHandler
 import com.syntona.dataflow.editor.EditActions
@@ -4724,5 +4725,107 @@ class ScoreModuleTest {
             filled[3].items,
         )
         assertEquals(RationalTicks.of(720), ScoreEditing.measureExactTicks(filled[3]))
+    }
+
+    @Test
+    fun testAltTupletShortcutsWorkAcrossMacOsOptionAndPhysicalKeys() {
+        // Physical Key.Three with macOS Option+3 char '£', undefined char 0, or ASCII '3'
+        assertEquals(ScoreAltTupletAction.SetRatio(3 to 2), resolveAltTupletShortcut(Key.Three, '£'.code))
+        assertEquals(ScoreAltTupletAction.SetRatio(3 to 2), resolveAltTupletShortcut(Key.Three, 0))
+        assertEquals(ScoreAltTupletAction.SetRatio(3 to 2), resolveAltTupletShortcut(Key.Three, '3'.code))
+        assertEquals(ScoreAltTupletAction.SetRatio(3 to 2), resolveAltTupletShortcut(Key.NumPad3, 0))
+
+        // Other Option-translated presets on macOS
+        assertEquals(ScoreAltTupletAction.SetRatio(2 to 3), resolveAltTupletShortcut(Key.Two, '™'.code))
+        assertEquals(ScoreAltTupletAction.SetRatio(5 to 4), resolveAltTupletShortcut(Key.Five, '∞'.code))
+        assertEquals(ScoreAltTupletAction.SetRatio(7 to 4), resolveAltTupletShortcut(Key.Seven, '¶'.code))
+        assertEquals(ScoreAltTupletAction.SetRatio(9 to 8), resolveAltTupletShortcut(Key.Nine, 'ª'.code))
+
+        // Turn tuplet mode off with 0/1 even under macOS Option translation
+        assertEquals(ScoreAltTupletAction.SetRatio(null), resolveAltTupletShortcut(Key.Zero, 'º'.code))
+        assertEquals(ScoreAltTupletAction.SetRatio(null), resolveAltTupletShortcut(Key.One, '¡'.code))
+
+        // Alt+N custom tuplet dialog even with macOS dead-key tilde / zero utf16CodePoint
+        assertEquals(ScoreAltTupletAction.OpenCustomDialog, resolveAltTupletShortcut(Key.N, '\u02dc'.code))
+        assertEquals(ScoreAltTupletAction.OpenCustomDialog, resolveAltTupletShortcut(Key.N, 0))
+        assertEquals(ScoreAltTupletAction.OpenCustomDialog, resolveAltTupletShortcut(Key.N, 'n'.code))
+
+        // Character-only fallback if Key enum is Unknown
+        assertEquals(ScoreAltTupletAction.SetRatio(3 to 2), resolveAltTupletShortcut(Key.Unknown, '£'.code))
+        assertNull(resolveAltTupletShortcut(Key.E, 'e'.code))
+    }
+
+    @Test
+    fun testTripletEntryModeEighthNoteRendersGhostAndTupletEntryBar() {
+        val module = ScoreModule()
+        module.scoreData.keySignature = KeySignature.C_MAJOR
+        module.scoreData.timeSignature = TimeSignature.COMMON_TIME
+        module.scoreData.replaceMeasures(listOf(ScoreMeasure(1, emptyList())))
+        module.stepRecordDuration = NoteDuration.EIGHTH
+        module.stepRecordTupletRatio = 3 to 2
+
+        val target = RecordingDrawTarget()
+        val colors = ScoreRenderColors.forTheme(darkMode = false)
+
+        // Hovering before first note draws ghost note + orange '3' tuplet bracket
+        val hoverTarget = RecordingDrawTarget()
+        val preLayout = ScoreRenderer.render(
+            score = module.scoreData,
+            target = hoverTarget,
+            staffSpacePx = 10f,
+            minWidthPx = 400f,
+            colors = colors,
+            ghostPreview = ScoreGhostPreview(
+                x = 120f,
+                staffStep = 2,
+                duration = NoteDuration.EIGHTH,
+                isRest = false,
+                tupletText = ScoreTuplet("cursor", 3, 2).displayText(module.scoreData.timeSignature),
+            ),
+            activeTupletRatio = module.stepRecordTupletRatio,
+        )
+        assertTrue(preLayout.placedMeasures.isNotEmpty())
+        assertTrue(
+            hoverTarget.glyphs.any {
+                it.glyph == SmuflGlyphs.tupletNumber("3") && it.color == colors.incompleteTuplet
+            },
+            "Ghost preview in triplet mode should draw orange '3'",
+        )
+
+        // Clicking inserts 1st eighth note with active triplet -> orange incomplete tuplet entry bar
+        val insertedTuplet = module.resolveTupletForInsertion(
+            measures = module.scoreData.measures,
+            measureIdx = 0,
+            insertIdx = 0,
+            baseTicks = NoteDuration.EIGHTH.ticks,
+        )
+        assertNotNull(insertedTuplet)
+        assertEquals(3, insertedTuplet.actualCount)
+        assertEquals(2, insertedTuplet.normalCount)
+
+        val g4 = SpelledPitch(NoteLetter.G, 0, 4)
+        val (afterFirst, _) = ScoreEditing.insertItem(
+            measures = module.scoreData.measures,
+            measureIdx = 0,
+            itemIdx = 0,
+            item = ScoreItem.Note(g4, NoteDuration.EIGHTH, tuplet = insertedTuplet),
+        )
+        module.scoreData.replaceMeasures(afterFirst)
+
+        val postLayout = ScoreRenderer.render(
+            score = module.scoreData,
+            target = target,
+            staffSpacePx = 10f,
+            minWidthPx = 400f,
+            colors = colors,
+            activeTupletRatio = module.stepRecordTupletRatio,
+        )
+        val tg = postLayout.placedMeasures.single().tupletGroups.single()
+        assertFalse(tg.isFull, "Single triplet eighth note should stay an incomplete tuplet entry bar")
+        assertTrue(tg.drawBracket, "Incomplete triplet should show the tuplet entry bracket")
+        assertTrue(
+            target.glyphs.any { it.glyph == SmuflGlyphs.tupletNumber("3") && it.color == colors.incompleteTuplet },
+            "Measure with 1st triplet eighth should display orange '3' tuplet entry bar",
+        )
     }
 }

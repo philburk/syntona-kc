@@ -16,6 +16,7 @@ expect fun scoreSymbolCursor(
     isRest: Boolean,
     isDotted: Boolean = false,
     isDarkMode: Boolean,
+    tupletText: String? = null,
 ): PointerIcon
 
 expect fun scoreDynamicCursor(

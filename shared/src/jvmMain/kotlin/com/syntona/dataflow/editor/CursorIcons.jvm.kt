@@ -27,6 +27,7 @@ private data class CursorCacheKey(
     val isRest: Boolean,
     val isDotted: Boolean,
     val isDarkMode: Boolean,
+    val tupletText: String? = null,
 )
 
 private val scoreCursorCache = mutableMapOf<CursorCacheKey, PointerIcon>()
@@ -36,11 +37,12 @@ actual fun scoreSymbolCursor(
     isRest: Boolean,
     isDotted: Boolean,
     isDarkMode: Boolean,
+    tupletText: String?,
 ): PointerIcon {
-    val key = CursorCacheKey(duration, isRest, isDotted, isDarkMode)
+    val key = CursorCacheKey(duration, isRest, isDotted, isDarkMode, tupletText)
     scoreCursorCache[key]?.let { return it }
     val created = try {
-        buildJvmScoreCursor(duration, isRest, isDotted, isDarkMode)
+        buildJvmScoreCursor(duration, isRest, isDotted, isDarkMode, tupletText)
     } catch (_: Throwable) {
         crosshairCursor()
     }
@@ -53,6 +55,7 @@ private fun buildJvmScoreCursor(
     isRest: Boolean,
     isDotted: Boolean,
     isDarkMode: Boolean,
+    tupletText: String?,
 ): PointerIcon {
     val toolkit = Toolkit.getDefaultToolkit()
     val size = 32
@@ -62,14 +65,19 @@ private fun buildJvmScoreCursor(
     val image = BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB)
     val g = image.createGraphics()
     g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON)
+    g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON)
     g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE)
 
     val fg = if (isDarkMode) Color(0xF8, 0xFA, 0xFC) else Color(0x11, 0x18, 0x27)
     val halo = if (isDarkMode) Color(0x0F, 0x17, 0x2A, 210) else Color(0xFF, 0xFF, 0xFF, 225)
+    val tupletFg = if (isDarkMode) Color(0xFF, 0x98, 0x00) else Color(0xE6, 0x51, 0x00)
 
     // Draw a subtle contrasting halo first, then crisp foreground
     drawCursorSymbol(g, duration, isRest, isDotted, halo, haloExpand = 2.2f)
     drawCursorSymbol(g, duration, isRest, isDotted, fg, haloExpand = 0f)
+    if (!tupletText.isNullOrEmpty()) {
+        drawCursorTupletBadge(g, tupletText, tupletFg, halo)
+    }
     g.dispose()
 
     val (rawHotX, rawHotY) = if (isRest) 16 to 16 else 10 to 23
@@ -77,9 +85,32 @@ private fun buildJvmScoreCursor(
     val awtCursor = toolkit.createCustomCursor(
         image,
         hotSpot,
-        "score_${duration.name}_${if (isRest) "rest" else "note"}${if (isDotted) "_dotted" else ""}",
+        "score_${duration.name}_${if (isRest) "rest" else "note"}${if (isDotted) "_dotted" else ""}${tupletText?.let { "_t$it" }.orEmpty()}",
     )
     return PointerIcon(awtCursor)
+}
+
+private fun drawCursorTupletBadge(
+    g: Graphics2D,
+    label: String,
+    fg: Color,
+    halo: Color,
+) {
+    val fontSize = if (label.length >= 3) 9 else 11
+    g.font = java.awt.Font("Serif", java.awt.Font.BOLD or java.awt.Font.ITALIC, fontSize)
+    val fm = g.fontMetrics
+    val x = (30 - fm.stringWidth(label)).coerceAtLeast(15)
+    val y = 11
+    g.color = halo
+    for (dx in -1..1) {
+        for (dy in -1..1) {
+            if (dx != 0 || dy != 0) {
+                g.drawString(label, x + dx, y + dy)
+            }
+        }
+    }
+    g.color = fg
+    g.drawString(label, x, y)
 }
 
 private fun drawCursorSymbol(
