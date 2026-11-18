@@ -293,6 +293,13 @@ When enabled, fill any measure that is not already full with rests.
 When adding notes, keep the measure full of rests.
 Start with smaller rests that align with the current position and then fill with larger rests.
 
+### Phase 22 - Improve note alignment
+
+Note alignment is not good.  Two staves, one with lots of sixteenth notes, one with quarter notes. Not aligned.
+
+
+## TODO
+
 ### Phase ? - Measure Lines
 Add support for typical measure lines.
 Put the select buttons for measure lines into a palette called "Measure Lines".
@@ -335,9 +342,6 @@ Add staccato articulation to the tutorial.
 
 ## BUG
 
-Staccato is broken! How is this regression possible?
-
-Note alignment is not good.  Two staves, one with lots of sixteenth notes, one with quarter notes. Not aligned.
 
 ## Design Considerations
 

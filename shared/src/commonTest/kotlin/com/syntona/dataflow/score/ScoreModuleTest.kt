@@ -5014,4 +5014,72 @@ class ScoreModuleTest {
         val restored = GraphSerializer.deserialize(GraphState(), json).filterIsInstance<ScoreModule>().single()
         assertFalse(restored.autoFillRests)
     }
+
+    @Test
+    fun testStaccatoAccidentalAndDurationEditsWorkOnLowerAndSecondaryStaves() {
+        val f3 = SpelledPitch(NoteLetter.F, 0, 3)
+        val g3 = SpelledPitch(NoteLetter.G, 0, 3)
+        val staffMeasures = listOf(
+            ScoreMeasure(
+                number = 1,
+                items = listOf(
+                    ScoreItem.Note(f3, NoteDuration.QUARTER, isStaccato = false),
+                    ScoreItem.Chord(listOf(f3, g3), NoteDuration.QUARTER, isStaccato = false),
+                ),
+            )
+        )
+        val lowerStaffId = ScoreStaffId(instrumentIdx = 0, staffIdx = 1)
+        val secondInstStaffId = ScoreStaffId(instrumentIdx = 1, staffIdx = 0)
+        val selLower = setOf(ScoreItemLocation(0, 0, staff = lowerStaffId))
+        val selChordPitch = setOf(ScoreItemLocation(0, 1, chordNoteIdx = 1, staff = secondInstStaffId))
+
+        // Staccato toggles ON and OFF when selection carries non-(0,0) ScoreStaffId
+        val staccOn = ScoreEditing.toggleStaccatoOnSelection(staffMeasures, selLower)
+        assertTrue((staccOn[0].items[0] as ScoreItem.Note).isStaccato)
+        val staccOff = ScoreEditing.toggleStaccatoOnSelection(staccOn, selLower)
+        assertFalse((staccOff[0].items[0] as ScoreItem.Note).isStaccato)
+
+        val chordStacc = ScoreEditing.toggleStaccatoOnSelection(staffMeasures, selChordPitch)
+        assertTrue((chordStacc[0].items[1] as ScoreItem.Chord).isStaccato)
+
+        // Accidental & duration edits also work on non-(0,0) staves
+        val sharpened = ScoreEditing.setAccidentalOnSelection(staccOn, selLower, 1)
+        assertEquals(1, (sharpened[0].items[0] as ScoreItem.Note).pitch.alter)
+        val resized = ScoreEditing.setDurationOnSelection(sharpened, selLower, NoteDuration.EIGHTH, isDotted = true)
+        val resizedNote = resized[0].items[0] as ScoreItem.Note
+        assertEquals(NoteDuration.EIGHTH, resizedNote.duration)
+        assertTrue(resizedNote.isDotted)
+        assertTrue(resizedNote.isStaccato)
+
+        // ScoreRenderer draws the staccato glyph on the lower staff
+        val score = ScoreData().apply {
+            replaceAllInstruments(
+                listOf(
+                    ScoreInstrumentPart(
+                        id = "inst-1",
+                        name = "Piano",
+                        staffCount = 2,
+                        clef = Clef.TREBLE,
+                        lowerClef = Clef.BASS,
+                        measures = listOf(ScoreMeasure(1, emptyList())),
+                        lowerMeasures = staccOn,
+                    )
+                )
+            )
+        }
+        val target = RecordingDrawTarget()
+        ScoreRenderer.render(
+            score = score,
+            target = target,
+            staffSpacePx = 10f,
+            minWidthPx = 600f,
+            colors = ScoreRenderColors.forTheme(darkMode = false),
+        )
+        assertTrue(
+            target.glyphs.any {
+                it.glyph == SmuflGlyphs.ARTIC_STACCATO_ABOVE || it.glyph == SmuflGlyphs.ARTIC_STACCATO_BELOW
+            },
+            "Rendered lower staff should draw staccato articulation glyph",
+        )
+    }
 }

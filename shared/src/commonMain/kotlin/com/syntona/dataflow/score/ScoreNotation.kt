@@ -1250,12 +1250,12 @@ object ScoreEditing {
         alter: Int,
     ): List<ScoreMeasure> {
         if (selection.isEmpty()) return measures
-        val bySlot = selection.groupBy { it.slotLocation() }
+        val bySlot = selection.groupBy { it.measureIdx to it.itemIdx }
         var anyChanged = false
         val updated = measures.mapIndexed { mIdx, m ->
             var measureChanged = false
             val newItems = m.items.mapIndexed { iIdx, item ->
-                val locs = bySlot[ScoreItemLocation(mIdx, iIdx)] ?: return@mapIndexed item
+                val locs = bySlot[mIdx to iIdx] ?: return@mapIndexed item
                 when (item) {
                     is ScoreItem.Note -> if (item.pitch.alter != alter) {
                         measureChanged = true
@@ -1509,12 +1509,12 @@ object ScoreEditing {
         isDotted: Boolean,
     ): List<ScoreMeasure> {
         if (selection.isEmpty()) return measures
-        val slots = selection.map { it.slotLocation() }.toSet()
+        val slots = selection.mapTo(mutableSetOf()) { it.measureIdx to it.itemIdx }
         var anyChanged = false
         val updated = measures.mapIndexed { mIdx, m ->
             var measureChanged = false
             val newItems = m.items.mapIndexed { sIdx, item ->
-                if (ScoreItemLocation(mIdx, sIdx) !in slots) {
+                if ((mIdx to sIdx) !in slots) {
                     item
                 } else {
                     if (item.duration != duration || item.isDotted != isDotted) {
@@ -1540,9 +1540,9 @@ object ScoreEditing {
         selection: Set<ScoreItemLocation>,
     ): List<ScoreMeasure> {
         if (selection.isEmpty()) return measures
-        val slots = selection.map { it.slotLocation() }.toSet()
-        val selectedSounding = slots.mapNotNull { slot ->
-            when (val item = itemAt(measures, slot)) {
+        val slots = selection.mapTo(mutableSetOf()) { it.measureIdx to it.itemIdx }
+        val selectedSounding = slots.mapNotNull { (mIdx, iIdx) ->
+            when (val item = measures.getOrNull(mIdx)?.items?.getOrNull(iIdx)) {
                 is ScoreItem.Note -> item.isStaccato
                 is ScoreItem.Chord -> item.isStaccato
                 else -> null
@@ -1554,7 +1554,7 @@ object ScoreEditing {
         val updated = measures.mapIndexed { mIdx, m ->
             var measureChanged = false
             val newItems = m.items.mapIndexed { iIdx, item ->
-                if (ScoreItemLocation(mIdx, iIdx) !in slots) return@mapIndexed item
+                if ((mIdx to iIdx) !in slots) return@mapIndexed item
                 val next = when (item) {
                     is ScoreItem.Note -> if (item.isStaccato != targetStaccato) item.copy(isStaccato = targetStaccato) else item
                     is ScoreItem.Chord -> if (item.isStaccato != targetStaccato) item.copy(isStaccato = targetStaccato) else item

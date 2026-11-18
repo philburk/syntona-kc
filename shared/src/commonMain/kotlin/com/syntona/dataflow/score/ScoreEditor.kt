@@ -1794,7 +1794,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 pendingStaccato
             }
             val selectedPitchesForPalette = selectedLocations.flatMap { loc ->
-                when (val item = ScoreEditing.itemAt(score.measures, loc)) {
+                when (val item = ScoreEditing.itemAt(score.staffMeasures(loc.staff), loc)) {
                     is ScoreItem.Note -> listOf(item.pitch)
                     is ScoreItem.Chord -> if (loc.chordNoteIdx != null) {
                         listOfNotNull(item.pitches.getOrNull(loc.chordNoteIdx))
