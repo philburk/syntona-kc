@@ -565,6 +565,9 @@ object GraphSerializer {
                 append(",\"key\":\"${module.scoreData.keySignature.name}\"")
                 append(",\"timeNum\":${module.scoreData.timeSignature.numerator}")
                 append(",\"timeDen\":${module.scoreData.timeSignature.denominator}")
+                if (!module.autoFillRests) {
+                    append(",\"autoFillRests\":false")
+                }
                 module.windowX?.let { append(",\"windowX\":$it") }
                 module.windowY?.let { append(",\"windowY\":$it") }
                 module.windowWidth?.let { append(",\"windowWidth\":$it") }
@@ -1813,6 +1816,9 @@ object GraphSerializer {
                 val den = (obj?.map?.get("timeDen") as? JsonValue.Num)?.value?.toInt()
                 if (num != null && den != null && TimeSignature.isValid(num, den)) {
                     module.scoreData.timeSignature = TimeSignature(num, den)
+                }
+                (obj?.map?.get("autoFillRests") as? JsonValue.Bool)?.value?.let {
+                    module.autoFillRests = it
                 }
                 (obj?.map?.get("windowX") as? JsonValue.Num)?.value?.let { module.windowX = it.toFloat() }
                 (obj?.map?.get("windowY") as? JsonValue.Num)?.value?.let { module.windowY = it.toFloat() }

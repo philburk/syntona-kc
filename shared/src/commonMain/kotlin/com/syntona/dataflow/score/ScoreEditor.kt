@@ -624,6 +624,52 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         )
     }
 
+    fun toggleAutoFillRests() {
+        val next = !module.autoFillRests
+        module.autoFillRests = next
+        if (next) {
+            fillScoreWithRests()
+        }
+    }
+
+    fun replaceEntryItem(
+        measures: List<ScoreMeasure>,
+        loc: ScoreItemLocation,
+        item: ScoreItem,
+    ): List<ScoreMeasure> = if (module.autoFillRests) {
+        ScoreEditing.replaceItemWithAutoFillRests(measures, loc, item, score.timeSignature)
+    } else {
+        ScoreEditing.replaceItem(measures, loc, item)
+    }
+
+    fun insertEntryItem(
+        measures: List<ScoreMeasure>,
+        measureIdx: Int,
+        itemIdx: Int,
+        item: ScoreItem,
+        appendNewMeasure: Boolean,
+        shiftClefAtIndex: Boolean,
+    ): Pair<List<ScoreMeasure>, ScoreItemLocation> = if (module.autoFillRests) {
+        ScoreEditing.insertItemWithAutoFillRests(
+            measures = measures,
+            measureIdx = measureIdx,
+            itemIdx = itemIdx,
+            item = item,
+            initialTimeSignature = score.timeSignature,
+            appendNewMeasure = appendNewMeasure,
+            shiftClefAtIndex = shiftClefAtIndex,
+        )
+    } else {
+        ScoreEditing.insertItem(
+            measures = measures,
+            measureIdx = measureIdx,
+            itemIdx = itemIdx,
+            item = item,
+            appendNewMeasure = appendNewMeasure,
+            shiftClefAtIndex = shiftClefAtIndex,
+        )
+    }
+
     fun filterValidLocations(locs: Set<ScoreItemLocation>): Set<ScoreItemLocation> =
         locs.filterTo(linkedSetOf()) { loc ->
             val ms = score.staffMeasures(loc.staff)
@@ -641,7 +687,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         val beforeInst = score.instruments.toList()
         val insertIdx = selectedMeasures.minOrNull()?.coerceIn(0, score.measures.size)
         val afterInst = beforeInst.map { part ->
-            if (insertIdx != null) {
+            val rawPart = if (insertIdx != null) {
                 val updatedUpper = ScoreEditing.insertEmptyMeasureAt(part.measures, insertIdx)
                 if (part.staffCount >= 2) {
                     val updatedLower = ScoreEditing.insertEmptyMeasureAt(part.lowerMeasures, insertIdx)
@@ -660,6 +706,18 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 } else {
                     part.copy(measures = ScoreEditing.renumber(updatedUpper))
                 }
+            }
+            if (module.autoFillRests) {
+                rawPart.copy(
+                    measures = ScoreEditing.fillMeasuresWithRests(rawPart.measures, score.timeSignature),
+                    lowerMeasures = if (rawPart.staffCount >= 2) {
+                        ScoreEditing.fillMeasuresWithRests(rawPart.lowerMeasures, score.timeSignature)
+                    } else {
+                        rawPart.lowerMeasures
+                    },
+                )
+            } else {
+                rawPart
             }
         }
         if (insertIdx == null) {
@@ -785,6 +843,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         val prevSelection = selectedLocations
         val prevDynamics = selectedDynamics
         val affectedStaves = (prevSelection.map { it.staff } + prevDynamics.map { it.staff }).toSet()
+        val replacedRestLocs = linkedSetOf<ScoreItemLocation>()
         selectedLocations = emptySet()
         selectedDynamics = emptySet()
         activePitchText = null
@@ -795,14 +854,29 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 val staffDyns = prevDynamics.filterTo(mutableSetOf()) { it.staff == staffId }
                 val staffLocs = prevSelection.filterTo(mutableSetOf()) { it.staff == staffId }
                 val afterDyns = if (staffDyns.isEmpty()) ms else ScoreEditing.deleteDynamics(ms, staffDyns)
-                if (staffLocs.isEmpty()) afterDyns else ScoreEditing.deleteItems(afterDyns, staffLocs)
+                if (staffLocs.isEmpty()) {
+                    afterDyns
+                } else {
+                    val res = ScoreEditing.deleteSelectionItems(
+                        measures = afterDyns,
+                        selection = staffLocs,
+                        autoFillRests = module.autoFillRests,
+                        initialTimeSignature = score.timeSignature,
+                    )
+                    res.selectedRestLocations.forEach { loc ->
+                        replacedRestLocs.add(loc.copy(staff = staffId))
+                    }
+                    res.measures
+                }
             },
-            onAfterRestore = { _ ->
-                selectedLocations = filterValidLocations(prevSelection)
+            onAfterRestore = { isUndo ->
+                selectedLocations = filterValidLocations(if (isUndo) prevSelection else replacedRestLocs)
                 selectedDynamics = filterValidDynamics(prevDynamics)
                 refreshPitchDisplayFromSelection(selection = selectedLocations)
             },
         )
+        selectedLocations = filterValidLocations(replacedRestLocs)
+        refreshPitchDisplayFromSelection(selection = selectedLocations)
     }
 
     fun toggleDotMode() {
@@ -858,7 +932,12 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             staves = affectedStaves,
             transform = { staffId, ms ->
                 val staffLocs = prevSelection.filterTo(mutableSetOf()) { it.staff == staffId }
-                ScoreEditing.setDurationOnSelection(ms, staffLocs, duration, isDotted)
+                val updated = ScoreEditing.setDurationOnSelection(ms, staffLocs, duration, isDotted)
+                if (module.autoFillRests) {
+                    ScoreEditing.fillMeasuresWithRests(updated, score.timeSignature)
+                } else {
+                    updated
+                }
             },
             onAfterRestore = { _ ->
                 selectedLocations = filterValidLocations(prevSelection)
@@ -1142,6 +1221,11 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         val afterInitialTime = result.initialTimeSignature ?: beforeInitialTime
         val staffLocations = result.pastedLocations.mapTo(linkedSetOf()) { it.copy(staff = targetStaff) }
         val staffDynamics = result.pastedDynamics.mapTo(linkedSetOf()) { it.copy(staff = targetStaff) }
+        val afterMeasures = if (module.autoFillRests) {
+            ScoreEditing.fillMeasuresWithRests(result.measures, afterInitialTime)
+        } else {
+            result.measures
+        }
         postCommand(
             ReplaceScoreDocumentCommand(
                 scoreData = score,
@@ -1152,7 +1236,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 afterInitialClef = afterInitialClef,
                 afterInitialKey = afterInitialKey,
                 afterInitialTime = afterInitialTime,
-                afterMeasures = result.measures,
+                afterMeasures = afterMeasures,
                 staff = targetStaff,
             ) { _, isUndo ->
                 if (isUndo) {
@@ -1523,8 +1607,13 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
 
             ScoreEditMenu(
                 textColor = toolbarText,
+                autoFillRests = module.autoFillRests,
                 onFillWithRests = {
                     fillScoreWithRests()
+                    focusRequester.requestFocus()
+                },
+                onToggleAutoFillRests = {
+                    toggleAutoFillRests()
                     focusRequester.requestFocus()
                 },
             )
@@ -2428,7 +2517,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                     isDotted = entryIsDotted,
                                                     tuplet = hit.item.tuplet,
                                                 )
-                                                val after = ScoreEditing.replaceItem(beforeMeasures, hit.location, newRest)
+                                                val after = replaceEntryItem(beforeMeasures, hit.location, newRest)
                                                 selectedLocations = setOf(hit.location)
                                                 activePitchText = null
                                                 activeChordName = null
@@ -2459,7 +2548,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                     tuplet = hit.item.tuplet,
                                                 )
                                                 pendingAccidental = null
-                                                val after = ScoreEditing.replaceItem(beforeMeasures, hit.location, newNote)
+                                                val after = replaceEntryItem(beforeMeasures, hit.location, newNote)
                                                 score.replaceStaffMeasures(hitStaff, after)
                                                 selectedLocations = setOf(hit.location)
                                                 refreshPitchDisplayFromSelection(hitStaff, after, selectedLocations)
@@ -2504,7 +2593,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                     tuplet = colItem.item.tuplet,
                                                 )
                                                 pendingAccidental = null
-                                                val after = ScoreEditing.replaceItem(beforeMeasures, colItem.location, newNote)
+                                                val after = replaceEntryItem(beforeMeasures, colItem.location, newNote)
                                                 score.replaceStaffMeasures(colStaff, after)
                                                 selectedLocations = setOf(colItem.location)
                                                 refreshPitchDisplayFromSelection(colStaff, after, selectedLocations)
@@ -2583,7 +2672,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                     isDotted = entryIsDotted,
                                                     tuplet = insertedTuplet,
                                                 )
-                                                val (after, insertedLoc) = ScoreEditing.insertItem(
+                                                val (after, insertedLoc) = insertEntryItem(
                                                     measures = beforeMeasures,
                                                     measureIdx = target.measureIdx,
                                                     itemIdx = target.itemIdx,
@@ -2617,7 +2706,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                     tuplet = insertedTuplet,
                                                 )
                                                 pendingAccidental = null
-                                                val (after, insertedLoc) = ScoreEditing.insertItem(
+                                                val (after, insertedLoc) = insertEntryItem(
                                                     measures = beforeMeasures,
                                                     measureIdx = target.measureIdx,
                                                     itemIdx = target.itemIdx,
@@ -3609,7 +3698,9 @@ private fun ScoreFileMenu(
 @Composable
 private fun ScoreEditMenu(
     textColor: Color,
+    autoFillRests: Boolean,
     onFillWithRests: () -> Unit,
+    onToggleAutoFillRests: () -> Unit,
 ) {
     ScoreToolbarMenu(label = "Edit", textColor = textColor) { dismiss ->
         CompactDropdownMenuItem(
@@ -3617,6 +3708,16 @@ private fun ScoreEditMenu(
             onClick = {
                 dismiss()
                 onFillWithRests()
+            },
+        )
+        CompactDropdownMenuItem(
+            text = {
+                val prefix = if (autoFillRests) "✓ " else "   "
+                Text("${prefix}Auto Fill Rests")
+            },
+            onClick = {
+                dismiss()
+                onToggleAutoFillRests()
             },
         )
     }

@@ -95,6 +95,8 @@ class StepRecordScoreNoteCommand(
                 cursor = prevCursor,
                 item = note,
                 measureCapacityTicks = activeTime.measureCapacityTicks,
+                autoFillRests = module.autoFillRests,
+                initialTimeSignature = module.scoreData.timeSignature,
             )
             beforeMeasures = prevMeasures
             beforeCursor = prevCursor

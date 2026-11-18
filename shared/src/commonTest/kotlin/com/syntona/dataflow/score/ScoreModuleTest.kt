@@ -145,12 +145,23 @@ class ScoreModuleTest {
 
     @Test
     fun testNewScoreStartsEmptyInKeyOfCFourFour() {
+        val rawData = ScoreData()
+        assertEquals(KeySignature.C_MAJOR, rawData.keySignature)
+        assertEquals(TimeSignature(4, 4), rawData.timeSignature)
+        assertEquals(8, rawData.measures.size)
+        assertEquals((1..8).toList(), rawData.measures.map { it.number })
+        assertTrue(rawData.measures.all { it.items.isEmpty() }, "Raw ScoreData starts with 8 empty measures")
+
         val module = ScoreModule()
+        assertTrue(module.autoFillRests, "Auto Fill Rests should be on by default")
         assertEquals(KeySignature.C_MAJOR, module.scoreData.keySignature)
         assertEquals(TimeSignature(4, 4), module.scoreData.timeSignature)
         assertEquals(8, module.scoreData.measures.size)
         assertEquals((1..8).toList(), module.scoreData.measures.map { it.number })
-        assertTrue(module.scoreData.measures.all { it.items.isEmpty() }, "New score module should start with 8 empty measures")
+        assertTrue(
+            module.scoreData.measures.all { it.items == listOf(ScoreItem.Rest(NoteDuration.WHOLE)) },
+            "New score module with autoFillRests=true should fill its 8 bars with whole rests",
+        )
         assertEquals(1, module.scoreData.instruments.size)
         val defaultInst = module.scoreData.instruments[0]
         assertEquals("Synth", defaultInst.name)
@@ -161,7 +172,7 @@ class ScoreModuleTest {
         assertEquals(1, defaultInst.staffCount)
         assertEquals(Clef.TREBLE, defaultInst.clef)
         assertEquals(8, defaultInst.measures.size)
-        assertTrue(defaultInst.measures.all { it.items.isEmpty() })
+        assertTrue(defaultInst.measures.all { it.items == listOf(ScoreItem.Rest(NoteDuration.WHOLE)) })
 
         // Left instrument header is always rendered and clickable even for a single default instrument
         val target = RecordingDrawTarget()
@@ -726,7 +737,7 @@ class ScoreModuleTest {
 
     @Test
     fun testStepRecordingMidiInputDurationSwitchThruAndUndoRedo() {
-        val score = ScoreModule()
+        val score = ScoreModule().apply { autoFillRests = false }
         score.scoreData.keySignature = KeySignature.C_MAJOR
         score.scoreData.timeSignature = TimeSignature.COMMON_TIME
         score.scoreData.replaceMeasures(ScoreEditing.clearToSingleEmptyMeasure())
@@ -1553,7 +1564,7 @@ class ScoreModuleTest {
 
     @Test
     fun testStepRecordingDottedNotesAndMeasureAdvance() {
-        val scoreModule = ScoreModule()
+        val scoreModule = ScoreModule().apply { autoFillRests = false }
         scoreModule.scoreData.timeSignature = TimeSignature.THREE_FOUR // 720 ticks per measure
         scoreModule.scoreData.replaceMeasures(listOf(ScoreMeasure(1, emptyList())))
         scoreModule.stepRecordDuration = NoteDuration.HALF
@@ -4123,7 +4134,7 @@ class ScoreModuleTest {
         assertTrue(unwrapped[0].items.all { it.tuplet == null })
 
         // 2. Step recording with 3:2 across >1 measure cleanly rolls over groupId once full
-        val module = ScoreModule()
+        val module = ScoreModule().apply { autoFillRests = false }
         module.scoreData.timeSignature = TimeSignature(2, 4) // 480 ticks per bar (1 quarter triplet fills 1 bar)
         module.scoreData.replaceMeasures(listOf(ScoreMeasure(1, emptyList())))
         module.stepRecordDuration = NoteDuration.QUARTER
@@ -4872,5 +4883,135 @@ class ScoreModuleTest {
             target.glyphs.any { it.glyph == SmuflGlyphs.tupletNumber("3") && it.color == colors.incompleteTuplet },
             "Measure with 1st triplet eighth should display orange '3' tuplet entry bar",
         )
+    }
+
+    @Test
+    fun testDeleteNoteReplacesWithSelectedRestAndDeleteRestShiftsFollowingNote() {
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val d4 = SpelledPitch(NoteLetter.D, 0, 4)
+        val e4 = SpelledPitch(NoteLetter.E, 0, 4)
+        val n1 = ScoreItem.Note(c4, NoteDuration.QUARTER)
+        val n2 = ScoreItem.Note(d4, NoteDuration.QUARTER)
+        val chord = ScoreItem.Chord(listOf(c4, e4), NoteDuration.HALF)
+
+        val measures = listOf(ScoreMeasure(1, listOf(n1, n2, chord)))
+
+        // 1. Deleting a note replaces it in-place with a rest of the same duration and leaves it selected
+        val res1 = ScoreEditing.deleteSelectionItems(measures, setOf(ScoreItemLocation(0, 0)))
+        assertEquals(
+            listOf(ScoreItem.Rest(NoteDuration.QUARTER), n2, chord),
+            res1.measures[0].items,
+        )
+        assertEquals(setOf(ScoreItemLocation(0, 0)), res1.selectedRestLocations)
+
+        // 2. Deleting that selected rest removes it and moves the following note (n2) to index 0
+        val res2 = ScoreEditing.deleteSelectionItems(res1.measures, res1.selectedRestLocations)
+        assertEquals(listOf(n2, chord), res2.measures[0].items)
+        assertTrue(res2.selectedRestLocations.isEmpty())
+
+        // 3. Deleting a single pitch of a chord reduces to a note without replacing with a rest
+        val resChordPitch = ScoreEditing.deleteSelectionItems(
+            res2.measures,
+            setOf(ScoreItemLocation(0, 1, chordNoteIdx = 0)),
+        )
+        assertEquals(listOf(n2, ScoreItem.Note(e4, NoteDuration.HALF)), resChordPitch.measures[0].items)
+        assertTrue(resChordPitch.selectedRestLocations.isEmpty())
+
+        // 4. Deleting a whole chord replaces it with a rest of the same duration and selects it
+        val resWholeChord = ScoreEditing.deleteSelectionItems(
+            res2.measures,
+            setOf(ScoreItemLocation(0, 1)),
+        )
+        assertEquals(listOf(n2, ScoreItem.Rest(NoteDuration.HALF)), resWholeChord.measures[0].items)
+        assertEquals(setOf(ScoreItemLocation(0, 1)), resWholeChord.selectedRestLocations)
+    }
+
+    @Test
+    fun testAutoFillRestsDefaultOnAddingNotesStepRecordAndSerialization() {
+        val module = ScoreModule()
+        assertTrue(module.autoFillRests)
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val d4 = SpelledPitch(NoteLetter.D, 0, 4)
+        val e4 = SpelledPitch(NoteLetter.E, 0, 4)
+        val f4 = SpelledPitch(NoteLetter.F, 0, 4)
+
+        // Adding an eighth note into a whole-rest bar starts with aligned smaller rest (8th) then larger rests (Q, H)
+        val (afterEighth, locE) = ScoreEditing.insertItemWithAutoFillRests(
+            measures = module.scoreData.measures,
+            measureIdx = 0,
+            itemIdx = 0,
+            item = ScoreItem.Note(c4, NoteDuration.EIGHTH),
+            initialTimeSignature = module.scoreData.timeSignature,
+        )
+        assertEquals(ScoreItemLocation(0, 0), locE)
+        assertEquals(
+            listOf(
+                ScoreItem.Note(c4, NoteDuration.EIGHTH),
+                ScoreItem.Rest(NoteDuration.EIGHTH),
+                ScoreItem.Rest(NoteDuration.QUARTER),
+                ScoreItem.Rest(NoteDuration.HALF),
+            ),
+            afterEighth[0].items,
+        )
+
+        // Step recording 4 quarter notes into auto-filled whole-rest bar advances through rest slots then to bar 2
+        module.placeCursor(ScoreCursorPosition(0, 0))
+        module.stepRecordDuration = NoteDuration.QUARTER
+        for (pitch in listOf(c4, d4, e4, f4)) {
+            val res = ScoreEditing.stepInsertItem(
+                measures = module.scoreData.measures,
+                cursor = module.cursorPosition!!,
+                item = ScoreItem.Note(pitch, NoteDuration.QUARTER),
+                measureCapacityTicks = module.scoreData.timeSignature.measureCapacityTicks,
+                autoFillRests = module.autoFillRests,
+                initialTimeSignature = module.scoreData.timeSignature,
+            )
+            module.scoreData.replaceMeasures(res.measures)
+            module.placeCursor(res.nextCursor)
+        }
+        assertEquals(4, module.scoreData.measures[0].items.size)
+        assertTrue(module.scoreData.measures[0].items.all { it is ScoreItem.Note })
+        assertEquals(ScoreCursorPosition(1, 0), module.cursorPosition)
+
+        // Replacing a beat-2 quarter rest with a 16th note re-aligns trailing rests to [16th, 8th, Half]
+        val (afterQuarter, _) = ScoreEditing.insertItemWithAutoFillRests(
+            measures = listOf(ScoreMeasure(1, listOf(ScoreItem.Rest(NoteDuration.WHOLE)))),
+            measureIdx = 0,
+            itemIdx = 0,
+            item = ScoreItem.Note(c4, NoteDuration.QUARTER),
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+        )
+        assertEquals(
+            listOf(
+                ScoreItem.Note(c4, NoteDuration.QUARTER),
+                ScoreItem.Rest(NoteDuration.QUARTER),
+                ScoreItem.Rest(NoteDuration.HALF),
+            ),
+            afterQuarter[0].items,
+        )
+        val afterSixteenthReplace = ScoreEditing.replaceItemWithAutoFillRests(
+            measures = afterQuarter,
+            loc = ScoreItemLocation(0, 1),
+            item = ScoreItem.Note(d4, NoteDuration.SIXTEENTH),
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+        )
+        assertEquals(
+            listOf(
+                ScoreItem.Note(c4, NoteDuration.QUARTER),
+                ScoreItem.Note(d4, NoteDuration.SIXTEENTH),
+                ScoreItem.Rest(NoteDuration.SIXTEENTH),
+                ScoreItem.Rest(NoteDuration.EIGHTH),
+                ScoreItem.Rest(NoteDuration.HALF),
+            ),
+            afterSixteenthReplace[0].items,
+        )
+
+        // GraphSerializer preserves autoFillRests = false
+        module.autoFillRests = false
+        val graph = GraphState()
+        graph.addModule(module, Offset.Zero)
+        val json = GraphSerializer.serialize(graph, graph.modules)
+        val restored = GraphSerializer.deserialize(GraphState(), json).filterIsInstance<ScoreModule>().single()
+        assertFalse(restored.autoFillRests)
     }
 }

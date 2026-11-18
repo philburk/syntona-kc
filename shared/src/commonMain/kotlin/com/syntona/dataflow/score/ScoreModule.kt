@@ -65,6 +65,23 @@ class ScoreModule : Module("score"), EngineAware {
     var stepRecordStaccato by mutableStateOf(false)
     var stepRecordDotted by mutableStateOf(false)
     var stepRecordTupletRatio by mutableStateOf<Pair<Int, Int>?>(null)
+    var autoFillRests by mutableStateOf(true)
+
+    init {
+        if (autoFillRests) {
+            fillEmptyMeasuresWithRests()
+        }
+    }
+
+    fun fillEmptyMeasuresWithRests() {
+        for (staff in scoreData.allStaffIds()) {
+            val ms = scoreData.staffMeasures(staff)
+            val filled = ScoreEditing.fillMeasuresWithRests(ms, scoreData.timeSignature)
+            if (filled !== ms) {
+                scoreData.replaceStaffMeasures(staff, filled)
+            }
+        }
+    }
 
     /**
      * Resolves the [ScoreTuplet] to attach to a newly inserted item at [measureIdx]/[insertIdx].
@@ -102,7 +119,14 @@ class ScoreModule : Module("score"), EngineAware {
                     ) {
                         groupEnd++
                     }
-                    val unscaledSum = (groupStart..groupEnd).sumOf { measure.items[it].totalTicks }
+                    // When auto-fill rests populated trailing rests inside this tuplet, check whether
+                    // the prefix up to `prevIdx` still has room in the tuplet group.
+                    val prefixEnd = if (ratio != null && (prevIdx + 1..groupEnd).all { measure.items[it] is ScoreItem.Rest }) {
+                        prevIdx
+                    } else {
+                        groupEnd
+                    }
+                    val unscaledSum = (groupStart..prefixEnd).sumOf { measure.items[it].totalTicks }
                     val targetSum = if (prevTuplet.baseTicks > 0) {
                         prevTuplet.actualCount * prevTuplet.baseTicks
                     } else {
@@ -111,7 +135,7 @@ class ScoreModule : Module("score"), EngineAware {
                     val isGroupFull = if (prevTuplet.baseTicks > 0) {
                         unscaledSum >= targetSum
                     } else {
-                        (groupEnd - groupStart + 1) >= prevTuplet.actualCount
+                        (prefixEnd - groupStart + 1) >= prevTuplet.actualCount
                     }
                     if (!isGroupFull) {
                         return prevTuplet

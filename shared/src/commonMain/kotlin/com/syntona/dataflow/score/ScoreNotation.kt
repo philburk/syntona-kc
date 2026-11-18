@@ -1058,6 +1058,109 @@ object ScoreEditing {
         return renumber(updated) to ScoreItemLocation(measureIdx, clampedIdx)
     }
 
+    fun insertItemWithAutoFillRests(
+        measures: List<ScoreMeasure>,
+        measureIdx: Int,
+        itemIdx: Int,
+        item: ScoreItem,
+        initialTimeSignature: TimeSignature,
+        appendNewMeasure: Boolean = false,
+        shiftClefAtIndex: Boolean = false,
+    ): Pair<List<ScoreMeasure>, ScoreItemLocation> {
+        val targetMeasure = measures.getOrNull(measureIdx)
+        val effectiveIdx = if (!appendNewMeasure && targetMeasure != null &&
+            targetMeasure.items.isNotEmpty() &&
+            targetMeasure.items.all { it is ScoreItem.Rest }
+        ) {
+            0
+        } else {
+            itemIdx
+        }
+        val (insertedMeasures, loc) = insertItem(
+            measures = measures,
+            measureIdx = measureIdx,
+            itemIdx = effectiveIdx,
+            item = item,
+            appendNewMeasure = appendNewMeasure,
+            shiftClefAtIndex = shiftClefAtIndex,
+        )
+        val effTime = effectiveTimeAtMeasure(insertedMeasures, initialTimeSignature, loc.measureIdx)
+        val normalized = normalizeMeasureRestsInList(
+            measures = insertedMeasures,
+            measureIdx = loc.measureIdx,
+            protectedMaxIdx = loc.itemIdx,
+            timeSignature = effTime,
+        )
+        return normalized to loc
+    }
+
+    fun replaceItemWithAutoFillRests(
+        measures: List<ScoreMeasure>,
+        loc: ScoreItemLocation,
+        item: ScoreItem,
+        initialTimeSignature: TimeSignature,
+    ): List<ScoreMeasure> {
+        val replaced = replaceItem(measures, loc, item)
+        if (loc.measureIdx !in replaced.indices) return replaced
+        val effTime = effectiveTimeAtMeasure(replaced, initialTimeSignature, loc.measureIdx)
+        return normalizeMeasureRestsInList(
+            measures = replaced,
+            measureIdx = loc.measureIdx,
+            protectedMaxIdx = loc.itemIdx,
+            timeSignature = effTime,
+        )
+    }
+
+    fun normalizeMeasureRestsInList(
+        measures: List<ScoreMeasure>,
+        measureIdx: Int,
+        protectedMaxIdx: Int,
+        timeSignature: TimeSignature,
+    ): List<ScoreMeasure> {
+        val m = measures.getOrNull(measureIdx) ?: return measures
+        val normalized = normalizeMeasureRestsAfterEdit(m, protectedMaxIdx, timeSignature)
+        if (normalized == m) return measures
+        return measures.toMutableList().apply { set(measureIdx, normalized) }
+    }
+
+    fun normalizeMeasureRestsAfterEdit(
+        measure: ScoreMeasure,
+        protectedMaxIdx: Int,
+        timeSignature: TimeSignature,
+    ): ScoreMeasure {
+        val cap = RationalTicks.of(timeSignature.measureCapacityTicks)
+        val items = measure.items.toMutableList()
+        val removedIndices = mutableListOf<Int>()
+        val originalIndices = MutableList(items.size) { it }
+
+        // First strip any trailing rests at the end of the measure after `protectedMaxIdx`
+        // so `fillMeasureWithRests` re-emits them aligned to the new ending position.
+        while (items.lastIndex > protectedMaxIdx && items.last() is ScoreItem.Rest) {
+            items.removeAt(items.lastIndex)
+            removedIndices.add(originalIndices.removeAt(originalIndices.lastIndex))
+        }
+
+        // If non-rest items remain after `protectedMaxIdx` and the measure exceeds capacity,
+        // trim any rests strictly after `protectedMaxIdx`.
+        while (measureExactTicks(measure.copy(items = items)) > cap) {
+            val restIdx = (protectedMaxIdx + 1..items.lastIndex).firstOrNull { items[it] is ScoreItem.Rest } ?: break
+            items.removeAt(restIdx)
+            removedIndices.add(originalIndices.removeAt(restIdx))
+        }
+
+        val trimmed = if (removedIndices.isEmpty()) {
+            measure
+        } else {
+            measure.copy(
+                items = items,
+                clefChanges = shiftIndexedMapOnDelete(measure.clefChanges, removedIndices),
+                dynamics = shiftIndexedMapOnDelete(measure.dynamics, removedIndices),
+                beamOverrides = shiftBeamOverridesOnDelete(measure.beamOverrides, removedIndices),
+            )
+        }
+        return fillMeasureWithRests(trimmed, timeSignature)
+    }
+
     fun replaceItem(
         measures: List<ScoreMeasure>,
         loc: ScoreItemLocation,
@@ -1468,6 +1571,88 @@ object ScoreEditing {
         return if (anyChanged) updated else measures
     }
 
+    data class ScoreDeleteResult(
+        val measures: List<ScoreMeasure>,
+        val selectedRestLocations: Set<ScoreItemLocation>,
+    )
+
+    /**
+     * Deletes selected items per Phase 21 rules:
+     * - Deleting a note or whole chord replaces it in-place with a rest of the same duration and
+     *   adds that rest's location to [ScoreDeleteResult.selectedRestLocations] so a second delete
+     *   removes the rest.
+     * - Deleting an individual pitch of a chord reduces the chord.
+     * - Deleting a rest removes it and shifts following items left into the rest's position.
+     */
+    fun deleteSelectionItems(
+        measures: List<ScoreMeasure>,
+        selection: Set<ScoreItemLocation>,
+        autoFillRests: Boolean = false,
+        initialTimeSignature: TimeSignature = TimeSignature.COMMON_TIME,
+    ): ScoreDeleteResult {
+        if (selection.isEmpty()) return ScoreDeleteResult(measures, emptySet())
+        val byMeasure = selection.groupBy { it.measureIdx }
+        val replacedRests = linkedSetOf<ScoreItemLocation>()
+        val updated = measures.mapIndexed { mIdx, m ->
+            val measureSelections = byMeasure[mIdx] ?: return@mapIndexed m
+            val byItem = measureSelections.groupBy { it.itemIdx }
+            val nextItems = ArrayList<ScoreItem>(m.items.size)
+            val removedIndices = mutableListOf<Int>()
+            var restDeletedInMeasure = false
+            for ((iIdx, item) in m.items.withIndex()) {
+                val locs = byItem[iIdx]
+                if (locs == null) {
+                    nextItems.add(item)
+                } else if (item is ScoreItem.Chord && locs.none { it.chordNoteIdx == null }) {
+                    val removeSet = locs.mapNotNull { it.chordNoteIdx }.toSet()
+                    val remaining = item.pitches.filterIndexed { pIdx, _ -> pIdx !in removeSet }
+                    val reduced = itemFromPitches(
+                        pitches = remaining,
+                        duration = item.duration,
+                        isDotted = item.isDotted,
+                        amplitude = item.amplitude,
+                        isStaccato = item.isStaccato,
+                        tiedMidiPitches = item.tiedMidiPitches,
+                        tuplet = item.tuplet,
+                    )
+                    if (reduced != null) {
+                        nextItems.add(reduced)
+                    } else {
+                        val restIdx = nextItems.size
+                        nextItems.add(ScoreItem.Rest(item.duration, isDotted = item.isDotted, tuplet = item.tuplet))
+                        val staff = locs.first().staff
+                        replacedRests.add(ScoreItemLocation(mIdx, restIdx, staff = staff))
+                    }
+                } else if (item is ScoreItem.Note || item is ScoreItem.Chord) {
+                    val restIdx = nextItems.size
+                    nextItems.add(ScoreItem.Rest(item.duration, isDotted = item.isDotted, tuplet = item.tuplet))
+                    val staff = locs.first().staff
+                    replacedRests.add(ScoreItemLocation(mIdx, restIdx, staff = staff))
+                } else {
+                    removedIndices.add(iIdx)
+                    restDeletedInMeasure = true
+                }
+            }
+            val nextClefs = shiftIndexedMapOnDelete(m.clefChanges, removedIndices)
+            val nextDynamics = shiftIndexedMapOnDelete(m.dynamics, removedIndices)
+            val nextBeams = shiftBeamOverridesOnDelete(m.beamOverrides, removedIndices)
+            val edited = m.copy(
+                items = nextItems,
+                clefChanges = nextClefs,
+                dynamics = nextDynamics,
+                beamOverrides = nextBeams,
+            )
+            if (autoFillRests && restDeletedInMeasure) {
+                val effTime = effectiveTimeAtMeasure(measures, initialTimeSignature, mIdx)
+                val lastNonRestIdx = edited.items.indexOfLast { it !is ScoreItem.Rest }
+                normalizeMeasureRestsAfterEdit(edited, lastNonRestIdx, effTime)
+            } else {
+                edited
+            }
+        }
+        return ScoreDeleteResult(renumber(updated), replacedRests)
+    }
+
     fun deleteItems(
         measures: List<ScoreMeasure>,
         selection: Set<ScoreItemLocation>,
@@ -1667,11 +1852,23 @@ object ScoreEditing {
         cursor: ScoreCursorPosition,
         item: ScoreItem,
         measureCapacityTicks: Int,
+        autoFillRests: Boolean = false,
+        initialTimeSignature: TimeSignature = TimeSignature.COMMON_TIME,
     ): ScoreStepInsertResult {
         val normalized = renumber(measures)
         val mIdx = cursor.measureIdx.coerceIn(0, normalized.lastIndex)
         val iIdx = cursor.itemIdx.coerceIn(0, normalized[mIdx].items.size)
-        val (insertedMeasures, loc) = insertItem(normalized, mIdx, iIdx, item)
+        val (insertedMeasures, loc) = if (autoFillRests) {
+            insertItemWithAutoFillRests(
+                measures = normalized,
+                measureIdx = mIdx,
+                itemIdx = iIdx,
+                item = item,
+                initialTimeSignature = initialTimeSignature,
+            )
+        } else {
+            insertItem(normalized, mIdx, iIdx, item)
+        }
         val measure = insertedMeasures[loc.measureIdx]
         val measureTicks = measureExactTicks(measure)
         val atEndOfMeasure = loc.itemIdx == measure.items.lastIndex
@@ -1679,7 +1876,8 @@ object ScoreEditing {
         return if (atEndOfMeasure && measureTicks >= RationalTicks.of(measureCapacityTicks)) {
             val nextMeasureIdx = loc.measureIdx + 1
             val finalMeasures = if (nextMeasureIdx >= insertedMeasures.size) {
-                appendEmptyMeasure(insertedMeasures)
+                val appended = appendEmptyMeasure(insertedMeasures)
+                if (autoFillRests) fillMeasuresWithRests(appended, initialTimeSignature) else appended
             } else {
                 insertedMeasures
             }
