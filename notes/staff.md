@@ -295,8 +295,19 @@ Start with smaller rests that align with the current position and then fill with
 
 ### Phase 22 - Improve note alignment
 
-Note alignment is not good.  Two staves, one with lots of sixteenth notes, one with quarter notes. Not aligned.
+Note alignment needs improvement. For example, if I have two staves. one with lots of sixteenth notes,
+and one with quarter notes, the notes are not vertically aligned in time.
+See the attached PNG screenshots.
+The first one is from MuseScore, which does a good job.
+The second is from Syntona, which has the layout problem.
 
+Here is a video that describes the Blostein / Haken music justification algorithm.
+https://youtu.be/0korQyrnH8o?si=qQjnxwsHgQl76BZZ
+
+This paper suggests some improvements.
+https://guido.grame.fr/papers/renz-spacing.pdf
+
+There may be other algorithms that I don't know about.
 
 ## TODO
 

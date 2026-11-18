@@ -5082,4 +5082,187 @@ class ScoreModuleTest {
             "Rendered lower staff should draw staccato articulation glyph",
         )
     }
+
+    @Test
+    fun testPhase22CrossStaffRhythmicAlignmentViolinViolaRepro() {
+        val g4 = SpelledPitch(NoteLetter.G, 0, 4)
+        val a4 = SpelledPitch(NoteLetter.A, 0, 4)
+        val c5 = SpelledPitch(NoteLetter.C, 0, 5)
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val d4 = SpelledPitch(NoteLetter.D, 0, 4)
+
+        val violinM1 = ScoreMeasure(
+            1,
+            List(8) { idx -> ScoreItem.Note(if (idx % 2 == 0) g4 else a4, NoteDuration.SIXTEENTH) } +
+                listOf(ScoreItem.Note(c5, NoteDuration.QUARTER), ScoreItem.Note(c5, NoteDuration.QUARTER)),
+        )
+        val violinM2 = ScoreMeasure(
+            2,
+            listOf(ScoreItem.Note(c5, NoteDuration.HALF), ScoreItem.Note(c5, NoteDuration.HALF)),
+        )
+
+        val violaM1 = ScoreMeasure(
+            1,
+            List(4) { ScoreItem.Note(c4, NoteDuration.QUARTER) },
+        )
+        val violaM2 = ScoreMeasure(
+            2,
+            listOf(
+                ScoreItem.Note(c4, NoteDuration.EIGHTH),
+                ScoreItem.Note(d4, NoteDuration.EIGHTH),
+            ) + List(8) { ScoreItem.Note(c4, NoteDuration.THIRTY_SECOND) } + listOf(
+                ScoreItem.Note(d4, NoteDuration.QUARTER),
+                ScoreItem.Note(c4, NoteDuration.QUARTER),
+            ),
+        )
+
+        val score = ScoreData().apply {
+            replaceAllInstruments(
+                listOf(
+                    ScoreInstrumentPart(
+                        id = "violin",
+                        name = "Violin",
+                        instrumentType = InstrumentType.BOWED_STRINGS,
+                        staffCount = 1,
+                        clef = Clef.TREBLE,
+                        measures = listOf(violinM1, violinM2),
+                    ),
+                    ScoreInstrumentPart(
+                        id = "viola",
+                        name = "Viola",
+                        instrumentType = InstrumentType.BOWED_STRINGS,
+                        staffCount = 1,
+                        clef = Clef.ALTO,
+                        measures = listOf(violaM1, violaM2),
+                    ),
+                )
+            )
+        }
+
+        val layout = ScoreRenderer.computeLayout(score, staffSpacePx = 12f, minWidthPx = 1000f) { _, fs -> fs * 0.35f }
+        val vlnM1 = layout.staves[0].placedMeasures[0].items
+        val vlaM1 = layout.staves[1].placedMeasures[0].items
+        val vlnM2 = layout.staves[0].placedMeasures[1].items
+        val vlaM2 = layout.staves[1].placedMeasures[1].items
+
+        // Bar 1: Beats 1, 2, 3, 4 align vertically between Violin and Viola
+        assertEquals(vlnM1[0].x, vlaM1[0].x, 0.01f)
+        assertEquals(vlnM1[4].x, vlaM1[1].x, 0.01f)
+        assertEquals(vlnM1[8].x, vlaM1[2].x, 0.01f)
+        assertEquals(vlnM1[9].x, vlaM1[3].x, 0.01f)
+        // Beat 1 (4x16th) is wider than Beat 3 (1xQ)
+        assertTrue(vlaM1[1].x - vlaM1[0].x > vlaM1[3].x - vlaM1[2].x)
+
+        // Bar 2: Beat 1 (H1 / 8th1) and Beat 3 (H2 / Q1) align vertically
+        assertEquals(vlnM2[0].x, vlaM2[0].x, 0.01f)
+        assertEquals(vlnM2[1].x, vlaM2[10].x, 0.01f)
+
+        // All adjacent items have non-overlapping visual bounds and synchronized barlines
+        for (i in 0 until vlaM2.lastIndex) {
+            assertTrue(vlaM2[i].boxRight < vlaM2[i + 1].boxLeft, "Viola Bar 2 items $i and ${i + 1} must not overlap")
+        }
+        assertEquals(
+            layout.staves[0].placedMeasures[0].barlineX,
+            layout.staves[1].placedMeasures[0].barlineX,
+            0.01f,
+        )
+        assertEquals(
+            layout.staves[0].placedMeasures[1].barlineX,
+            layout.staves[1].placedMeasures[1].barlineX,
+            0.01f,
+        )
+    }
+
+    @Test
+    fun testPhase22AccidentalsClefsAndPolyrhythmsPreserveCrossStaffAlignment() {
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val cSharp4 = SpelledPitch(NoteLetter.C, 1, 4)
+        val d4 = SpelledPitch(NoteLetter.D, 0, 4)
+        val e4 = SpelledPitch(NoteLetter.E, 0, 4)
+        val fSharp4 = SpelledPitch(NoteLetter.F, 1, 4)
+        val gSharp4 = SpelledPitch(NoteLetter.G, 1, 4)
+        val triplet = ScoreTuplet("t1", actualCount = 3, normalCount = 2, baseTicks = NoteDuration.EIGHTH.ticks)
+
+        // Staff 0: Beat 1 16th + Beat 1.25 chord with stacked sharps + Beat 2 mid-measure clef + Beat 1..2 triplets in bar 2
+        val s0m1 = ScoreMeasure(
+            number = 1,
+            items = listOf(
+                ScoreItem.Note(c4, NoteDuration.SIXTEENTH),
+                ScoreItem.Chord(listOf(cSharp4, fSharp4, gSharp4), NoteDuration.SIXTEENTH),
+                ScoreItem.Note(d4, NoteDuration.EIGHTH),
+                ScoreItem.Note(e4, NoteDuration.QUARTER),
+                ScoreItem.Note(d4, NoteDuration.HALF),
+            ),
+            clefChanges = mapOf(3 to Clef.BASS),
+        )
+        // Staff 1: Two 16ths on Beat 1 (unaccented) + Quarter on Beat 2 (aligns with S0 Beat 2 clef+note) + Half on Beat 3
+        val s1m1 = ScoreMeasure(
+            number = 1,
+            items = listOf(
+                ScoreItem.Note(c4, NoteDuration.SIXTEENTH),
+                ScoreItem.Note(d4, NoteDuration.SIXTEENTH),
+                ScoreItem.Note(e4, NoteDuration.EIGHTH),
+                ScoreItem.Note(c4, NoteDuration.QUARTER),
+                ScoreItem.Note(d4, NoteDuration.HALF),
+            ),
+        )
+        // Measure 2: Polyrhythm 3 triplet 8ths vs 2 regular 8ths on Beat 1, followed by Beat 2 Quarter on both staves
+        val s0m2 = ScoreMeasure(
+            number = 2,
+            items = List(3) { ScoreItem.Note(c4, NoteDuration.EIGHTH, tuplet = triplet) } +
+                listOf(ScoreItem.Note(d4, NoteDuration.QUARTER)),
+        )
+        val s1m2 = ScoreMeasure(
+            number = 2,
+            items = listOf(
+                ScoreItem.Note(c4, NoteDuration.EIGHTH),
+                ScoreItem.Note(d4, NoteDuration.EIGHTH),
+                ScoreItem.Note(e4, NoteDuration.QUARTER),
+            ),
+        )
+
+        val score = ScoreData().apply {
+            replaceAllInstruments(
+                listOf(
+                    ScoreInstrumentPart(
+                        id = "piano",
+                        name = "Piano",
+                        staffCount = 2,
+                        clef = Clef.TREBLE,
+                        lowerClef = Clef.TREBLE,
+                        measures = listOf(s0m1, s0m2),
+                        lowerMeasures = listOf(s1m1, s1m2),
+                    )
+                )
+            )
+        }
+
+        val layout = ScoreRenderer.computeLayout(score, staffSpacePx = 10f, minWidthPx = 900f) { _, fs -> fs * 0.35f }
+        val topM1 = layout.staves[0].placedMeasures[0]
+        val botM1 = layout.staves[1].placedMeasures[0]
+
+        // Noteheads stay aligned at beat 1.25 despite stacked sharps only on top staff
+        assertEquals(topM1.items[1].x, botM1.items[1].x, 0.01f)
+        // Accidentals on topM1[1] clear topM1[0] cleanly without colliding
+        assertTrue(topM1.items[0].boxRight < topM1.items[1].boxLeft)
+
+        // Noteheads stay aligned at beat 2 despite mid-measure clef change before topM1[3]
+        assertEquals(topM1.items[3].x, botM1.items[3].x, 0.01f)
+        val midClef = topM1.clefChanges.single { it.itemIdx == 3 }
+        assertTrue(topM1.items[2].boxRight < midClef.x, "Mid-measure clef must clear preceding note")
+        assertTrue(midClef.x + midClef.width < topM1.items[3].boxLeft, "Mid-measure clef must precede Beat 2 note")
+
+        // Polyrhythm Measure 2: Beat 1 (t=0) and Beat 2 (t=480) align across both staves, no overlaps
+        val topM2 = layout.staves[0].placedMeasures[1].items
+        val botM2 = layout.staves[1].placedMeasures[1].items
+        assertEquals(topM2[0].x, botM2[0].x, 0.01f)
+        assertEquals(topM2[3].x, botM2[2].x, 0.01f)
+        assertTrue(topM2[1].x < botM2[1].x && botM2[1].x < topM2[2].x, "Regular 8th sits strictly between triplet 8ths 2 and 3")
+        for (i in 0 until topM2.lastIndex) {
+            assertTrue(topM2[i].boxRight < topM2[i + 1].boxLeft)
+        }
+        for (i in 0 until botM2.lastIndex) {
+            assertTrue(botM2[i].boxRight < botM2[i + 1].boxLeft)
+        }
+    }
 }
