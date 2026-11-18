@@ -282,6 +282,17 @@ Add an item in the Edit menu "Fill with Rests".
 When selected, fill any measure that is not already full with rests
 For example, if a 4:4 measure has 3 quarter notes, add a quarter note rest.
 
+### Phase 21 - Editing Notes and Rests
+When deleting a note, replace with a rest.
+Leave the rest selected so that it can be easily deleted.
+When deleting a rest, move the following note to the rest's position.
+
+Add a Score Editor Edit menu option called "Auto Fill Rests" that can be toggled.
+The default should be on.
+When enabled, fill any measure that is not already full with rests.
+When adding notes, keep the measure full of rests.
+Start with smaller rests that align with the current position and then fill with larger rests.
+
 ### Phase ? - Measure Lines
 Add support for typical measure lines.
 Put the select buttons for measure lines into a palette called "Measure Lines".
@@ -319,8 +330,6 @@ Add graphical staves, custom glyphs, text.
 
 ## TODO
 Make sure the score editor window opens high enough to see the palettes.
-Remove Tuplet menu. Use palette or ALT keys.
-When deleting a note, replace with a rest.
 Switch between Presonus and MuseScore key mappings.
 Add staccato articulation to the tutorial.
 

@@ -1630,24 +1630,6 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 onSelect = { applyTimeSignature(it, targetMeasureIndices) },
             )
 
-            ScoreTupletSelector(
-                activeRatio = module.stepRecordTupletRatio,
-                hasSelection = selectedLocations.isNotEmpty(),
-                textColor = toolbarText,
-                accentColor = accentColor,
-                borderMuted = borderMuted,
-                isDark = isDark,
-                onSelect = { ratio ->
-                    applyTupletRatio(ratio)
-                    focusRequester.requestFocus()
-                },
-                onOpenCustom = {
-                    customTupletActualText = (module.stepRecordTupletRatio?.first ?: 3).toString()
-                    customTupletNormalText = (module.stepRecordTupletRatio?.second ?: 2).toString()
-                    customTupletDialogOpen = true
-                },
-            )
-
             TextButton(
                 onClick = {
                     insertEmptyBar()
@@ -3698,79 +3680,6 @@ private fun ScoreTimeSigSelector(
                     },
                 )
             }
-        }
-    }
-}
-
-@Composable
-private fun ScoreTupletSelector(
-    activeRatio: Pair<Int, Int>?,
-    hasSelection: Boolean,
-    textColor: Color,
-    accentColor: Color,
-    borderMuted: Color,
-    isDark: Boolean,
-    onSelect: (Pair<Int, Int>?) -> Unit,
-    onOpenCustom: () -> Unit,
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val active = activeRatio != null && !hasSelection
-    val tupletOrange = if (isDark) Color(0xFFFF9800) else Color(0xFFE65100)
-    val chipColor = if (active) tupletOrange else textColor
-    Box {
-        TextButton(
-            onClick = { expanded = true },
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
-            modifier = Modifier
-                .height(28.dp)
-                .border(
-                    width = if (active) 1.5.dp else 1.dp,
-                    color = if (active) tupletOrange else borderMuted.copy(alpha = 0.6f),
-                    shape = RoundedCornerShape(4.dp),
-                )
-                .focusProperties { canFocus = false },
-        ) {
-            val label = activeRatio?.let { "${it.first}:${it.second}" } ?: "Off"
-            Text(
-                text = "Tuplet: $label",
-                fontSize = 11.sp,
-                fontWeight = if (active) FontWeight.SemiBold else FontWeight.Normal,
-                color = chipColor,
-            )
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            CompactDropdownMenuItem(
-                text = { Text(if (hasSelection) "Clear Tuplet" else "Off (Normal)") },
-                onClick = {
-                    onSelect(null)
-                    expanded = false
-                },
-            )
-            HorizontalDivider()
-            ScoreTuplet.PRESETS.forEach { preset ->
-                val isCurrent = !hasSelection && activeRatio == preset
-                CompactDropdownMenuItem(
-                    text = {
-                        Text(
-                            text = "${preset.first}:${preset.second}",
-                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isCurrent) accentColor else Color.Unspecified,
-                        )
-                    },
-                    onClick = {
-                        onSelect(preset)
-                        expanded = false
-                    },
-                )
-            }
-            HorizontalDivider()
-            CompactDropdownMenuItem(
-                text = { Text("Custom N:M… (Alt+N)") },
-                onClick = {
-                    expanded = false
-                    onOpenCustom()
-                },
-            )
         }
     }
 }
