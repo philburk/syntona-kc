@@ -112,3 +112,11 @@ tutorials/09_timeline/03_patch_track.json
 tutorials/09_timeline/04_midi_track.json
 tutorials/10_notation/01_add_notes.json
 tutorials/10_notation/02_edit_notes.json
+tutorials/10_notation/03_dotted_notes.json
+tutorials/10_notation/04_chords.json
+tutorials/10_notation/05_step_record.json
+tutorials/10_notation/06_keys_accidentals.json
+tutorials/10_notation/07_tuplets.json
+tutorials/10_notation/08_time_signatures.json
+tutorials/10_notation/09_add_instruments.json
+tutorials/10_notation/10_export_xml.json

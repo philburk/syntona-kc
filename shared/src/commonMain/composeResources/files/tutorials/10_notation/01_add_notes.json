@@ -525,7 +525,7 @@
       "name": "comment",
       "x": 32.9,
       "y": 12,
-      "text": "The \"score\" module contains a staff notation editor.\nNote that the score is connecting to an instrument so you can play notes.\nAnd the instrument is connected to a lineIn so you can hear them.\n\nTo Do:\n* Double-click the score module header to open the editor window.\n* Click the \"Notes/Rests\" button to open a palette.\n* Select the Quarter note. (It has a 'q' under it.)\n* Click on the staff between the lines to add notes.\n* Press the SPACEBAR or click the Play button to play your song.",
+      "text": "The \"score\" module contains a staff notation editor.\nNote that the score is connecting to an instrument so you can play notes.\nAnd the instrument is connected to a lineIn so you can hear them.\n\nTo Do:\n* Double-click the score module header to open the editor window.\n* Click the \"Notes/Rests\" button to open a palette.\n* Select the Quarter note. (It has a 'q' under it.)\n* Click on the staff to add notes. Start in the first measure.\n* Press the SPACEBAR or click the Play button to play your song.",
       "w": 534.75,
       "h": 197.875
     },
@@ -590,6 +590,15 @@
           "items": []
         }
       ]
+    },
+    {
+      "id": 4,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 306.9,
+      "y": 240,
+      "filePath": "tutorials/10_notation/02_edit_notes.json",
+      "buttonText": ">> Next, 02_edit_notes"
     }
   ],
   "connections": [
@@ -612,8 +621,8 @@
       "toJack": "input"
     }
   ],
-  "windowX": 10,
-  "windowY": 10,
+  "windowX": 2.5,
+  "windowY": 2.5,
   "windowWidth": 800,
   "windowHeight": 500
 }

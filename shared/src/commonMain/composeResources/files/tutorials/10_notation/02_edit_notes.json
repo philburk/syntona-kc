@@ -1,6 +1,6 @@
 {
-  "version": "0.8.3 beta",
-  "versionCode": 524291,
+  "version": "0.8.4 beta",
+  "versionCode": 524292,
   "modules": [
     {
       "id": 0,
@@ -525,7 +525,7 @@
       "name": "comment",
       "x": 48.9,
       "y": 13,
-      "text": "You can add notes or rests with different durations.\nAnd you can edit or delete notes.\n\nTo Do:\n* Click in the score editor window.\n* Press 'E' to select eights notes. Add some eighth notes.\n* Try selecting different durations by pressing: W H Q E S or T\n* Press 'Q' a few times to toggle between notes and rests.\n* Press the ESCAPE key (ESC) to enter selecting mode.\n* Select a group of notes.\n* Press the arrow UP and DOWN keys to transpose the notes.\n* Press COMMAND+Z (or CTRL+Z) to Undo and restore the notes.",
+      "text": "You can add notes or rests with different durations.\nAnd you can edit or delete notes.\n\nTo Do:\n* Click in the score editor window.\n* Press 'E' to select eights notes. Add some eighth notes.\n* Try selecting different durations by pressing: W H Q E S or T\n* Press 'Q' a few times to toggle between notes and rests.\n* Press the ESCAPE key (ESC) to enter selecting mode.\n* Select a group of notes.\n* Press the arrow UP and DOWN keys to transpose the notes.\n* Press the BACKSPACE or DELETE key to erase the selected notes.\n* Press COMMAND+Z (or CTRL+Z) to Undo and restore the notes.",
       "w": 601.75,
       "h": 229.875
     },
@@ -591,6 +591,15 @@
           "items": []
         }
       ]
+    },
+    {
+      "id": 4,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 397.9,
+      "y": 271.1,
+      "filePath": "tutorials/10_notation/03_dotted_notes.json",
+      "buttonText": ">> Next, 03_dotted_notes"
     }
   ],
   "connections": [
@@ -613,8 +622,8 @@
       "toJack": "in1"
     }
   ],
-  "windowX": 10,
-  "windowY": 10,
+  "windowX": 2.5,
+  "windowY": 2.5,
   "windowWidth": 800,
   "windowHeight": 500
 }

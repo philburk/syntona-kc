@@ -317,11 +317,18 @@ Add graphical staves, custom glyphs, text.
 
 ### Phase ? - Save to PDF, All Together or as Parts HARDER THAN MusicXML
 
-### Phase ?
+## TODO
+Make sure the score editor window opens high enough to see the palettes.
+Remove Tuplet menu. Use palette or ALT keys.
+When deleting a note, replace with a rest.
+Switch between Presonus and MuseScore key mappings.
+Add staccato articulation to the tutorial.
 
 ## BUG
 
-None.
+Staccato is broken! How is this regression possible?
+
+Note alignment is not good.  Two staves, one with lots of sixteenth notes, one with quarter notes. Not aligned.
 
 ## Design Considerations
 

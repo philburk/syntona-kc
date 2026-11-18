@@ -3,19 +3,30 @@
 
 MAKE SOME MUSIC!
 
-Staff Notation tutorial
+
+
+Bug: default staff is "Synth" but its output jack is "out".
+
+Score Editor window
+## Staff Notation tutorial
 Overview and Preview Score
 score -> instru -> lineOut, open score, Note Palette, add some notes, play
 Note/Rest shortcuts, more notes, display pitch, selecting, dragging
-Augmented dot notation
+Augmented dot notation, overfull
 Build chords, see chord name
 MIDI input, step record
-Edit accidentals, select and transpose, SHIFT
+Edit clef, accidentals, select and transpose, SHIFT
 Tuplets, palette, keyboard shortcuts
 Change to 5:4 time signature
 Add new instrument, piano
 Export if need to print, Fill with Rests, Export MusicXML
 
+
+Idea from Nick:
+The user might load a csv into Syntona's new csv parser unit. Syntona
+reads the headers and generates a named output port for each. User can
+fill sample data with it, perhaps with a range/scale/normalize option,
+or a new tableN object that the user can clock through.
 
 Add a command input jack. Maybe in a core/patches bundle.
 

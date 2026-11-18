@@ -1,6 +1,6 @@
 {
-  "version": "0.7.9 beta",
-  "versionCode": 458761,
+  "version": "0.8.4 beta",
+  "versionCode": 524292,
   "modules": [
     {
       "id": 0,
@@ -71,6 +71,7 @@
           "soloed": false,
           "armed": false,
           "monitored": false,
+          "noteMode": "NOTE_ON_OFF",
           "inJack": "in3",
           "outJack": "out3",
           "sections": []
@@ -88,7 +89,8 @@
           "v": 0.8,
           "min": 0,
           "max": 1,
-          "kickable": false
+          "kickable": false,
+          "exponential": true
         },
         "offset": {
           "v": 36,
@@ -187,7 +189,8 @@
                 "v": 1,
                 "min": 0,
                 "max": 1,
-                "kickable": false
+                "kickable": false,
+                "exponential": true
               }
             }
           },
@@ -241,6 +244,7 @@
                 "min": 0,
                 "max": 2,
                 "kickable": false,
+                "exponential": true,
                 "add": false
               },
               "attack": {
@@ -248,6 +252,7 @@
                 "min": 0,
                 "max": 1,
                 "kickable": false,
+                "exponential": true,
                 "add": false
               },
               "hold": {
@@ -255,6 +260,7 @@
                 "min": 0,
                 "max": 1,
                 "kickable": false,
+                "exponential": true,
                 "add": false
               },
               "decay": {
@@ -262,6 +268,7 @@
                 "min": 0,
                 "max": 1,
                 "kickable": false,
+                "exponential": true,
                 "add": false
               },
               "sustain": {
@@ -276,6 +283,7 @@
                 "min": 0,
                 "max": 15,
                 "kickable": false,
+                "exponential": true,
                 "add": false
               },
               "amplitude": {
@@ -283,6 +291,7 @@
                 "min": 0,
                 "max": 1,
                 "kickable": false,
+                "exponential": true,
                 "add": false
               }
             },
@@ -307,6 +316,7 @@
                 "min": 0,
                 "max": 2,
                 "kickable": false,
+                "exponential": true,
                 "add": false
               },
               "attack": {
@@ -314,6 +324,7 @@
                 "min": 0,
                 "max": 1,
                 "kickable": false,
+                "exponential": true,
                 "add": false
               },
               "hold": {
@@ -321,6 +332,7 @@
                 "min": 0,
                 "max": 1,
                 "kickable": false,
+                "exponential": true,
                 "add": false
               },
               "decay": {
@@ -328,6 +340,7 @@
                 "min": 0,
                 "max": 1,
                 "kickable": false,
+                "exponential": true,
                 "add": false
               },
               "sustain": {
@@ -342,6 +355,7 @@
                 "min": 0,
                 "max": 15,
                 "kickable": false,
+                "exponential": true,
                 "add": false
               },
               "amplitude": {
@@ -349,6 +363,7 @@
                 "min": 0,
                 "max": 10,
                 "kickable": false,
+                "exponential": true,
                 "add": false
               }
             },
@@ -366,6 +381,7 @@
                 "min": 40,
                 "max": 8000,
                 "kickable": false,
+                "exponential": true,
                 "add": false
               },
               "amplitude": {
@@ -373,6 +389,7 @@
                 "min": 0,
                 "max": 1,
                 "kickable": false,
+                "exponential": true,
                 "add": false
               },
               "modulation": {
@@ -396,6 +413,7 @@
                 "min": 40,
                 "max": 8000,
                 "kickable": false,
+                "exponential": true,
                 "add": false
               },
               "amplitude": {
@@ -403,6 +421,7 @@
                 "min": 0,
                 "max": 1,
                 "kickable": false,
+                "exponential": true,
                 "add": false
               }
             }
@@ -520,7 +539,8 @@
               "duration": {
                 "min": 0,
                 "max": 100,
-                "kickable": false
+                "kickable": false,
+                "exponential": true
               }
             }
           }
@@ -630,6 +650,15 @@
           }
         ]
       }
+    },
+    {
+      "id": 5,
+      "type": "core.basic.link",
+      "name": "link",
+      "x": 452.9,
+      "y": 371,
+      "filePath": "tutorials/10_notation/01_add_notes.json",
+      "buttonText": ">> Next, Score Tutorial, add notes"
     }
   ],
   "connections": [
@@ -652,8 +681,8 @@
       "toJack": "in0"
     }
   ],
-  "windowX": 10,
-  "windowY": 10,
+  "windowX": 5,
+  "windowY": 5,
   "windowWidth": 1079.52734375,
   "windowHeight": 773.35546875
 }
