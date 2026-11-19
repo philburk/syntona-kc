@@ -714,13 +714,14 @@ object ScoreRenderer {
         minWidthPx: Float,
         measureGlyphWidth: (String, Float) -> Float,
         activeTupletRatio: Pair<Int, Int>? = null,
+        includeInstrumentLabelGutter: Boolean = true,
     ): Pair<List<StaffLayoutResult>, ScoreLayout> {
         val sp = staffSpacePx.coerceAtLeast(4f)
         val emPx = sp * 4f
         val changeEmPx = emPx * CLEF_CHANGE_SCALE
         val instruments = score.instruments.ifEmpty { listOf(ScoreInstrumentPart(id = "inst-1")) }
-        val showInstrumentLabels = instruments.isNotEmpty()
-        val leftMargin = if (showInstrumentLabels) sp * 8.5f else sp * 2.0f
+        val showInstrumentLabels = includeInstrumentLabelGutter && instruments.isNotEmpty()
+        val leftMargin = if (showInstrumentLabels) sp * 8.5f else sp * 1.6f
         val rightMargin = sp * 2.0f
 
         data class StaffBuildState(
@@ -1761,6 +1762,7 @@ object ScoreRenderer {
         staffSpacePx: Float,
         minWidthPx: Float,
         activeTupletRatio: Pair<Int, Int>?,
+        includeInstrumentLabelGutter: Boolean = true,
         measureGlyphWidth: (String, Float) -> Float,
     ): ScoreLayout = computeHeaderAndMeasures(
         score = score,
@@ -1768,6 +1770,7 @@ object ScoreRenderer {
         minWidthPx = minWidthPx,
         measureGlyphWidth = measureGlyphWidth,
         activeTupletRatio = activeTupletRatio,
+        includeInstrumentLabelGutter = includeInstrumentLabelGutter,
     ).second
 
     /**
@@ -1791,6 +1794,9 @@ object ScoreRenderer {
         isStepRecording: Boolean = false,
         activeItemsByStaff: Map<ScoreStaffId, Int> = emptyMap(),
         activeTupletRatio: Pair<Int, Int>? = null,
+        recordingMeasureIdx: Int? = null,
+        recordingInstrumentIdx: Int? = null,
+        includeInstrumentLabelGutter: Boolean = true,
     ): ScoreLayout {
         val (_, layout) = computeHeaderAndMeasures(
             score = score,
@@ -1798,6 +1804,7 @@ object ScoreRenderer {
             minWidthPx = minWidthPx,
             measureGlyphWidth = target::measureGlyphWidth,
             activeTupletRatio = activeTupletRatio,
+            includeInstrumentLabelGutter = includeInstrumentLabelGutter,
         )
         val sp = layout.staffSpacePx
         val emPx = sp * 4f
@@ -1810,9 +1817,9 @@ object ScoreRenderer {
         val ledgerThick = SmuflGlyphs.LEGER_LINE_THICKNESS * sp
         val ledgerExt = SmuflGlyphs.LEGER_LINE_EXTENSION * sp
 
-        // 0. Draw instrument labels & Grand Staff braces on the left system margin
-        if (layout.showInstrumentLabels) {
-            for (grp in layout.instrumentGroups) {
+        // 0. Draw instrument labels (when inline gutter is active) & Grand Staff braces
+        for (grp in layout.instrumentGroups) {
+            if (layout.showInstrumentLabels) {
                 val midY = (grp.topStaffY + grp.bottomStaffY) * 0.5f
                 target.drawText(
                     text = grp.instrument.name,
@@ -1830,16 +1837,16 @@ object ScoreRenderer {
                     fontSizePx = sp * 0.95f,
                     color = colors.measureNumber,
                 )
-                if (grp.instrument.staffCount >= 2) {
-                    drawGrandStaffBrace(
-                        target = target,
-                        x = grp.braceX,
-                        topY = grp.topStaffY,
-                        bottomY = grp.bottomStaffY,
-                        sp = sp,
-                        color = colors.ink,
-                    )
-                }
+            }
+            if (grp.instrument.staffCount >= 2) {
+                drawGrandStaffBrace(
+                    target = target,
+                    x = grp.braceX,
+                    topY = grp.topStaffY,
+                    bottomY = grp.bottomStaffY,
+                    sp = sp,
+                    color = colors.ink,
+                )
             }
         }
 
@@ -1875,6 +1882,19 @@ object ScoreRenderer {
                     target.fillRect(hlLeft, hlTop, (pm.barlineX - hlLeft).coerceAtLeast(1f), hlBottom - hlTop, colors.selectedBoxFill)
                     target.drawLine(hlLeft, hlTop, pm.barlineX, hlTop, borderThick, colors.selectedBoxBorder)
                     target.drawLine(hlLeft, hlBottom, pm.barlineX, hlBottom, borderThick, colors.selectedBoxBorder)
+                } else if (recordingMeasureIdx != null &&
+                    pm.measureIdx == recordingMeasureIdx &&
+                    ps.staffId.instrumentIdx == recordingInstrumentIdx
+                ) {
+                    val hlLeft = if (idx == 0) pm.startX else ps.placedMeasures[idx - 1].barlineX
+                    val hlTop = ps.topStaffY - sp * 0.55f
+                    val hlBottom = ps.bottomStaffY + sp * 0.55f
+                    val borderThick = (sp * 0.14f).coerceAtLeast(1.2f)
+                    val recFill = colors.stepCursor.copy(alpha = 0.14f)
+                    val recBorder = colors.stepCursor.copy(alpha = 0.72f)
+                    target.fillRect(hlLeft, hlTop, (pm.barlineX - hlLeft).coerceAtLeast(1f), hlBottom - hlTop, recFill)
+                    target.drawLine(hlLeft, hlTop, pm.barlineX, hlTop, borderThick, recBorder)
+                    target.drawLine(hlLeft, hlBottom, pm.barlineX, hlBottom, borderThick, recBorder)
                 }
 
                 if (pm.keyChangeGlyphs.isNotEmpty()) {

@@ -49,6 +49,8 @@ import com.syntona.dataflow.score.ScoreInstrumentPart
 import com.syntona.dataflow.score.ScoreItem
 import com.syntona.dataflow.score.ScoreMeasure
 import com.syntona.dataflow.score.ScoreModule
+import com.syntona.dataflow.score.ScoreQuantizeGrid
+import com.syntona.dataflow.score.ScoreRecordMode
 import com.syntona.dataflow.score.ScoreTuplet
 import com.syntona.dataflow.score.SpelledPitch
 import com.syntona.dataflow.score.TimeSignature
@@ -576,6 +578,18 @@ object GraphSerializer {
                 }
                 if (module.loopEndMeasure != ScoreModule.DEFAULT_LOOP_END_MEASURE) {
                     append(",\"loopEndMeasure\":${module.loopEndMeasure}")
+                }
+                if (module.recordMode != ScoreRecordMode.REPLACE) {
+                    append(",\"recordMode\":\"${module.recordMode.name}\"")
+                }
+                if (module.recordLatencyMs != 0.0) {
+                    append(",\"recordLatencyMs\":${module.recordLatencyMs}")
+                }
+                if (module.recordQuantizeGrid != ScoreQuantizeGrid.SIXTEENTH) {
+                    append(",\"recordQuantizeGrid\":\"${module.recordQuantizeGrid.name}\"")
+                }
+                if (!module.recordDetectTriplets) {
+                    append(",\"recordDetectTriplets\":false")
                 }
                 module.windowX?.let { append(",\"windowX\":$it") }
                 module.windowY?.let { append(",\"windowY\":$it") }
@@ -1924,6 +1938,22 @@ object GraphSerializer {
                     val s = (rawLoopStart ?: module.loopStartMeasure).coerceIn(0, lastIdx)
                     val e = (rawLoopEnd ?: module.loopEndMeasure).coerceIn(s, lastIdx)
                     module.setLoopRange(s, e)
+                }
+                (obj?.map?.get("recordMode") as? JsonValue.Str)?.value?.let { modeName ->
+                    ScoreRecordMode.entries.firstOrNull { it.name == modeName }?.let {
+                        module.recordMode = it
+                    }
+                }
+                (obj?.map?.get("recordLatencyMs") as? JsonValue.Num)?.value?.let {
+                    module.recordLatencyMs = it.coerceIn(ScoreModule.MIN_LATENCY_MS, ScoreModule.MAX_LATENCY_MS)
+                }
+                (obj?.map?.get("recordQuantizeGrid") as? JsonValue.Str)?.value?.let { gridName ->
+                    ScoreQuantizeGrid.entries.firstOrNull { it.name == gridName }?.let {
+                        module.recordQuantizeGrid = it
+                    }
+                }
+                (obj?.map?.get("recordDetectTriplets") as? JsonValue.Bool)?.value?.let {
+                    module.recordDetectTriplets = it
                 }
             }
             created.add(module)

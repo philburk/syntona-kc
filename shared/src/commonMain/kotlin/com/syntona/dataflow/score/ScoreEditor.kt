@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -96,6 +97,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -453,12 +455,39 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         }
     }
 
+    DisposableEffect(module) {
+        module.onRealTimeMeasuresCommitted = { staffId, beforeMeasures, afterMeasures ->
+            val engine = state.engine ?: module.getEngine()
+            if (engine != null) {
+                engine.post(
+                    ReplaceScoreMeasuresCommand(score, beforeMeasures, afterMeasures, staff = staffId)
+                )
+            }
+            state.markChanged()
+        }
+        onDispose {
+            module.onRealTimeMeasuresCommitted = null
+        }
+    }
+
     fun postCommand(command: SyntonaCommand) {
         val engine = state.engine ?: module.getEngine()
         if (engine != null) {
             engine.post(command)
+            if (module.isPlaying) {
+                engine.post(object : SyntonaCommand {
+                    override val isUndoable = false
+                    override fun execute() {
+                        module.notifyScoreEditedWhilePlaying()
+                    }
+                    override fun undo() {}
+                })
+            }
         } else {
             command.execute()
+            if (module.isPlaying) {
+                module.notifyScoreEditedWhilePlaying()
+            }
         }
         state.markChanged()
     }
@@ -1692,6 +1721,60 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 }
             }
 
+            val recColor = Color(0xFFE53935)
+            ToolbarToggleChip(
+                selected = module.isRealTimeRecording,
+                accentColor = recColor,
+                borderMuted = borderMuted,
+                textColor = toolbarText,
+                isDark = isDark,
+                onClick = {
+                    module.requestRealTimeRecordToggle()
+                    focusRequester.requestFocus()
+                },
+            ) { color ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    RecordIcon(
+                        color = if (module.isRealTimeRecording) recColor else color,
+                        size = 9.dp,
+                    )
+                    Text("Rec", fontSize = 11.sp, color = if (module.isRealTimeRecording) recColor else color)
+                }
+            }
+
+            ScoreRecordSettingsMenu(
+                recordMode = module.recordMode,
+                quantizeGrid = module.recordQuantizeGrid,
+                detectTriplets = module.recordDetectTriplets,
+                latencyMs = module.recordLatencyMs,
+                estimatedOutputLatencyMs = module.estimatedOutputLatencyMs(),
+                textColor = toolbarText,
+                accentColor = accentColor,
+                isDark = isDark,
+                onSelectRecordMode = {
+                    module.recordMode = it
+                    FileState.markDirty()
+                    focusRequester.requestFocus()
+                },
+                onSelectQuantizeGrid = {
+                    module.recordQuantizeGrid = it
+                    FileState.markDirty()
+                    focusRequester.requestFocus()
+                },
+                onToggleDetectTriplets = {
+                    module.recordDetectTriplets = !module.recordDetectTriplets
+                    FileState.markDirty()
+                    focusRequester.requestFocus()
+                },
+                onChangeLatencyMs = { nextMs ->
+                    module.recordLatencyMs = nextMs.coerceIn(ScoreModule.MIN_LATENCY_MS, ScoreModule.MAX_LATENCY_MS)
+                    FileState.markDirty()
+                },
+            )
+
             Text("|", color = borderMuted)
 
             ToolbarToggleChip(
@@ -2022,7 +2105,9 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     val viewportWidth = maxWidth
                     val viewportHeight = maxHeight
                     val staffSpacePx = with(density) { staffSpaceDp.dp.toPx() }
-                    val minWidthPx = with(density) { viewportWidth.toPx() }.coerceAtLeast(600f)
+                    val sidePanelWidthDp = maxOf(104.dp, with(density) { (staffSpacePx * 8.2f).toDp() })
+                    val scoreViewportWidth = (viewportWidth - sidePanelWidthDp - 1.dp).coerceAtLeast(160.dp)
+                    val minWidthPx = with(density) { scoreViewportWidth.toPx() }.coerceAtLeast(480f)
                     val instrumentsSnapshot = score.instruments.toList()
                     val activeTupletRatio = module.stepRecordTupletRatio
                     val layoutTupletRatio = if (!module.isStepRecording && editorMode == ScoreEditMode.ENTRY) {
@@ -2045,8 +2130,9 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                             score = score,
                             staffSpacePx = staffSpacePx,
                             minWidthPx = minWidthPx,
-                            measureGlyphWidth = measureGlyphWidth,
                             activeTupletRatio = layoutTupletRatio,
+                            includeInstrumentLabelGutter = false,
+                            measureGlyphWidth = measureGlyphWidth,
                         )
                     }
                     val currentLayout by rememberUpdatedState(layout)
@@ -2062,7 +2148,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                 else ps.placedMeasures.asSequence().flatMap { it.items.asSequence() }.firstOrNull { it.globalIdx == idx }
                             }
                             .firstOrNull() ?: return@LaunchedEffect
-                        val vpW = with(density) { viewportWidth.toPx() }
+                        val vpW = with(density) { scoreViewportWidth.toPx() }
                         val curScroll = scrollState.value.toFloat()
                         if (activePlaced.boxRight > curScroll + vpW - 24f || activePlaced.boxLeft < curScroll) {
                             val target = (activePlaced.boxLeft - vpW * 0.2f).roundToInt()
@@ -2075,7 +2161,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         val cursor = module.cursorPosition ?: return@LaunchedEffect
                         if (!module.isStepRecording) return@LaunchedEffect
                         val cursorX = currentLayout.cursorXFor(cursor) ?: return@LaunchedEffect
-                        val vpW = with(density) { viewportWidth.toPx() }
+                        val vpW = with(density) { scoreViewportWidth.toPx() }
                         val curScroll = scrollState.value.toFloat()
                         if (cursorX > curScroll + vpW - 36f || cursorX < curScroll + 24f) {
                             val target = (cursorX - vpW * 0.7f).roundToInt()
@@ -2093,7 +2179,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         val firstPm = layout.placedMeasures.getOrNull(firstM) ?: lastPm
                         pendingScrollMeasures = emptySet()
                         withFrameNanos { }
-                        val vpW = with(density) { viewportWidth.toPx() }
+                        val vpW = with(density) { scoreViewportWidth.toPx() }
                         val curScroll = scrollState.value.toFloat()
                         if (lastPm.barlineX > curScroll + vpW - 24f || firstPm.startX < curScroll) {
                             val desired = if (lastPm.barlineX - firstPm.startX <= vpW - 48f) {
@@ -2107,7 +2193,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     }
 
             val canvasWidthDp = maxOf(
-                viewportWidth,
+                scoreViewportWidth,
                 with(density) { layout.totalWidthPx.toDp() },
             )
             val canvasHeightDp = maxOf(
@@ -2231,33 +2317,101 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 selectedMeasures
             }
 
-            Column(modifier = Modifier.fillMaxSize()) {
-                ScoreLoopBar(
+            val effectiveLoopRange = module.effectiveLoopRange(layout.placedMeasures.size)
+            Row(modifier = Modifier.fillMaxSize()) {
+                ScoreInstrumentSidePanel(
                     layout = layout,
-                    scrollOffsetPx = scrollState.value,
+                    staffSpacePx = staffSpacePx,
+                    panelWidth = sidePanelWidthDp,
+                    canvasHeight = canvasHeightDp,
+                    verticalScrollOffsetPx = verticalScrollState.value,
                     loopMode = module.loopMode,
-                    loopRange = module.effectiveLoopRange(layout.placedMeasures.size),
+                    loopRange = effectiveLoopRange,
+                    recordArmedInstrumentIdx = module.recordArmedInstrumentIdx,
                     isDark = isDark,
+                    bgColor = bgColor,
                     borderMuted = borderMuted,
                     toolbarText = toolbarText,
-                    textMeasurer = textMeasurer,
-                    onLoopRangeChange = { startIdx, endIdx ->
-                        module.setLoopRange(startIdx, endIdx)
-                        FileState.markDirty()
-                    },
+                    accentColor = accentColor,
+                    colors = renderColors,
                     onToggleLoopMode = {
                         module.toggleLoopMode()
                         FileState.markDirty()
                         focusRequester.requestFocus()
                     },
+                    onEditInstrument = { idx, part ->
+                        activeStaff = ScoreStaffId(idx, 0)
+                        instrumentDialog = InstrumentDialogState(
+                            editingIndex = idx,
+                            name = part.name,
+                            instrumentType = part.instrumentType,
+                            lowPitchText = ScoreInstrumentPart.formatMidiPitch(part.minMidiPitch),
+                            highPitchText = ScoreInstrumentPart.formatMidiPitch(part.maxMidiPitch),
+                            selectedPreset = InstrumentPreset.entries.firstOrNull { preset ->
+                                preset.displayName == part.name &&
+                                    preset.instrumentType == part.instrumentType &&
+                                    preset.minMidiPitch == part.minMidiPitch &&
+                                    preset.maxMidiPitch == part.maxMidiPitch
+                            },
+                        )
+                    },
+                    onToggleRecordArm = { idx ->
+                        module.toggleRecordArm(idx)
+                        focusRequester.requestFocus()
+                    },
+                    onReorderInstrument = { fromIdx, toIdx ->
+                        reorderInstrument(fromIdx, toIdx)
+                    },
+                    onAddInstrument = {
+                        val nextNum = score.instruments.size + 1
+                        instrumentDialog = InstrumentDialogState(
+                            editingIndex = null,
+                            name = "Synth $nextNum",
+                            instrumentType = ScoreInstrumentPart.DEFAULT_TYPE,
+                            lowPitchText = ScoreInstrumentPart.formatMidiPitch(ScoreInstrumentPart.DEFAULT_MIN_MIDI),
+                            highPitchText = ScoreInstrumentPart.formatMidiPitch(ScoreInstrumentPart.DEFAULT_MAX_MIDI),
+                            selectedPreset = InstrumentPreset.SYNTH,
+                        )
+                    },
                 )
                 Box(
                     modifier = Modifier
+                        .width(1.dp)
+                        .fillMaxHeight()
+                        .background(borderMuted)
+                )
+                Column(
+                    modifier = Modifier
                         .weight(1f)
-                        .fillMaxWidth()
-                        .verticalScroll(verticalScrollState)
-                        .horizontalScroll(scrollState)
+                        .fillMaxHeight()
                 ) {
+                    ScoreLoopBar(
+                        layout = layout,
+                        scrollOffsetPx = scrollState.value,
+                        loopMode = module.loopMode,
+                        loopRange = effectiveLoopRange,
+                        isDark = isDark,
+                        borderMuted = borderMuted,
+                        toolbarText = toolbarText,
+                        textMeasurer = textMeasurer,
+                        showLeftGutterLabel = false,
+                        onLoopRangeChange = { startIdx, endIdx ->
+                            module.setLoopRange(startIdx, endIdx)
+                            FileState.markDirty()
+                        },
+                        onToggleLoopMode = {
+                            module.toggleLoopMode()
+                            FileState.markDirty()
+                            focusRequester.requestFocus()
+                        },
+                    )
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .verticalScroll(verticalScrollState)
+                            .horizontalScroll(scrollState)
+                    ) {
                 Box(
                     modifier = Modifier
                         .width(canvasWidthDp)
@@ -2938,80 +3092,9 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         isStepRecording = module.isStepRecording,
                         activeItemsByStaff = module.activeItemsByStaff,
                         activeTupletRatio = layoutTupletRatio,
-                    )
-                }
-
-                // Little Up/Down buttons below each instrument label to reorder instruments
-                if (layout.instrumentGroups.size > 1) {
-                    val lastInstIdx = layout.instrumentGroups.lastIndex
-                    for (grp in layout.instrumentGroups) {
-                        val idx = grp.instrumentIdx
-                        val midY = (grp.topStaffY + grp.bottomStaffY) * 0.5f
-                        val ctrlX = with(density) { grp.labelLeft.toDp() }
-                        val ctrlY = with(density) { (midY + staffSpacePx * 1.9f).toDp() }
-                        Row(
-                            modifier = Modifier
-                                .offset(x = ctrlX, y = ctrlY)
-                                .clickable(
-                                    interactionSource = remember { MutableInteractionSource() },
-                                    indication = null,
-                                    onClick = {},
-                                ),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            InstrumentReorderButton(
-                                isUp = true,
-                                enabled = idx > 0,
-                                isDark = isDark,
-                                accentColor = accentColor,
-                                borderMuted = borderMuted,
-                                onClick = { reorderInstrument(idx, idx - 1) },
-                            )
-                            InstrumentReorderButton(
-                                isUp = false,
-                                enabled = idx < lastInstIdx,
-                                isDark = isDark,
-                                accentColor = accentColor,
-                                borderMuted = borderMuted,
-                                onClick = { reorderInstrument(idx, idx + 1) },
-                            )
-                        }
-                    }
-                }
-
-                // Subtle '+' button below the leftmost instrument gutter to add a new instrument
-                val lastBottomY = layout.staves.lastOrNull()?.bottomStaffY ?: layout.bottomStaffY
-                val addBtnX = with(density) { (staffSpacePx * 0.4f).toDp() }
-                val addBtnGapSp = if (layout.instrumentGroups.size > 1) 2.5f else 1.4f
-                val addBtnY = with(density) { (lastBottomY + staffSpacePx * addBtnGapSp).toDp() }
-                Box(
-                    modifier = Modifier
-                        .offset(x = addBtnX, y = addBtnY)
-                        .background(
-                            color = accentColor.copy(alpha = if (isDark) 0.22f else 0.12f),
-                            shape = RoundedCornerShape(4.dp),
-                        )
-                        .border(1.dp, accentColor.copy(alpha = 0.65f), RoundedCornerShape(4.dp))
-                        .pointerHoverIcon(PointerIcon.Hand)
-                        .clickable {
-                            val nextNum = score.instruments.size + 1
-                            instrumentDialog = InstrumentDialogState(
-                                editingIndex = null,
-                                name = "Synth $nextNum",
-                                instrumentType = ScoreInstrumentPart.DEFAULT_TYPE,
-                                lowPitchText = ScoreInstrumentPart.formatMidiPitch(ScoreInstrumentPart.DEFAULT_MIN_MIDI),
-                                highPitchText = ScoreInstrumentPart.formatMidiPitch(ScoreInstrumentPart.DEFAULT_MAX_MIDI),
-                                selectedPreset = InstrumentPreset.SYNTH,
-                            )
-                        }
-                        .padding(horizontal = 7.dp, vertical = 2.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        text = "+",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isDark) Color.White else accentColor,
+                        recordingMeasureIdx = module.activeRecordingMeasureIdx,
+                        recordingInstrumentIdx = if (module.isRealTimeRecording) module.recordArmedInstrumentIdx else null,
+                        includeInstrumentLabelGutter = false,
                     )
                 }
 
@@ -3105,6 +3188,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     }
                 }
                 }
+            }
             }
             }
         }
@@ -3396,6 +3480,43 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 },
             )
         }
+    }
+}
+
+@Composable
+private fun ScoreRecordArmButton(
+    isArmed: Boolean,
+    isDark: Boolean,
+    borderMuted: Color,
+    onClick: () -> Unit,
+) {
+    val activeRed = Color(0xFFE53935)
+    val bgColor = when {
+        isArmed -> activeRed
+        isDark -> Color(0xFF1E293B)
+        else -> Color(0xFFF1F5F9)
+    }
+    val strokeColor = if (isArmed) activeRed else borderMuted
+    val textColor = when {
+        isArmed -> Color.White
+        isDark -> Color(0xFFCBD5E1)
+        else -> Color(0xFF475569)
+    }
+    Box(
+        modifier = Modifier
+            .size(width = 18.dp, height = 16.dp)
+            .background(color = bgColor, shape = RoundedCornerShape(3.dp))
+            .border(1.dp, strokeColor, RoundedCornerShape(3.dp))
+            .pointerHoverIcon(PointerIcon.Hand)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = "R",
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = textColor,
+        )
     }
 }
 
@@ -3767,6 +3888,159 @@ private fun ScoreEditMenu(
                 onToggleAutoFillRests()
             },
         )
+    }
+}
+
+@Composable
+private fun ScoreRecordSettingsMenu(
+    recordMode: ScoreRecordMode,
+    quantizeGrid: ScoreQuantizeGrid,
+    detectTriplets: Boolean,
+    latencyMs: Double,
+    estimatedOutputLatencyMs: Double,
+    textColor: Color,
+    accentColor: Color,
+    isDark: Boolean,
+    onSelectRecordMode: (ScoreRecordMode) -> Unit,
+    onSelectQuantizeGrid: (ScoreQuantizeGrid) -> Unit,
+    onToggleDetectTriplets: () -> Unit,
+    onChangeLatencyMs: (Double) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val roundedLat = (latencyMs * 10.0).roundToInt() / 10.0
+    val latText = if (roundedLat == roundedLat.toInt().toDouble()) {
+        "${roundedLat.toInt()}ms"
+    } else {
+        "${roundedLat}ms"
+    }
+    Box {
+        TextButton(
+            onClick = { expanded = true },
+            contentPadding = PaddingValues(horizontal = 6.dp, vertical = 0.dp),
+            modifier = Modifier
+                .height(28.dp)
+                .focusProperties { canFocus = false },
+        ) {
+            Text(
+                "${recordMode.label} · $latText ▾",
+                fontSize = 11.sp,
+                color = textColor,
+            )
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            val sectionColor = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+            Text(
+                text = "Record Mode",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = sectionColor,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+            )
+            for (mode in ScoreRecordMode.entries) {
+                CompactDropdownMenuItem(
+                    text = {
+                        val prefix = if (mode == recordMode) "✓ " else "   "
+                        Text("$prefix${mode.label} Measure")
+                    },
+                    onClick = {
+                        expanded = false
+                        onSelectRecordMode(mode)
+                    },
+                )
+            }
+            HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
+            Text(
+                text = "Quantize",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = sectionColor,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+            )
+            for (grid in ScoreQuantizeGrid.entries) {
+                CompactDropdownMenuItem(
+                    text = {
+                        val prefix = if (grid == quantizeGrid) "✓ " else "   "
+                        Text("$prefix${grid.label} Note")
+                    },
+                    onClick = {
+                        expanded = false
+                        onSelectQuantizeGrid(grid)
+                    },
+                )
+            }
+            CompactDropdownMenuItem(
+                text = {
+                    val prefix = if (detectTriplets) "✓ " else "   "
+                    Text("${prefix}Detect Triplets")
+                },
+                onClick = {
+                    expanded = false
+                    onToggleDetectTriplets()
+                },
+            )
+            HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
+            Text(
+                text = "Audio Latency (subtracted)",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = sectionColor,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+            )
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                SmallLatencyButton("-10", accentColor, isDark) { onChangeLatencyMs(latencyMs - 10.0) }
+                SmallLatencyButton("-2", accentColor, isDark) { onChangeLatencyMs(latencyMs - 2.0) }
+                Text(
+                    text = latText,
+                    fontSize = 11.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isDark) Color.White else Color(0xFF0F172A),
+                    modifier = Modifier.padding(horizontal = 4.dp),
+                )
+                SmallLatencyButton("+2", accentColor, isDark) { onChangeLatencyMs(latencyMs + 2.0) }
+                SmallLatencyButton("+10", accentColor, isDark) { onChangeLatencyMs(latencyMs + 10.0) }
+            }
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                SmallLatencyButton("0 ms", accentColor, isDark) { onChangeLatencyMs(0.0) }
+                val estRounded = (estimatedOutputLatencyMs * 10.0).roundToInt() / 10.0
+                SmallLatencyButton("3/4 RT (${estRounded}ms)", accentColor, isDark) {
+                    onChangeLatencyMs(estimatedOutputLatencyMs)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SmallLatencyButton(
+    label: String,
+    accentColor: Color,
+    isDark: Boolean,
+    onClick: () -> Unit,
+) {
+    val bg = if (isDark) Color(0xFF1E293B) else Color(0xFFF1F5F9)
+    val fg = if (isDark) Color(0xFFE2E8F0) else accentColor
+    Box(
+        modifier = Modifier
+            .background(bg, RoundedCornerShape(3.dp))
+            .border(1.dp, accentColor.copy(alpha = 0.45f), RoundedCornerShape(3.dp))
+            .pointerHoverIcon(PointerIcon.Hand)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text = label, fontSize = 10.sp, color = fg, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -5303,6 +5577,189 @@ private fun ScorePaletteGlyph(
     }
 }
 
+@Composable
+private fun ScoreInstrumentSidePanel(
+    layout: ScoreLayout,
+    staffSpacePx: Float,
+    panelWidth: Dp,
+    canvasHeight: Dp,
+    verticalScrollOffsetPx: Int,
+    loopMode: Boolean,
+    loopRange: IntRange,
+    recordArmedInstrumentIdx: Int?,
+    isDark: Boolean,
+    bgColor: Color,
+    borderMuted: Color,
+    toolbarText: Color,
+    accentColor: Color,
+    colors: ScoreRenderColors,
+    onToggleLoopMode: () -> Unit,
+    onEditInstrument: (Int, ScoreInstrumentPart) -> Unit,
+    onToggleRecordArm: (Int) -> Unit,
+    onReorderInstrument: (Int, Int) -> Unit,
+    onAddInstrument: () -> Unit,
+) {
+    val density = LocalDensity.current
+    val loopHeaderBg = if (isDark) Color(0xFF111827) else Color(0xFFF3F4F6)
+    val loopLabelColor = if (loopMode) {
+        if (isDark) Color(0xFF81C784) else Color(0xFF15803D)
+    } else {
+        toolbarText.copy(alpha = 0.72f)
+    }
+    val rangeLabel = if (loopRange.first == loopRange.last) {
+        "Loop m.${loopRange.first + 1}"
+    } else {
+        "Loop ${loopRange.first + 1}–${loopRange.last + 1}"
+    }
+
+    Column(
+        modifier = Modifier
+            .width(panelWidth)
+            .fillMaxHeight()
+            .background(bgColor),
+    ) {
+        // Sticky top-left corner cell aligned with ScoreLoopBar
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(22.dp)
+                .background(loopHeaderBg)
+                .pointerHoverIcon(PointerIcon.Hand)
+                .clickable(onClick = onToggleLoopMode),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            Text(
+                text = rangeLabel,
+                fontSize = 10.sp,
+                fontWeight = if (loopMode) FontWeight.SemiBold else FontWeight.Normal,
+                color = loopLabelColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 8.dp),
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(borderMuted),
+            )
+        }
+
+        // Vertically synced instrument rows + '+' add-instrument button (never scrolls horizontally)
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .clipToBounds()
+                .wrapContentHeight(align = Alignment.Top, unbounded = true),
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(canvasHeight)
+                    .offset { IntOffset(0, -verticalScrollOffsetPx) },
+            ) {
+                val lastInstIdx = layout.instrumentGroups.lastIndex
+                for (grp in layout.instrumentGroups) {
+                    val idx = grp.instrumentIdx
+                    val part = grp.instrument
+                    val midY = (grp.topStaffY + grp.bottomStaffY) * 0.5f
+                    val nameFontSize = with(density) { (staffSpacePx * 1.32f).coerceIn(11f, 16f).toSp() }
+                    val rangeFontSize = with(density) { (staffSpacePx * 0.95f).coerceIn(9f, 12f).toSp() }
+                    val blockTopY = with(density) { (midY - staffSpacePx * 1.45f).coerceAtLeast(2f).toDp() }
+                    val rangeText = "${ScoreInstrumentPart.formatMidiPitch(part.minMidiPitch)}–" +
+                        ScoreInstrumentPart.formatMidiPitch(part.maxMidiPitch)
+
+                    Column(
+                        modifier = Modifier
+                            .offset(y = blockTopY)
+                            .fillMaxWidth()
+                            .padding(horizontal = 6.dp),
+                        verticalArrangement = Arrangement.spacedBy(2.dp),
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .pointerHoverIcon(PointerIcon.Hand)
+                                .clickable { onEditInstrument(idx, part) },
+                        ) {
+                            Text(
+                                text = part.name,
+                                fontSize = nameFontSize,
+                                fontWeight = FontWeight.Medium,
+                                color = colors.ink,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = rangeText,
+                                fontSize = rangeFontSize,
+                                color = colors.measureNumber,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            ScoreRecordArmButton(
+                                isArmed = recordArmedInstrumentIdx == idx,
+                                isDark = isDark,
+                                borderMuted = borderMuted,
+                                onClick = { onToggleRecordArm(idx) },
+                            )
+                            if (layout.instrumentGroups.size > 1) {
+                                InstrumentReorderButton(
+                                    isUp = true,
+                                    enabled = idx > 0,
+                                    isDark = isDark,
+                                    accentColor = accentColor,
+                                    borderMuted = borderMuted,
+                                    onClick = { onReorderInstrument(idx, idx - 1) },
+                                )
+                                InstrumentReorderButton(
+                                    isUp = false,
+                                    enabled = idx < lastInstIdx,
+                                    isDark = isDark,
+                                    accentColor = accentColor,
+                                    borderMuted = borderMuted,
+                                    onClick = { onReorderInstrument(idx, idx + 1) },
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Pinned '+' button below the last instrument to add a new track/instrument
+                val lastBottomY = layout.staves.lastOrNull()?.bottomStaffY ?: layout.bottomStaffY
+                val addBtnY = with(density) { (lastBottomY + staffSpacePx * 2.5f).toDp() }
+                Box(
+                    modifier = Modifier
+                        .offset(x = 6.dp, y = addBtnY)
+                        .background(
+                            color = accentColor.copy(alpha = if (isDark) 0.22f else 0.12f),
+                            shape = RoundedCornerShape(4.dp),
+                        )
+                        .border(1.dp, accentColor.copy(alpha = 0.65f), RoundedCornerShape(4.dp))
+                        .pointerHoverIcon(PointerIcon.Hand)
+                        .clickable(onClick = onAddInstrument)
+                        .padding(horizontal = 7.dp, vertical = 2.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "+",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isDark) Color.White else accentColor,
+                    )
+                }
+            }
+        }
+    }
+}
+
 private enum class ScoreLoopDragMode {
     START_HANDLE,
     END_HANDLE,
@@ -5322,6 +5779,7 @@ private fun ScoreLoopBar(
     textMeasurer: TextMeasurer,
     onLoopRangeChange: (Int, Int) -> Unit,
     onToggleLoopMode: () -> Unit,
+    showLeftGutterLabel: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val currentLayout by rememberUpdatedState(layout)
@@ -5456,7 +5914,7 @@ private fun ScoreLoopBar(
             softWrap = false,
             maxLines = 1,
         )
-        if (gutterRight > 12f) {
+        if (showLeftGutterLabel && gutterRight > 12f) {
             drawText(
                 textLayoutResult = labelMeasured,
                 topLeft = Offset(

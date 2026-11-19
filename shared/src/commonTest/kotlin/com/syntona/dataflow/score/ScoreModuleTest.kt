@@ -5411,4 +5411,488 @@ class ScoreModuleTest {
         assertEquals(2, restored.loopStartMeasure)
         assertEquals(5, restored.loopEndMeasure)
     }
+
+    @Test
+    fun testPhase24TranscriberStraightDottedChordsTripletsAndTies() {
+        val q = NoteDuration.QUARTER.ticks.toDouble()
+        val e = NoteDuration.EIGHTH.ticks.toDouble()
+        val s = NoteDuration.SIXTEENTH.ticks.toDouble()
+
+        // 1. Dotted quarter + eighth + chord (C4+E4) on Beat 3 + quarter rest on Beat 4 (with human jitter)
+        val rawMixed = listOf(
+            RecordedRawNote(startTick = 6.0, endTick = q * 1.5 - 4.0, midiPitch = 60),
+            RecordedRawNote(startTick = q * 1.5 + 5.0, endTick = q * 2.0 - 3.0, midiPitch = 62),
+            RecordedRawNote(startTick = q * 2.0 - 5.0, endTick = q * 3.0 - 4.0, midiPitch = 64),
+            RecordedRawNote(startTick = q * 2.0 + 4.0, endTick = q * 3.0 - 2.0, midiPitch = 67),
+        )
+        val (mMixed, carriedMixed) = ScoreTranscriber.transcribeMeasure(
+            rawNotes = rawMixed,
+            measureNumber = 1,
+            measureStartTick = 0.0,
+            timeSignature = TimeSignature.COMMON_TIME,
+            keySignature = KeySignature.C_MAJOR,
+        )
+        assertTrue(carriedMixed.isEmpty())
+        assertEquals(4, mMixed.items.size)
+        val n0 = mMixed.items[0] as ScoreItem.Note
+        assertEquals(NoteDuration.QUARTER, n0.duration)
+        assertTrue(n0.isDotted)
+        val n1 = mMixed.items[1] as ScoreItem.Note
+        assertEquals(NoteDuration.EIGHTH, n1.duration)
+        assertFalse(n1.isDotted)
+        val c2 = mMixed.items[2] as ScoreItem.Chord
+        assertEquals(NoteDuration.QUARTER, c2.duration)
+        assertEquals(listOf(64, 67), c2.pitches.map { it.midiPitch })
+        val r3 = mMixed.items[3] as ScoreItem.Rest
+        assertEquals(NoteDuration.QUARTER, r3.duration)
+
+        // 2. Triplet detection on Beat 1 (3:2 eighth triplets with slight jitter) + straight quarter on Beat 2
+        val tStep = q / 3.0
+        val rawTriplet = listOf(
+            RecordedRawNote(startTick = 3.0, endTick = tStep - 2.0, midiPitch = 60),
+            RecordedRawNote(startTick = tStep + 4.0, endTick = tStep * 2.0 - 3.0, midiPitch = 62),
+            RecordedRawNote(startTick = tStep * 2.0 - 4.0, endTick = q - 2.0, midiPitch = 64),
+            RecordedRawNote(startTick = q + 2.0, endTick = q * 2.0 - 2.0, midiPitch = 65),
+        )
+        val (mTriplet, _) = ScoreTranscriber.transcribeMeasure(
+            rawNotes = rawTriplet,
+            measureNumber = 1,
+            measureStartTick = 0.0,
+            timeSignature = TimeSignature.COMMON_TIME,
+            keySignature = KeySignature.C_MAJOR,
+            detectTriplets = true,
+        )
+        assertTrue(mTriplet.items.size >= 5)
+        val tripletNotes = mTriplet.items.take(3).map { it as ScoreItem.Note }
+        assertTrue(tripletNotes.all { it.duration == NoteDuration.EIGHTH && it.tuplet != null })
+        assertEquals(1, tripletNotes.map { it.tuplet!!.groupId }.distinct().size)
+        assertEquals(3, tripletNotes[0].tuplet!!.actualCount)
+        assertEquals(2, tripletNotes[0].tuplet!!.normalCount)
+        val beat2Note = mTriplet.items[3] as ScoreItem.Note
+        assertEquals(NoteDuration.QUARTER, beat2Note.duration)
+        assertNull(beat2Note.tuplet)
+
+        // 3. Slightly swung straight 8ths are NOT misclassified as triplets
+        val rawStraight8 = listOf(
+            RecordedRawNote(startTick = 0.0, endTick = e, midiPitch = 60),
+            RecordedRawNote(startTick = e + 10.0, endTick = q, midiPitch = 62),
+        )
+        val (mStraight, _) = ScoreTranscriber.transcribeMeasure(
+            rawNotes = rawStraight8,
+            measureNumber = 1,
+            measureStartTick = 0.0,
+            timeSignature = TimeSignature.COMMON_TIME,
+            keySignature = KeySignature.C_MAJOR,
+            detectTriplets = true,
+        )
+        assertTrue(mStraight.items.take(2).all { it.tuplet == null && it.duration == NoteDuration.EIGHTH })
+
+        // 4. Sustained note crossing the barline sets isTiedToNext and carries tail to measure 2
+        val rawTie = listOf(
+            RecordedRawNote(startTick = q * 3.0, endTick = q * 5.0, midiPitch = 69),
+        )
+        val (mBar1, carriedTie) = ScoreTranscriber.transcribeMeasure(
+            rawNotes = rawTie,
+            measureNumber = 1,
+            measureStartTick = 0.0,
+            timeSignature = TimeSignature.COMMON_TIME,
+            keySignature = KeySignature.C_MAJOR,
+        )
+        val tiedLast = mBar1.items.last() as ScoreItem.Note
+        assertTrue(tiedLast.isTiedToNext)
+        assertEquals(NoteDuration.QUARTER, tiedLast.duration)
+        assertEquals(1, carriedTie.size)
+        assertEquals(q * 4.0, carriedTie[0].startTick, 1e-3)
+        assertEquals(q * 5.0, carriedTie[0].endTick, 1e-3)
+        assertTrue(s > 0.0)
+    }
+
+    @Test
+    fun testPhase24PerInstrumentRecordArmGrandStaffSplitLatencyAndReplaceMerge() {
+        val module = ScoreModule()
+        val engine = TestEngine()
+        module.setEngine(engine)
+        val pianoOut = VoiceReceiver()
+
+        // Create a 2-instrument score: Piano (Grand Staff, 2 staves) + Violin (1 staff)
+        module.scoreData.replaceAllInstruments(
+            listOf(
+                ScoreInstrumentPart(
+                    id = "piano",
+                    name = "Piano",
+                    staffCount = 2,
+                    clef = Clef.TREBLE,
+                    lowerClef = Clef.BASS,
+                    measures = listOf(
+                        ScoreMeasure(1, listOf(ScoreItem.Rest(NoteDuration.WHOLE))),
+                        ScoreMeasure(2, listOf(ScoreItem.Rest(NoteDuration.WHOLE))),
+                    ),
+                    lowerMeasures = listOf(
+                        ScoreMeasure(1, listOf(ScoreItem.Rest(NoteDuration.WHOLE))),
+                        ScoreMeasure(2, listOf(ScoreItem.Rest(NoteDuration.WHOLE))),
+                    ),
+                ),
+                ScoreInstrumentPart(
+                    id = "violin",
+                    name = "Violin",
+                    staffCount = 1,
+                    clef = Clef.TREBLE,
+                    measures = listOf(
+                        ScoreMeasure(1, listOf(ScoreItem.Rest(NoteDuration.WHOLE))),
+                        ScoreMeasure(2, listOf(ScoreItem.Rest(NoteDuration.WHOLE))),
+                    ),
+                ),
+            )
+        )
+        module.syncInstrumentOutputs()
+        module.outputForInstrument(0).connect(pianoOut.inJack)
+
+        // Exclusive per-instrument record arming
+        assertNull(module.recordArmedInstrumentIdx)
+        module.toggleRecordArm(0)
+        assertEquals(0, module.recordArmedInstrumentIdx)
+        module.toggleRecordArm(1)
+        assertEquals(1, module.recordArmedInstrumentIdx)
+        module.toggleRecordArm(1)
+        assertNull(module.recordArmedInstrumentIdx)
+
+        // Arm Piano (Grand Staff), configure 40ms audio latency & loop Bar 1 (2.0s at 120 BPM)
+        module.toggleRecordArm(0)
+        module.recordLatencyMs = 40.0
+        module.recordMode = ScoreRecordMode.REPLACE
+        module.setLoopRange(0, 0)
+        module.loopMode = true
+
+        module.startRealTimeRecording(ScoreTime(0L))
+        assertTrue(module.isRealTimeRecording)
+        assertTrue(module.isPlaying)
+
+        // Play two-handed: Left hand C3 (48) + Right hand C4 (60) at beat 1, arriving 40ms late due to audio latency!
+        module.input.receive(Message.VoiceMessage(ScoreTime(40_000_000L), Message.VoiceOpcode.NOTE_ON, tag = 1, value = 48.0, extra = 0.7))
+        module.input.receive(Message.VoiceMessage(ScoreTime(40_000_000L), Message.VoiceOpcode.NOTE_ON, tag = 2, value = 60.0, extra = 0.8))
+        module.input.receive(Message.VoiceMessage(ScoreTime(540_000_000L), Message.VoiceOpcode.NOTE_OFF, tag = 1, value = 48.0, extra = 0.0))
+        module.input.receive(Message.VoiceMessage(ScoreTime(540_000_000L), Message.VoiceOpcode.NOTE_OFF, tag = 2, value = 60.0, extra = 0.0))
+
+        // Deferred commit: before barline fires, measures still have their initial whole rest
+        assertEquals(listOf(ScoreItem.Rest(NoteDuration.WHOLE)), module.scoreData.instruments[0].measures[0].items)
+
+        // Advance to end of Bar 1 (2.0s) -> deferred commit fires and rewinds loop
+        val pass1 = engine.scheduled.sortedBy { it.first.nanoseconds }.toList()
+        engine.scheduled.clear()
+        pass1.forEach { (_, action) -> action() }
+
+        // Upper staff got C4 quarter on Beat 1; Lower staff got C3 quarter on Beat 1!
+        val upperItems = module.scoreData.instruments[0].measures[0].items
+        val lowerItems = module.scoreData.instruments[0].lowerMeasures[0].items
+        assertEquals(60, (upperItems[0] as ScoreItem.Note).pitch.midiPitch)
+        assertEquals(NoteDuration.QUARTER, upperItems[0].duration)
+        assertEquals(48, (lowerItems[0] as ScoreItem.Note).pitch.midiPitch)
+        assertEquals(NoteDuration.QUARTER, lowerItems[0].duration)
+
+        // Pass 2: Silent loop pass in REPLACE mode must preserve existing notes untouched
+        val pass2 = engine.scheduled.sortedBy { it.first.nanoseconds }.toList()
+        engine.scheduled.clear()
+        pass2.forEach { (_, action) -> action() }
+        assertEquals(60, (module.scoreData.instruments[0].measures[0].items[0] as ScoreItem.Note).pitch.midiPitch)
+
+        // Pass 3: Switch to MERGE mode and layer E4 (64) on Beat 1 -> merges with C4 into a C4+E4 chord!
+        module.recordMode = ScoreRecordMode.MERGE
+        module.input.receive(Message.VoiceMessage(ScoreTime(4_040_000_000L), Message.VoiceOpcode.NOTE_ON, tag = 3, value = 64.0, extra = 0.8))
+        module.input.receive(Message.VoiceMessage(ScoreTime(4_540_000_000L), Message.VoiceOpcode.NOTE_OFF, tag = 3, value = 64.0, extra = 0.0))
+        val pass3 = engine.scheduled.sortedBy { it.first.nanoseconds }.toList()
+        engine.scheduled.clear()
+        pass3.forEach { (_, action) -> action() }
+
+        val mergedBeat1 = module.scoreData.instruments[0].measures[0].items[0] as ScoreItem.Chord
+        assertEquals(listOf(60, 64), mergedBeat1.pitches.map { it.midiPitch })
+        assertEquals(NoteDuration.QUARTER, mergedBeat1.duration)
+    }
+
+    @Test
+    fun testPhase24LiveEditingWhileLoopingAndSettingsPersistence() {
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val e4 = SpelledPitch(NoteLetter.E, 0, 4)
+        val g4 = SpelledPitch(NoteLetter.G, 0, 4)
+
+        val module = ScoreModule()
+        val engine = TestEngine()
+        module.setEngine(engine)
+        val receiver = VoiceReceiver()
+        module.output.connect(receiver.inJack)
+
+        module.scoreData.replaceMeasures(
+            listOf(
+                ScoreMeasure(
+                    1,
+                    listOf(
+                        ScoreItem.Note(c4, NoteDuration.HALF),
+                        ScoreItem.Note(e4, NoteDuration.HALF),
+                    ),
+                )
+            )
+        )
+        module.setLoopRange(0, 0)
+        module.loopMode = true
+        module.start.receive(Message.FloatValue(ScoreTime(0L), 1.0))
+
+        // Play beat 1 (t=0s: C4), then while looping at t=0.5s edit beat 3 from E4 to G4!
+        val beat1Events = engine.scheduled.filter { it.first.nanoseconds == 0L }
+        beat1Events.forEach { (_, action) -> action() }
+        assertEquals(listOf(60.0), receiver.received.filter { it.opcode == Message.VoiceOpcode.NOTE }.map { it.value })
+
+        module.scoreData.replaceMeasures(
+            listOf(
+                ScoreMeasure(
+                    1,
+                    listOf(
+                        ScoreItem.Note(c4, NoteDuration.HALF),
+                        ScoreItem.Note(g4, NoteDuration.HALF),
+                    ),
+                )
+            )
+        )
+        engine.scheduled.clear()
+        module.notifyScoreEditedWhilePlaying(ScoreTime(500_000_000L))
+
+        // Remaining events in the SAME loop pass now play G4 (67) instead of E4 (64)!
+        val remaining = engine.scheduled.sortedBy { it.first.nanoseconds }.toList()
+        engine.scheduled.clear()
+        remaining.forEach { (_, action) -> action() }
+        val playedMidis = receiver.received.filter { it.opcode == Message.VoiceOpcode.NOTE }.map { it.value }
+        assertEquals(listOf(60.0, 67.0), playedMidis)
+        assertTrue(module.isPlaying)
+
+        // GraphSerializer round-trips real-time recording settings
+        val graph = GraphState()
+        graph.addModule(module, Offset.Zero)
+        module.recordMode = ScoreRecordMode.MERGE
+        module.recordLatencyMs = 22.5
+        module.recordQuantizeGrid = ScoreQuantizeGrid.EIGHTH
+        module.recordDetectTriplets = false
+
+        val json = GraphSerializer.serialize(graph, graph.modules)
+        val restored = GraphSerializer.deserialize(GraphState(), json).filterIsInstance<ScoreModule>().single()
+        assertEquals(ScoreRecordMode.MERGE, restored.recordMode)
+        assertEquals(22.5, restored.recordLatencyMs, 1e-4)
+        assertEquals(ScoreQuantizeGrid.EIGHTH, restored.recordQuantizeGrid)
+        assertFalse(restored.recordDetectTriplets)
+    }
+
+    @Test
+    fun testNonScrollingInstrumentSidePanelLayoutMode() {
+        val score = ScoreData().apply {
+            replaceAllInstruments(
+                listOf(
+                    ScoreInstrumentPart(
+                        id = "piano",
+                        name = "Piano",
+                        staffCount = 2,
+                        clef = Clef.TREBLE,
+                        lowerClef = Clef.BASS,
+                        measures = listOf(ScoreMeasure(1, listOf(ScoreItem.Rest(NoteDuration.WHOLE)))),
+                        lowerMeasures = listOf(ScoreMeasure(1, listOf(ScoreItem.Rest(NoteDuration.WHOLE)))),
+                    ),
+                    ScoreInstrumentPart(
+                        id = "violin",
+                        name = "Violin",
+                        staffCount = 1,
+                        clef = Clef.TREBLE,
+                        measures = listOf(ScoreMeasure(1, listOf(ScoreItem.Rest(NoteDuration.WHOLE)))),
+                    ),
+                )
+            )
+        }
+        val target = RecordingDrawTarget()
+        val layout = ScoreRenderer.render(
+            score = score,
+            target = target,
+            staffSpacePx = 10f,
+            minWidthPx = 600f,
+            colors = ScoreRenderColors.forTheme(darkMode = false),
+            includeInstrumentLabelGutter = false,
+        )
+        assertFalse(layout.showInstrumentLabels)
+        // Inline instrument text is omitted so the pinned side panel renders it instead
+        assertFalse(target.texts.any { it.text == "Piano" || it.text == "Violin" })
+        // Left margin shrinks to compact brace gutter while preserving instrument group Y coordinates
+        assertTrue(layout.leftBarX < 30f)
+        assertEquals(2, layout.instrumentGroups.size)
+        assertTrue(layout.instrumentGroups[0].bottomStaffY < layout.instrumentGroups[1].topStaffY)
+        // Grand Staff brace is still drawn on the score canvas beside the opening barline
+        assertTrue(target.beziers.isNotEmpty())
+    }
+
+    @Test
+    fun testPhase24HeldNotePastLoopEndStopsAtLastMeasureWithoutWrapping() {
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val module = ScoreModule()
+        val engine = TestEngine()
+        module.setEngine(engine)
+
+        val initialBar1 = listOf(ScoreItem.Note(c4, NoteDuration.HALF), ScoreItem.Rest(NoteDuration.HALF))
+        module.scoreData.replaceMeasures(
+            listOf(
+                ScoreMeasure(1, initialBar1),
+                ScoreMeasure(2, listOf(ScoreItem.Rest(NoteDuration.WHOLE))),
+            )
+        )
+        module.toggleRecordArm(0)
+        module.recordLatencyMs = 0.0
+        module.recordMode = ScoreRecordMode.REPLACE
+        module.setLoopRange(0, 1)
+        module.loopMode = true
+
+        module.startRealTimeRecording(ScoreTime(0L))
+        // In Bar 2 (2.0s..4.0s at 120 BPM), attack G4 at Beat 3 (3.0s) and hold it past 4.0s into the next loop pass!
+        module.input.receive(Message.VoiceMessage(ScoreTime(3_000_000_000L), Message.VoiceOpcode.NOTE_ON, tag = 1, value = 67.0, extra = 0.8))
+
+        // Commit Bar 1 (2.0s) and Bar 2 / Loop End (4.0s)
+        val pass1 = engine.scheduled.sortedBy { it.first.nanoseconds }.toList()
+        engine.scheduled.clear()
+        pass1.forEach { (_, action) -> action() }
+
+        // Bar 2 stops cleanly at the barline with G4 Half (isTiedToNext == false)
+        val bar2Items = module.scoreData.measures[1].items
+        assertEquals(2, bar2Items.size)
+        assertEquals(ScoreItem.Rest(NoteDuration.HALF), bar2Items[0])
+        val g4Half = bar2Items[1] as ScoreItem.Note
+        assertEquals(67, g4Half.pitch.midiPitch)
+        assertEquals(NoteDuration.HALF, g4Half.duration)
+        assertFalse(g4Half.isTiedToNext)
+
+        // User releases G4 at 4.5s (during Bar 1 of the next pass); Bar 1 must remain completely untouched
+        module.input.receive(Message.VoiceMessage(ScoreTime(4_500_000_000L), Message.VoiceOpcode.NOTE_OFF, tag = 1, value = 67.0, extra = 0.0))
+        val pass2Bar1 = engine.scheduled.filter { it.first.nanoseconds <= 6_000_000_000L }.sortedBy { it.first.nanoseconds }
+        pass2Bar1.forEach { (_, action) -> action() }
+
+        assertEquals(initialBar1, module.scoreData.measures[0].items)
+    }
+
+    @Test
+    fun testPhase24EarlyAttackIntoMeasureNDoesNotEraseMeasureNMinus1() {
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val d4 = SpelledPitch(NoteLetter.D, 0, 4)
+        val module = ScoreModule()
+        val engine = TestEngine()
+        module.setEngine(engine)
+
+        // 3-bar loop: Bar 1 (index 0) already has C4+D4 Half notes; Bar 2 (index 1) is rest.
+        val existingBar1 = listOf(ScoreItem.Note(c4, NoteDuration.HALF), ScoreItem.Note(d4, NoteDuration.HALF))
+        module.scoreData.replaceMeasures(
+            listOf(
+                ScoreMeasure(1, existingBar1),
+                ScoreMeasure(2, listOf(ScoreItem.Rest(NoteDuration.WHOLE))),
+                ScoreMeasure(3, listOf(ScoreItem.Rest(NoteDuration.WHOLE))),
+            )
+        )
+        module.toggleRecordArm(0)
+        module.recordLatencyMs = 0.0
+        module.recordMode = ScoreRecordMode.REPLACE
+        module.setLoopRange(0, 2)
+        module.loopMode = true
+
+        module.startRealTimeRecording(ScoreTime(0L))
+
+        // Play E4 (64) slightly early for Beat 1 of Bar 2 (at 1.98s, 20ms before the 2.0s barline) and release at 2.5s
+        module.input.receive(Message.VoiceMessage(ScoreTime(1_980_000_000L), Message.VoiceOpcode.NOTE_ON, tag = 1, value = 64.0, extra = 0.8))
+
+        // Bar 1 commits at 2.0s while E4 is still held across the barline -> Bar 1 MUST NOT be erased!
+        val bar1Events = engine.scheduled.filter { it.first.nanoseconds <= 2_000_000_000L }.sortedBy { it.first.nanoseconds }
+        bar1Events.forEach { (_, action) -> action() }
+        assertEquals(existingBar1, module.scoreData.measures[0].items)
+
+        // Release E4 at 2.5s and commit Bar 2 at 4.0s -> Bar 2 gets E4 Quarter on Beat 1
+        module.input.receive(Message.VoiceMessage(ScoreTime(2_500_000_000L), Message.VoiceOpcode.NOTE_OFF, tag = 1, value = 64.0, extra = 0.0))
+        val bar2Events = engine.scheduled.filter { it.first.nanoseconds in 2_000_000_001L..4_000_000_000L }.sortedBy { it.first.nanoseconds }
+        bar2Events.forEach { (_, action) -> action() }
+
+        val bar2Items = module.scoreData.measures[1].items
+        val firstNote = bar2Items[0] as ScoreItem.Note
+        assertEquals(64, firstNote.pitch.midiPitch)
+        assertEquals(NoteDuration.QUARTER, firstNote.duration)
+        assertEquals(existingBar1, module.scoreData.measures[0].items)
+    }
+
+    @Test
+    fun testPhase24ReplacePunchMutesRestOfMeasureForArmedInstrumentOnly() {
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val d4 = SpelledPitch(NoteLetter.D, 0, 4)
+        val e4 = SpelledPitch(NoteLetter.E, 0, 4)
+        val f4 = SpelledPitch(NoteLetter.F, 0, 4)
+        val g4 = SpelledPitch(NoteLetter.G, 0, 4)
+
+        val module = ScoreModule()
+        val engine = TestEngine()
+        module.setEngine(engine)
+        val armedOut = VoiceReceiver()
+        val otherOut = VoiceReceiver()
+
+        module.scoreData.replaceAllInstruments(
+            listOf(
+                ScoreInstrumentPart(
+                    id = "lead",
+                    name = "Lead",
+                    measures = listOf(
+                        ScoreMeasure(
+                            1,
+                            listOf(
+                                ScoreItem.Note(c4, NoteDuration.QUARTER),
+                                ScoreItem.Note(d4, NoteDuration.QUARTER),
+                                ScoreItem.Note(e4, NoteDuration.QUARTER),
+                                ScoreItem.Note(f4, NoteDuration.QUARTER),
+                            ),
+                        ),
+                        ScoreMeasure(2, listOf(ScoreItem.Note(g4, NoteDuration.QUARTER))),
+                    ),
+                ),
+                ScoreInstrumentPart(
+                    id = "bass",
+                    name = "Bass",
+                    measures = listOf(
+                        ScoreMeasure(
+                            1,
+                            listOf(
+                                ScoreItem.Note(g4, NoteDuration.HALF),
+                                ScoreItem.Note(g4, NoteDuration.HALF),
+                            ),
+                        ),
+                        ScoreMeasure(2, listOf(ScoreItem.Note(g4, NoteDuration.WHOLE))),
+                    ),
+                ),
+            )
+        )
+        module.syncInstrumentOutputs()
+        module.outputForInstrument(0).connect(armedOut.inJack)
+        module.outputForInstrument(1).connect(otherOut.inJack)
+
+        module.toggleRecordArm(0)
+        module.recordMode = ScoreRecordMode.REPLACE
+        module.recordLatencyMs = 0.0
+        module.startRealTimeRecording(ScoreTime(0L))
+
+        // Beat 1 (t=0s): old C4 (60) plays on Lead and old G4 (67) plays on Bass
+        engine.scheduled.filter { it.first.nanoseconds == 0L }.forEach { (_, action) -> action() }
+        assertEquals(listOf(60.0), armedOut.received.filter { it.opcode == Message.VoiceOpcode.NOTE }.map { it.value })
+
+        // At t=0.25s (before Beat 2), performer plays A4 (69) into Lead -> cuts off Beat 1 C4 and mutes Beats 2..4!
+        armedOut.received.clear()
+        module.input.receive(Message.VoiceMessage(ScoreTime(250_000_000L), Message.VoiceOpcode.NOTE_ON, tag = 9, value = 69.0, extra = 0.8))
+        assertTrue(
+            armedOut.received.any { it.opcode == Message.VoiceOpcode.NOTE_OFF && it.value == 60.0 },
+            "Punch-in should send NOTE_OFF for previously sounding Beat 1 C4",
+        )
+        armedOut.received.clear()
+        module.input.receive(Message.VoiceMessage(ScoreTime(750_000_000L), Message.VoiceOpcode.NOTE_OFF, tag = 9, value = 69.0, extra = 0.0))
+
+        // Fire Beats 2..4 of Bar 1 (0.5s..1.99s) and Bar 2 Beat 1 (2.0s)
+        engine.scheduled
+            .filter { it.first.nanoseconds > 0L && it.first.nanoseconds <= 2_000_000_000L }
+            .sortedBy { it.first.nanoseconds }
+            .forEach { (_, action) -> action() }
+
+        // Lead Beats 2..4 (D4, E4, F4) were muted; Bar 2 (G4 at 2.0s) plays normally!
+        assertEquals(listOf(67.0), armedOut.received.filter { it.opcode == Message.VoiceOpcode.NOTE }.map { it.value })
+        // Unarmed Bass still played its second Half note at 1.0s + Bar 2 at 2.0s
+        assertEquals(3, otherOut.received.count { it.opcode == Message.VoiceOpcode.NOTE })
+    }
 }

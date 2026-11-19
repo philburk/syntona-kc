@@ -3,6 +3,8 @@ package com.syntona.dataflow.score
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.syntona.core.audio.AudioSettings
+import com.syntona.core.audio.SynthKSyn
 import com.syntona.core.model.ScoreClock
 import com.syntona.core.model.ScoreTime
 import com.syntona.dataflow.engine.DataFlowEngine
@@ -91,6 +93,56 @@ class ScoreModule : Module("score"), EngineAware {
         val clampedEnd = endMeasureIdx.coerceIn(clampedStart, lastIdx)
         loopStartMeasure = clampedStart
         loopEndMeasure = clampedEnd
+    }
+
+    /** 0-based instrument index currently armed for real-time MIDI recording, or `null` if none. */
+    var recordArmedInstrumentIdx by mutableStateOf<Int?>(null)
+        private set
+
+    var isRealTimeRecording by mutableStateOf(false)
+        private set
+
+    var recordMode by mutableStateOf(ScoreRecordMode.REPLACE)
+    var recordLatencyMs by mutableStateOf(estimatedOutputLatencyMs())
+    var recordQuantizeGrid by mutableStateOf(ScoreQuantizeGrid.SIXTEENTH)
+    var recordDetectTriplets by mutableStateOf(true)
+
+    /** 0-based measure currently capturing real-time MIDI events before its barline commit. */
+    var activeRecordingMeasureIdx by mutableStateOf<Int?>(null)
+        private set
+
+    /**
+     * Optional UI hook invoked when a real-time recorded measure commits, allowing [ScoreEditor]
+     * to record an undoable command for `(staffId, beforeMeasures, afterMeasures)`.
+     */
+    var onRealTimeMeasuresCommitted: ((ScoreStaffId, List<ScoreMeasure>, List<ScoreMeasure>) -> Unit)? = null
+
+    /** Exclusively toggles real-time record-arming for [instrumentIdx] (at most one instrument armed). */
+    fun toggleRecordArm(instrumentIdx: Int) {
+        if (instrumentIdx !in scoreData.instruments.indices) {
+            recordArmedInstrumentIdx = null
+            return
+        }
+        recordArmedInstrumentIdx = if (recordArmedInstrumentIdx == instrumentIdx) null else instrumentIdx
+    }
+
+    /** Sets the armed instrument index directly (clamped or cleared when invalid). */
+    fun setRecordArmedInstrument(instrumentIdx: Int?) {
+        recordArmedInstrumentIdx = instrumentIdx?.takeIf { it in scoreData.instruments.indices }
+    }
+
+    /**
+     * Estimates output audio latency as 3/4 of the measured round-trip latency for active devices,
+     * falling back to `0.0 ms` when no calibration is stored.
+     */
+    fun estimatedOutputLatencyMs(): Double {
+        val measuredFrames = AudioSettings.measuredLatencyForActiveDevices()
+        if (measuredFrames <= 0) return 0.0
+        val sampleRate = runCatching { SynthKSyn.synth.frameRate.toDouble() }
+            .getOrDefault(44100.0)
+            .takeIf { it > 0.0 } ?: 44100.0
+        val roundTripMs = measuredFrames * 1000.0 / sampleRate
+        return ((roundTripMs * OUTPUT_LATENCY_FRACTION) * 10.0).roundToInt() / 10.0
     }
 
     init {
@@ -185,9 +237,34 @@ class ScoreModule : Module("score"), EngineAware {
     var stepRecordRevision by mutableStateOf(0)
         internal set
 
+    private data class OpenRecordedNote(
+        val tag: Int,
+        val midiPitch: Int,
+        var startTick: Double,
+        val amplitude: Double,
+        val staffIdx: Int,
+    )
+
     private var engine: DataFlowEngine? = null
     private val scheduledEvents = mutableListOf<ScheduledEvent>()
+    private val noteOffCleanupEvents = mutableListOf<ScheduledEvent>()
     private val soundingNotesByOutput = linkedMapOf<VoiceOutputJack, MutableMap<Int, Double>>() // jack -> (tag -> pitch)
+
+    // Active playback cycle clock state (used for real-time MIDI timestamping & live mid-loop edits)
+    private var playbackCycleStartTime: ScoreTime = ScoreTime(0L)
+    private var playbackCycleStartTick: RationalTicks = RationalTicks.ZERO
+    private var playbackCycleEndTick: RationalTicks = RationalTicks.ZERO
+    private var playbackTotalScoreEndTick: RationalTicks = RationalTicks.ZERO
+    private var playbackNsPerTick: Double = 0.0
+    private var playbackMeasureStartTicks: List<RationalTicks> = emptyList()
+    private var playbackMeasureEndTicks: List<RationalTicks> = emptyList()
+    private var playbackNextVoiceTag: Int = 0
+
+    // Real-time MIDI recording buffers (deferred commit at measure barlines / loop wrap / stop)
+    private val openRecordedNotes = linkedMapOf<Int, OpenRecordedNote>()
+    private val bufferedNotesByStaffMeasure = linkedMapOf<Pair<Int, Int>, MutableList<RecordedRawNote>>()
+    private val carriedNotesByStaffMeasure = linkedMapOf<Pair<Int, Int>, MutableList<RecordedRawNote>>()
+    private val punchedReplaceMeasures = mutableSetOf<Pair<Int, Int>>()
 
     fun outputForInstrument(instrumentIdx: Int): VoiceOutputJack {
         val part = scoreData.instruments.getOrNull(instrumentIdx) ?: return primaryOutput
@@ -240,6 +317,10 @@ class ScoreModule : Module("score"), EngineAware {
 
         // Match module output jack vertical order to the score instrument order.
         reorderOutputs(scoreData.instruments.mapNotNull { instrumentOutputs[it.id] })
+        val armed = recordArmedInstrumentIdx
+        if (armed != null && armed !in scoreData.instruments.indices) {
+            recordArmedInstrumentIdx = null
+        }
     }
 
     private fun detachAndRemoveOutput(jack: VoiceOutputJack) {
@@ -261,8 +342,13 @@ class ScoreModule : Module("score"), EngineAware {
     fun getEngine(): DataFlowEngine? = engine
 
     fun setStepRecordingEnabled(enabled: Boolean) {
-        if (enabled && cursorPosition == null) {
-            cursorPosition = ScoreEditing.defaultStepCursor(scoreData.measures)
+        if (enabled) {
+            if (isRealTimeRecording) {
+                stopRealTimeRecording(ScoreClock.now())
+            }
+            if (cursorPosition == null) {
+                cursorPosition = ScoreEditing.defaultStepCursor(scoreData.measures)
+            }
         }
         isStepRecording = enabled
         if (!enabled) {
@@ -278,9 +364,63 @@ class ScoreModule : Module("score"), EngineAware {
         cursorPosition = position
     }
 
+    /**
+     * Toggles real-time MIDI recording into the armed instrument while playing/looping.
+     * Auto-arms instrument 0 if none is armed, starts playback if stopped, or punches in/out live.
+     */
+    fun requestRealTimeRecordToggle(now: ScoreTime = ScoreClock.now()) {
+        val e = engine
+        if (isRealTimeRecording) {
+            if (e != null) {
+                e.post(ToggleRealTimeRecordCommand(this, now, enable = false))
+            } else {
+                stopRealTimeRecording(now)
+            }
+        } else {
+            if (e != null) {
+                e.post(ToggleRealTimeRecordCommand(this, now, enable = true))
+            } else {
+                startRealTimeRecording(now)
+            }
+        }
+    }
+
+    internal fun startRealTimeRecording(now: ScoreTime = ScoreClock.now()) {
+        isStepRecording = false
+        lastStepRecordedText = null
+        if (recordArmedInstrumentIdx == null && scoreData.instruments.isNotEmpty()) {
+            recordArmedInstrumentIdx = 0
+        }
+        openRecordedNotes.clear()
+        bufferedNotesByStaffMeasure.clear()
+        carriedNotesByStaffMeasure.clear()
+        punchedReplaceMeasures.clear()
+        isRealTimeRecording = true
+        if (!isPlaying) {
+            startPlayback(now, startCursor = cursorPosition)
+        } else {
+            notifyScoreEditedWhilePlaying(now)
+        }
+    }
+
+    internal fun stopRealTimeRecording(now: ScoreTime = ScoreClock.now()) {
+        if (!isRealTimeRecording) return
+        flushAllRecordedNotes(now)
+        punchedReplaceMeasures.clear()
+        isRealTimeRecording = false
+        activeRecordingMeasureIdx = null
+    }
+
     override fun onMessageReceived(jack: InputJack, msg: Message) {
-        if (jack === input && msg is Message.VoiceMessage && isStepRecording) {
-            handleIncomingVoiceMessage(msg)
+        if (jack === input && msg is Message.VoiceMessage) {
+            when {
+                isRealTimeRecording -> handleRealTimeVoiceMessage(msg)
+                isStepRecording -> handleIncomingVoiceMessage(msg)
+                recordArmedInstrumentIdx != null && !isPlaying -> {
+                    // Live input monitoring on the armed instrument even before pressing Record
+                    outputForInstrument(recordArmedInstrumentIdx!!).send(msg)
+                }
+            }
         }
         super.onMessageReceived(jack, msg)
     }
@@ -307,6 +447,291 @@ class ScoreModule : Module("score"), EngineAware {
         } else {
             cmd.execute()
         }
+    }
+
+    private fun handleRealTimeVoiceMessage(msg: Message.VoiceMessage) {
+        val armIdx = recordArmedInstrumentIdx ?: return
+        val inst = scoreData.instruments.getOrNull(armIdx) ?: return
+        outputForInstrument(armIdx).send(msg)
+        if (!isPlaying || playbackNsPerTick <= 0.0 || playbackMeasureStartTicks.isEmpty()) return
+
+        val tick = mapMessageTimeToTick(msg.time)
+        val isNoteOff = msg.opcode == Message.VoiceOpcode.NOTE_OFF ||
+            (msg.opcode == Message.VoiceOpcode.NOTE_ON && msg.extra <= 0.0)
+        val midiPitch = msg.value.roundToInt().coerceIn(0, 127)
+
+        if (isNoteOff) {
+            val open = openRecordedNotes.remove(msg.tag)
+                ?: openRecordedNotes.entries.firstOrNull { it.value.midiPitch == midiPitch }
+                    ?.let { openRecordedNotes.remove(it.key) }
+            if (open != null) {
+                val minDur = recordQuantizeGrid.ticks * 0.5
+                val endTick = if (tick >= open.startTick) {
+                    maxOf(tick, open.startTick + minDur)
+                } else {
+                    // Note-off arrived right after a loop wrap; close at cycle end
+                    maxOf(playbackCycleEndTick.toDoubleTicks(), open.startTick + minDur)
+                }
+                bufferRecordedNote(open.staffIdx, RecordedRawNote(open.startTick, endTick, open.midiPitch, open.amplitude))
+            }
+            return
+        }
+
+        val isNoteAttack = (msg.opcode == Message.VoiceOpcode.NOTE_ON || msg.opcode == Message.VoiceOpcode.NOTE) &&
+            msg.extra > 0.0
+        if (!isNoteAttack) return
+
+        if (recordMode == ScoreRecordMode.REPLACE) {
+            val punchMeasure = measureIndexForTick(tick)
+            if (punchedReplaceMeasures.add(armIdx to punchMeasure)) {
+                silenceActivePlaybackNotesForInstrument(armIdx, msg.time)
+            }
+        }
+
+        val amp = msg.extra.coerceIn(0.05, 1.0)
+        val staffIdx = if (inst.staffCount >= 2 && midiPitch < ScoreTranscriber.GRAND_STAFF_SPLIT_MIDI) 1 else 0
+
+        if (msg.opcode == Message.VoiceOpcode.NOTE && msg.duration > 0.0) {
+            val durTicks = (msg.duration * 1_000_000_000.0) / playbackNsPerTick
+            val endTick = tick + maxOf(durTicks, recordQuantizeGrid.ticks * 0.5)
+            bufferRecordedNote(staffIdx, RecordedRawNote(tick, endTick, midiPitch, amp))
+        } else {
+            // Close any previously open note on the same tag before re-opening
+            openRecordedNotes.remove(msg.tag)?.let { prev ->
+                val prevEnd = maxOf(tick, prev.startTick + recordQuantizeGrid.ticks * 0.5)
+                bufferRecordedNote(prev.staffIdx, RecordedRawNote(prev.startTick, prevEnd, prev.midiPitch, prev.amplitude))
+            }
+            openRecordedNotes[msg.tag] = OpenRecordedNote(
+                tag = msg.tag,
+                midiPitch = midiPitch,
+                startTick = tick,
+                amplitude = amp,
+                staffIdx = staffIdx,
+            )
+        }
+    }
+
+    private fun mapMessageTimeToTick(msgTime: ScoreTime): Double {
+        val latencyNs = (recordLatencyMs * 1_000_000.0).roundToLong()
+        val adjustedNs = msgTime.nanoseconds - latencyNs
+        val elapsedNs = adjustedNs - playbackCycleStartTime.nanoseconds
+        val cycleStartD = playbackCycleStartTick.toDoubleTicks()
+        val cycleEndD = playbackCycleEndTick.toDoubleTicks()
+        var tick = cycleStartD + (elapsedNs / playbackNsPerTick)
+        val snapTol = recordQuantizeGrid.ticks * 0.5
+
+        if (loopMode && playbackMeasureStartTicks.isNotEmpty()) {
+            val loopRange = effectiveLoopRange(playbackMeasureStartTicks.size)
+            val loopStartD = playbackMeasureStartTicks[loopRange.first].toDoubleTicks()
+            val loopEndD = playbackMeasureEndTicks[loopRange.last].toDoubleTicks()
+            if (tick < cycleStartD && cycleStartD - tick <= snapTol * 1.5) {
+                tick = cycleStartD
+            } else if (tick >= loopEndD - snapTol && tick <= loopEndD + snapTol * 1.5) {
+                tick = loopStartD
+            }
+        }
+        return tick.coerceAtLeast(0.0)
+    }
+
+    private fun measureIndexForTick(tick: Double): Int {
+        if (playbackMeasureStartTicks.isEmpty()) return 0
+        val snapTol = recordQuantizeGrid.ticks * 0.5
+        for (mIdx in playbackMeasureStartTicks.indices) {
+            val mEnd = playbackMeasureEndTicks[mIdx].toDoubleTicks()
+            if (tick < mEnd - snapTol) return mIdx
+        }
+        return if (loopMode) {
+            val loopRange = effectiveLoopRange(playbackMeasureStartTicks.size)
+            val loopEndD = playbackMeasureEndTicks[loopRange.last].toDoubleTicks()
+            if (tick >= loopEndD - snapTol) loopRange.first else playbackMeasureStartTicks.lastIndex
+        } else {
+            playbackMeasureStartTicks.lastIndex
+        }
+    }
+
+    private fun bufferRecordedNote(staffIdx: Int, note: RecordedRawNote) {
+        val mIdx = measureIndexForTick(note.startTick)
+        bufferedNotesByStaffMeasure.getOrPut(staffIdx to mIdx) { mutableListOf() }.add(note)
+    }
+
+    internal fun commitRecordedMeasure(measureIdx: Int, atTick: Double? = null) {
+        val armIdx = recordArmedInstrumentIdx ?: return
+        val inst = scoreData.instruments.getOrNull(armIdx) ?: return
+        if (measureIdx !in playbackMeasureStartTicks.indices) return
+
+        val mStart = playbackMeasureStartTicks[measureIdx].toDoubleTicks()
+        val mEnd = playbackMeasureEndTicks[measureIdx].toDoubleTicks()
+        val cutTick = atTick ?: mEnd
+
+        val loopRange = if (loopMode) effectiveLoopRange(playbackMeasureStartTicks.size) else null
+        val isLoopEndMeasure = loopRange != null && measureIdx == loopRange.last
+        val snapTol = recordQuantizeGrid.ticks * 0.5
+
+        // Split any still-held notes that started inside this measure so they transcribe cleanly
+        // and carry their sustained tail into the next measure (unless at the end of a loop, where
+        // held notes stop at the loop boundary instead of wrapping into measure 1 of the loop).
+        val openIter = openRecordedNotes.entries.iterator()
+        while (openIter.hasNext()) {
+            val open = openIter.next().value
+            if (open.startTick >= mStart - snapTol && open.startTick < mEnd) {
+                if (open.startTick >= mEnd - snapTol) {
+                    // Attack started slightly early for Beat 1 of the next measure; leave this measure untouched.
+                    if (atTick == null) {
+                        if (isLoopEndMeasure) {
+                            openIter.remove()
+                        } else {
+                            open.startTick = mEnd
+                        }
+                    }
+                    continue
+                }
+                val endForBar = when {
+                    atTick != null -> maxOf(cutTick, open.startTick + snapTol)
+                    isLoopEndMeasure -> mEnd
+                    // Held past a normal barline -> extend past mEnd so ScoreTranscriber marks tieOutToNextMeasure
+                    else -> mEnd + recordQuantizeGrid.ticks
+                }
+                bufferedNotesByStaffMeasure.getOrPut(open.staffIdx to measureIdx) { mutableListOf() }
+                    .add(RecordedRawNote(open.startTick, endForBar, open.midiPitch, open.amplitude))
+                if (atTick == null) {
+                    if (isLoopEndMeasure) {
+                        openIter.remove()
+                    } else {
+                        open.startTick = mEnd
+                    }
+                }
+            }
+        }
+
+        for (staffIdx in 0 until inst.staffCount) {
+            val buffered = bufferedNotesByStaffMeasure.remove(staffIdx to measureIdx).orEmpty()
+            val carried = carriedNotesByStaffMeasure.remove(staffIdx to measureIdx).orEmpty()
+            val combinedNew = buffered + carried
+            if (combinedNew.isEmpty()) continue
+
+            val (notesInThisBar, earlyForNextBar) = combinedNew.partition { it.startTick < mEnd - snapTol }
+            if (earlyForNextBar.isNotEmpty() && !isLoopEndMeasure) {
+                val nextMeasureIdx = measureIdx + 1
+                if (nextMeasureIdx in playbackMeasureStartTicks.indices) {
+                    carriedNotesByStaffMeasure.getOrPut(staffIdx to nextMeasureIdx) { mutableListOf() }
+                        .addAll(earlyForNextBar)
+                }
+            }
+            if (notesInThisBar.isEmpty()) continue
+
+            val staffId = ScoreStaffId(armIdx, staffIdx)
+            val beforeMeasures = scoreData.staffMeasures(staffId).toList()
+            val existingMeasure = beforeMeasures.getOrNull(measureIdx)
+            val effectiveTime = ScoreEditing.effectiveTimeAtMeasure(beforeMeasures, scoreData.timeSignature, measureIdx)
+            val effectiveKey = ScoreEditing.effectiveKeyAtMeasure(beforeMeasures, scoreData.keySignature, measureIdx)
+            val existingTupletIds = ScoreEditing.collectTupletGroupIds(beforeMeasures)
+
+            val notesToTranscribe = when (recordMode) {
+                ScoreRecordMode.REPLACE -> notesInThisBar
+                ScoreRecordMode.MERGE -> {
+                    val existingRaw = existingMeasure?.let {
+                        ScoreTranscriber.extractRawNotesFromMeasure(it, mStart)
+                    }.orEmpty()
+                    existingRaw + notesInThisBar
+                }
+            }
+
+            val (transcribed, carriedToNext) = ScoreTranscriber.transcribeMeasure(
+                rawNotes = notesToTranscribe,
+                measureNumber = measureIdx + 1,
+                measureStartTick = mStart,
+                timeSignature = effectiveTime,
+                keySignature = effectiveKey,
+                quantizeGrid = recordQuantizeGrid,
+                detectTriplets = recordDetectTriplets,
+                existingTupletIds = existingTupletIds,
+                existingMeasure = existingMeasure,
+                allowTieOut = !isLoopEndMeasure,
+            )
+
+            if (carriedToNext.isNotEmpty() && !isLoopEndMeasure) {
+                val nextMeasureIdx = measureIdx + 1
+                if (nextMeasureIdx in playbackMeasureStartTicks.indices) {
+                    carriedNotesByStaffMeasure.getOrPut(staffIdx to nextMeasureIdx) { mutableListOf() }
+                        .addAll(carriedToNext)
+                }
+            }
+
+            val updatedMeasures = beforeMeasures.toMutableList()
+            while (updatedMeasures.size <= measureIdx) {
+                updatedMeasures.add(ScoreMeasure(updatedMeasures.size + 1, emptyList()))
+            }
+            updatedMeasures[measureIdx] = transcribed
+            scoreData.replaceStaffMeasures(staffId, updatedMeasures)
+            onRealTimeMeasuresCommitted?.invoke(staffId, beforeMeasures, updatedMeasures)
+        }
+        punchedReplaceMeasures.remove(armIdx to measureIdx)
+    }
+
+    private fun silenceActivePlaybackNotesForInstrument(instrumentIdx: Int, now: ScoreTime) {
+        val outJack = outputForInstrument(instrumentIdx)
+        val activeNotes = soundingNotesByOutput[outJack] ?: return
+        for ((tag, pitch) in activeNotes) {
+            outJack.send(
+                Message.VoiceMessage(
+                    time = now,
+                    opcode = Message.VoiceOpcode.NOTE_OFF,
+                    tag = tag,
+                    value = pitch,
+                    extra = 0.0,
+                )
+            )
+        }
+        activeNotes.clear()
+    }
+
+    private fun flushAllRecordedNotes(now: ScoreTime) {
+        val currentTick = if (playbackNsPerTick > 0.0 && playbackMeasureStartTicks.isNotEmpty()) {
+            mapMessageTimeToTick(now)
+        } else {
+            playbackCycleEndTick.toDoubleTicks()
+        }
+        // Close any still-open notes at currentTick
+        for (open in openRecordedNotes.values.toList()) {
+            val endTick = maxOf(currentTick, open.startTick + recordQuantizeGrid.ticks * 0.5)
+            bufferRecordedNote(open.staffIdx, RecordedRawNote(open.startTick, endTick, open.midiPitch, open.amplitude))
+        }
+        openRecordedNotes.clear()
+
+        val dirtyMeasures = (bufferedNotesByStaffMeasure.keys + carriedNotesByStaffMeasure.keys)
+            .map { it.second }
+            .distinct()
+            .sorted()
+        for (mIdx in dirtyMeasures) {
+            commitRecordedMeasure(mIdx, atTick = currentTick)
+        }
+        bufferedNotesByStaffMeasure.clear()
+        carriedNotesByStaffMeasure.clear()
+    }
+
+    /**
+     * Re-synchronizes upcoming scheduled events in the active playback cycle after an interactive
+     * edit (e.g., moving, adding, or deleting notes while looping) without stopping playback or
+     * cutting off currently ringing notes.
+     */
+    fun notifyScoreEditedWhilePlaying(now: ScoreTime = ScoreClock.now()) {
+        if (!isPlaying) return
+        val e = engine ?: return
+        if (playbackNsPerTick <= 0.0) return
+
+        val elapsedNs = (now.nanoseconds - playbackCycleStartTime.nanoseconds).coerceAtLeast(0L)
+        val currentTickDouble = playbackCycleStartTick.toDoubleTicks() + elapsedNs / playbackNsPerTick
+
+        // Cancel only future un-fired note-start/measure/cycle-end events; keep active note-off cleanups intact.
+        scheduledEvents.forEach { it.cancel() }
+        scheduledEvents.clear()
+
+        scheduleCycleFromCurrentTick(
+            cycleOriginTime = playbackCycleStartTime,
+            cycleStartTick = playbackCycleStartTick,
+            skipAtOrBeforeTick = currentTickDouble,
+            engine = e,
+        )
     }
 
     override fun execute(triggerMessage: Message) {
@@ -362,16 +787,17 @@ class ScoreModule : Module("score"), EngineAware {
         now: ScoreTime,
         startCursor: ScoreCursorPosition? = null,
         explicitStartTick: RationalTicks? = null,
+        keepRealTimeRecording: Boolean = false,
     ) {
-        if (isPlaying) stopPlayback(now)
+        if (isPlaying) stopPlayback(now, keepRealTimeRecording = keepRealTimeRecording || isRealTimeRecording)
         val e = engine ?: return
 
         val tempoVal = tempo.getDoubleValue(PianoRollTiming.DEFAULT_TEMPO).coerceAtLeast(1.0)
         val nsPerTick = PianoRollTiming.nanosPerTick(tempoVal)
         val staffIds = scoreData.allStaffIds()
-        if (staffIds.none { staff -> scoreData.staffMeasures(staff).any { it.items.isNotEmpty() } }) return
+        if (!isRealTimeRecording && staffIds.none { staff -> scoreData.staffMeasures(staff).any { it.items.isNotEmpty() } }) return
 
-        val maxMeasureCount = scoreData.maxMeasureCount()
+        val maxMeasureCount = scoreData.maxMeasureCount().coerceAtLeast(1)
         val targetCursor = if (explicitStartTick == null) {
             startCursor?.let { raw ->
                 val targetStaff = raw.staff.takeIf { it in staffIds } ?: ScoreStaffId(0, 0)
@@ -383,7 +809,7 @@ class ScoreModule : Module("score"), EngineAware {
         } else {
             null
         }
-        if (targetCursor != null && !loopMode) {
+        if (targetCursor != null && !loopMode && !isRealTimeRecording) {
             val cursorStaffMeasures = scoreData.staffMeasures(targetCursor.staff)
             val hasRemainingOnCursorStaff = (targetCursor.measureIdx..cursorStaffMeasures.lastIndex).any { mIdx ->
                 val startSlot = if (mIdx == targetCursor.measureIdx) targetCursor.itemIdx else 0
@@ -394,6 +820,82 @@ class ScoreModule : Module("score"), EngineAware {
             }
             if (!hasRemainingOnCursorStaff && !hasLaterMeasureOnOtherStaff) return
         }
+
+        isPlaying = true
+        playbackNsPerTick = nsPerTick
+        playbackNextVoiceTag = 0
+
+        val cursorStartTick = if (explicitStartTick != null) {
+            explicitStartTick
+        } else if (targetCursor != null) {
+            resolveCursorStartTick(targetCursor, staffIds, maxMeasureCount)
+        } else {
+            RationalTicks.ZERO
+        }
+
+        val ok = scheduleCycleFromCurrentTick(
+            cycleOriginTime = now,
+            cycleStartTick = cursorStartTick,
+            skipAtOrBeforeTick = null,
+            engine = e,
+            allowEmptyCursorAbort = targetCursor != null && !loopMode && !isRealTimeRecording,
+        )
+        if (!ok) {
+            isPlaying = false
+        }
+    }
+
+    private fun resolveCursorStartTick(
+        targetCursor: ScoreCursorPosition,
+        staffIds: List<ScoreStaffId>,
+        maxMeasureCount: Int,
+    ): RationalTicks {
+        var effectiveTime = scoreData.instruments.firstOrNull()?.measures?.firstOrNull()?.timeSignature
+            ?: scoreData.timeSignature
+        var tickCursor = RationalTicks.ZERO
+        for (mIdx in 0 until maxMeasureCount) {
+            if (mIdx > 0) {
+                scoreData.instruments.firstNotNullOfOrNull { it.measures.getOrNull(mIdx)?.timeSignature }
+                    ?.let { effectiveTime = it }
+            }
+            val measureCapacityTicks = RationalTicks.of(effectiveTime.measureCapacityTicks.coerceAtLeast(0))
+            val measureStartTick = tickCursor
+            var maxStaffEndTick = measureStartTick
+            for (staff in staffIds) {
+                val measure = scoreData.staffMeasures(staff).getOrNull(mIdx)
+                var staffCursor = measureStartTick
+                val items = measure?.items.orEmpty()
+                for ((slotIdx, item) in items.withIndex()) {
+                    if (staff == targetCursor.staff && mIdx == targetCursor.measureIdx && slotIdx >= targetCursor.itemIdx) {
+                        return staffCursor
+                    }
+                    staffCursor += item.exactTicks()
+                }
+                if (staff == targetCursor.staff && mIdx == targetCursor.measureIdx && targetCursor.itemIdx >= items.size) {
+                    return staffCursor
+                }
+                if (staffCursor > maxStaffEndTick) maxStaffEndTick = staffCursor
+            }
+            tickCursor = maxOf(measureStartTick + measureCapacityTicks, maxStaffEndTick)
+        }
+        return RationalTicks.ZERO
+    }
+
+    /**
+     * Scans [scoreData] and schedules playback events for the active cycle starting at [cycleStartTick]
+     * anchored at [cycleOriginTime]. When [skipAtOrBeforeTick] is non-null (live mid-cycle edit),
+     * only future slots strictly after [skipAtOrBeforeTick] are scheduled.
+     */
+    private fun scheduleCycleFromCurrentTick(
+        cycleOriginTime: ScoreTime,
+        cycleStartTick: RationalTicks,
+        skipAtOrBeforeTick: Double?,
+        engine: DataFlowEngine,
+        allowEmptyCursorAbort: Boolean = false,
+    ): Boolean {
+        val nsPerTick = playbackNsPerTick
+        val staffIds = scoreData.allStaffIds()
+        val maxMeasureCount = scoreData.maxMeasureCount().coerceAtLeast(1)
 
         data class PlaybackSlot(
             val staff: ScoreStaffId,
@@ -406,19 +908,15 @@ class ScoreModule : Module("score"), EngineAware {
             val attackDyn: DynamicMark?,
         )
 
-        isPlaying = true
         var effectiveTime = scoreData.instruments.firstOrNull()?.measures?.firstOrNull()?.timeSignature
             ?: scoreData.timeSignature
         var tickCursor = RationalTicks.ZERO
-        var cursorStartTick: RationalTicks? = if (targetCursor == null) RationalTicks.ZERO else null
-        var nextVoiceTag = 0
 
         val slotsByStaff = linkedMapOf<ScoreStaffId, MutableList<PlaybackSlot>>()
         val slotLookupByStaff = linkedMapOf<ScoreStaffId, MutableMap<ScoreItemLocation, PlaybackSlot>>()
         val trailingRestTicksByStaff = linkedMapOf<ScoreStaffId, MutableList<Pair<RationalTicks, ScoreItemLocation?>>>()
         val sustainedByStaff = staffIds.associateWith<ScoreStaffId, DynamicMark?> { null }.toMutableMap()
         val globalIdxByStaff = staffIds.associateWith { 0 }.toMutableMap()
-        val hadSlotInBarBefore = staffIds.associateWith { false }.toMutableMap()
         val measureStartTicks = ArrayList<RationalTicks>(maxMeasureCount)
         val measureEndTicks = ArrayList<RationalTicks>(maxMeasureCount)
 
@@ -442,14 +940,6 @@ class ScoreModule : Module("score"), EngineAware {
 
                 val items = measure?.items.orEmpty()
                 for ((slotIdx, item) in items.withIndex()) {
-                    if (cursorStartTick == null &&
-                        targetCursor != null &&
-                        staff == targetCursor.staff &&
-                        mIdx == targetCursor.measureIdx &&
-                        slotIdx >= targetCursor.itemIdx
-                    ) {
-                        cursorStartTick = staffCursor
-                    }
                     val (attackDyn, nextSustained) = ScoreEditing.resolvePlaybackDynamicStep(
                         measure?.dynamics?.get(slotIdx),
                         sustainedDyn,
@@ -474,15 +964,6 @@ class ScoreModule : Module("score"), EngineAware {
                     staffCursor += itemTicks
                 }
 
-                if (cursorStartTick == null &&
-                    targetCursor != null &&
-                    staff == targetCursor.staff &&
-                    mIdx == targetCursor.measureIdx &&
-                    targetCursor.itemIdx >= items.size
-                ) {
-                    cursorStartTick = staffCursor
-                }
-
                 if (measure != null) {
                     for ((k, dyn) in measure.dynamics.entries.sortedBy { it.key }) {
                         if (k >= items.size) {
@@ -494,7 +975,6 @@ class ScoreModule : Module("score"), EngineAware {
 
                 val staffTicks = staffCursor - measureStartTick
                 if (staffTicks < measureCapacityTicks && items.isNotEmpty()) {
-                    // Schedule highlight clear when the last item of an incomplete bar finishes.
                     trailingRestTicksByStaff.getOrPut(staff) { mutableListOf() }
                         .add(staffCursor to null)
                 } else if (items.isEmpty()) {
@@ -515,8 +995,8 @@ class ScoreModule : Module("score"), EngineAware {
         val loopStartTick = measureStartTicks.getOrElse(loopRange.first) { RationalTicks.ZERO }
         val loopEndTick = measureEndTicks.getOrElse(loopRange.last) { totalScoreEndTick }
 
-        var resolvedStartTick = explicitStartTick ?: cursorStartTick ?: RationalTicks.ZERO
-        if (loopMode && explicitStartTick == null && resolvedStartTick >= totalScoreEndTick) {
+        var resolvedStartTick = cycleStartTick
+        if (loopMode && skipAtOrBeforeTick == null && resolvedStartTick >= totalScoreEndTick) {
             resolvedStartTick = loopStartTick
         }
         val cycleEndTick = if (loopMode && resolvedStartTick < loopEndTick) {
@@ -526,14 +1006,21 @@ class ScoreModule : Module("score"), EngineAware {
         }
         val cycleDurationTicks = cycleEndTick - resolvedStartTick
         if (cycleDurationTicks <= RationalTicks.ZERO) {
-            isPlaying = false
-            return
+            return false
         }
+
+        playbackCycleStartTime = cycleOriginTime
+        playbackCycleStartTick = resolvedStartTick
+        playbackCycleEndTick = cycleEndTick
+        playbackTotalScoreEndTick = totalScoreEndTick
+        playbackMeasureStartTicks = measureStartTicks
+        playbackMeasureEndTicks = measureEndTicks
+
         val cycleDurationNs = (cycleDurationTicks.toDoubleTicks() * nsPerTick).roundToLong()
         val cycleEndTime = if (loopMode) {
-            now + ScoreTime(cycleDurationNs)
+            cycleOriginTime + ScoreTime(cycleDurationNs)
         } else {
-            now + ScoreTime(cycleDurationNs) + ScoreTime(1L)
+            cycleOriginTime + ScoreTime(cycleDurationNs) + ScoreTime(1L)
         }
 
         var anyItemScheduled = false
@@ -547,11 +1034,12 @@ class ScoreModule : Module("score"), EngineAware {
 
             for (slot in staffSlots) {
                 if (slot.onsetTick < resolvedStartTick || slot.onsetTick >= cycleEndTick) continue
+                if (skipAtOrBeforeTick != null && slot.onsetTick.toDoubleTicks() <= skipAtOrBeforeTick) continue
                 anyItemScheduled = true
                 hasActiveHighlightForStaff = true
                 val item = slot.item
                 val relStartTicks = (slot.onsetTick - resolvedStartTick).toDoubleTicks()
-                val onTime = now + ScoreTime((relStartTicks * nsPerTick).roundToLong())
+                val onTime = cycleOriginTime + ScoreTime((relStartTicks * nsPerTick).roundToLong())
                 val continuedMidis = continuedPitchesByLoc[slot.loc].orEmpty()
                 val attackPitches = item.soundingPitches().filter { it.midiPitch !in continuedMidis }
 
@@ -599,55 +1087,57 @@ class ScoreModule : Module("score"), EngineAware {
                     val soundingOffTime = if (rawOffTime > cycleEndTime) cycleEndTime else rawOffTime
                     PitchAttackSpec(
                         midiPitch = targetMidi.toDouble(),
-                        tag = nextVoiceTag++,
+                        tag = playbackNextVoiceTag++,
                         soundingDurSec = soundingDurSec,
                         soundingOffTime = soundingOffTime,
                     )
                 }
 
                 val targetOutput = slot.targetOutput
-                scheduledEvents.add(e.schedule(onTime) {
+                scheduledEvents.add(engine.schedule(onTime) {
                     activeItemsByStaff = activeItemsByStaff + (staff to slot.itemIdx)
                     if (staff == ScoreStaffId(0, 0)) {
                         activeItemIndex = slot.itemIdx
                     }
-                    val activeMap = soundingNotesByOutput.getOrPut(targetOutput) { mutableMapOf() }
-                    for (spec in attackSpecs) {
-                        targetOutput.send(
-                            Message.VoiceMessage(
-                                time = onTime,
-                                opcode = Message.VoiceOpcode.NOTE,
-                                tag = spec.tag,
-                                value = spec.midiPitch,
-                                extra = effectiveAmp,
-                                duration = spec.soundingDurSec,
+                    val mutedByReplacePunch = isRealTimeRecording &&
+                        recordMode == ScoreRecordMode.REPLACE &&
+                        (staff.instrumentIdx to slot.loc.measureIdx) in punchedReplaceMeasures
+                    if (!mutedByReplacePunch) {
+                        val activeMap = soundingNotesByOutput.getOrPut(targetOutput) { mutableMapOf() }
+                        for (spec in attackSpecs) {
+                            targetOutput.send(
+                                Message.VoiceMessage(
+                                    time = onTime,
+                                    opcode = Message.VoiceOpcode.NOTE,
+                                    tag = spec.tag,
+                                    value = spec.midiPitch,
+                                    extra = effectiveAmp,
+                                    duration = spec.soundingDurSec,
+                                )
                             )
-                        )
-                        activeMap[spec.tag] = spec.midiPitch
+                            activeMap[spec.tag] = spec.midiPitch
+                        }
                     }
                 })
                 for (spec in attackSpecs) {
-                    scheduledEvents.add(e.schedule(spec.soundingOffTime) {
+                    val cleanupEvent = engine.schedule(spec.soundingOffTime) {
                         soundingNotesByOutput[targetOutput]?.remove(spec.tag)
-                    })
+                    }
+                    noteOffCleanupEvents.add(cleanupEvent)
                 }
             }
 
-            // Emit highlight clear whenever playback enters an empty/incomplete region after active notes.
-            for (slot in staffSlots) {
-                if (slot.onsetTick < resolvedStartTick || slot.onsetTick >= cycleEndTick) continue
-                hadSlotInBarBefore[staff] = true
-            }
             if (hasActiveHighlightForStaff) {
                 for ((restTick, _) in trailingRestTicksByStaff[staff].orEmpty()) {
                     if (restTick >= resolvedStartTick && restTick < cycleEndTick) {
+                        if (skipAtOrBeforeTick != null && restTick.toDoubleTicks() <= skipAtOrBeforeTick) continue
                         val hasPreviousPlayedNote = staffSlots.any {
                             it.onsetTick >= resolvedStartTick && it.onsetTick < cycleEndTick && it.endTick <= restTick
                         }
                         if (hasPreviousPlayedNote) {
                             val relRestTicks = (restTick - resolvedStartTick).toDoubleTicks()
-                            val restStartTime = now + ScoreTime((relRestTicks * nsPerTick).roundToLong())
-                            scheduledEvents.add(e.schedule(restStartTime) {
+                            val restStartTime = cycleOriginTime + ScoreTime((relRestTicks * nsPerTick).roundToLong())
+                            scheduledEvents.add(engine.schedule(restStartTime) {
                                 activeItemsByStaff = activeItemsByStaff - staff
                                 if (staff == ScoreStaffId(0, 0)) {
                                     activeItemIndex = null
@@ -659,25 +1149,67 @@ class ScoreModule : Module("score"), EngineAware {
             }
         }
 
-        if (!anyItemScheduled && targetCursor != null && !loopMode) {
-            isPlaying = false
-            return
+        if (!anyItemScheduled && allowEmptyCursorAbort) {
+            return false
         }
 
-        scheduledEvents.add(e.schedule(cycleEndTime) {
+        // Schedule deferred per-measure barline commits when real-time recording is active
+        if (isRealTimeRecording) {
+            for (mIdx in 0 until maxMeasureCount) {
+                val mStart = measureStartTicks[mIdx]
+                val mEnd = measureEndTicks[mIdx]
+                if (mEnd <= resolvedStartTick || mStart >= cycleEndTick) continue
+                val startTickClamped = maxOf(mStart, resolvedStartTick)
+                if (skipAtOrBeforeTick == null || startTickClamped.toDoubleTicks() > skipAtOrBeforeTick) {
+                    val relStart = (startTickClamped - resolvedStartTick).toDoubleTicks()
+                    val mStartTime = cycleOriginTime + ScoreTime((relStart * nsPerTick).roundToLong())
+                    scheduledEvents.add(engine.schedule(mStartTime) {
+                        if (isRealTimeRecording) {
+                            activeRecordingMeasureIdx = mIdx
+                        }
+                    })
+                }
+                if (mEnd < cycleEndTick && (skipAtOrBeforeTick == null || mEnd.toDoubleTicks() > skipAtOrBeforeTick)) {
+                    val relEnd = (mEnd - resolvedStartTick).toDoubleTicks()
+                    val mEndTime = cycleOriginTime + ScoreTime((relEnd * nsPerTick).roundToLong())
+                    scheduledEvents.add(engine.schedule(mEndTime) {
+                        if (isRealTimeRecording) {
+                            commitRecordedMeasure(mIdx)
+                        }
+                    })
+                }
+            }
+        }
+
+        scheduledEvents.add(engine.schedule(cycleEndTime) {
+            if (isRealTimeRecording) {
+                val lastMIdx = (0 until maxMeasureCount).lastOrNull { mIdx ->
+                    measureStartTicks[mIdx] < cycleEndTick && measureEndTicks[mIdx] >= cycleEndTick
+                }
+                if (lastMIdx != null) {
+                    commitRecordedMeasure(lastMIdx)
+                }
+            }
             if (loopMode) {
                 val nextRange = effectiveLoopRange(scoreData.maxMeasureCount())
                 val nextStartTick = measureStartTickForIndex(nextRange.first)
-                startPlayback(cycleEndTime, explicitStartTick = nextStartTick)
+                startPlayback(cycleEndTime, explicitStartTick = nextStartTick, keepRealTimeRecording = isRealTimeRecording)
             } else if (cycleEndTick < totalScoreEndTick) {
-                startPlayback(cycleEndTime, explicitStartTick = cycleEndTick)
+                startPlayback(cycleEndTime, explicitStartTick = cycleEndTick, keepRealTimeRecording = isRealTimeRecording)
             } else {
+                if (isRealTimeRecording) {
+                    flushAllRecordedNotes(cycleEndTime)
+                    isRealTimeRecording = false
+                    activeRecordingMeasureIdx = null
+                }
                 activeItemsByStaff = emptyMap()
                 activeItemIndex = null
                 isPlaying = false
                 scheduledEvents.clear()
+                noteOffCleanupEvents.clear()
             }
         })
+        return true
     }
 
     private fun measureStartTickForIndex(measureIdx: Int): RationalTicks {
@@ -707,9 +1239,17 @@ class ScoreModule : Module("score"), EngineAware {
         return tickCursor
     }
 
-    private fun stopPlayback(now: ScoreTime) {
+    private fun stopPlayback(now: ScoreTime, keepRealTimeRecording: Boolean = false) {
+        if (isRealTimeRecording && !keepRealTimeRecording) {
+            flushAllRecordedNotes(now)
+            punchedReplaceMeasures.clear()
+            isRealTimeRecording = false
+            activeRecordingMeasureIdx = null
+        }
         scheduledEvents.forEach { it.cancel() }
         scheduledEvents.clear()
+        noteOffCleanupEvents.forEach { it.cancel() }
+        noteOffCleanupEvents.clear()
         for ((outJack, activeNotes) in soundingNotesByOutput) {
             for ((tag, pitch) in activeNotes) {
                 outJack.send(
@@ -737,6 +1277,9 @@ class ScoreModule : Module("score"), EngineAware {
 
     companion object {
         const val DEFAULT_LOOP_END_MEASURE = 3
+        const val OUTPUT_LATENCY_FRACTION = 0.75
+        const val MIN_LATENCY_MS = -100.0
+        const val MAX_LATENCY_MS = 250.0
         const val PREVIEW_TAG = -2
         const val PREVIEW_DURATION_MS = 250L
         const val STACCATO_PREVIEW_DURATION_MS = 60L
@@ -745,6 +1288,24 @@ class ScoreModule : Module("score"), EngineAware {
         const val MAX_STACCATO_SECONDS = 0.08
         const val MIN_STACCATO_SECONDS = 0.015
     }
+}
+
+private class ToggleRealTimeRecordCommand(
+    private val module: ScoreModule,
+    private val now: ScoreTime,
+    private val enable: Boolean,
+) : SyntonaCommand {
+    override val isUndoable = false
+
+    override fun execute() {
+        if (enable) {
+            module.startRealTimeRecording(now)
+        } else {
+            module.stopRealTimeRecording(now)
+        }
+    }
+
+    override fun undo() {}
 }
 
 private class PlayScoreFromCursorCommand(

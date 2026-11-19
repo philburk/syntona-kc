@@ -316,26 +316,31 @@ Also add a "Loop" mode toggle button to the Score toolbar.
 If loop mode is active, when the playback cursor hits the end of the looping section
 it will rewind to the beginning of the looping section.
 
+### Phase 24 - Real-time Entry
+
+Add support for transcribing notes in real time into a stave while playing the score.
+Try to detect notes of various durations, dotted notes, and triplets.
+Quantize the note timing.
+
+Provide a way to specify the audio latency, which must be subtracted from the recorded note timing.
+(What if the performer is already compensating for the latency by playing the notes a little early?!)
+
+It is OK to defer the rendering of the notes so that the measure spacing and durations can be resolved.
+
+Add a red "R" button that works like the "R" button in the TimelineModule.
+Place it in the left control area of the instrument, near the instrument name.
+Use that button to determine which stave(s) will receive the incoming notes.
+Only one instrument can be selected at a time.
+
+Allow editing and removal of notes while looping. This will allow the user to
+play some notes in real time and then adjust them while continuing to loop.
+This will be a very desirable way to incrementally compose in real time.
+
 ## TODO
 
 ### Phase ? - Measure Lines
 Add support for typical measure lines.
 Put the select buttons for measure lines into a palette called "Measure Lines".
-
-### Phase ? - Real Time Entry
-Add support for transcribing notes in real time into a stave while playing back on other staves.
-Transcribe the notes into a score. Try to detect dotted notes, and triplets.
-Quantize the note timing.
-Provide a way to specify the audio latency, which must be subtracted from the recorded note timing.
-(What if the performer is already compensating for the latency by playing the notes a little early?!)
-
-Add a red "R" button that works like the "R" button in the TimelineModule.
-Place it in the left control area of the instrument, near the instrument name.
-Use that button to determine which stave will receive the incoming notes.
-Only one stave can be selected at a time.
-
-Allow editing and removal of notes while looping. This will allow the user to
-play some notes in real time and then adjust them while continuing to loop.
 
 
 ### Phase ? - Articulations
@@ -345,16 +350,24 @@ Add M2-123-UM compatible articulations.
 
 ### Phase ? - Document Name, Composer, Date and other fields
 
-Allow the user to enter the score name, composer and a date.
+Allow the user to enter the score name, composer and a date in text format.
+Maybe add a "Enter Metadata" to the Edit menu.
+Or is there a better UI for this?
 
 ### Phase ?
 Add score modifications for selected notes. Include transpose, retrograde,
 increase duration 2*, decrease duration 0.5x,
 
+### Phase ? - Measure Alignment
+
+Align measure boundaries if the beats line up.
+For example, if one stave has 4:4 and another stave has 3:4 then align the measures every 12 beats.
+
 ### Phase ?
 Add graphical staves, custom glyphs, text.
 
-### Phase ? - Save to PDF, All Together or as Parts HARDER THAN MusicXML
+### Phase ? - Save to PDF, All Together or as Parts
+This is music HARDER THAN MusicXML. So maybe punt this, at least on web.
 
 ## TODO
 Make sure the score editor window opens high enough to see the palettes.
