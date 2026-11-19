@@ -66,6 +66,32 @@ class ScoreModule : Module("score"), EngineAware {
     var stepRecordDotted by mutableStateOf(false)
     var stepRecordTupletRatio by mutableStateOf<Pair<Int, Int>?>(null)
     var autoFillRests by mutableStateOf(true)
+    var loopMode by mutableStateOf(false)
+    var loopStartMeasure by mutableStateOf(0)
+        private set
+    var loopEndMeasure by mutableStateOf(DEFAULT_LOOP_END_MEASURE)
+        private set
+
+    fun toggleLoopMode() {
+        loopMode = !loopMode
+    }
+
+    /** Returns the clamped contiguous 0-based measure range currently targeted for looping. */
+    fun effectiveLoopRange(measureCount: Int = scoreData.maxMeasureCount()): IntRange {
+        val lastIdx = (measureCount - 1).coerceAtLeast(0)
+        val start = loopStartMeasure.coerceIn(0, lastIdx)
+        val end = loopEndMeasure.coerceIn(start, lastIdx)
+        return start..end
+    }
+
+    /** Sets the contiguous 0-based inclusive measure loop range, clamped to existing measures. */
+    fun setLoopRange(startMeasureIdx: Int, endMeasureIdx: Int) {
+        val lastIdx = (scoreData.maxMeasureCount() - 1).coerceAtLeast(0)
+        val clampedStart = startMeasureIdx.coerceIn(0, lastIdx)
+        val clampedEnd = endMeasureIdx.coerceIn(clampedStart, lastIdx)
+        loopStartMeasure = clampedStart
+        loopEndMeasure = clampedEnd
+    }
 
     init {
         if (autoFillRests) {
@@ -335,6 +361,7 @@ class ScoreModule : Module("score"), EngineAware {
     private fun startPlayback(
         now: ScoreTime,
         startCursor: ScoreCursorPosition? = null,
+        explicitStartTick: RationalTicks? = null,
     ) {
         if (isPlaying) stopPlayback(now)
         val e = engine ?: return
@@ -345,14 +372,18 @@ class ScoreModule : Module("score"), EngineAware {
         if (staffIds.none { staff -> scoreData.staffMeasures(staff).any { it.items.isNotEmpty() } }) return
 
         val maxMeasureCount = scoreData.maxMeasureCount()
-        val targetCursor = startCursor?.let { raw ->
-            val targetStaff = raw.staff.takeIf { it in staffIds } ?: ScoreStaffId(0, 0)
-            val staffMeasures = scoreData.staffMeasures(targetStaff)
-            val clampedM = raw.measureIdx.coerceIn(0, staffMeasures.lastIndex)
-            val clampedI = raw.itemIdx.coerceIn(0, staffMeasures[clampedM].items.size)
-            ScoreCursorPosition(clampedM, clampedI, targetStaff)
+        val targetCursor = if (explicitStartTick == null) {
+            startCursor?.let { raw ->
+                val targetStaff = raw.staff.takeIf { it in staffIds } ?: ScoreStaffId(0, 0)
+                val staffMeasures = scoreData.staffMeasures(targetStaff)
+                val clampedM = raw.measureIdx.coerceIn(0, staffMeasures.lastIndex)
+                val clampedI = raw.itemIdx.coerceIn(0, staffMeasures[clampedM].items.size)
+                ScoreCursorPosition(clampedM, clampedI, targetStaff)
+            }
+        } else {
+            null
         }
-        if (targetCursor != null) {
+        if (targetCursor != null && !loopMode) {
             val cursorStaffMeasures = scoreData.staffMeasures(targetCursor.staff)
             val hasRemainingOnCursorStaff = (targetCursor.measureIdx..cursorStaffMeasures.lastIndex).any { mIdx ->
                 val startSlot = if (mIdx == targetCursor.measureIdx) targetCursor.itemIdx else 0
@@ -388,6 +419,8 @@ class ScoreModule : Module("score"), EngineAware {
         val sustainedByStaff = staffIds.associateWith<ScoreStaffId, DynamicMark?> { null }.toMutableMap()
         val globalIdxByStaff = staffIds.associateWith { 0 }.toMutableMap()
         val hadSlotInBarBefore = staffIds.associateWith { false }.toMutableMap()
+        val measureStartTicks = ArrayList<RationalTicks>(maxMeasureCount)
+        val measureEndTicks = ArrayList<RationalTicks>(maxMeasureCount)
 
         for (mIdx in 0 until maxMeasureCount) {
             if (mIdx > 0) {
@@ -472,10 +505,37 @@ class ScoreModule : Module("score"), EngineAware {
                     maxStaffEndTick = staffCursor
                 }
             }
+            measureStartTicks.add(measureStartTick)
             tickCursor = maxOf(measureStartTick + measureCapacityTicks, maxStaffEndTick)
+            measureEndTicks.add(tickCursor)
         }
 
-        val resolvedStartTick = cursorStartTick ?: RationalTicks.ZERO
+        val totalScoreEndTick = tickCursor
+        val loopRange = effectiveLoopRange(maxMeasureCount)
+        val loopStartTick = measureStartTicks.getOrElse(loopRange.first) { RationalTicks.ZERO }
+        val loopEndTick = measureEndTicks.getOrElse(loopRange.last) { totalScoreEndTick }
+
+        var resolvedStartTick = explicitStartTick ?: cursorStartTick ?: RationalTicks.ZERO
+        if (loopMode && explicitStartTick == null && resolvedStartTick >= totalScoreEndTick) {
+            resolvedStartTick = loopStartTick
+        }
+        val cycleEndTick = if (loopMode && resolvedStartTick < loopEndTick) {
+            loopEndTick.coerceAtMost(totalScoreEndTick)
+        } else {
+            totalScoreEndTick
+        }
+        val cycleDurationTicks = cycleEndTick - resolvedStartTick
+        if (cycleDurationTicks <= RationalTicks.ZERO) {
+            isPlaying = false
+            return
+        }
+        val cycleDurationNs = (cycleDurationTicks.toDoubleTicks() * nsPerTick).roundToLong()
+        val cycleEndTime = if (loopMode) {
+            now + ScoreTime(cycleDurationNs)
+        } else {
+            now + ScoreTime(cycleDurationNs) + ScoreTime(1L)
+        }
+
         var anyItemScheduled = false
 
         for (staff in staffIds) {
@@ -486,7 +546,7 @@ class ScoreModule : Module("score"), EngineAware {
             var hasActiveHighlightForStaff = false
 
             for (slot in staffSlots) {
-                if (slot.onsetTick < resolvedStartTick) continue
+                if (slot.onsetTick < resolvedStartTick || slot.onsetTick >= cycleEndTick) continue
                 anyItemScheduled = true
                 hasActiveHighlightForStaff = true
                 val item = slot.item
@@ -516,24 +576,27 @@ class ScoreModule : Module("score"), EngineAware {
                         val nextBase = ScoreEditing.nextItemLocation(staffMeasures, curLoc.measureIdx, curLoc.itemIdx) ?: break
                         val nextLoc = nextBase.copy(staff = staff)
                         val nextSlot = slotByLoc[nextLoc] ?: break
+                        if (nextSlot.onsetTick >= cycleEndTick) break
                         continuedPitchesByLoc.getOrPut(nextLoc) { mutableSetOf() }.add(targetMidi)
                         endSlot = nextSlot
                         curLoc = nextLoc
                     }
-                    val sustainTicks = maxOf(endSlot.endTick - slot.onsetTick, RationalTicks.ZERO).toDoubleTicks()
+                    val clampedEndTick = minOf(endSlot.endTick, cycleEndTick)
+                    val sustainTicks = maxOf(clampedEndTick - slot.onsetTick, RationalTicks.ZERO).toDoubleTicks()
                     val sustainDurSec = (sustainTicks * nsPerTick) / 1_000_000_000.0
                     val soundingDurSec = if (endSlot.item.noteStaccato()) {
                         val leadTicks = maxOf(endSlot.onsetTick - slot.onsetTick, RationalTicks.ZERO).toDoubleTicks()
-                        val lastNoteFullTicks = maxOf(endSlot.endTick - endSlot.onsetTick, RationalTicks.ZERO).toDoubleTicks()
+                        val lastNoteFullTicks = maxOf(clampedEndTick - endSlot.onsetTick, RationalTicks.ZERO).toDoubleTicks()
                         val leadSec = (leadTicks * nsPerTick) / 1_000_000_000.0
                         val lastNoteFullSec = (lastNoteFullTicks * nsPerTick) / 1_000_000_000.0
                         val staccatoTailSec = minOf(lastNoteFullSec * STACCATO_DURATION_FRACTION, MAX_STACCATO_SECONDS)
                             .coerceAtLeast(minOf(MIN_STACCATO_SECONDS, lastNoteFullSec))
-                        leadSec + staccatoTailSec
+                        minOf(sustainDurSec, leadSec + staccatoTailSec)
                     } else {
                         sustainDurSec
                     }
-                    val soundingOffTime = onTime + ScoreTime((soundingDurSec * 1_000_000_000.0).roundToLong())
+                    val rawOffTime = onTime + ScoreTime((soundingDurSec * 1_000_000_000.0).roundToLong())
+                    val soundingOffTime = if (rawOffTime > cycleEndTime) cycleEndTime else rawOffTime
                     PitchAttackSpec(
                         midiPitch = targetMidi.toDouble(),
                         tag = nextVoiceTag++,
@@ -572,13 +635,15 @@ class ScoreModule : Module("score"), EngineAware {
 
             // Emit highlight clear whenever playback enters an empty/incomplete region after active notes.
             for (slot in staffSlots) {
-                if (slot.onsetTick < resolvedStartTick) continue
+                if (slot.onsetTick < resolvedStartTick || slot.onsetTick >= cycleEndTick) continue
                 hadSlotInBarBefore[staff] = true
             }
             if (hasActiveHighlightForStaff) {
                 for ((restTick, _) in trailingRestTicksByStaff[staff].orEmpty()) {
-                    if (restTick >= resolvedStartTick) {
-                        val hasPreviousPlayedNote = staffSlots.any { it.onsetTick >= resolvedStartTick && it.endTick <= restTick }
+                    if (restTick >= resolvedStartTick && restTick < cycleEndTick) {
+                        val hasPreviousPlayedNote = staffSlots.any {
+                            it.onsetTick >= resolvedStartTick && it.onsetTick < cycleEndTick && it.endTick <= restTick
+                        }
                         if (hasPreviousPlayedNote) {
                             val relRestTicks = (restTick - resolvedStartTick).toDoubleTicks()
                             val restStartTime = now + ScoreTime((relRestTicks * nsPerTick).roundToLong())
@@ -594,19 +659,52 @@ class ScoreModule : Module("score"), EngineAware {
             }
         }
 
-        if (!anyItemScheduled && targetCursor != null) {
+        if (!anyItemScheduled && targetCursor != null && !loopMode) {
             isPlaying = false
             return
         }
 
-        val endTicks = maxOf(tickCursor - resolvedStartTick, RationalTicks.ZERO).toDoubleTicks()
-        val endTime = now + ScoreTime((endTicks * nsPerTick).roundToLong()) + ScoreTime(1L)
-        scheduledEvents.add(e.schedule(endTime) {
-            activeItemsByStaff = emptyMap()
-            activeItemIndex = null
-            isPlaying = false
-            scheduledEvents.clear()
+        scheduledEvents.add(e.schedule(cycleEndTime) {
+            if (loopMode) {
+                val nextRange = effectiveLoopRange(scoreData.maxMeasureCount())
+                val nextStartTick = measureStartTickForIndex(nextRange.first)
+                startPlayback(cycleEndTime, explicitStartTick = nextStartTick)
+            } else if (cycleEndTick < totalScoreEndTick) {
+                startPlayback(cycleEndTime, explicitStartTick = cycleEndTick)
+            } else {
+                activeItemsByStaff = emptyMap()
+                activeItemIndex = null
+                isPlaying = false
+                scheduledEvents.clear()
+            }
         })
+    }
+
+    private fun measureStartTickForIndex(measureIdx: Int): RationalTicks {
+        val count = scoreData.maxMeasureCount()
+        if (measureIdx <= 0 || count <= 0) return RationalTicks.ZERO
+        var effectiveTime = scoreData.instruments.firstOrNull()?.measures?.firstOrNull()?.timeSignature
+            ?: scoreData.timeSignature
+        val staffIds = scoreData.allStaffIds()
+        var tickCursor = RationalTicks.ZERO
+        val targetIdx = measureIdx.coerceAtMost(count - 1)
+        for (mIdx in 0 until targetIdx) {
+            if (mIdx > 0) {
+                scoreData.instruments.firstNotNullOfOrNull { it.measures.getOrNull(mIdx)?.timeSignature }
+                    ?.let { effectiveTime = it }
+            }
+            val measureCapacityTicks = RationalTicks.of(effectiveTime.measureCapacityTicks.coerceAtLeast(0))
+            val measureStartTick = tickCursor
+            var maxStaffEndTick = measureStartTick
+            for (staff in staffIds) {
+                val measure = scoreData.staffMeasures(staff).getOrNull(mIdx)
+                var staffCursor = measureStartTick
+                measure?.items.orEmpty().forEach { staffCursor += it.exactTicks() }
+                if (staffCursor > maxStaffEndTick) maxStaffEndTick = staffCursor
+            }
+            tickCursor = maxOf(measureStartTick + measureCapacityTicks, maxStaffEndTick)
+        }
+        return tickCursor
     }
 
     private fun stopPlayback(now: ScoreTime) {
@@ -638,6 +736,7 @@ class ScoreModule : Module("score"), EngineAware {
     }
 
     companion object {
+        const val DEFAULT_LOOP_END_MEASURE = 3
         const val PREVIEW_TAG = -2
         const val PREVIEW_DURATION_MS = 250L
         const val STACCATO_PREVIEW_DURATION_MS = 60L

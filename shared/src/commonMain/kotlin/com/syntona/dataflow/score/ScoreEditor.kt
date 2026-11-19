@@ -117,6 +117,7 @@ import com.syntona.dataflow.editor.scoreTieCursor
 import com.syntona.dataflow.editor.showExportSourceFileDialog
 import com.syntona.dataflow.editor.showOpenTextFileDialog
 import com.syntona.dataflow.engine.SyntonaCommand
+import com.syntona.ui.LoopIcon
 import com.syntona.ui.PlayIcon
 import com.syntona.ui.RecordIcon
 import com.syntona.ui.RewindIcon
@@ -1667,6 +1668,30 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 }
             }
 
+            val loopColor = if (isDark) Color(0xFF81C784) else Color(0xFF15803D)
+            ToolbarToggleChip(
+                selected = module.loopMode,
+                accentColor = loopColor,
+                borderMuted = borderMuted,
+                textColor = toolbarText,
+                isDark = isDark,
+                onClick = {
+                    module.toggleLoopMode()
+                    FileState.markDirty()
+                },
+            ) { color ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    LoopIcon(
+                        color = if (module.loopMode) loopColor else color,
+                        size = 11.dp,
+                    )
+                    Text("Loop", fontSize = 11.sp, color = if (module.loopMode) loopColor else color)
+                }
+            }
+
             Text("|", color = borderMuted)
 
             ToolbarToggleChip(
@@ -2206,12 +2231,33 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 selectedMeasures
             }
 
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(verticalScrollState)
-                    .horizontalScroll(scrollState)
-            ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                ScoreLoopBar(
+                    layout = layout,
+                    scrollOffsetPx = scrollState.value,
+                    loopMode = module.loopMode,
+                    loopRange = module.effectiveLoopRange(layout.placedMeasures.size),
+                    isDark = isDark,
+                    borderMuted = borderMuted,
+                    toolbarText = toolbarText,
+                    textMeasurer = textMeasurer,
+                    onLoopRangeChange = { startIdx, endIdx ->
+                        module.setLoopRange(startIdx, endIdx)
+                        FileState.markDirty()
+                    },
+                    onToggleLoopMode = {
+                        module.toggleLoopMode()
+                        FileState.markDirty()
+                        focusRequester.requestFocus()
+                    },
+                )
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth()
+                        .verticalScroll(verticalScrollState)
+                        .horizontalScroll(scrollState)
+                ) {
                 Box(
                     modifier = Modifier
                         .width(canvasWidthDp)
@@ -3059,6 +3105,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     }
                 }
                 }
+            }
             }
         }
 
@@ -5253,6 +5300,258 @@ private fun ScorePaletteGlyph(
                 topLeft = Offset(dotX, dotBaselineY - dotMeasured.firstBaseline),
             )
         }
+    }
+}
+
+private enum class ScoreLoopDragMode {
+    START_HANDLE,
+    END_HANDLE,
+    MOVE_WINDOW,
+    SWEEP_SELECT,
+}
+
+@Composable
+private fun ScoreLoopBar(
+    layout: ScoreLayout,
+    scrollOffsetPx: Int,
+    loopMode: Boolean,
+    loopRange: IntRange,
+    isDark: Boolean,
+    borderMuted: Color,
+    toolbarText: Color,
+    textMeasurer: TextMeasurer,
+    onLoopRangeChange: (Int, Int) -> Unit,
+    onToggleLoopMode: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val currentLayout by rememberUpdatedState(layout)
+    val currentScrollOffset by rememberUpdatedState(scrollOffsetPx.toFloat())
+    val currentLoopRange by rememberUpdatedState(loopRange)
+    val currentOnRangeChange by rememberUpdatedState(onLoopRangeChange)
+    val currentOnToggleLoopMode by rememberUpdatedState(onToggleLoopMode)
+
+    val barBg = if (isDark) Color(0xFF111827) else Color(0xFFF3F4F6)
+    val trackBg = if (isDark) Color(0xFF1E293B) else Color(0xFFE0E0E0)
+    val activeFill = if (isDark) Color(0xFF3B82F6).copy(alpha = 0.45f) else Color(0xFF90CAF9).copy(alpha = 0.65f)
+    val inactiveFill = if (isDark) Color(0xFF475569).copy(alpha = 0.35f) else Color(0xFF94A3B8).copy(alpha = 0.28f)
+    val activeHandle = if (isDark) Color(0xFF60A5FA) else Color(0xFF1D4ED8)
+    val inactiveHandle = if (isDark) Color(0xFF64748B) else Color(0xFF64748B)
+    val activeBorder = if (isDark) Color(0xFF60A5FA) else Color(0xFF2563EB)
+    val labelTextColor = if (loopMode) {
+        if (isDark) Color(0xFF81C784) else Color(0xFF15803D)
+    } else {
+        toolbarText.copy(alpha = 0.72f)
+    }
+    val barNumberColor = if (isDark) Color(0xFFCBD5E1) else Color(0xFF334155)
+    val tickColor = if (isDark) Color(0x33FFFFFF) else Color(0x33000000)
+
+    Canvas(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(22.dp)
+            .background(barBg)
+            .clipToBounds()
+            .pointerHoverIcon(PointerIcon.Hand)
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val lyt = currentLayout
+                    if (lyt.placedMeasures.isEmpty()) return@awaitEachGesture
+                    val clickCanvasX = down.position.x + currentScrollOffset
+                    val range = currentLoopRange
+                    val (loopLeftX, loopRightX) = lyt.loopRangeSpanX(range) ?: return@awaitEachGesture
+                    val firstLeft = lyt.measureSpanX(0)?.first ?: return@awaitEachGesture
+                    val lastRight = lyt.measureSpanX(lyt.placedMeasures.lastIndex)?.second ?: return@awaitEachGesture
+                    val tolPx = 8.dp.toPx()
+
+                    if (clickCanvasX < firstLeft - tolPx) {
+                        down.consume()
+                        var releasedInGutter = true
+                        do {
+                            val event = awaitPointerEvent()
+                            val change = event.changes.firstOrNull()
+                            if (change != null && change.pressed) {
+                                change.consume()
+                                releasedInGutter = (change.position.x + currentScrollOffset) < firstLeft
+                            }
+                        } while (event.changes.any { it.pressed })
+                        if (releasedInGutter) {
+                            currentOnToggleLoopMode()
+                        }
+                        return@awaitEachGesture
+                    }
+
+                    val nearLeft = abs(clickCanvasX - loopLeftX) <= tolPx
+                    val nearRight = abs(clickCanvasX - loopRightX) <= tolPx
+                    val dragMode = when {
+                        nearLeft && (!nearRight || abs(clickCanvasX - loopLeftX) <= abs(clickCanvasX - loopRightX)) ->
+                            ScoreLoopDragMode.START_HANDLE
+                        nearRight -> ScoreLoopDragMode.END_HANDLE
+                        clickCanvasX in loopLeftX..loopRightX -> ScoreLoopDragMode.MOVE_WINDOW
+                        clickCanvasX <= lastRight + tolPx -> ScoreLoopDragMode.SWEEP_SELECT
+                        else -> return@awaitEachGesture
+                    }
+
+                    down.consume()
+                    val anchorMeasure = lyt.measureIndexForLoopBarX(clickCanvasX, tolPx) ?: range.first
+                    val fixedStart = range.first
+                    val fixedEnd = range.last
+                    val windowSpan = (fixedEnd - fixedStart).coerceAtLeast(0)
+                    if (dragMode == ScoreLoopDragMode.SWEEP_SELECT) {
+                        currentOnRangeChange(anchorMeasure, anchorMeasure)
+                    }
+
+                    do {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull()
+                        if (change != null && change.pressed) {
+                            change.consume()
+                            val curLyt = currentLayout
+                            if (curLyt.placedMeasures.isEmpty()) continue
+                            val curCanvasX = change.position.x + currentScrollOffset
+                            when (dragMode) {
+                                ScoreLoopDragMode.START_HANDLE -> {
+                                    val newStart = curLyt.snapLoopStartMeasureForX(curCanvasX, fixedEnd)
+                                    currentOnRangeChange(newStart, fixedEnd)
+                                }
+                                ScoreLoopDragMode.END_HANDLE -> {
+                                    val newEnd = curLyt.snapLoopEndMeasureForX(curCanvasX, fixedStart)
+                                    currentOnRangeChange(fixedStart, newEnd)
+                                }
+                                ScoreLoopDragMode.MOVE_WINDOW -> {
+                                    val curMeasure = curLyt.measureIndexForLoopBarX(curCanvasX, tolPx) ?: continue
+                                    val maxStart = (curLyt.placedMeasures.lastIndex - windowSpan).coerceAtLeast(0)
+                                    val newStart = (fixedStart + (curMeasure - anchorMeasure)).coerceIn(0, maxStart)
+                                    currentOnRangeChange(newStart, newStart + windowSpan)
+                                }
+                                ScoreLoopDragMode.SWEEP_SELECT -> {
+                                    val curMeasure = curLyt.measureIndexForLoopBarX(curCanvasX, tolPx) ?: continue
+                                    currentOnRangeChange(min(anchorMeasure, curMeasure), max(anchorMeasure, curMeasure))
+                                }
+                            }
+                        }
+                    } while (event.changes.any { it.pressed })
+                }
+            },
+    ) {
+        val toScreenX = { canvasX: Float -> canvasX - scrollOffsetPx.toFloat() }
+        val firstLeftCanvas = layout.measureSpanX(0)?.first ?: 0f
+        val lastRightCanvas = layout.measureSpanX(layout.placedMeasures.lastIndex)?.second ?: firstLeftCanvas
+        val trackLeft = toScreenX(firstLeftCanvas)
+        val trackRight = toScreenX(lastRightCanvas)
+        val gutterRight = trackLeft.coerceIn(0f, size.width)
+
+        val rangeLabel = if (loopRange.first == loopRange.last) {
+            "Loop m.${loopRange.first + 1}"
+        } else {
+            "Loop ${loopRange.first + 1}–${loopRange.last + 1}"
+        }
+        val labelMeasured = textMeasurer.measure(
+            text = rangeLabel,
+            style = TextStyle(
+                color = labelTextColor,
+                fontSize = 10.sp,
+                fontWeight = if (loopMode) FontWeight.SemiBold else FontWeight.Normal,
+            ),
+            softWrap = false,
+            maxLines = 1,
+        )
+        if (gutterRight > 12f) {
+            drawText(
+                textLayoutResult = labelMeasured,
+                topLeft = Offset(
+                    x = 8.dp.toPx().coerceAtMost((gutterRight - labelMeasured.size.width).coerceAtLeast(2f)),
+                    y = (size.height - labelMeasured.size.height) * 0.5f,
+                ),
+            )
+        }
+
+        if (layout.placedMeasures.isNotEmpty()) {
+            val drawLeft = max(0f, trackLeft)
+            val drawRight = min(size.width, trackRight)
+            if (drawRight > drawLeft) {
+                drawRect(
+                    color = trackBg,
+                    topLeft = Offset(drawLeft, 2.dp.toPx()),
+                    size = Size(drawRight - drawLeft, size.height - 4.dp.toPx()),
+                )
+            }
+
+            val loopSpan = layout.loopRangeSpanX(loopRange)
+            if (loopSpan != null) {
+                val selLeft = toScreenX(loopSpan.first)
+                val selRight = toScreenX(loopSpan.second)
+                val clippedLeft = max(0f, selLeft)
+                val clippedRight = min(size.width, selRight)
+                val topY = 2.dp.toPx()
+                val boxH = size.height - 4.dp.toPx()
+                if (clippedRight > clippedLeft) {
+                    drawRect(
+                        color = if (loopMode) activeFill else inactiveFill,
+                        topLeft = Offset(clippedLeft, topY),
+                        size = Size(clippedRight - clippedLeft, boxH),
+                    )
+                    if (loopMode) {
+                        drawLine(activeBorder, Offset(clippedLeft, topY), Offset(clippedRight, topY), strokeWidth = 1.5f)
+                        drawLine(activeBorder, Offset(clippedLeft, topY + boxH), Offset(clippedRight, topY + boxH), strokeWidth = 1.5f)
+                    }
+                }
+
+                val handleW = 6.dp.toPx()
+                val handleColor = if (loopMode) activeHandle else inactiveHandle
+                if (selLeft + handleW >= 0f && selLeft <= size.width) {
+                    drawRect(
+                        color = handleColor,
+                        topLeft = Offset(selLeft, topY),
+                        size = Size(min(handleW, (selRight - selLeft) * 0.5f), boxH),
+                    )
+                }
+                val rightHandleX = selRight - min(handleW, (selRight - selLeft) * 0.5f)
+                if (selRight >= 0f && rightHandleX <= size.width) {
+                    drawRect(
+                        color = handleColor,
+                        topLeft = Offset(rightHandleX, topY),
+                        size = Size(min(handleW, (selRight - selLeft) * 0.5f), boxH),
+                    )
+                }
+            }
+
+            for (mIdx in layout.placedMeasures.indices) {
+                val (mLeftC, mRightC) = layout.measureSpanX(mIdx) ?: continue
+                val mLeft = toScreenX(mLeftC)
+                val mRight = toScreenX(mRightC)
+                if (mRight < 0f || mLeft > size.width) continue
+                if (mLeft >= 0f && mLeft <= size.width) {
+                    drawLine(tickColor, Offset(mLeft, 2.dp.toPx()), Offset(mLeft, size.height - 2.dp.toPx()), strokeWidth = 1f)
+                }
+                if (mIdx == layout.placedMeasures.lastIndex && mRight >= 0f && mRight <= size.width) {
+                    drawLine(tickColor, Offset(mRight, 2.dp.toPx()), Offset(mRight, size.height - 2.dp.toPx()), strokeWidth = 1f)
+                }
+                val cellWidth = mRight - mLeft
+                if (cellWidth >= 14.dp.toPx()) {
+                    val numRes = textMeasurer.measure(
+                        text = (mIdx + 1).toString(),
+                        style = TextStyle(color = barNumberColor, fontSize = 9.sp, fontFamily = FontFamily.Monospace),
+                        softWrap = false,
+                        maxLines = 1,
+                    )
+                    val numX = mLeft + 7.dp.toPx()
+                    if (numX >= 0f && numX + numRes.size.width <= min(size.width, mRight)) {
+                        drawText(
+                            textLayoutResult = numRes,
+                            topLeft = Offset(numX, (size.height - numRes.size.height) * 0.5f),
+                        )
+                    }
+                }
+            }
+        }
+
+        drawLine(
+            color = borderMuted,
+            start = Offset(0f, size.height - 0.5f),
+            end = Offset(size.width, size.height - 0.5f),
+            strokeWidth = 1f,
+        )
     }
 }
 

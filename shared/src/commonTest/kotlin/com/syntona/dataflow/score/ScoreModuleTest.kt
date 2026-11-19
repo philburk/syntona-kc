@@ -5265,4 +5265,150 @@ class ScoreModuleTest {
             assertTrue(botM2[i].boxRight < botM2[i + 1].boxLeft)
         }
     }
+
+    @Test
+    fun testPhase23LoopRangeClampingAndLayoutBarHelpers() {
+        val module = ScoreModule()
+        assertFalse(module.loopMode)
+        assertEquals(0, module.loopStartMeasure)
+        assertEquals(ScoreModule.DEFAULT_LOOP_END_MEASURE, module.loopEndMeasure)
+        assertEquals(0..3, module.effectiveLoopRange())
+
+        module.toggleLoopMode()
+        assertTrue(module.loopMode)
+
+        // Setting reversed or out-of-bounds indices clamps cleanly to valid contiguous bounds
+        module.setLoopRange(-2, 99)
+        assertEquals(0, module.loopStartMeasure)
+        assertEquals(7, module.loopEndMeasure)
+        module.setLoopRange(5, 2)
+        assertEquals(5, module.loopStartMeasure)
+        assertEquals(5, module.loopEndMeasure)
+        assertEquals(2..2, module.effectiveLoopRange(measureCount = 3))
+
+        module.setLoopRange(1, 3)
+        val layout = ScoreRenderer.computeLayout(module.scoreData, staffSpacePx = 10f, minWidthPx = 900f) { _, fs ->
+            fs * 0.35f
+        }
+        val (m0Left, m0Right) = layout.measureSpanX(0)!!
+        val (m1Left, _) = layout.measureSpanX(1)!!
+        val (_, m3Right) = layout.measureSpanX(3)!!
+        assertEquals(m0Right, m1Left, 0.01f)
+        val (loopLeft, loopRight) = layout.loopRangeSpanX(1..3)!!
+        assertEquals(m1Left, loopLeft, 0.01f)
+        assertEquals(m3Right, loopRight, 0.01f)
+
+        // Gutter clicks before Bar 1 return null; interior clicks return 0-based measure index
+        assertNull(layout.measureIndexForLoopBarX(m0Left - 20f, tolerancePx = 8f))
+        assertEquals(0, layout.measureIndexForLoopBarX((m0Left + m0Right) * 0.5f))
+        assertEquals(2, layout.measureIndexForLoopBarX((layout.measureSpanX(2)!!.first + layout.measureSpanX(2)!!.second) * 0.5f))
+
+        // Handle snapping stays constrained by opposite handle
+        assertEquals(2, layout.snapLoopStartMeasureForX(layout.measureSpanX(2)!!.first + 1f, loopEndMeasure = 3))
+        assertEquals(3, layout.snapLoopStartMeasureForX(m3Right + 50f, loopEndMeasure = 3))
+        assertEquals(2, layout.snapLoopEndMeasureForX(layout.measureSpanX(2)!!.second - 1f, loopStartMeasure = 1))
+        assertEquals(1, layout.snapLoopEndMeasureForX(m0Left - 20f, loopStartMeasure = 1))
+    }
+
+    @Test
+    fun testPhase23LoopPlaybackRewindsAtEndOfLoopSectionAndClampsTies() {
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val d4 = SpelledPitch(NoteLetter.D, 0, 4)
+        val e4 = SpelledPitch(NoteLetter.E, 0, 4)
+        val g4 = SpelledPitch(NoteLetter.G, 0, 4)
+        val module = ScoreModule()
+        val engine = TestEngine()
+        module.setEngine(engine)
+        val receiver = VoiceReceiver()
+        module.output.connect(receiver.inJack)
+
+        // 4 bars in 4/4 at 120 BPM (2.0s per bar):
+        // Bar 1: C4 Q
+        // Bar 2: D4 H + E4 H (tied across barline into Bar 3!)
+        // Bar 3: E4 Q + F4 Q
+        // Bar 4: G4 Q
+        module.scoreData.replaceMeasures(
+            listOf(
+                ScoreMeasure(1, listOf(ScoreItem.Note(c4, NoteDuration.QUARTER))),
+                ScoreMeasure(
+                    2,
+                    listOf(
+                        ScoreItem.Note(d4, NoteDuration.HALF),
+                        ScoreItem.Note(e4, NoteDuration.HALF, isTiedToNext = true),
+                    ),
+                ),
+                ScoreMeasure(
+                    3,
+                    listOf(
+                        ScoreItem.Note(e4, NoteDuration.QUARTER),
+                        ScoreItem.Note(SpelledPitch(NoteLetter.F, 0, 4), NoteDuration.QUARTER),
+                    ),
+                ),
+                ScoreMeasure(4, listOf(ScoreItem.Note(g4, NoteDuration.QUARTER))),
+            )
+        )
+
+        // Loop only Bar 2 (0-based index 1..1) and start from Bar 1
+        module.setLoopRange(1, 1)
+        module.loopMode = true
+        module.start.receive(Message.FloatValue(ScoreTime(0L), 1.0))
+        assertTrue(module.isPlaying)
+
+        // Execute Cycle 1 events cleanly up through rewind at t = 4.0s (end of Bar 2)
+        val cycle1 = engine.scheduled.sortedBy { it.first.nanoseconds }.toList()
+        engine.scheduled.clear()
+        cycle1.forEach { (_, action) -> action() }
+
+        val cycle1Notes = receiver.received.filter { it.opcode == Message.VoiceOpcode.NOTE }
+        // Bar 1 (C4 at 0.0s) + Bar 2 (D4 at 2.0s, E4 at 3.0s) — never reaches Bar 3/Bar 4
+        assertEquals(
+            listOf(c4.midiPitch.toDouble(), d4.midiPitch.toDouble(), e4.midiPitch.toDouble()),
+            cycle1Notes.map { it.value },
+        )
+        assertEquals(0L, cycle1Notes[0].time.nanoseconds)
+        assertEquals(2_000_000_000L, cycle1Notes[1].time.nanoseconds)
+        assertEquals(3_000_000_000L, cycle1Notes[2].time.nanoseconds)
+        // E4's tie into Bar 3 is clamped to end of Bar 2 (1.0s instead of 1.5s)
+        assertEquals(1.0, cycle1Notes[2].duration, 1e-3)
+        // At rewind time (4.0s), playback rewound cleanly to Bar 2 instead of stopping
+        assertTrue(module.isPlaying)
+
+        // Execute Cycle 2 (now playing ONLY Bar 2 starting at 4.0s)
+        receiver.received.clear()
+        val cycle2 = engine.scheduled.sortedBy { it.first.nanoseconds }.toList()
+        engine.scheduled.clear()
+        cycle2.forEach { (_, action) -> action() }
+
+        val cycle2Notes = receiver.received.filter { it.opcode == Message.VoiceOpcode.NOTE }
+        assertEquals(listOf(d4.midiPitch.toDouble(), e4.midiPitch.toDouble()), cycle2Notes.map { it.value })
+        assertEquals(4_000_000_000L, cycle2Notes[0].time.nanoseconds)
+        assertEquals(5_000_000_000L, cycle2Notes[1].time.nanoseconds)
+        assertTrue(module.isPlaying)
+
+        // Interrupting Cycle 3 mid-note sends explicit NOTE_OFF and terminates loop cleanly
+        receiver.received.clear()
+        val cycle3Downbeat = engine.scheduled.filter { it.first.nanoseconds == 6_000_000_000L }
+        cycle3Downbeat.forEach { (_, action) -> action() }
+        module.stop.receive(Message.FloatValue(ScoreTime(6_250_000_000L), 1.0))
+        assertFalse(module.isPlaying)
+        assertTrue(
+            receiver.received.any { it.opcode == Message.VoiceOpcode.NOTE_OFF && it.value == d4.midiPitch.toDouble() },
+            "Stopping mid-note during loop playback should send NOTE_OFF",
+        )
+    }
+
+    @Test
+    fun testPhase23LoopPersistenceRoundTrip() {
+        val graph = GraphState()
+        val module = ScoreModule()
+        graph.addModule(module, Offset.Zero)
+        module.loopMode = true
+        module.setLoopRange(2, 5)
+
+        val json = GraphSerializer.serialize(graph, graph.modules)
+        val restored = GraphSerializer.deserialize(GraphState(), json).filterIsInstance<ScoreModule>().single()
+        assertTrue(restored.loopMode)
+        assertEquals(2, restored.loopStartMeasure)
+        assertEquals(5, restored.loopEndMeasure)
+    }
 }

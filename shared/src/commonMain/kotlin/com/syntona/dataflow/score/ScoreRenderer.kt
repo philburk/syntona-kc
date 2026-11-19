@@ -636,6 +636,58 @@ data class ScoreLayout(
         val targetStaff = staffForId(cursor.staff) ?: return null
         return targetStaff.cursorXFor(cursor)
     }
+
+    /** Returns the `(leftX, rightX)` canvas bounds for 0-based [measureIdx] along the shared barlines. */
+    fun measureSpanX(measureIdx: Int): Pair<Float, Float>? {
+        val pm = placedMeasures.getOrNull(measureIdx) ?: return null
+        val left = if (measureIdx == 0) pm.startX else placedMeasures[measureIdx - 1].barlineX
+        return left to pm.barlineX
+    }
+
+    /** Returns the `(leftX, rightX)` canvas bounds spanning the contiguous [loopRange] of measures. */
+    fun loopRangeSpanX(loopRange: IntRange): Pair<Float, Float>? {
+        if (placedMeasures.isEmpty()) return null
+        val start = loopRange.first.coerceIn(0, placedMeasures.lastIndex)
+        val end = loopRange.last.coerceIn(start, placedMeasures.lastIndex)
+        val startLeft = measureSpanX(start)?.first ?: return null
+        val endRight = measureSpanX(end)?.second ?: return null
+        return startLeft to endRight
+    }
+
+    /**
+     * Resolves a horizontal canvas coordinate [x] on the top loop bar to a 0-based measure index,
+     * returning `null` if [x] lies strictly in the left header gutter before bar 1.
+     */
+    fun measureIndexForLoopBarX(x: Float, tolerancePx: Float = 0f): Int? {
+        if (placedMeasures.isEmpty()) return null
+        val firstLeft = measureSpanX(0)?.first ?: return null
+        if (x < firstLeft - tolerancePx) return null
+        for (idx in placedMeasures.indices) {
+            val right = measureSpanX(idx)?.second ?: continue
+            if (x <= right) return idx
+        }
+        return placedMeasures.lastIndex
+    }
+
+    /** Snaps a dragged loop-start handle at canvas [x] to the closest measure start boundary `0..loopEndMeasure`. */
+    fun snapLoopStartMeasureForX(x: Float, loopEndMeasure: Int): Int {
+        if (placedMeasures.isEmpty()) return 0
+        val maxStart = loopEndMeasure.coerceIn(0, placedMeasures.lastIndex)
+        return (0..maxStart).minByOrNull { mIdx ->
+            val left = measureSpanX(mIdx)?.first ?: Float.MAX_VALUE
+            abs(x - left)
+        } ?: 0
+    }
+
+    /** Snaps a dragged loop-end handle at canvas [x] to the closest measure end boundary `loopStartMeasure..lastIndex`. */
+    fun snapLoopEndMeasureForX(x: Float, loopStartMeasure: Int): Int {
+        if (placedMeasures.isEmpty()) return 0
+        val minEnd = loopStartMeasure.coerceIn(0, placedMeasures.lastIndex)
+        return (minEnd..placedMeasures.lastIndex).minByOrNull { mIdx ->
+            val right = measureSpanX(mIdx)?.second ?: Float.MAX_VALUE
+            abs(x - right)
+        } ?: minEnd
+    }
 }
 
 /**

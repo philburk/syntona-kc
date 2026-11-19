@@ -309,6 +309,13 @@ https://guido.grame.fr/papers/renz-spacing.pdf
 
 There may be other algorithms that I don't know about.
 
+### Phase 23 - Looping
+Add a looping bar at the top for selecting one or more contiguous measures in a score.
+This is similar to the looping feature in the timeline module.
+Also add a "Loop" mode toggle button to the Score toolbar.
+If loop mode is active, when the playback cursor hits the end of the looping section
+it will rewind to the beginning of the looping section.
+
 ## TODO
 
 ### Phase ? - Measure Lines
@@ -316,17 +323,20 @@ Add support for typical measure lines.
 Put the select buttons for measure lines into a palette called "Measure Lines".
 
 ### Phase ? - Real Time Entry
-Add support for recording notes in real time into a stave while playing back on other staves.
+Add support for transcribing notes in real time into a stave while playing back on other staves.
 Transcribe the notes into a score. Try to detect dotted notes, and triplets.
 Quantize the note timing.
-Provide a way to specify the audio latency, which must be subtracted from the note timing.
+Provide a way to specify the audio latency, which must be subtracted from the recorded note timing.
 (What if the performer is already compensating for the latency by playing the notes a little early?!)
 
-### Phase ? - Looping
-Add a looping bar at the top for selecting a section of a score to loop.
-(Should we allow selecting beats or just measures?)
-This is similar to the looping feature in the timeline module.
-Also add a "Loop" toggle button to the Score toolbar.
+Add a red "R" button that works like the "R" button in the TimelineModule.
+Place it in the left control area of the instrument, near the instrument name.
+Use that button to determine which stave will receive the incoming notes.
+Only one stave can be selected at a time.
+
+Allow editing and removal of notes while looping. This will allow the user to
+play some notes in real time and then adjust them while continuing to loop.
+
 
 ### Phase ? - Articulations
 Add support for articulations such as pizzicato, mute, sustain pedal, and

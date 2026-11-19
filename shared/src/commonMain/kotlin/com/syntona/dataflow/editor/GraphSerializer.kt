@@ -568,6 +568,15 @@ object GraphSerializer {
                 if (!module.autoFillRests) {
                     append(",\"autoFillRests\":false")
                 }
+                if (module.loopMode) {
+                    append(",\"loopMode\":true")
+                }
+                if (module.loopStartMeasure != 0) {
+                    append(",\"loopStartMeasure\":${module.loopStartMeasure}")
+                }
+                if (module.loopEndMeasure != ScoreModule.DEFAULT_LOOP_END_MEASURE) {
+                    append(",\"loopEndMeasure\":${module.loopEndMeasure}")
+                }
                 module.windowX?.let { append(",\"windowX\":$it") }
                 module.windowY?.let { append(",\"windowY\":$it") }
                 module.windowWidth?.let { append(",\"windowWidth\":$it") }
@@ -1904,6 +1913,17 @@ object GraphSerializer {
                     )
                     module.scoreData.replaceAllInstruments(listOf(singleInst))
                     module.syncInstrumentOutputs()
+                }
+                (obj?.map?.get("loopMode") as? JsonValue.Bool)?.value?.let {
+                    module.loopMode = it
+                }
+                val rawLoopStart = (obj?.map?.get("loopStartMeasure") as? JsonValue.Num)?.value?.toInt()
+                val rawLoopEnd = (obj?.map?.get("loopEndMeasure") as? JsonValue.Num)?.value?.toInt()
+                if (rawLoopStart != null || rawLoopEnd != null) {
+                    val lastIdx = (module.scoreData.maxMeasureCount() - 1).coerceAtLeast(0)
+                    val s = (rawLoopStart ?: module.loopStartMeasure).coerceIn(0, lastIdx)
+                    val e = (rawLoopEnd ?: module.loopEndMeasure).coerceIn(s, lastIdx)
+                    module.setLoopRange(s, e)
                 }
             }
             created.add(module)
