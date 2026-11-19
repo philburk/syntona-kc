@@ -44,3 +44,6 @@ Only use WASM compatible libraries.
 ## Git
 
 When creating a git commit message, do not exceed 80 characters per line.
+Base commit messages strictly on the current staged/uncommitted `git diff`;
+do not describe or re-summarize changes that were already committed in prior
+commits.
