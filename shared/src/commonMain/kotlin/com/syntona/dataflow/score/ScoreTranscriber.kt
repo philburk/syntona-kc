@@ -39,6 +39,26 @@ object ScoreTranscriber {
     /** Standard Middle C split point for two-handed Grand Staff recording (treble >= 60, bass < 60). */
     const val GRAND_STAFF_SPLIT_MIDI = 60
 
+    /**
+     * Minimum duty cycle (sounded duration / rhythmic span) above which a note is treated as
+     * contiguous with the next note/barline or snapped up to a longer standard duration instead of
+     * inserting a short trailing rest.
+     */
+    private const val CONTIGUOUS_DUTY_CYCLE_THRESHOLD = 0.65
+
+    /**
+     * More relaxed duty-cycle threshold when the next note repeats a pitch from the current note,
+     * since re-striking a single key requires lifting it first and naturally shortens gate length.
+     */
+    private const val REPEATED_PITCH_DUTY_CYCLE_THRESHOLD = 0.45
+
+    /**
+     * Duty-cycle threshold when snapping a note followed by a clear rest to a standard rhythmic
+     * value. Must stay above 2/3 (~0.67) so an undotted note (e.g. quarter = 240) never snaps up
+     * to its dotted version (dotted quarter = 360).
+     */
+    private const val CLEAR_REST_DURATION_SNAP_THRESHOLD = 0.75
+
     private data class DurationOption(
         val duration: NoteDuration,
         val isDotted: Boolean,
@@ -264,28 +284,30 @@ object ScoreTranscriber {
         val events = ArrayList<QuantizedChordEvent>(sortedOnsets.size)
         for ((idx, onset) in sortedOnsets.withIndex()) {
             val group = snappedByOnset[onset] ?: continue
-            val nextOnset = sortedOnsets.getOrNull(idx + 1) ?: capacity
+            val nextOnsetKey = sortedOnsets.getOrNull(idx + 1)
+            val nextOnset = nextOnsetKey ?: capacity
             val bIdx = (onset / beatTicks).coerceIn(0, beatCount - 1)
             val stepForEnd = if (isTripletBeat[bIdx]) tripletStep else gridTicks
             val pitches = group.map { it.midiPitch }.distinct().sorted()
+            val nextGroup = nextOnsetKey?.let { snappedByOnset[it] }
+            val repeatsPitchNext = nextGroup != null && nextGroup.any { it.midiPitch in pitches }
             val amp = group.maxOf { it.amplitude }
             val maxRawEnd = group.maxOf { it.rawEndRel }
 
             val crossesBarline = allowTieOut &&
                 (idx == sortedOnsets.lastIndex) &&
                 (maxRawEnd > capacity + gridTicks * 0.5)
-            val clampedRawEnd = min(maxRawEnd, nextOnset.toDouble())
-            var snappedEnd = ((clampedRawEnd / stepForEnd).roundToInt() * stepForEnd)
-                .coerceAtLeast(onset + stepForEnd)
-                .coerceAtMost(nextOnset)
-                .coerceAtMost(capacity)
-
-            // Absorb tiny release gaps (< 1 grid step) before the next note or barline tie
-            if (nextOnset - snappedEnd in 1 until stepForEnd) {
-                snappedEnd = min(nextOnset, capacity)
-            }
+            val snappedEnd = quantizeEndTick(
+                onset = onset,
+                nextOnset = nextOnset,
+                capacity = capacity,
+                maxRawEnd = maxRawEnd,
+                stepForEnd = stepForEnd,
+                isTriplet = isTripletBeat[bIdx],
+                crossesBarline = crossesBarline,
+                repeatsPitchNext = repeatsPitchNext,
+            )
             if (crossesBarline) {
-                snappedEnd = capacity
                 for (midi in pitches) {
                     carriedToNext.add(
                         RecordedRawNote(
@@ -411,6 +433,71 @@ object ScoreTranscriber {
 
         val measure = buildMeasurePreservingMetadata(measureNumber, items, existingMeasure)
         return measure to carriedToNext
+    }
+
+    /**
+     * Quantizes a note/chord's release tick, leaning toward contiguous notes rather than short
+     * trailing rests when the sounded duration exceeds [CONTIGUOUS_DUTY_CYCLE_THRESHOLD] of the
+     * available span or of a standard rhythmic value.
+     */
+    private fun quantizeEndTick(
+        onset: Int,
+        nextOnset: Int,
+        capacity: Int,
+        maxRawEnd: Double,
+        stepForEnd: Int,
+        isTriplet: Boolean,
+        crossesBarline: Boolean,
+        repeatsPitchNext: Boolean,
+    ): Int {
+        val limitEnd = min(nextOnset, capacity)
+        if (crossesBarline) return capacity
+
+        val availableSpan = (limitEnd - onset).coerceAtLeast(stepForEnd)
+        val clampedRawEnd = min(maxRawEnd, limitEnd.toDouble())
+        val rawDuration = (clampedRawEnd - onset).coerceAtLeast(0.0)
+        val contiguousThreshold = if (repeatsPitchNext) {
+            REPEATED_PITCH_DUTY_CYCLE_THRESHOLD
+        } else {
+            CONTIGUOUS_DUTY_CYCLE_THRESHOLD
+        }
+
+        if (rawDuration > availableSpan * contiguousThreshold) {
+            return limitEnd
+        }
+
+        val snappedDuration = if (isTriplet) {
+            val maxSlots = (availableSpan / stepForEnd).coerceAtLeast(1)
+            var chosen = stepForEnd
+            for (slots in maxSlots downTo 1) {
+                val cand = slots * stepForEnd
+                if (rawDuration > cand * CLEAR_REST_DURATION_SNAP_THRESHOLD) {
+                    chosen = cand
+                    break
+                }
+            }
+            chosen
+        } else {
+            STRAIGHT_NOTE_OPTIONS
+                .firstOrNull { opt ->
+                    opt.ticks <= availableSpan &&
+                        opt.ticks % stepForEnd == 0 &&
+                        rawDuration > opt.ticks * CLEAR_REST_DURATION_SNAP_THRESHOLD
+                }
+                ?.ticks
+                ?: ((rawDuration / stepForEnd).roundToInt() * stepForEnd)
+                    .coerceAtLeast(stepForEnd)
+        }
+
+        var snappedEnd = (onset + snappedDuration)
+            .coerceAtLeast(onset + stepForEnd)
+            .coerceAtMost(limitEnd)
+
+        // Absorb tiny release gaps (< 1 grid step) before the next note or barline
+        if (limitEnd - snappedEnd in 1 until stepForEnd) {
+            snappedEnd = limitEnd
+        }
+        return snappedEnd
     }
 
     private fun buildMeasurePreservingMetadata(

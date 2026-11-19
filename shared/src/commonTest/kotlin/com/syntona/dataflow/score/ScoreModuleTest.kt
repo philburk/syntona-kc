@@ -5895,4 +5895,142 @@ class ScoreModuleTest {
         // Unarmed Bass still played its second Half note at 1.0s + Bar 2 at 2.0s
         assertEquals(3, otherOut.received.count { it.opcode == Message.VoiceOpcode.NOTE })
     }
+
+    @Test
+    fun testPhase24DutyCycleLeansTowardContiguousNotes() {
+        val q = NoteDuration.QUARTER.ticks.toDouble()
+        val h = NoteDuration.HALF.ticks.toDouble()
+        val e = NoteDuration.EIGHTH.ticks.toDouble()
+
+        // 1. Four quarter notes played with ~79% duty cycle (190/240 ticks) -> 4 contiguous quarter notes
+        val rawQuarters = (0 until 4).map { i ->
+            RecordedRawNote(startTick = i * q, endTick = i * q + q * 0.79, midiPitch = 60 + i * 2)
+        }
+        for (grid in listOf(ScoreQuantizeGrid.SIXTEENTH, ScoreQuantizeGrid.THIRTY_SECOND)) {
+            val (mQuarters, _) = ScoreTranscriber.transcribeMeasure(
+                rawNotes = rawQuarters,
+                measureNumber = 1,
+                measureStartTick = 0.0,
+                timeSignature = TimeSignature.COMMON_TIME,
+                keySignature = KeySignature.C_MAJOR,
+                quantizeGrid = grid,
+            )
+            assertEquals(4, mQuarters.items.size, "Expected 4 quarter notes on grid $grid")
+            assertTrue(mQuarters.items.all { it is ScoreItem.Note && it.duration == NoteDuration.QUARTER && !it.isDotted })
+        }
+
+        // 2. Two half notes played with 80% duty cycle -> 2 contiguous half notes
+        val rawHalves = listOf(
+            RecordedRawNote(startTick = 0.0, endTick = h * 0.80, midiPitch = 60),
+            RecordedRawNote(startTick = h, endTick = h + h * 0.80, midiPitch = 64),
+        )
+        val (mHalves, _) = ScoreTranscriber.transcribeMeasure(
+            rawNotes = rawHalves,
+            measureNumber = 1,
+            measureStartTick = 0.0,
+            timeSignature = TimeSignature.COMMON_TIME,
+            keySignature = KeySignature.C_MAJOR,
+        )
+        assertEquals(2, mHalves.items.size)
+        assertTrue(mHalves.items.all { it is ScoreItem.Note && it.duration == NoteDuration.HALF && !it.isDotted })
+
+        // 3. Contiguous eighth notes at 80% duty cycle on 1/32 grid -> 8 contiguous eighth notes
+        val rawEighths = (0 until 8).map { i ->
+            RecordedRawNote(startTick = i * e, endTick = i * e + e * 0.80, midiPitch = 60 + (i % 4))
+        }
+        val (mEighths, _) = ScoreTranscriber.transcribeMeasure(
+            rawNotes = rawEighths,
+            measureNumber = 1,
+            measureStartTick = 0.0,
+            timeSignature = TimeSignature.COMMON_TIME,
+            keySignature = KeySignature.C_MAJOR,
+            quantizeGrid = ScoreQuantizeGrid.THIRTY_SECOND,
+        )
+        assertEquals(8, mEighths.items.size)
+        assertTrue(mEighths.items.all { it is ScoreItem.Note && it.duration == NoteDuration.EIGHTH && !it.isDotted })
+
+        // 4. Quarter notes at 80% duty cycle followed by clear quarter rests -> Quarter + Quarter Rest (not dotted 8th + 16th rest)
+        val rawQuarterWithRest = listOf(
+            RecordedRawNote(startTick = 0.0, endTick = q * 0.80, midiPitch = 60),
+            RecordedRawNote(startTick = q * 2.0, endTick = q * 2.80, midiPitch = 62),
+        )
+        val (mWithRest, _) = ScoreTranscriber.transcribeMeasure(
+            rawNotes = rawQuarterWithRest,
+            measureNumber = 1,
+            measureStartTick = 0.0,
+            timeSignature = TimeSignature.COMMON_TIME,
+            keySignature = KeySignature.C_MAJOR,
+        )
+        assertEquals(4, mWithRest.items.size)
+        assertEquals(NoteDuration.QUARTER, (mWithRest.items[0] as ScoreItem.Note).duration)
+        assertFalse((mWithRest.items[0] as ScoreItem.Note).isDotted)
+        assertEquals(ScoreItem.Rest(NoteDuration.QUARTER), mWithRest.items[1])
+        assertEquals(NoteDuration.QUARTER, (mWithRest.items[2] as ScoreItem.Note).duration)
+        assertFalse((mWithRest.items[2] as ScoreItem.Note).isDotted)
+        assertEquals(ScoreItem.Rest(NoteDuration.QUARTER), mWithRest.items[3])
+
+        // 5. Staccato notes (different pitches) at 50% duty cycle still preserve clear rests (Eighth + Eighth Rest)
+        val rawStaccato = listOf(
+            RecordedRawNote(startTick = 0.0, endTick = q * 0.50, midiPitch = 60),
+            RecordedRawNote(startTick = q, endTick = q + q * 0.50, midiPitch = 62),
+        )
+        val (mStaccato, _) = ScoreTranscriber.transcribeMeasure(
+            rawNotes = rawStaccato,
+            measureNumber = 1,
+            measureStartTick = 0.0,
+            timeSignature = TimeSignature.COMMON_TIME,
+            keySignature = KeySignature.C_MAJOR,
+        )
+        assertEquals(NoteDuration.EIGHTH, (mStaccato.items[0] as ScoreItem.Note).duration)
+        assertEquals(ScoreItem.Rest(NoteDuration.EIGHTH), mStaccato.items[1])
+        assertEquals(NoteDuration.EIGHTH, (mStaccato.items[2] as ScoreItem.Note).duration)
+        assertEquals(ScoreItem.Rest(NoteDuration.EIGHTH), mStaccato.items[3])
+        assertEquals(ScoreItem.Rest(NoteDuration.HALF), mStaccato.items[4])
+
+        // 6. Non-repeated notes at 68% duty cycle -> contiguous quarter notes (general threshold 0.65)
+        val raw68 = (0 until 4).map { i ->
+            RecordedRawNote(startTick = i * q, endTick = i * q + q * 0.68, midiPitch = 60 + i * 2)
+        }
+        val (m68, _) = ScoreTranscriber.transcribeMeasure(
+            rawNotes = raw68,
+            measureNumber = 1,
+            measureStartTick = 0.0,
+            timeSignature = TimeSignature.COMMON_TIME,
+            keySignature = KeySignature.C_MAJOR,
+        )
+        assertEquals(4, m68.items.size)
+        assertTrue(m68.items.all { it is ScoreItem.Note && it.duration == NoteDuration.QUARTER && !it.isDotted })
+
+        // 7. Repeated same-pitch notes at 50% duty cycle -> contiguous quarter notes (relaxed repeated-pitch threshold 0.45)
+        val rawRepeated = listOf(
+            RecordedRawNote(startTick = 0.0, endTick = q * 0.50, midiPitch = 60),
+            RecordedRawNote(startTick = q, endTick = q + q * 0.50, midiPitch = 60),
+            RecordedRawNote(startTick = q * 2.0, endTick = q * 2.0 + q * 0.50, midiPitch = 60),
+            RecordedRawNote(startTick = q * 3.0, endTick = q * 3.0 + q * 0.70, midiPitch = 60),
+        )
+        val (mRepeated, _) = ScoreTranscriber.transcribeMeasure(
+            rawNotes = rawRepeated,
+            measureNumber = 1,
+            measureStartTick = 0.0,
+            timeSignature = TimeSignature.COMMON_TIME,
+            keySignature = KeySignature.C_MAJOR,
+        )
+        assertEquals(4, mRepeated.items.size)
+        assertTrue(mRepeated.items.all { it is ScoreItem.Note && it.duration == NoteDuration.QUARTER && !it.isDotted })
+
+        // 8. Very short staccatissimo repeated notes (30% duty cycle) still preserve rests
+        val rawRepeatedStaccatissimo = listOf(
+            RecordedRawNote(startTick = 0.0, endTick = q * 0.30, midiPitch = 60),
+            RecordedRawNote(startTick = q, endTick = q + q * 0.30, midiPitch = 60),
+        )
+        val (mRepStacc, _) = ScoreTranscriber.transcribeMeasure(
+            rawNotes = rawRepeatedStaccatissimo,
+            measureNumber = 1,
+            measureStartTick = 0.0,
+            timeSignature = TimeSignature.COMMON_TIME,
+            keySignature = KeySignature.C_MAJOR,
+        )
+        assertEquals(NoteDuration.SIXTEENTH, (mRepStacc.items[0] as ScoreItem.Note).duration)
+        assertTrue(mRepStacc.items[1] is ScoreItem.Rest)
+    }
 }

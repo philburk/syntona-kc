@@ -336,6 +336,26 @@ Allow editing and removal of notes while looping. This will allow the user to
 play some notes in real time and then adjust them while continuing to loop.
 This will be a very desirable way to incrementally compose in real time.
 
+### BUG
+There is a problem with "too many rests" in real-time score entry.
+
+For example, when I play what I think are quarter notes,
+they get transcribed as dotted eighth notes followed by a sixteenth rest!
+
+Please lean toward interpreting the notes as contiguous notes instead of alternating
+notes and rests, unless there is a clear rest.
+
+At 120 BPM, a quarter note has a duration of 500 milliseconds.
+The time between note ON and OFF divided by the duration is what I call the "duty cycle".
+What do you call it? A staccato note has a short duty cycle.
+I believe Syntona normally uses a duty cyle of 100% when playing notes.
+But it is hard for me to play with 100% duty cycle.
+So if I play a note that is more than 75% of the duration of a quarter note
+and the next note comes at the time we would expect after a quarter note.
+Do not score a dotted eighth note followed by a sixteenth rest.
+
+Similar things are happening at other durations.
+
 ## TODO
 
 ### Phase ? - Measure Lines
