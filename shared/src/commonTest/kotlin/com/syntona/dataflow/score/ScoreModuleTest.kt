@@ -6033,4 +6033,137 @@ class ScoreModuleTest {
         assertEquals(NoteDuration.SIXTEENTH, (mRepStacc.items[0] as ScoreItem.Note).duration)
         assertTrue(mRepStacc.items[1] is ScoreItem.Rest)
     }
+
+    @Test
+    fun testPhase25LoopLocksTravelWithLeftEdge() {
+        val graph = GraphState()
+        val module = ScoreModule()
+        graph.addModule(module, Offset.Zero)
+        val measures = (1..16).map { ScoreMeasure(it, listOf(ScoreItem.Rest(NoteDuration.WHOLE))) }
+        module.scoreData.replaceMeasures(measures)
+
+        // Starts out unlocked
+        assertTrue(module.loopLockedOffsets.isEmpty())
+
+        // Loop over bars 10, 11, 12, 13 (0-based 9..12)
+        module.setLoopRange(9, 12)
+        module.loopMode = true
+        assertFalse(module.isMeasureLockedInLoop(9))
+        assertFalse(module.isMeasureLockedInLoop(10))
+
+        // Lock bars 10 and 11 (0-based 9 and 10)
+        module.toggleLoopMeasureLock(9)
+        module.toggleLoopMeasureLock(10)
+        assertEquals(setOf(0, 1), module.loopLockedOffsets)
+        assertTrue(module.isMeasureLockedInLoop(9))
+        assertTrue(module.isMeasureLockedInLoop(10))
+        assertFalse(module.isMeasureLockedInLoop(11))
+        assertFalse(module.isMeasureLockedInLoop(12))
+
+        // Drag the loop one measure over to bars 11, 12, 13, 14 (0-based 10..13)
+        module.setLoopRange(10, 13)
+        assertTrue(module.isMeasureLockedInLoop(10)) // bar 11
+        assertTrue(module.isMeasureLockedInLoop(11)) // bar 12
+        assertFalse(module.isMeasureLockedInLoop(12)) // bar 13
+        assertFalse(module.isMeasureLockedInLoop(13)) // bar 14
+
+        // When loopMode is off, isMeasureLockedInLoop returns false while UI offset state remains
+        module.loopMode = false
+        assertFalse(module.isMeasureLockedInLoop(10))
+        assertTrue(module.isLoopOffsetLocked(10))
+        module.loopMode = true
+
+        // Serialization round-trip preserves loopLockedOffsets
+        val json = GraphSerializer.serialize(graph, graph.modules)
+        val restored = GraphSerializer.deserialize(GraphState(), json).filterIsInstance<ScoreModule>().single()
+        assertEquals(10, restored.loopStartMeasure)
+        assertEquals(13, restored.loopEndMeasure)
+        assertEquals(setOf(0, 1), restored.loopLockedOffsets)
+        assertTrue(restored.isMeasureLockedInLoop(10))
+        assertTrue(restored.isMeasureLockedInLoop(11))
+        assertFalse(restored.isMeasureLockedInLoop(12))
+
+        // Shrinking loop to 1 measure prunes out-of-range offsets
+        module.setLoopRange(10, 10)
+        assertEquals(setOf(0), module.loopLockedOffsets)
+    }
+
+    @Test
+    fun testPhase25LockedMeasuresProtectedDuringRealTimeLoopRecording() {
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val d4 = SpelledPitch(NoteLetter.D, 0, 4)
+        val module = ScoreModule()
+        val engine = TestEngine()
+        module.setEngine(engine)
+        val armedOut = VoiceReceiver()
+        val bar1Original = ScoreMeasure(
+            number = 1,
+            items = listOf(ScoreItem.Note(c4, NoteDuration.WHOLE)),
+        )
+        val bar2Original = ScoreMeasure(
+            number = 2,
+            items = listOf(ScoreItem.Note(d4, NoteDuration.WHOLE)),
+        )
+        module.scoreData.replaceMeasures(listOf(bar1Original, bar2Original))
+        module.syncInstrumentOutputs()
+        module.outputForInstrument(0).connect(armedOut.inJack)
+
+        module.toggleRecordArm(0)
+        module.recordMode = ScoreRecordMode.REPLACE
+        module.recordLatencyMs = 0.0
+        module.loopMode = true
+        module.setLoopRange(0, 1)
+        module.toggleLoopMeasureLock(0) // Lock Bar 1; Bar 2 remains unlocked
+
+        module.startRealTimeRecording(ScoreTime(0L))
+
+        // Bar 1 (0s..2s at 120 BPM) is locked -> activeRecordingMeasureIdx stays null and Bar 1 plays normally
+        engine.scheduled.filter { it.first.nanoseconds == 0L }.forEach { (_, action) -> action() }
+        assertEquals(null, module.activeRecordingMeasureIdx)
+
+        // Play E4 (64) during locked Bar 1 -> must NOT silence Bar 1 or overwrite it
+        armedOut.received.clear()
+        module.input.receive(Message.VoiceMessage(ScoreTime(250_000_000L), Message.VoiceOpcode.NOTE_ON, tag = 1, value = 64.0, extra = 0.8))
+        assertFalse(
+            armedOut.received.any { it.opcode == Message.VoiceOpcode.NOTE_OFF && it.value == 60.0 },
+            "Locked measure must not punch/silence playback notes",
+        )
+        module.input.receive(Message.VoiceMessage(ScoreTime(750_000_000L), Message.VoiceOpcode.NOTE_OFF, tag = 1, value = 64.0, extra = 0.0))
+
+        // Advance past Bar 1 barline (2.0s) into Bar 2 (unlocked)
+        engine.scheduled
+            .filter { it.first.nanoseconds > 0L && it.first.nanoseconds <= 2_000_000_000L }
+            .sortedBy { it.first.nanoseconds }
+            .forEach { (_, action) -> action() }
+
+        // Bar 1 is still intact (original Whole note C4)
+        val bar1After = module.scoreData.measures[0]
+        assertEquals(1, bar1After.items.size)
+        assertEquals(60, (bar1After.items[0] as ScoreItem.Note).pitch.midiPitch)
+        assertEquals(NoteDuration.WHOLE, (bar1After.items[0] as ScoreItem.Note).duration)
+
+        // Bar 2 is unlocked -> activeRecordingMeasureIdx is 1, and playing G4 (67) overwrites Bar 2
+        assertEquals(1, module.activeRecordingMeasureIdx)
+        module.input.receive(Message.VoiceMessage(ScoreTime(2_000_000_000L), Message.VoiceOpcode.NOTE_ON, tag = 2, value = 67.0, extra = 0.8))
+        module.input.receive(Message.VoiceMessage(ScoreTime(3_900_000_000L), Message.VoiceOpcode.NOTE_OFF, tag = 2, value = 67.0, extra = 0.0))
+
+        module.stopRealTimeRecording(ScoreTime(4_000_000_000L))
+
+        // Bar 1 still untouched; Bar 2 updated to G4 (67)
+        assertEquals(60, (module.scoreData.measures[0].items[0] as ScoreItem.Note).pitch.midiPitch)
+        val bar2After = module.scoreData.measures[1]
+        assertTrue(bar2After.items.any { it is ScoreItem.Note && it.soundingPitches().any { p -> p.midiPitch == 67 } })
+        assertFalse(bar2After.items.any { it is ScoreItem.Note && it.soundingPitches().any { p -> p.midiPitch == 62 } })
+
+        // Verify MERGE mode also leaves locked Bar 1 untouched
+        module.recordMode = ScoreRecordMode.MERGE
+        module.startRealTimeRecording(ScoreTime(0L))
+        module.input.receive(Message.VoiceMessage(ScoreTime(500_000_000L), Message.VoiceOpcode.NOTE_ON, tag = 3, value = 69.0, extra = 0.8))
+        module.input.receive(Message.VoiceMessage(ScoreTime(1_000_000_000L), Message.VoiceOpcode.NOTE_OFF, tag = 3, value = 69.0, extra = 0.0))
+        module.stopRealTimeRecording(ScoreTime(1_500_000_000L))
+
+        val bar1AfterMerge = module.scoreData.measures[0]
+        assertEquals(1, bar1AfterMerge.items.size)
+        assertEquals(60, (bar1AfterMerge.items[0] as ScoreItem.Note).pitch.midiPitch)
+    }
 }

@@ -64,10 +64,14 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
@@ -2390,6 +2394,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         scrollOffsetPx = scrollState.value,
                         loopMode = module.loopMode,
                         loopRange = effectiveLoopRange,
+                        lockedOffsets = module.loopLockedOffsets,
                         isDark = isDark,
                         borderMuted = borderMuted,
                         toolbarText = toolbarText,
@@ -2401,6 +2406,11 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         },
                         onToggleLoopMode = {
                             module.toggleLoopMode()
+                            FileState.markDirty()
+                            focusRequester.requestFocus()
+                        },
+                        onToggleMeasureLock = { measureIdx ->
+                            module.toggleLoopMeasureLock(measureIdx)
                             FileState.markDirty()
                             focusRequester.requestFocus()
                         },
@@ -5767,18 +5777,112 @@ private enum class ScoreLoopDragMode {
     SWEEP_SELECT,
 }
 
+private fun loopLockIconHorizontalBounds(
+    mLeft: Float,
+    mRight: Float,
+    isLoopFirst: Boolean,
+    isLoopLast: Boolean,
+    iconSizePx: Float,
+    leftHandlePadPx: Float,
+    rightHandlePadPx: Float,
+    minTextSpacePx: Float,
+): Pair<Float, Float>? {
+    val leftInset = if (isLoopFirst) leftHandlePadPx else 4f
+    val rightInset = if (isLoopLast) rightHandlePadPx else 5f
+    val iconRight = mRight - rightInset
+    val iconLeft = iconRight - iconSizePx
+    if (iconLeft < mLeft + leftInset + minTextSpacePx) return null
+    return iconLeft to iconRight
+}
+
+private fun DrawScope.drawLoopLockIcon(
+    topLeft: Offset,
+    iconSize: Float,
+    locked: Boolean,
+    color: Color,
+) {
+    val strokeW = (iconSize * 0.14f).coerceIn(1.0f, 1.8f)
+    val bodyLeft = topLeft.x + iconSize * 0.42f
+    val bodyTop = topLeft.y + iconSize * 0.44f
+    val bodyWidth = iconSize * 0.54f
+    val bodyHeight = iconSize * 0.46f
+
+    val shackleRadius = iconSize * 0.19f
+    val shackleTop = topLeft.y + iconSize * 0.12f
+    val shackleBottom = topLeft.y + iconSize * 0.46f
+    // Left leg of the locked shackle (and pivot when swung 180 degrees open to the left)
+    val pivotX = bodyLeft + bodyWidth * 0.5f - shackleRadius
+
+    val shacklePath = Path().apply {
+        if (locked) {
+            moveTo(pivotX, shackleBottom)
+            lineTo(pivotX, shackleTop + shackleRadius)
+            arcTo(
+                Rect(
+                    pivotX,
+                    shackleTop,
+                    pivotX + shackleRadius * 2f,
+                    shackleTop + shackleRadius * 2f,
+                ),
+                startAngleDegrees = 180f,
+                sweepAngleDegrees = 180f,
+                forceMoveTo = false,
+            )
+            lineTo(pivotX + shackleRadius * 2f, shackleBottom)
+        } else {
+            // Shackle rotated 180 degrees around the left leg so it extends out to the left past the body
+            val leftEndX = pivotX - shackleRadius * 2f
+            moveTo(pivotX, shackleBottom)
+            lineTo(pivotX, shackleTop + shackleRadius)
+            arcTo(
+                Rect(
+                    leftEndX,
+                    shackleTop,
+                    pivotX,
+                    shackleTop + shackleRadius * 2f,
+                ),
+                startAngleDegrees = 0f,
+                sweepAngleDegrees = -180f,
+                forceMoveTo = false,
+            )
+            lineTo(leftEndX, shackleBottom)
+        }
+    }
+    drawPath(shacklePath, color = color, style = Stroke(width = strokeW, cap = StrokeCap.Round))
+
+    val corner = CornerRadius(1.5.dp.toPx(), 1.5.dp.toPx())
+    if (locked) {
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(bodyLeft, bodyTop),
+            size = Size(bodyWidth, bodyHeight),
+            cornerRadius = corner,
+        )
+    } else {
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(bodyLeft, bodyTop),
+            size = Size(bodyWidth, bodyHeight),
+            cornerRadius = corner,
+            style = Stroke(width = strokeW),
+        )
+    }
+}
+
 @Composable
 private fun ScoreLoopBar(
     layout: ScoreLayout,
     scrollOffsetPx: Int,
     loopMode: Boolean,
     loopRange: IntRange,
+    lockedOffsets: Set<Int> = emptySet(),
     isDark: Boolean,
     borderMuted: Color,
     toolbarText: Color,
     textMeasurer: TextMeasurer,
     onLoopRangeChange: (Int, Int) -> Unit,
     onToggleLoopMode: () -> Unit,
+    onToggleMeasureLock: (Int) -> Unit = {},
     showLeftGutterLabel: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
@@ -5787,20 +5891,28 @@ private fun ScoreLoopBar(
     val currentLoopRange by rememberUpdatedState(loopRange)
     val currentOnRangeChange by rememberUpdatedState(onLoopRangeChange)
     val currentOnToggleLoopMode by rememberUpdatedState(onToggleLoopMode)
+    val currentOnToggleMeasureLock by rememberUpdatedState(onToggleMeasureLock)
 
     val barBg = if (isDark) Color(0xFF111827) else Color(0xFFF3F4F6)
     val trackBg = if (isDark) Color(0xFF1E293B) else Color(0xFFE0E0E0)
     val activeFill = if (isDark) Color(0xFF3B82F6).copy(alpha = 0.45f) else Color(0xFF90CAF9).copy(alpha = 0.65f)
     val inactiveFill = if (isDark) Color(0xFF475569).copy(alpha = 0.35f) else Color(0xFF94A3B8).copy(alpha = 0.28f)
+    val lockedFill = Color(0xFFF59E0B).copy(alpha = if (loopMode) 0.24f else 0.12f)
     val activeHandle = if (isDark) Color(0xFF60A5FA) else Color(0xFF1D4ED8)
     val inactiveHandle = if (isDark) Color(0xFF64748B) else Color(0xFF64748B)
     val activeBorder = if (isDark) Color(0xFF60A5FA) else Color(0xFF2563EB)
+    val lockedIconColor = if (isDark) {
+        Color(0xFFFBBF24).copy(alpha = if (loopMode) 1f else 0.65f)
+    } else {
+        Color(0xFFB45309).copy(alpha = if (loopMode) 1f else 0.65f)
+    }
     val labelTextColor = if (loopMode) {
         if (isDark) Color(0xFF81C784) else Color(0xFF15803D)
     } else {
         toolbarText.copy(alpha = 0.72f)
     }
     val barNumberColor = if (isDark) Color(0xFFCBD5E1) else Color(0xFF334155)
+    val unlockedIconColor = barNumberColor.copy(alpha = if (loopMode) 0.45f else 0.28f)
     val tickColor = if (isDark) Color(0x33FFFFFF) else Color(0x33000000)
 
     Canvas(
@@ -5841,6 +5953,50 @@ private fun ScoreLoopBar(
 
                     val nearLeft = abs(clickCanvasX - loopLeftX) <= tolPx
                     val nearRight = abs(clickCanvasX - loopRightX) <= tolPx
+                    val lockIconSizePx = 11.dp.toPx()
+                    val lockLeftHandlePadPx = 8.dp.toPx()
+                    val lockRightHandlePadPx = 9.dp.toPx()
+                    val lockMinTextSpacePx = 16.dp.toPx()
+                    val lockHitPadPx = 4.dp.toPx()
+
+                    if (!nearLeft && !nearRight && clickCanvasX in loopLeftX..loopRightX) {
+                        val hitLockMeasure = range.firstOrNull { mIdx ->
+                            val (mLeftC, mRightC) = lyt.measureSpanX(mIdx) ?: return@firstOrNull false
+                            val bounds = loopLockIconHorizontalBounds(
+                                mLeft = mLeftC,
+                                mRight = mRightC,
+                                isLoopFirst = mIdx == range.first,
+                                isLoopLast = mIdx == range.last,
+                                iconSizePx = lockIconSizePx,
+                                leftHandlePadPx = lockLeftHandlePadPx,
+                                rightHandlePadPx = lockRightHandlePadPx,
+                                minTextSpacePx = lockMinTextSpacePx,
+                            ) ?: return@firstOrNull false
+                            clickCanvasX in (bounds.first - lockHitPadPx)..(bounds.second + lockHitPadPx)
+                        }
+                        if (hitLockMeasure != null) {
+                            down.consume()
+                            val downCanvasX = clickCanvasX
+                            var movedTooFar = false
+                            val moveSlopPx = 4.dp.toPx()
+                            do {
+                                val event = awaitPointerEvent()
+                                val change = event.changes.firstOrNull()
+                                if (change != null && change.pressed) {
+                                    change.consume()
+                                    val curCanvasX = change.position.x + currentScrollOffset
+                                    if (abs(curCanvasX - downCanvasX) > moveSlopPx) {
+                                        movedTooFar = true
+                                    }
+                                }
+                            } while (event.changes.any { it.pressed })
+                            if (!movedTooFar) {
+                                currentOnToggleMeasureLock(hitLockMeasure)
+                            }
+                            return@awaitEachGesture
+                        }
+                    }
+
                     val dragMode = when {
                         nearLeft && (!nearRight || abs(clickCanvasX - loopLeftX) <= abs(clickCanvasX - loopRightX)) ->
                             ScoreLoopDragMode.START_HANDLE
@@ -5949,6 +6105,19 @@ private fun ScoreLoopBar(
                         topLeft = Offset(clippedLeft, topY),
                         size = Size(clippedRight - clippedLeft, boxH),
                     )
+                    for (mIdx in loopRange) {
+                        if ((mIdx - loopRange.first) !in lockedOffsets) continue
+                        val (mLeftC, mRightC) = layout.measureSpanX(mIdx) ?: continue
+                        val mLeftClipped = max(0f, toScreenX(mLeftC))
+                        val mRightClipped = min(size.width, toScreenX(mRightC))
+                        if (mRightClipped > mLeftClipped) {
+                            drawRect(
+                                color = lockedFill,
+                                topLeft = Offset(mLeftClipped, topY),
+                                size = Size(mRightClipped - mLeftClipped, boxH),
+                            )
+                        }
+                    }
                     if (loopMode) {
                         drawLine(activeBorder, Offset(clippedLeft, topY), Offset(clippedRight, topY), strokeWidth = 1.5f)
                         drawLine(activeBorder, Offset(clippedLeft, topY + boxH), Offset(clippedRight, topY + boxH), strokeWidth = 1.5f)
@@ -5998,6 +6167,28 @@ private fun ScoreLoopBar(
                         drawText(
                             textLayoutResult = numRes,
                             topLeft = Offset(numX, (size.height - numRes.size.height) * 0.5f),
+                        )
+                    }
+                }
+                if (mIdx in loopRange) {
+                    val lockIconSizePx = 11.dp.toPx()
+                    val bounds = loopLockIconHorizontalBounds(
+                        mLeft = mLeft,
+                        mRight = mRight,
+                        isLoopFirst = mIdx == loopRange.first,
+                        isLoopLast = mIdx == loopRange.last,
+                        iconSizePx = lockIconSizePx,
+                        leftHandlePadPx = 8.dp.toPx(),
+                        rightHandlePadPx = 9.dp.toPx(),
+                        minTextSpacePx = 16.dp.toPx(),
+                    )
+                    if (bounds != null && bounds.first >= 0f && bounds.second <= size.width) {
+                        val isLocked = (mIdx - loopRange.first) in lockedOffsets
+                        drawLoopLockIcon(
+                            topLeft = Offset(bounds.first, (size.height - lockIconSizePx) * 0.5f),
+                            iconSize = lockIconSizePx,
+                            locked = isLocked,
+                            color = if (isLocked) lockedIconColor else unlockedIconColor,
                         )
                     }
                 }

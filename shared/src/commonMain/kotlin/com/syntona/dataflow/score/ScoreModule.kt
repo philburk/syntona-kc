@@ -74,6 +74,13 @@ class ScoreModule : Module("score"), EngineAware {
     var loopEndMeasure by mutableStateOf(DEFAULT_LOOP_END_MEASURE)
         private set
 
+    /**
+     * 0-based measure offsets relative to [loopStartMeasure] that are locked against real-time
+     * recording overwrites while looping. Travels with the left edge of the loop.
+     */
+    var loopLockedOffsets by mutableStateOf<Set<Int>>(emptySet())
+        private set
+
     fun toggleLoopMode() {
         loopMode = !loopMode
     }
@@ -93,6 +100,53 @@ class ScoreModule : Module("score"), EngineAware {
         val clampedEnd = endMeasureIdx.coerceIn(clampedStart, lastIdx)
         loopStartMeasure = clampedStart
         loopEndMeasure = clampedEnd
+        val maxOffset = clampedEnd - clampedStart
+        if (loopLockedOffsets.any { it !in 0..maxOffset }) {
+            loopLockedOffsets = loopLockedOffsets.filterTo(linkedSetOf()) { it in 0..maxOffset }
+        }
+    }
+
+    /** Returns `true` if 0-based [measureIdx] is inside the active loop and currently locked. */
+    fun isMeasureLockedInLoop(measureIdx: Int, measureCount: Int = scoreData.maxMeasureCount()): Boolean {
+        if (!loopMode) return false
+        return isLoopOffsetLocked(measureIdx, measureCount)
+    }
+
+    /**
+     * Returns `true` if 0-based [measureIdx] is within [effectiveLoopRange] and its relative
+     * offset is locked (regardless of whether [loopMode] is enabled).
+     */
+    fun isLoopOffsetLocked(measureIdx: Int, measureCount: Int = scoreData.maxMeasureCount()): Boolean {
+        val range = effectiveLoopRange(measureCount)
+        if (measureIdx !in range) return false
+        return (measureIdx - range.first) in loopLockedOffsets
+    }
+
+    /** Toggles the loop lock state for 0-based [measureIdx] if it lies inside [effectiveLoopRange]. */
+    fun toggleLoopMeasureLock(measureIdx: Int) {
+        val range = effectiveLoopRange()
+        if (measureIdx !in range) return
+        val offset = measureIdx - range.first
+        loopLockedOffsets = if (offset in loopLockedOffsets) {
+            loopLockedOffsets - offset
+        } else {
+            loopLockedOffsets + offset
+        }
+    }
+
+    /** Sets the loop lock state for 0-based [measureIdx] if it lies inside [effectiveLoopRange]. */
+    fun setLoopMeasureLocked(measureIdx: Int, locked: Boolean) {
+        val range = effectiveLoopRange()
+        if (measureIdx !in range) return
+        val offset = measureIdx - range.first
+        loopLockedOffsets = if (locked) loopLockedOffsets + offset else loopLockedOffsets - offset
+    }
+
+    /** Replaces [loopLockedOffsets] with valid offsets inside the current [effectiveLoopRange]. */
+    fun updateLoopLockedOffsets(offsets: Set<Int>) {
+        val range = effectiveLoopRange()
+        val maxOffset = range.last - range.first
+        loopLockedOffsets = offsets.filterTo(linkedSetOf()) { it in 0..maxOffset }
     }
 
     /** 0-based instrument index currently armed for real-time MIDI recording, or `null` if none. */
@@ -481,8 +535,12 @@ class ScoreModule : Module("score"), EngineAware {
             msg.extra > 0.0
         if (!isNoteAttack) return
 
+        val punchMeasure = measureIndexForTick(tick)
+        if (isMeasureLockedInLoop(punchMeasure, playbackMeasureStartTicks.size)) {
+            return
+        }
+
         if (recordMode == ScoreRecordMode.REPLACE) {
-            val punchMeasure = measureIndexForTick(tick)
             if (punchedReplaceMeasures.add(armIdx to punchMeasure)) {
                 silenceActivePlaybackNotesForInstrument(armIdx, msg.time)
             }
@@ -566,6 +624,26 @@ class ScoreModule : Module("score"), EngineAware {
         val loopRange = if (loopMode) effectiveLoopRange(playbackMeasureStartTicks.size) else null
         val isLoopEndMeasure = loopRange != null && measureIdx == loopRange.last
         val snapTol = recordQuantizeGrid.ticks * 0.5
+
+        if (isMeasureLockedInLoop(measureIdx, playbackMeasureStartTicks.size)) {
+            val openIter = openRecordedNotes.entries.iterator()
+            while (openIter.hasNext()) {
+                val open = openIter.next().value
+                if (open.startTick >= mStart - snapTol && open.startTick < mEnd) {
+                    if (atTick == null && !isLoopEndMeasure) {
+                        open.startTick = mEnd
+                    } else if (atTick == null) {
+                        openIter.remove()
+                    }
+                }
+            }
+            for (staffIdx in 0 until inst.staffCount) {
+                bufferedNotesByStaffMeasure.remove(staffIdx to measureIdx)
+                carriedNotesByStaffMeasure.remove(staffIdx to measureIdx)
+            }
+            punchedReplaceMeasures.remove(armIdx to measureIdx)
+            return
+        }
 
         // Split any still-held notes that started inside this measure so they transcribe cleanly
         // and carry their sustained tail into the next measure (unless at the end of a loop, where
@@ -1165,7 +1243,8 @@ class ScoreModule : Module("score"), EngineAware {
                     val mStartTime = cycleOriginTime + ScoreTime((relStart * nsPerTick).roundToLong())
                     scheduledEvents.add(engine.schedule(mStartTime) {
                         if (isRealTimeRecording) {
-                            activeRecordingMeasureIdx = mIdx
+                            activeRecordingMeasureIdx =
+                                if (isMeasureLockedInLoop(mIdx, maxMeasureCount)) null else mIdx
                         }
                     })
                 }

@@ -336,7 +336,7 @@ Allow editing and removal of notes while looping. This will allow the user to
 play some notes in real time and then adjust them while continuing to loop.
 This will be a very desirable way to incrementally compose in real time.
 
-### BUG
+### BUG - Too many rests
 There is a problem with "too many rests" in real-time score entry.
 
 For example, when I play what I think are quarter notes,
@@ -356,7 +356,17 @@ Do not score a dotted eighth note followed by a sixteenth rest.
 
 Similar things are happening at other durations.
 
-## TODO
+
+### Phase 25 - Locks in the Loop
+
+When I am recording in real-time, I would like to be able to lock measures when I am looping.
+Otherwise, it is too easy to be able to erase them accidentally.
+Inside the loop, add lock icons for each measure. They should start out "unlocked."
+The position of the locked measures travels with the left edge of the loop.
+So if I have a loop over bars 10,11,12 and 13,
+and I lock 10 and 11,
+and then I drag the loop one measure over,
+the first two bars, 11 and 12, will be locked.
 
 ### Phase ? - Measure Lines
 Add support for typical measure lines.

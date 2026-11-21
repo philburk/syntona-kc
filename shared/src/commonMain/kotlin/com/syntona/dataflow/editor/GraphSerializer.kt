@@ -579,6 +579,9 @@ object GraphSerializer {
                 if (module.loopEndMeasure != ScoreModule.DEFAULT_LOOP_END_MEASURE) {
                     append(",\"loopEndMeasure\":${module.loopEndMeasure}")
                 }
+                if (module.loopLockedOffsets.isNotEmpty()) {
+                    append(",\"loopLockedOffsets\":[${module.loopLockedOffsets.sorted().joinToString(",")}]")
+                }
                 if (module.recordMode != ScoreRecordMode.REPLACE) {
                     append(",\"recordMode\":\"${module.recordMode.name}\"")
                 }
@@ -1939,6 +1942,9 @@ object GraphSerializer {
                     val e = (rawLoopEnd ?: module.loopEndMeasure).coerceIn(s, lastIdx)
                     module.setLoopRange(s, e)
                 }
+                (obj?.map?.get("loopLockedOffsets") as? JsonValue.Arr)?.items
+                    ?.mapNotNull { (it as? JsonValue.Num)?.value?.toInt() }
+                    ?.let { module.updateLoopLockedOffsets(it.toSet()) }
                 (obj?.map?.get("recordMode") as? JsonValue.Str)?.value?.let { modeName ->
                     ScoreRecordMode.entries.firstOrNull { it.name == modeName }?.let {
                         module.recordMode = it
