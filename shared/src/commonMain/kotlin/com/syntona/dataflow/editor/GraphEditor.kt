@@ -154,6 +154,7 @@ import com.syntona.dataflow.modules.MatchNoteOnModule
 import com.syntona.dataflow.modules.MatchNoteOnSequentialModule
 import com.syntona.dataflow.modules.BeatClockModule
 import com.syntona.dataflow.modules.ChebyshevOscModule
+import com.syntona.dataflow.modules.KSynInstrumentModule
 import com.softsynth.ksyn.unitgen.ChebyshevOscillator
 import com.syntona.dataflow.modules.BeatLineModule
 import com.syntona.dataflow.modules.TimelineBeatUtils
@@ -1294,6 +1295,17 @@ fun ModuleNode(module: Module, state: GraphState, headerColor: Color? = null, la
                     options = ChebyshevOscillator.ORDERS
                 ) { order ->
                     module.order = order
+                    state.markChanged()
+                    FileState.markDirty()
+                }
+            }
+            if (module is KSynInstrumentModule && module.presetNames.size > 1) {
+                ModuleOptionDropdown(
+                    caption = "preset",
+                    selected = module.presetName,
+                    options = module.presetNames
+                ) { preset ->
+                    module.presetName = preset
                     state.markChanged()
                     FileState.markDirty()
                 }

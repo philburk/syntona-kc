@@ -67,6 +67,7 @@ import com.syntona.dataflow.modules.EquationModule
 import com.syntona.dataflow.modules.ScaleModule
 import com.syntona.dataflow.modules.BeatClockModule
 import com.syntona.dataflow.modules.ChebyshevOscModule
+import com.syntona.dataflow.modules.KSynInstrumentModule
 import com.syntona.dataflow.modules.MixerModule
 import com.syntona.dataflow.modules.TimelineModule
 import com.syntona.dataflow.modules.TrackSection
@@ -421,6 +422,9 @@ object GraphSerializer {
             }
             if (module is ChebyshevOscModule) {
                 append(",\"order\":${module.order}")
+            }
+            if (module is KSynInstrumentModule && module.presetName.isNotEmpty()) {
+                append(",\"preset\":\"${module.presetName.jsonEscape}\"")
             }
             if (module is MixerModule) {
                 if ((0 until module.numInputs).any { module.isChannelMuted(it) }) {
@@ -1180,6 +1184,13 @@ object GraphSerializer {
             }
             if (module is ChebyshevOscModule) {
                 (obj?.map?.get("order") as? JsonValue.Num)?.value?.let { module.order = it.toInt() }
+            }
+            if (module is KSynInstrumentModule) {
+                when (val presetVal = obj?.map?.get("preset")) {
+                    is JsonValue.Str -> module.presetName = presetVal.value
+                    is JsonValue.Num -> module.presetIndex = presetVal.value.toInt()
+                    else -> {}
+                }
             }
             if (module is MixerModule) {
                 (obj?.map?.get("muted") as? JsonValue.Arr)?.items?.forEachIndexed { chIdx, item ->

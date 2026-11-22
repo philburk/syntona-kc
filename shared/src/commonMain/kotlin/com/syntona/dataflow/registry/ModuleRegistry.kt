@@ -1,6 +1,8 @@
 package com.syntona.dataflow.registry
 
+import com.softsynth.ksyn.instruments.BowedStringVoice
 import com.softsynth.ksyn.unitgen.*
+import com.softsynth.ksyn.voices.VoiceDescription
 import com.syntona.dataflow.model.Module
 import com.syntona.dataflow.modules.*
 import com.syntona.dataflow.score.ScoreModule
@@ -173,6 +175,11 @@ object ModuleRegistry {
         "table8" to "use an index to look up a value in an 8-element table",
         "table16" to "use an index to look up a value in a 16-element table",
         "score" to "staff notation display and sequencer rendered with a SMuFL music font",
+
+        // ==========================================
+        // Music -> Instruments
+        // ==========================================
+        "bowedString" to "physical-modeling bowed string instrument (violin, viola, cello, double bass)",
 
         // ==========================================
         // KSyn (Top-level)
@@ -433,6 +440,11 @@ object ModuleRegistry {
         compose.modules.add(ModuleEntry("score") { ScoreModule() })
 
         val instruments = getOrCreateBundle(music, "instruments")
+        addKSynInstrument(
+            bundle = instruments,
+            voiceDescription = BowedStringVoice.getVoiceDescription(),
+            name = "bowedString"
+        )
         val sounds = getOrCreateBundle(music, "sounds")
 
         val ksyn = getOrCreateBundle(root, "ksyn")
@@ -764,5 +776,21 @@ object ModuleRegistry {
         ksynFactories[name] = unitFactory
         ksynClassFactories[T::class] = unitFactory
         bundle.modules.add(ModuleEntry(name, helpResourcePath) { UnitGeneratorModule(name, unitFactory()) })
+    }
+
+    fun addKSynInstrument(
+        bundle: Bundle,
+        voiceDescription: VoiceDescription,
+        name: String,
+        numVoices: Int = VoiceDescription.DEFAULT_NUM_VOICES,
+        defaultPresetIndex: Int = 0,
+        helpResourcePath: String? = null
+    ) {
+        bundle.modules.removeAll { it.name == name }
+        bundle.modules.add(
+            ModuleEntry(name, moduleDescriptions[name], helpResourcePath) {
+                KSynInstrumentModule(name, voiceDescription, numVoices, defaultPresetIndex)
+            }
+        )
     }
 }

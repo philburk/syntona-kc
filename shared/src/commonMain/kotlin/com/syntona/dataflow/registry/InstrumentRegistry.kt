@@ -31,8 +31,10 @@ object InstrumentRegistry {
                 "instruments"
             )
 
-            // Clear previous dynamically loaded instruments to avoid duplicates on re-index
-            instrumentsBundle.modules.clear()
+            // Clear previous dynamically loaded JSON instruments to avoid duplicates on re-index,
+            // preserving any code-registered KSynInstrumentModule entries.
+            val previousJsonNames = instrumentJsonCache.keys.toSet()
+            instrumentsBundle.modules.removeAll { it.name in previousJsonNames }
 
             for (path in instrumentFiles) {
                 try {
@@ -43,9 +45,10 @@ object InstrumentRegistry {
                         .substringBeforeLast(SYNTONA_FILE_SUFFIX)
 
                     instrumentJsonCache[instrumentName] = jsonContent
+                    instrumentsBundle.modules.removeAll { it.name == instrumentName }
 
                     instrumentsBundle.modules.add(
-                        ModuleRegistry.ModuleEntry(instrumentName) {
+                        ModuleRegistry.ModuleEntry(instrumentName, description = ModuleRegistry.moduleDescriptions[instrumentName]) {
                             createInstrumentPatch(instrumentName, instrumentJsonCache[instrumentName] ?: jsonContent, path)
                         }
                     )

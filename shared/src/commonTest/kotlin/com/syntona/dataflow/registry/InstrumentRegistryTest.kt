@@ -19,7 +19,8 @@ class InstrumentRegistryTest {
         InstrumentRegistry.unregisterInstrument("testPolySynth")
         val music = ModuleRegistry.root.subBundles.find { it.name == "music" }
         val instruments = music?.subBundles?.find { it.name == "instruments" }
-        instruments?.modules?.clear()
+        val jsonNames = InstrumentRegistry.instrumentJsonCache.keys.toSet()
+        instruments?.modules?.removeAll { it.name in jsonNames }
         InstrumentRegistry.instrumentJsonCache.clear()
     }
 

@@ -52,7 +52,18 @@ class AudioInputJack(
             polyPatch?.syncInputJackValueAdded(this, value)
         }
 
-    override fun getValue(): Double = unitInputPort.get(partIndex).toDouble()
+    override fun getValue(): Double {
+        // Read _valueRevision so Compose recomposes when a preset updates the underlying port.
+        _valueRevision
+        return unitInputPort.get(partIndex).toDouble()
+    }
+
+    private var _valueRevision by mutableStateOf(0)
+
+    /** Notifies Compose readers of [getValue] that the underlying [unitInputPort] value changed. */
+    fun notifyPortValueChanged() {
+        _valueRevision++
+    }
 
     // setValue() is inherited from InputJack: it calls receive(), which both applies the
     // value to the KSyn port and syncs it to any polyPatch background voices below.
@@ -60,6 +71,7 @@ class AudioInputJack(
     override fun receive(msg: Message) {
         if (msg is Message.FloatValue) {
             unitInputPort.set(partIndex, msg.value.toFloat())
+            _valueRevision++
         }
         super.receive(msg)
     }

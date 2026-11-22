@@ -1,5 +1,8 @@
 package com.syntona.dataflow.modules
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.syntona.dataflow.model.AutoDisableVoiceMode
 import com.syntona.dataflow.model.AutoDisableVoiceModule
 import com.syntona.dataflow.model.defaultAutoDisableVoiceMode
@@ -7,8 +10,16 @@ import com.softsynth.ksyn.unitgen.SupportsAutoDisable
 import com.softsynth.ksyn.ports.UnitInputPort
 import com.softsynth.ksyn.ports.UnitOutputPort
 import com.softsynth.ksyn.ports.UnitDataQueuePort
+import com.softsynth.ksyn.shared.time.TimeStamp
 import com.softsynth.ksyn.unitgen.UnitGenerator
+import com.softsynth.ksyn.voices.PolyphonicInstrument
+import com.softsynth.ksyn.voices.VoiceDescription
 import com.syntona.core.audio.SynthKSyn
+import com.syntona.core.model.ScoreTime
+import com.syntona.dataflow.engine.DataFlowEngine
+import com.syntona.dataflow.engine.EngineAware
+import com.syntona.dataflow.engine.ScheduledEvent
+import com.syntona.dataflow.model.AudioInputJack
 import com.syntona.dataflow.model.InputJack
 import com.syntona.dataflow.model.Message
 import com.syntona.dataflow.model.Module
@@ -134,6 +145,186 @@ open class UnitGeneratorModule(name: String, val unit: UnitGenerator) : Module(n
             }
         }
         SynthKSyn.synth.remove(unit)
+        super.teardown()
+    }
+}
+
+/**
+ * A Syntona [Module] that wraps a KSyn [PolyphonicInstrument] created from a [VoiceDescription].
+ *
+ * Exposes:
+ * - A MIDI [com.syntona.dataflow.model.VoiceInputJack] named "input"
+ * - An [AudioInputJack] for each exported [UnitInputPort] on the instrument
+ * - An [com.syntona.dataflow.model.AudioOutputJack] named "output" (mono) or "out0"/"out1" (stereo)
+ * - Preset selection from [VoiceDescription.presetNames]
+ */
+class KSynInstrumentModule(
+    name: String,
+    val voiceDescription: VoiceDescription,
+    val numVoices: Int = VoiceDescription.DEFAULT_NUM_VOICES,
+    defaultPresetIndex: Int = 0
+) : Module(name), EngineAware {
+
+    override val isAllowedInPolyPatch: Boolean
+        get() = false
+
+    val instrument: PolyphonicInstrument =
+        voiceDescription.createPolyphonicInstrument(SynthKSyn.synth, numVoices)
+
+    val voiceInputJack = addVoiceInput("input", isKickable = true)
+
+    val presetNames: List<String> = voiceDescription.presetNames.toList()
+
+    private var _presetIndex by mutableStateOf(0)
+
+    var presetIndex: Int
+        get() = _presetIndex
+        set(value) {
+            val validIndex = if (presetNames.isNotEmpty()) {
+                value.coerceIn(0, presetNames.lastIndex)
+            } else {
+                0
+            }
+            _presetIndex = validIndex
+            instrument.usePreset(validIndex)
+            for (jack in inputs) {
+                if (jack is AudioInputJack) {
+                    jack.notifyPortValueChanged()
+                }
+            }
+        }
+
+    var presetName: String
+        get() = presetNames.getOrElse(_presetIndex) { "" }
+        set(value) {
+            val idx = presetNames.indexOfFirst { it.equals(value, ignoreCase = true) }
+            if (idx >= 0) {
+                presetIndex = idx
+            }
+        }
+
+    private var engine: DataFlowEngine? = null
+    private val pendingNoteOffs = mutableMapOf<Int, ScheduledEvent>()
+
+    init {
+        SynthKSyn.synth.add(instrument)
+        for (port in instrument.getPorts()) {
+            val rawName = port.name
+            val baseName = rawName.replaceFirstChar { it.lowercase() }
+            if (port is UnitInputPort) {
+                for (i in 0 until port.numParts) {
+                    val jackName = if (port.numParts == 1) baseName else "$baseName$i"
+                    addAudioInput(jackName, port, i)
+                }
+            }
+        }
+        val outputPort = instrument.getOutputPort()
+        if (outputPort.numParts == 1) {
+            addAudioOutput("output", outputPort, 0)
+        } else {
+            for (i in 0 until outputPort.numParts) {
+                addAudioOutput("out$i", outputPort, i)
+            }
+        }
+        presetIndex = defaultPresetIndex
+        if (instrument.isStartRequired) {
+            instrument.start()
+        }
+    }
+
+    override fun setEngine(engine: DataFlowEngine) {
+        this.engine = engine
+    }
+
+    override fun onMessageReceived(jack: InputJack, msg: Message) {
+        if (jack === voiceInputJack && msg is Message.VoiceMessage) {
+            val timeStamp = SynthKSyn.synth.createTimeStamp()
+            when (msg.opcode) {
+                Message.VoiceOpcode.NOTE_ON -> {
+                    pendingNoteOffs.remove(msg.tag)?.cancel()
+                    instrument.noteOn(msg.tag, msg.value, msg.extra, timeStamp)
+                }
+                Message.VoiceOpcode.NOTE_OFF -> {
+                    pendingNoteOffs.remove(msg.tag)?.cancel()
+                    instrument.noteOff(msg.tag, timeStamp)
+                }
+                Message.VoiceOpcode.NOTE -> {
+                    pendingNoteOffs.remove(msg.tag)?.cancel()
+                    val durSec = msg.duration.coerceAtLeast(0.0)
+                    instrument.noteOn(msg.tag, msg.value, msg.extra, timeStamp)
+                    val offTime = msg.time + ScoreTime.fromSeconds(durSec)
+                    val e = engine
+                    if (e != null) {
+                        var scheduled: ScheduledEvent? = null
+                        scheduled = e.schedule(offTime) {
+                            if (pendingNoteOffs[msg.tag] === scheduled) {
+                                pendingNoteOffs.remove(msg.tag)
+                            }
+                            val offStamp = SynthKSyn.synth.createTimeStamp()
+                            instrument.noteOff(msg.tag, offStamp)
+                        }
+                        pendingNoteOffs[msg.tag] = scheduled
+                    } else {
+                        instrument.noteOff(msg.tag, timeStamp)
+                    }
+                }
+                Message.VoiceOpcode.CONTROL_CHANGE -> {
+                    setVoicePort(msg.tag, "control${msg.extra.toInt()}", msg.value, timeStamp)
+                }
+                Message.VoiceOpcode.PRESSURE -> {
+                    setVoicePort(msg.tag, "pressure", msg.value, timeStamp)
+                }
+                Message.VoiceOpcode.PITCH_BEND -> {
+                    setVoicePitchBend(msg.tag, msg.value, timeStamp)
+                }
+                Message.VoiceOpcode.PROGRAM_CHANGE -> {
+                    if (presetNames.isNotEmpty()) {
+                        presetIndex = msg.value.toInt().coerceIn(0, presetNames.lastIndex)
+                    } else {
+                        setVoicePort(msg.tag, "program", msg.value, timeStamp)
+                    }
+                }
+            }
+        }
+        super.onMessageReceived(jack, msg)
+    }
+
+    private fun setVoicePort(tag: Int, portName: String, value: Double, timeStamp: TimeStamp) {
+        if (tag == -1) {
+            instrument.setPort(portName, value, timeStamp)
+        } else {
+            instrument.setPort(tag, portName, value, timeStamp)
+        }
+    }
+
+    private fun setVoicePitchBend(tag: Int, value: Double, timeStamp: TimeStamp) {
+        if (tag == -1) {
+            instrument.setPitchBend(value, timeStamp)
+        } else {
+            instrument.setPitchBend(tag, value, timeStamp)
+        }
+    }
+
+    override fun execute(triggerMessage: Message) {}
+
+    override fun teardown() {
+        pendingNoteOffs.values.forEach { it.cancel() }
+        pendingNoteOffs.clear()
+        if (instrument.isStartRequired) {
+            instrument.stop()
+        }
+        val outPort = instrument.getOutputPort()
+        for (i in 0 until outPort.numParts) {
+            outPort.disconnectAll(i)
+        }
+        for (port in instrument.getPorts()) {
+            if (port is com.softsynth.ksyn.ports.UnitBlockPort) {
+                for (i in 0 until port.numParts) {
+                    port.disconnectAll(i)
+                }
+            }
+        }
+        SynthKSyn.synth.remove(instrument)
         super.teardown()
     }
 }
