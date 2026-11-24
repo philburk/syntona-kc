@@ -2446,7 +2446,7 @@ class ScoreModuleTest {
         assertEquals(listOf(f4), pastedPastEnd.measures[3].items)
         assertTrue(pastedPastEnd.measures[4].items.isEmpty())
 
-        // Consecutive paste when selection includes the trailing empty bar (M5) starts at M6 (M6..M8)
+        // Pasting while those pasted measures are selected replaces M3..M5 in place
         val secondPaste = ScoreEditing.pasteClipboardContent(
             measures = pastedPastEnd.measures,
             content = clipRange,
@@ -2457,10 +2457,10 @@ class ScoreModuleTest {
             selectedMeasures = pastedPastEnd.pastedMeasures,
         )
         assertNotNull(secondPaste)
-        assertEquals(8, secondPaste.measures.size)
-        assertEquals(listOf(c4, d4, e4), secondPaste.measures[5].items)
-        assertEquals(listOf(f4), secondPaste.measures[6].items)
-        assertTrue(secondPaste.measures[7].items.isEmpty())
+        assertEquals(5, secondPaste.measures.size)
+        assertEquals(listOf(c4, d4, e4), secondPaste.measures[2].items)
+        assertEquals(listOf(f4), secondPaste.measures[3].items)
+        assertTrue(secondPaste.measures[4].items.isEmpty())
 
         // ItemSelection extending across multiple full bars past the last measure also appends all needed bars
         val itemSelection = ScoreClipboardContent.ItemSelection(
@@ -6266,6 +6266,37 @@ class ScoreModuleTest {
         )!!
         assertEquals(2, pastedMeasureOntoRest.measures.size)
         assertEquals(listOf(c4, d4, e4, f4), pastedMeasureOntoRest.measures[1].items)
+
+        // 5. Copy 2 measures, marquee-select 2 measures that contain notes (both selectedMeasures and selectedLocations set),
+        // and paste -> replaces the 2 selected measures instead of pasting after them
+        val fourBarScore = listOf(
+            ScoreMeasure(1, listOf(c4, d4, e4, f4)),
+            ScoreMeasure(2, listOf(f4, e4, d4, c4)),
+            ScoreMeasure(3, listOf(c4, c4, c4, c4)),
+            ScoreMeasure(4, listOf(d4, d4, d4, d4)),
+        )
+        val copiedTwoMeasures = ScoreEditing.copySelectionContent(
+            measures = fourBarScore,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            selectedMeasures = setOf(0, 1),
+        )!!
+        val marqueeSelectedLocations = (2..3).flatMap { m ->
+            (0..3).map { i -> ScoreItemLocation(m, i) }
+        }.toCollection(linkedSetOf())
+        val replacedTwoMeasures = ScoreEditing.pasteClipboardContent(
+            measures = fourBarScore,
+            content = copiedTwoMeasures,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            selectedLocations = marqueeSelectedLocations,
+            selectedMeasures = setOf(2, 3),
+        )!!
+        assertEquals(4, replacedTwoMeasures.measures.size)
+        assertEquals(listOf(c4, d4, e4, f4), replacedTwoMeasures.measures[2].items)
+        assertEquals(listOf(f4, e4, d4, c4), replacedTwoMeasures.measures[3].items)
     }
 
     @Test

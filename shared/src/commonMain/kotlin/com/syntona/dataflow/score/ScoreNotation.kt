@@ -2374,12 +2374,29 @@ object ScoreEditing {
         if (entries.isEmpty()) return null
         var current = renumber(measures)
         var afterClef = initialClef
-        val firstSelectedSlot = if (cursorPosition == null) {
+        val firstSelectedSlot = if (cursorPosition == null && selectedLocations.isNotEmpty()) {
             val (afterDelete, slot) = consumeSelectedItemsForPaste(current, selectedLocations)
             current = afterDelete
             slot
         } else {
             null
+        }
+        val clearSelectedMeasures = cursorPosition == null &&
+            firstSelectedSlot == null &&
+            selectedMeasures.isNotEmpty()
+        if (clearSelectedMeasures) {
+            current = current.mapIndexed { idx, m ->
+                if (idx in selectedMeasures) {
+                    m.copy(
+                        items = emptyList(),
+                        clefChanges = emptyMap(),
+                        dynamics = emptyMap(),
+                        beamOverrides = emptyMap(),
+                    )
+                } else {
+                    m
+                }
+            }
         }
         val (startMIdx, startIIdx) = when {
             cursorPosition != null -> {
@@ -2403,7 +2420,7 @@ object ScoreEditing {
                     0 to 0
                 } else {
                     val m = selectedMeasures.min().coerceIn(0, current.lastIndex)
-                    m to current[m].items.size
+                    m to 0
                 }
             }
             else -> {
@@ -2661,7 +2678,22 @@ object ScoreEditing {
         var afterKey = initialKeySignature
         var afterTime = initialTimeSignature
 
-        val firstSelectedSlot = if (cursorPosition == null && selectedMeasures.isEmpty()) {
+        val replaceSelectedMeasures = cursorPosition == null && selectedMeasures.isNotEmpty()
+        if (replaceSelectedMeasures) {
+            current = current.mapIndexed { idx, m ->
+                if (idx in selectedMeasures) {
+                    m.copy(
+                        items = emptyList(),
+                        clefChanges = emptyMap(),
+                        dynamics = emptyMap(),
+                        beamOverrides = emptyMap(),
+                    )
+                } else {
+                    m
+                }
+            }
+        }
+        val firstSelectedSlot = if (cursorPosition == null && !replaceSelectedMeasures) {
             val (afterDelete, slot) = consumeSelectedItemsForPaste(current, selectedLocations)
             current = afterDelete
             slot
@@ -2681,6 +2713,9 @@ object ScoreEditing {
                     if (i > 0 && i == current[m].items.size) (m + 1) to 0 else m to i
                 }
             }
+            replaceSelectedMeasures -> {
+                selectedMeasures.min().coerceAtLeast(0) to 0
+            }
             firstSelectedSlot != null -> {
                 if (current.isEmpty()) {
                     0 to 0
@@ -2699,9 +2734,6 @@ object ScoreEditing {
                     ).coerceIn(0, current.lastIndex)
                     (lastM + 1) to 0
                 }
-            }
-            selectedMeasures.isNotEmpty() -> {
-                selectedMeasures.min().coerceAtLeast(0) to 0
             }
             else -> {
                 val lastNonEmpty = current.indexOfLast {
