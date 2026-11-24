@@ -6118,6 +6118,56 @@ class ScoreModuleTest {
             alignedSmallerFirst.items,
             ScoreEditing.fillMeasureWithRests(alignedSmallerFirst, TimeSignature.COMMON_TIME).items,
         )
+
+        // 8. Deliberately inserting/replacing a rest does NOT resolve rests; inserting notes afterwards does
+        val wholeRestBar = listOf(ScoreMeasure(1, listOf(ScoreItem.Rest(NoteDuration.WHOLE))))
+        val afterHalfRestReplace = ScoreEditing.replaceItemWithAutoFillRests(
+            measures = wholeRestBar,
+            loc = ScoreItemLocation(0, 0),
+            item = ScoreItem.Rest(NoteDuration.HALF),
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+        )
+        assertEquals(listOf(ScoreItem.Rest(NoteDuration.HALF)), afterHalfRestReplace[0].items)
+
+        val (afterFirstQ, _) = ScoreEditing.insertItemWithAutoFillRests(
+            measures = afterHalfRestReplace,
+            measureIdx = 0,
+            itemIdx = 1,
+            item = c4,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+        )
+        assertEquals(
+            listOf(ScoreItem.Rest(NoteDuration.HALF), c4, ScoreItem.Rest(NoteDuration.QUARTER)),
+            afterFirstQ[0].items,
+        )
+        val (afterSecondQ, _) = ScoreEditing.insertItemWithAutoFillRests(
+            measures = afterFirstQ,
+            measureIdx = 0,
+            itemIdx = 2,
+            item = c4,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+        )
+        assertEquals(
+            listOf(ScoreItem.Rest(NoteDuration.HALF), c4, c4),
+            afterSecondQ[0].items,
+        )
+
+        // Inserting a quarter rest after a quarter rest preserves unresolved rests until Fill with Rests
+        val (twoUnresolvedQ, _) = ScoreEditing.insertItemWithAutoFillRests(
+            measures = listOf(ScoreMeasure(1, listOf(ScoreItem.Rest(NoteDuration.QUARTER)))),
+            measureIdx = 0,
+            itemIdx = 1,
+            item = ScoreItem.Rest(NoteDuration.QUARTER),
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+        )
+        assertEquals(
+            listOf(ScoreItem.Rest(NoteDuration.QUARTER), ScoreItem.Rest(NoteDuration.QUARTER)),
+            twoUnresolvedQ[0].items,
+        )
+        assertEquals(
+            listOf(ScoreItem.Rest(NoteDuration.WHOLE)),
+            ScoreEditing.fillMeasureWithRests(twoUnresolvedQ[0], TimeSignature.COMMON_TIME).items,
+        )
     }
 
     @Test

@@ -1067,10 +1067,23 @@ object ScoreEditing {
         appendNewMeasure: Boolean = false,
         shiftClefAtIndex: Boolean = false,
     ): Pair<List<ScoreMeasure>, ScoreItemLocation> {
+        if (item is ScoreItem.Rest) {
+            return insertItem(
+                measures = measures,
+                measureIdx = measureIdx,
+                itemIdx = itemIdx,
+                item = item,
+                appendNewMeasure = appendNewMeasure,
+                shiftClefAtIndex = shiftClefAtIndex,
+            )
+        }
         val targetMeasure = measures.getOrNull(measureIdx)
         val effectiveIdx = if (!appendNewMeasure && targetMeasure != null &&
             targetMeasure.items.isNotEmpty() &&
-            targetMeasure.items.all { it is ScoreItem.Rest }
+            targetMeasure.items.all { it is ScoreItem.Rest } &&
+            measureExactTicks(targetMeasure) >= RationalTicks.of(
+                effectiveTimeAtMeasure(measures, initialTimeSignature, measureIdx).measureCapacityTicks
+            )
         ) {
             0
         } else {
@@ -1101,7 +1114,7 @@ object ScoreEditing {
         initialTimeSignature: TimeSignature,
     ): List<ScoreMeasure> {
         val replaced = replaceItem(measures, loc, item)
-        if (loc.measureIdx !in replaced.indices) return replaced
+        if (item is ScoreItem.Rest || loc.measureIdx !in replaced.indices) return replaced
         val effTime = effectiveTimeAtMeasure(replaced, initialTimeSignature, loc.measureIdx)
         return normalizeMeasureRestsInList(
             measures = replaced,
