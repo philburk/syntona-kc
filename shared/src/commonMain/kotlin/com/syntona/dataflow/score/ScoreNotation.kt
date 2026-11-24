@@ -1598,8 +1598,10 @@ object ScoreEditing {
             val byItem = measureSelections.groupBy { it.itemIdx }
             val nextItems = ArrayList<ScoreItem>(m.items.size)
             val removedIndices = mutableListOf<Int>()
-            var restDeletedInMeasure = false
+            val replacedRestTickRanges = mutableListOf<Pair<RationalTicks, RationalTicks>>()
+            var runningTick = RationalTicks.ZERO
             for ((iIdx, item) in m.items.withIndex()) {
+                val itemDur = item.exactTicks()
                 val locs = byItem[iIdx]
                 if (locs == null) {
                     nextItems.add(item)
@@ -1622,16 +1624,18 @@ object ScoreEditing {
                         nextItems.add(ScoreItem.Rest(item.duration, isDotted = item.isDotted, tuplet = item.tuplet))
                         val staff = locs.first().staff
                         replacedRests.add(ScoreItemLocation(mIdx, restIdx, staff = staff))
+                        replacedRestTickRanges.add(runningTick to (runningTick + itemDur))
                     }
                 } else if (item is ScoreItem.Note || item is ScoreItem.Chord) {
                     val restIdx = nextItems.size
                     nextItems.add(ScoreItem.Rest(item.duration, isDotted = item.isDotted, tuplet = item.tuplet))
                     val staff = locs.first().staff
                     replacedRests.add(ScoreItemLocation(mIdx, restIdx, staff = staff))
+                    replacedRestTickRanges.add(runningTick to (runningTick + itemDur))
                 } else {
                     removedIndices.add(iIdx)
-                    restDeletedInMeasure = true
                 }
+                runningTick += itemDur
             }
             val nextClefs = shiftIndexedMapOnDelete(m.clefChanges, removedIndices)
             val nextDynamics = shiftIndexedMapOnDelete(m.dynamics, removedIndices)
@@ -1642,10 +1646,24 @@ object ScoreEditing {
                 dynamics = nextDynamics,
                 beamOverrides = nextBeams,
             )
-            if (autoFillRests && restDeletedInMeasure) {
+            if (autoFillRests) {
                 val effTime = effectiveTimeAtMeasure(measures, initialTimeSignature, mIdx)
-                val lastNonRestIdx = edited.items.indexOfLast { it !is ScoreItem.Rest }
-                normalizeMeasureRestsAfterEdit(edited, lastNonRestIdx, effTime)
+                val resolved = fillMeasureWithRests(edited, effTime)
+                if (replacedRestTickRanges.isNotEmpty() && resolved != edited) {
+                    val staff = measureSelections.first().staff
+                    replacedRests.removeAll { it.measureIdx == mIdx }
+                    var rTick = RationalTicks.ZERO
+                    for ((rIdx, rItem) in resolved.items.withIndex()) {
+                        val rEnd = rTick + rItem.exactTicks()
+                        if (rItem is ScoreItem.Rest &&
+                            replacedRestTickRanges.any { (s, e) -> rTick < e && rEnd > s }
+                        ) {
+                            replacedRests.add(ScoreItemLocation(mIdx, rIdx, staff = staff))
+                        }
+                        rTick = rEnd
+                    }
+                }
+                resolved
             } else {
                 edited
             }
@@ -3337,25 +3355,29 @@ object ScoreEditing {
     }
 
     /**
-     * Appends standard rests to [measure] until its duration reaches [timeSignature]'s capacity.
-     * Leaves full or overfull measures unchanged. If [measure] ends with an incomplete tuplet
-     * that fits within remaining measure capacity, completes that tuplet with tuplet rests first.
+     * Resolves rests in [measure] and fills any remaining capacity up to [timeSignature]'s capacity:
+     * 1. Merges contiguous runs of non-tuplet rests into the fewest beat-aligned rests (smaller rests first).
+     * 2. Strips trailing non-tuplet rests at the end of the measure (deleting any past capacity) and
+     *    re-emits beat-aligned rests for any remaining capacity.
+     * 3. Completes an incomplete trailing tuplet with tuplet rests if it fits within remaining capacity.
+     * Overfull measures with no trailing rests are left unchanged.
      */
     fun fillMeasureWithRests(
         measure: ScoreMeasure,
         timeSignature: TimeSignature,
     ): ScoreMeasure {
+        val base = resolveExistingMeasureRests(measure, timeSignature)
         val capacity = RationalTicks.of(timeSignature.measureCapacityTicks)
-        var used = measureExactTicks(measure)
-        if (used >= capacity) return measure
+        var used = measureExactTicks(base)
+        if (used >= capacity) return base
 
         val appended = mutableListOf<ScoreItem.Rest>()
-        val lastTuplet = measure.items.lastOrNull()?.tuplet
+        val lastTuplet = base.items.lastOrNull()?.tuplet
         if (lastTuplet != null) {
-            val runStart = (measure.items.lastIndex downTo 0)
-                .takeWhile { measure.items[it].tuplet?.groupId == lastTuplet.groupId }
+            val runStart = (base.items.lastIndex downTo 0)
+                .takeWhile { base.items[it].tuplet?.groupId == lastTuplet.groupId }
                 .last()
-            val runItems = measure.items.subList(runStart, measure.items.size)
+            val runItems = base.items.subList(runStart, base.items.size)
             val unscaledSum = runItems.sumOf { it.totalTicks }
             if (lastTuplet.baseTicks > 0) {
                 val targetUnscaled = lastTuplet.actualCount * lastTuplet.baseTicks
@@ -3399,7 +3421,104 @@ object ScoreEditing {
         if (remaining > RationalTicks.ZERO) {
             appended.addAll(decomposeRestTicks(used, remaining, timeSignature))
         }
-        return if (appended.isEmpty()) measure else measure.copy(items = measure.items + appended)
+        return if (appended.isEmpty()) base else base.copy(items = base.items + appended)
+    }
+
+    private fun resolveExistingMeasureRests(
+        measure: ScoreMeasure,
+        timeSignature: TimeSignature,
+    ): ScoreMeasure {
+        val items = measure.items
+        if (items.isEmpty()) return measure
+        val lastNonPlainRestIdx = items.indexOfLast { !(it is ScoreItem.Rest && it.tuplet == null) }
+        val hasTrailingPlainRests = lastNonPlainRestIdx < items.lastIndex
+
+        val newItems = ArrayList<ScoreItem>(items.size)
+        val indexMap = IntArray(items.size) { -1 }
+        var changed = hasTrailingPlainRests
+        var runningTick = RationalTicks.ZERO
+        var i = 0
+        while (i <= lastNonPlainRestIdx) {
+            val item = items[i]
+            if (item is ScoreItem.Rest && item.tuplet == null) {
+                var j = i + 1
+                while (j <= lastNonPlainRestIdx) {
+                    val next = items[j]
+                    if (next is ScoreItem.Rest && next.tuplet == null &&
+                        j !in measure.clefChanges && j !in measure.dynamics
+                    ) {
+                        j++
+                    } else {
+                        break
+                    }
+                }
+                var runTicks = RationalTicks.ZERO
+                for (k in i until j) runTicks += items[k].exactTicks()
+                val runItems = items.subList(i, j)
+                val merged = if (j - i >= 2) {
+                    decomposeRestTicks(runningTick, runTicks, timeSignature)
+                } else {
+                    runItems
+                }
+                val replacement = if (merged != runItems) {
+                    changed = true
+                    merged
+                } else {
+                    runItems
+                }
+                val newStart = newItems.size
+                newItems.addAll(replacement)
+                indexMap[i] = newStart
+                for (k in (i + 1) until j) {
+                    indexMap[k] = (newStart + (k - i)).coerceAtMost(newItems.lastIndex)
+                }
+                runningTick += runTicks
+                i = j
+            } else {
+                indexMap[i] = newItems.size
+                newItems.add(item)
+                runningTick += item.exactTicks()
+                i++
+            }
+        }
+        if (!changed) return measure
+
+        val nextClefs = if (measure.clefChanges.isEmpty()) {
+            emptyMap()
+        } else {
+            buildMap {
+                for ((idx, clef) in measure.clefChanges) {
+                    val mapped = if (idx == 0 && newItems.isEmpty()) 0 else indexMap.getOrNull(idx) ?: -1
+                    if (mapped >= 0) put(mapped, clef)
+                }
+            }
+        }
+        val nextDynamics = if (measure.dynamics.isEmpty()) {
+            emptyMap()
+        } else {
+            buildMap {
+                for ((idx, dyn) in measure.dynamics) {
+                    val mapped = if (idx == 0 && newItems.isEmpty()) 0 else indexMap.getOrNull(idx) ?: -1
+                    if (mapped >= 0) put(mapped, dyn)
+                }
+            }
+        }
+        val nextBeams = if (measure.beamOverrides.isEmpty()) {
+            emptyMap()
+        } else {
+            buildMap {
+                for ((idx, beamed) in measure.beamOverrides) {
+                    val mapped = indexMap.getOrNull(idx) ?: -1
+                    if (mapped >= 0 && mapped < newItems.lastIndex) put(mapped, beamed)
+                }
+            }
+        }
+        return measure.copy(
+            items = newItems,
+            clefChanges = nextClefs,
+            dynamics = nextDynamics,
+            beamOverrides = nextBeams,
+        )
     }
 
     /**

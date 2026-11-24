@@ -6035,6 +6035,92 @@ class ScoreModuleTest {
     }
 
     @Test
+    fun testResolveTrailingAndAdjacentRestsOnFillPasteAndDelete() {
+        val c4 = ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 4), NoteDuration.QUARTER)
+        val e4 = ScoreItem.Note(SpelledPitch(NoteLetter.E, 0, 4), NoteDuration.EIGHTH)
+        val h4 = ScoreItem.Note(SpelledPitch(NoteLetter.G, 0, 4), NoteDuration.HALF)
+
+        // 1. Pasting 4 quarter notes before a whole rest -> trailing whole rest is deleted
+        val pastedFour = ScoreEditing.pasteClipboardItems(
+            measures = listOf(ScoreMeasure(1, listOf(ScoreItem.Rest(NoteDuration.WHOLE)))),
+            entries = List(4) { ScoreClipboardItem(relativeMeasureOffset = 0, item = c4) },
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            cursorPosition = ScoreCursorPosition(0, 0),
+        )!!
+        val resolvedFour = ScoreEditing.fillMeasuresWithRests(pastedFour.measures, TimeSignature.COMMON_TIME)
+        assertEquals(listOf(c4, c4, c4, c4), resolvedFour[0].items)
+
+        // 2. Pasting 2 quarter notes before a whole rest -> trailing whole rest becomes a half rest
+        val pastedTwo = ScoreEditing.pasteClipboardItems(
+            measures = listOf(ScoreMeasure(1, listOf(ScoreItem.Rest(NoteDuration.WHOLE)))),
+            entries = List(2) { ScoreClipboardItem(relativeMeasureOffset = 0, item = c4) },
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            cursorPosition = ScoreCursorPosition(0, 0),
+        )!!
+        val resolvedTwo = ScoreEditing.fillMeasuresWithRests(pastedTwo.measures, TimeSignature.COMMON_TIME)
+        assertEquals(listOf(c4, c4, ScoreItem.Rest(NoteDuration.HALF)), resolvedTwo[0].items)
+
+        // 3. Deleting all 4 quarter notes with autoFillRests merges 4 quarter rests into 1 whole rest
+        val fourQuarters = listOf(ScoreMeasure(1, listOf(c4, c4, c4, c4)))
+        val delAll = ScoreEditing.deleteSelectionItems(
+            measures = fourQuarters,
+            selection = (0 until 4).mapTo(linkedSetOf()) { ScoreItemLocation(0, it) },
+            autoFillRests = true,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+        )
+        assertEquals(listOf(ScoreItem.Rest(NoteDuration.WHOLE)), delAll.measures[0].items)
+        assertEquals(setOf(ScoreItemLocation(0, 0)), delAll.selectedRestLocations)
+
+        // 4. Deleting beats 3 & 4 merges into a trailing half rest
+        val delLastTwo = ScoreEditing.deleteSelectionItems(
+            measures = fourQuarters,
+            selection = setOf(ScoreItemLocation(0, 2), ScoreItemLocation(0, 3)),
+            autoFillRests = true,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+        )
+        assertEquals(listOf(c4, c4, ScoreItem.Rest(NoteDuration.HALF)), delLastTwo.measures[0].items)
+        assertEquals(setOf(ScoreItemLocation(0, 2)), delLastTwo.selectedRestLocations)
+
+        // 5. Deleting beats 2 & 3 keeps 2 quarter rests (half rest at beat 2 is unaligned)
+        val delMiddleTwo = ScoreEditing.deleteSelectionItems(
+            measures = fourQuarters,
+            selection = setOf(ScoreItemLocation(0, 1), ScoreItemLocation(0, 2)),
+            autoFillRests = true,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+        )
+        assertEquals(
+            listOf(c4, ScoreItem.Rest(NoteDuration.QUARTER), ScoreItem.Rest(NoteDuration.QUARTER), c4),
+            delMiddleTwo.measures[0].items,
+        )
+        assertEquals(setOf(ScoreItemLocation(0, 1), ScoreItemLocation(0, 2)), delMiddleTwo.selectedRestLocations)
+
+        // 6. Deleting beats 1 & 2 merges into a leading half rest
+        val delFirstTwo = ScoreEditing.deleteSelectionItems(
+            measures = fourQuarters,
+            selection = setOf(ScoreItemLocation(0, 0), ScoreItemLocation(0, 1)),
+            autoFillRests = true,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+        )
+        assertEquals(listOf(ScoreItem.Rest(NoteDuration.HALF), c4, c4), delFirstTwo.measures[0].items)
+        assertEquals(setOf(ScoreItemLocation(0, 0)), delFirstTwo.selectedRestLocations)
+
+        // 7. Fill with Rests merges 4 quarter rests into 1 whole rest, and keeps aligned smaller-first rests
+        val fourQRestBar = ScoreMeasure(1, List(4) { ScoreItem.Rest(NoteDuration.QUARTER) })
+        assertEquals(
+            listOf(ScoreItem.Rest(NoteDuration.WHOLE)),
+            ScoreEditing.fillMeasureWithRests(fourQRestBar, TimeSignature.COMMON_TIME).items,
+        )
+        val alignedSmallerFirst = ScoreMeasure(
+            1,
+            listOf(e4, ScoreItem.Rest(NoteDuration.EIGHTH), ScoreItem.Rest(NoteDuration.QUARTER), h4),
+        )
+        assertEquals(
+            alignedSmallerFirst.items,
+            ScoreEditing.fillMeasureWithRests(alignedSmallerFirst, TimeSignature.COMMON_TIME).items,
+        )
+    }
+
+    @Test
     fun testPhase25LoopLocksTravelWithLeftEdge() {
         val graph = GraphState()
         val module = ScoreModule()
