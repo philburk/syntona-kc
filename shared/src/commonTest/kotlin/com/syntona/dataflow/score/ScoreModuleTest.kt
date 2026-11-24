@@ -6121,6 +6121,104 @@ class ScoreModuleTest {
     }
 
     @Test
+    fun testPasteReplacesSelectedRestInsteadOfAdvancingToNextMeasure() {
+        val c4 = ScoreItem.Note(SpelledPitch(NoteLetter.C, 0, 4), NoteDuration.QUARTER)
+        val d4 = ScoreItem.Note(SpelledPitch(NoteLetter.D, 0, 4), NoteDuration.QUARTER)
+        val e4 = ScoreItem.Note(SpelledPitch(NoteLetter.E, 0, 4), NoteDuration.QUARTER)
+        val f4 = ScoreItem.Note(SpelledPitch(NoteLetter.F, 0, 4), NoteDuration.QUARTER)
+        val wholeRest = ScoreItem.Rest(NoteDuration.WHOLE)
+        val qRest = ScoreItem.Rest(NoteDuration.QUARTER)
+
+        // 1. Copy 4 quarter notes from M1, select whole rest in M2, paste -> M2 has the 4 notes and no M3 is added
+        val twoBarScore = listOf(
+            ScoreMeasure(1, listOf(c4, d4, e4, f4)),
+            ScoreMeasure(2, listOf(wholeRest)),
+        )
+        val copiedFour = ScoreEditing.copySelectionContent(
+            measures = twoBarScore,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            selectedLocations = (0..3).mapTo(linkedSetOf()) { ScoreItemLocation(0, it) },
+        )!!
+        val pastedOntoWholeRest = ScoreEditing.pasteClipboardContent(
+            measures = twoBarScore,
+            content = copiedFour,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            selectedLocations = setOf(ScoreItemLocation(1, 0)),
+        )!!
+        assertEquals(2, pastedOntoWholeRest.measures.size)
+        assertEquals(listOf(c4, d4, e4, f4), pastedOntoWholeRest.measures[1].items)
+        assertEquals(
+            (0..3).mapTo(linkedSetOf()) { ScoreItemLocation(1, it) },
+            pastedOntoWholeRest.pastedLocations,
+        )
+
+        // 2. Selecting notes and pasting replaces those selected notes in place
+        val copiedTwo = ScoreEditing.copySelectionContent(
+            measures = twoBarScore,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            selectedLocations = setOf(ScoreItemLocation(0, 2), ScoreItemLocation(0, 3)),
+        )!!
+        val replacedNotePaste = ScoreEditing.pasteClipboardContent(
+            measures = pastedOntoWholeRest.measures,
+            content = copiedTwo,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            selectedLocations = setOf(ScoreItemLocation(1, 0), ScoreItemLocation(1, 1)),
+        )!!
+        assertEquals(2, replacedNotePaste.measures.size)
+        assertEquals(listOf(e4, f4, e4, f4), replacedNotePaste.measures[1].items)
+        assertEquals(
+            setOf(ScoreItemLocation(1, 0), ScoreItemLocation(1, 1)),
+            replacedNotePaste.pastedLocations,
+        )
+
+        // 3. Selecting a mid-measure quarter rest replaces it in place
+        val midRestMeasures = listOf(ScoreMeasure(1, listOf(c4, qRest, d4, qRest)))
+        val copiedOne = ScoreEditing.copySelectionContent(
+            measures = twoBarScore,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            selectedLocations = setOf(ScoreItemLocation(0, 2)),
+        )!!
+        val pastedMidRest = ScoreEditing.pasteClipboardContent(
+            measures = midRestMeasures,
+            content = copiedOne,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            selectedLocations = setOf(ScoreItemLocation(0, 1)),
+        )!!
+        assertEquals(listOf(c4, e4, d4, qRest), pastedMidRest.measures[0].items)
+
+        // 4. Selecting a whole rest and pasting a MeasureRange also replaces the rest in M2
+        val copiedMeasure = ScoreEditing.copySelectionContent(
+            measures = twoBarScore,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            selectedMeasures = setOf(0),
+        )!!
+        val pastedMeasureOntoRest = ScoreEditing.pasteClipboardContent(
+            measures = twoBarScore,
+            content = copiedMeasure,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            selectedLocations = setOf(ScoreItemLocation(1, 0)),
+        )!!
+        assertEquals(2, pastedMeasureOntoRest.measures.size)
+        assertEquals(listOf(c4, d4, e4, f4), pastedMeasureOntoRest.measures[1].items)
+    }
+
+    @Test
     fun testPhase25LoopLocksTravelWithLeftEdge() {
         val graph = GraphState()
         val module = ScoreModule()

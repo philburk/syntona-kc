@@ -2337,6 +2337,17 @@ object ScoreEditing {
      * (missing rests) preserve their bar alignment and timing, while contiguous items that exceed
      * a measure's capacity still wrap across barlines according to each measure's time signature.
      */
+    private fun consumeSelectedItemsForPaste(
+        measures: List<ScoreMeasure>,
+        selectedLocations: Set<ScoreItemLocation>,
+    ): Pair<List<ScoreMeasure>, ScoreItemLocation?> {
+        if (selectedLocations.isEmpty()) return measures to null
+        val slots = selectedLocations.map { it.slotLocation() }
+        val firstSlot = slots.minWith(compareBy<ScoreItemLocation> { it.measureIdx }.thenBy { it.itemIdx })
+        val updated = deleteItems(measures, slots.toCollection(linkedSetOf()))
+        return updated to firstSlot
+    }
+
     fun pasteClipboardItems(
         measures: List<ScoreMeasure>,
         entries: List<ScoreClipboardItem>,
@@ -2350,6 +2361,13 @@ object ScoreEditing {
         if (entries.isEmpty()) return null
         var current = renumber(measures)
         var afterClef = initialClef
+        val firstSelectedSlot = if (cursorPosition == null) {
+            val (afterDelete, slot) = consumeSelectedItemsForPaste(current, selectedLocations)
+            current = afterDelete
+            slot
+        } else {
+            null
+        }
         val (startMIdx, startIIdx) = when {
             cursorPosition != null -> {
                 if (current.isEmpty()) {
@@ -2359,16 +2377,12 @@ object ScoreEditing {
                     m to cursorPosition.itemIdx.coerceIn(0, current[m].items.size)
                 }
             }
-            selectedLocations.isNotEmpty() -> {
-                val lastSel = selectedLocations
-                    .map { it.slotLocation() }
-                    .maxWith(compareBy<ScoreItemLocation> { it.measureIdx }.thenBy { it.itemIdx })
+            firstSelectedSlot != null -> {
                 if (current.isEmpty()) {
                     0 to 0
                 } else {
-                    val m = lastSel.measureIdx.coerceIn(0, current.lastIndex)
-                    val i = (lastSel.itemIdx + 1).coerceIn(0, current[m].items.size)
-                    m to i
+                    val m = firstSelectedSlot.measureIdx.coerceIn(0, current.lastIndex)
+                    m to firstSelectedSlot.itemIdx.coerceIn(0, current[m].items.size)
                 }
             }
             selectedMeasures.isNotEmpty() -> {
@@ -2634,6 +2648,13 @@ object ScoreEditing {
         var afterKey = initialKeySignature
         var afterTime = initialTimeSignature
 
+        val firstSelectedSlot = if (cursorPosition == null && selectedMeasures.isEmpty()) {
+            val (afterDelete, slot) = consumeSelectedItemsForPaste(current, selectedLocations)
+            current = afterDelete
+            slot
+        } else {
+            null
+        }
         val (startMIdx, startIIdx) = when {
             cursorPosition != null -> {
                 if (current.isEmpty()) {
@@ -2645,6 +2666,14 @@ object ScoreEditing {
                     // barline), start the pasted measure range on the following measure so copied bar 1
                     // retains its key/time/clef headers and new trailing bars are appended automatically.
                     if (i > 0 && i == current[m].items.size) (m + 1) to 0 else m to i
+                }
+            }
+            firstSelectedSlot != null -> {
+                if (current.isEmpty()) {
+                    0 to 0
+                } else {
+                    val m = firstSelectedSlot.measureIdx.coerceIn(0, current.lastIndex)
+                    m to firstSelectedSlot.itemIdx.coerceIn(0, current[m].items.size)
                 }
             }
             selectedLocations.isNotEmpty() -> {
