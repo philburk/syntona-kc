@@ -714,6 +714,25 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         }
     }
 
+    fun clearRecordedVelocitiesOnSelection() {
+        val prevSelection = selectedLocations
+        val hasSelectedNotes = prevSelection.any { loc ->
+            ScoreEditing.itemAt(score.staffMeasures(loc.staff), loc)?.soundingPitches()?.isNotEmpty() == true
+        }
+        if (!hasSelectedNotes) return
+        val affectedStaves = prevSelection.map { it.staff }.toSet()
+        updateMeasuresAcrossStaves(
+            staves = affectedStaves,
+            transform = { staffId, ms ->
+                val staffLocs = prevSelection.filterTo(mutableSetOf()) { it.staff == staffId }
+                ScoreEditing.clearVelocitiesOnSelection(ms, staffLocs)
+            },
+            onAfterRestore = {
+                refreshPitchDisplayFromSelection(selection = selectedLocations)
+            },
+        )
+    }
+
     fun replaceEntryItem(
         measures: List<ScoreMeasure>,
         loc: ScoreItemLocation,
@@ -1731,15 +1750,23 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 },
             )
 
+            val hasSelectedNotes = selectedLocations.any { loc ->
+                ScoreEditing.itemAt(score.staffMeasures(loc.staff), loc)?.soundingPitches()?.isNotEmpty() == true
+            }
             ScoreEditMenu(
                 textColor = toolbarText,
                 autoFillRests = module.autoFillRests,
+                hasSelectedNotes = hasSelectedNotes,
                 onFillWithRests = {
                     fillScoreWithRests()
                     focusRequester.requestFocus()
                 },
                 onToggleAutoFillRests = {
                     toggleAutoFillRests()
+                    focusRequester.requestFocus()
+                },
+                onClearRecordedVelocities = {
+                    clearRecordedVelocitiesOnSelection()
                     focusRequester.requestFocus()
                 },
             )
@@ -4066,8 +4093,10 @@ private fun ScoreFileMenu(
 private fun ScoreEditMenu(
     textColor: Color,
     autoFillRests: Boolean,
+    hasSelectedNotes: Boolean,
     onFillWithRests: () -> Unit,
     onToggleAutoFillRests: () -> Unit,
+    onClearRecordedVelocities: () -> Unit,
 ) {
     ScoreToolbarMenu(label = "Edit", textColor = textColor) { dismiss ->
         CompactDropdownMenuItem(
@@ -4085,6 +4114,15 @@ private fun ScoreEditMenu(
             onClick = {
                 dismiss()
                 onToggleAutoFillRests()
+            },
+        )
+        HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
+        CompactDropdownMenuItem(
+            text = { Text("Clear Recorded Velocities") },
+            enabled = hasSelectedNotes,
+            onClick = {
+                dismiss()
+                onClearRecordedVelocities()
             },
         )
     }

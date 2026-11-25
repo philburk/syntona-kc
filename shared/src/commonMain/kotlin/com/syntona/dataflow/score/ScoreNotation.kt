@@ -533,7 +533,7 @@ sealed interface ScoreItem {
         val pitch: SpelledPitch,
         override val duration: NoteDuration,
         override val isDotted: Boolean = false,
-        val amplitude: Double = 0.25,
+        val amplitude: Double = ScoreEditing.DEFAULT_NOTE_AMPLITUDE,
         val isStaccato: Boolean = false,
         val isTiedToNext: Boolean = false,
         override val tuplet: ScoreTuplet? = null,
@@ -548,7 +548,7 @@ sealed interface ScoreItem {
         val pitches: List<SpelledPitch>,
         override val duration: NoteDuration,
         override val isDotted: Boolean = false,
-        val amplitude: Double = 0.25,
+        val amplitude: Double = ScoreEditing.DEFAULT_NOTE_AMPLITUDE,
         val isStaccato: Boolean = false,
         val tiedMidiPitches: Set<Int> = emptySet(),
         override val tuplet: ScoreTuplet? = null,
@@ -936,7 +936,7 @@ object ScoreEditing {
         pitches: List<SpelledPitch>,
         duration: NoteDuration,
         isDotted: Boolean = false,
-        amplitude: Double = 0.25,
+        amplitude: Double = DEFAULT_NOTE_AMPLITUDE,
         isStaccato: Boolean = false,
         tiedMidiPitches: Set<Int> = emptySet(),
         tuplet: ScoreTuplet? = null,
@@ -1645,6 +1645,40 @@ object ScoreEditing {
                 val next = when (item) {
                     is ScoreItem.Note -> if (item.noteArticulation() != targetArticulation) item.withArticulation(targetArticulation) else item
                     is ScoreItem.Chord -> if (item.noteArticulation() != targetArticulation) item.withArticulation(targetArticulation) else item
+                    is ScoreItem.Rest -> item
+                }
+                if (next !== item) {
+                    measureChanged = true
+                    anyChanged = true
+                }
+                next
+            }
+            if (measureChanged) m.copy(items = newItems) else m
+        }
+        return if (anyChanged) updated else measures
+    }
+
+    const val DEFAULT_NOTE_AMPLITUDE = 0.25
+
+    /**
+     * Resets the stored amplitude (recorded velocity) on every selected note or chord to
+     * [amplitude] (default [DEFAULT_NOTE_AMPLITUDE] = 0.25), leaving rests and unselected items unchanged.
+     */
+    fun clearVelocitiesOnSelection(
+        measures: List<ScoreMeasure>,
+        selection: Set<ScoreItemLocation>,
+        amplitude: Double = DEFAULT_NOTE_AMPLITUDE,
+    ): List<ScoreMeasure> {
+        if (selection.isEmpty()) return measures
+        val slots = selection.mapTo(mutableSetOf()) { it.measureIdx to it.itemIdx }
+        var anyChanged = false
+        val updated = measures.mapIndexed { mIdx, m ->
+            var measureChanged = false
+            val newItems = m.items.mapIndexed { iIdx, item ->
+                if ((mIdx to iIdx) !in slots) return@mapIndexed item
+                val next = when (item) {
+                    is ScoreItem.Note -> if (item.amplitude != amplitude) item.copy(amplitude = amplitude) else item
+                    is ScoreItem.Chord -> if (item.amplitude != amplitude) item.copy(amplitude = amplitude) else item
                     is ScoreItem.Rest -> item
                 }
                 if (next !== item) {

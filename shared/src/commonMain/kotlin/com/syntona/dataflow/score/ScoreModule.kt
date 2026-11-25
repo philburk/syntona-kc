@@ -1164,7 +1164,7 @@ class ScoreModule : Module("score"), EngineAware {
                 val attackPitches = item.soundingPitches().filter { it.midiPitch !in continuedMidis }
 
                 val effectiveAmp = if (slot.attackDyn != null) {
-                    ((item.noteAmplitude() / 0.25) * slot.attackDyn.amplitude).coerceIn(0.0, 1.0)
+                    ((item.noteAmplitude() / ScoreEditing.DEFAULT_NOTE_AMPLITUDE) * slot.attackDyn.amplitude).coerceIn(0.0, 1.0)
                 } else {
                     item.noteAmplitude()
                 }
@@ -1407,7 +1407,7 @@ class ScoreModule : Module("score"), EngineAware {
         const val PREVIEW_TAG = -2
         const val PREVIEW_DURATION_MS = 250L
         const val STACCATO_PREVIEW_DURATION_MS = 60L
-        const val PREVIEW_AMPLITUDE = 0.25
+        const val PREVIEW_AMPLITUDE = ScoreEditing.DEFAULT_NOTE_AMPLITUDE
         const val STACCATO_DURATION_FRACTION = 0.35
         const val MAX_STACCATO_SECONDS = 0.08
         const val MIN_STACCATO_SECONDS = 0.015

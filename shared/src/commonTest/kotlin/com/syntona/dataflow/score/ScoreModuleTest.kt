@@ -6653,4 +6653,41 @@ class ScoreModuleTest {
         assertEquals(ScoreTechniqueMark.CON_SORDINO, m.techniques[0]?.mark)
         assertEquals(ScoreTechniqueMark.SENZA_SORDINO, m.techniques[2]?.mark)
     }
+
+    @Test
+    fun clearVelocitiesOnSelectionResetsSelectedNotesAndChordsToDefaultAmplitude() {
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val d4 = SpelledPitch(NoteLetter.D, 0, 4)
+        val e4 = SpelledPitch(NoteLetter.E, 0, 4)
+        val g4 = SpelledPitch(NoteLetter.G, 0, 4)
+        val m0 = ScoreMeasure(
+            number = 1,
+            items = listOf(
+                ScoreItem.Note(c4, NoteDuration.QUARTER, amplitude = 0.85),
+                ScoreItem.Chord(
+                    pitches = listOf(e4, g4),
+                    duration = NoteDuration.QUARTER,
+                    amplitude = 0.62,
+                ),
+                ScoreItem.Rest(NoteDuration.QUARTER),
+                ScoreItem.Note(d4, NoteDuration.QUARTER, amplitude = 0.91),
+            ),
+        )
+        val measures = listOf(m0)
+        val selection = setOf(
+            ScoreItemLocation(0, 0),
+            ScoreItemLocation(0, 1),
+            ScoreItemLocation(0, 2), // rest should stay untouched
+        )
+
+        val cleared = ScoreEditing.clearVelocitiesOnSelection(measures, selection)
+        assertEquals(ScoreEditing.DEFAULT_NOTE_AMPLITUDE, cleared[0].items[0].noteAmplitude(), 1e-6)
+        assertEquals(ScoreEditing.DEFAULT_NOTE_AMPLITUDE, cleared[0].items[1].noteAmplitude(), 1e-6)
+        assertTrue(cleared[0].items[2] is ScoreItem.Rest)
+        assertEquals(0.91, cleared[0].items[3].noteAmplitude(), 1e-6)
+
+        // Calling again on already-default notes returns the same list reference (no-op)
+        val noop = ScoreEditing.clearVelocitiesOnSelection(cleared, selection)
+        assertSame(cleared, noop)
+    }
 }
