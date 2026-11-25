@@ -1,6 +1,7 @@
 package com.syntona.dataflow.model
 
 import com.softsynth.ksyn.data.SequentialData
+import com.softsynth.ksyn.voices.Articulation
 import com.syntona.core.model.ScoreTime
 
 /**
@@ -60,14 +61,17 @@ sealed class Message {
         val tag: Int,
         val value: Double,
         val extra: Double,
-        val duration: Double = 0.0
+        val duration: Double = 0.0,
+        val articulation: Articulation = Articulation.NORMAL
     ) : Message() {
-        override fun toString(): String =
-            if (opcode == VoiceOpcode.NOTE) {
-                "$opcode t=$tag v=${formatVal(value)} x=${formatVal(extra)} d=${formatVal(duration)}"
+        override fun toString(): String {
+            val artSuffix = if (articulation != Articulation.NORMAL) " a=$articulation" else ""
+            return if (opcode == VoiceOpcode.NOTE) {
+                "$opcode t=$tag v=${formatVal(value)} x=${formatVal(extra)} d=${formatVal(duration)}$artSuffix"
             } else {
-                "$opcode t=$tag v=${formatVal(value)} x=${formatVal(extra)}"
+                "$opcode t=$tag v=${formatVal(value)} x=${formatVal(extra)}$artSuffix"
             }
+        }
     }
 }
 

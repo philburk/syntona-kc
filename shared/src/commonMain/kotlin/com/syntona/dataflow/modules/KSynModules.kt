@@ -242,7 +242,7 @@ class KSynInstrumentModule(
             when (msg.opcode) {
                 Message.VoiceOpcode.NOTE_ON -> {
                     pendingNoteOffs.remove(msg.tag)?.cancel()
-                    instrument.noteOn(msg.tag, msg.value, msg.extra, timeStamp)
+                    instrument.noteOn(msg.tag, msg.value, msg.extra, timeStamp, msg.articulation)
                 }
                 Message.VoiceOpcode.NOTE_OFF -> {
                     pendingNoteOffs.remove(msg.tag)?.cancel()
@@ -251,7 +251,7 @@ class KSynInstrumentModule(
                 Message.VoiceOpcode.NOTE -> {
                     pendingNoteOffs.remove(msg.tag)?.cancel()
                     val durSec = msg.duration.coerceAtLeast(0.0)
-                    instrument.noteOn(msg.tag, msg.value, msg.extra, timeStamp)
+                    instrument.noteOn(msg.tag, msg.value, msg.extra, timeStamp, msg.articulation)
                     val offTime = msg.time + ScoreTime.fromSeconds(durSec)
                     val e = engine
                     if (e != null) {

@@ -5,6 +5,7 @@ import com.softsynth.ksyn.engine.SynthesisEngine
 import com.softsynth.ksyn.instruments.BowedStringVoice
 import com.softsynth.ksyn.instruments.PanningSaw
 import com.softsynth.ksyn.unitgen.LineOut
+import com.softsynth.ksyn.voices.Articulation
 import com.syntona.core.audio.SynthKSyn
 import com.syntona.core.model.ScoreTime
 import com.syntona.dataflow.editor.GraphSerializer
@@ -184,6 +185,75 @@ class KSynInstrumentModuleTest {
                 if (sample > maxSample) maxSample = sample
             }
             assertTrue(maxSample > 1e-3f, "bowedString should generate audio after NOTE_ON (maxSample=$maxSample)")
+        } finally {
+            rootGraph.clearAllModules()
+        }
+    }
+
+    @Test
+    fun testNoteOnAndNoteForwardArticulationToBowedString() = runBlocking {
+        val rootGraph = GraphState()
+        val bowedString = KSynInstrumentModule("bowedString", BowedStringVoice.getVoiceDescription())
+        val lineOut = UnitGeneratorModule("lineOut", LineOut())
+        try {
+            rootGraph.addModule(bowedString, Offset.Zero)
+            rootGraph.addModule(lineOut, Offset(200f, 0f))
+
+            val outJack = bowedString.outputs.first { it.name == "output" } as AudioOutputJack
+            val inJack = lineOut.inputs.first { it.name == "in0" } as AudioInputJack
+            rootGraph.connect(outJack, inJack)
+
+            engine.generateNextBuffer()
+
+            // Verify PIZZICATO via NOTE_ON produces audio without error
+            bowedString.voiceInputJack.receive(
+                Message.VoiceMessage(
+                    time = ScoreTime.Zero,
+                    opcode = Message.VoiceOpcode.NOTE_ON,
+                    tag = 62,
+                    value = 62.0,
+                    extra = 0.8,
+                    articulation = Articulation.PIZZICATO,
+                )
+            )
+
+            var maxPizzSample = 0.0f
+            repeat(20) {
+                engine.generateNextBuffer()
+                val sample = abs(bowedString.instrument.getOutputPort().get(0))
+                if (sample > maxPizzSample) maxPizzSample = sample
+            }
+            assertTrue(maxPizzSample > 1e-3f, "bowedString should generate audio for PIZZICATO NOTE_ON (max=$maxPizzSample)")
+
+            bowedString.voiceInputJack.receive(
+                Message.VoiceMessage(
+                    time = ScoreTime.Zero,
+                    opcode = Message.VoiceOpcode.NOTE_OFF,
+                    tag = 62,
+                    value = 62.0,
+                    extra = 0.0,
+                )
+            )
+
+            // Verify MARCATO via NOTE opcode also forwards articulation
+            bowedString.voiceInputJack.receive(
+                Message.VoiceMessage(
+                    time = ScoreTime.Zero,
+                    opcode = Message.VoiceOpcode.NOTE,
+                    tag = 67,
+                    value = 67.0,
+                    extra = 0.8,
+                    duration = 0.5,
+                    articulation = Articulation.MARCATO,
+                )
+            )
+            var maxMarcatoSample = 0.0f
+            repeat(20) {
+                engine.generateNextBuffer()
+                val sample = abs(bowedString.instrument.getOutputPort().get(0))
+                if (sample > maxMarcatoSample) maxMarcatoSample = sample
+            }
+            assertTrue(maxMarcatoSample > 1e-3f, "bowedString should generate audio for MARCATO NOTE (max=$maxMarcatoSample)")
         } finally {
             rootGraph.clearAllModules()
         }

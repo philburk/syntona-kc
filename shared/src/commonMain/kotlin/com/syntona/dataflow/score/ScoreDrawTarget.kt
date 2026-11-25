@@ -10,6 +10,8 @@ import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 
 /**
@@ -64,6 +66,8 @@ interface ScoreDrawTarget {
         baselineY: Float,
         fontSizePx: Float,
         color: Color,
+        italic: Boolean = false,
+        bold: Boolean = false,
     )
 
     fun measureGlyphWidth(glyph: String, fontSizePx: Float): Float
@@ -168,8 +172,10 @@ class ComposeScoreDrawTarget(
         baselineY: Float,
         fontSizePx: Float,
         color: Color,
+        italic: Boolean,
+        bold: Boolean,
     ) {
-        drawMeasuredText(text, x, baselineY, fontSizePx, color, uiFontFamily)
+        drawMeasuredText(text, x, baselineY, fontSizePx, color, uiFontFamily, italic = italic, bold = bold)
     }
 
     override fun measureGlyphWidth(glyph: String, fontSizePx: Float): Float {
@@ -208,11 +214,19 @@ class ComposeScoreDrawTarget(
         fontSizePx: Float,
         color: Color,
         family: FontFamily,
+        italic: Boolean = false,
+        bold: Boolean = false,
     ) {
         val fontSizeSp = with(density) { fontSizePx.toSp() }
         val measured = textMeasurer.measure(
             text = text,
-            style = TextStyle(fontFamily = family, fontSize = fontSizeSp, color = color),
+            style = TextStyle(
+                fontFamily = family,
+                fontSize = fontSizeSp,
+                color = color,
+                fontStyle = if (italic) FontStyle.Italic else FontStyle.Normal,
+                fontWeight = if (bold) FontWeight.SemiBold else FontWeight.Normal,
+            ),
             softWrap = false,
             maxLines = 1,
         )

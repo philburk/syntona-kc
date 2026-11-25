@@ -1,5 +1,6 @@
 package com.syntona.dataflow.editor
 
+import com.softsynth.ksyn.voices.Articulation
 import com.syntona.SyntonaVersion
 import com.syntona.dataflow.editor.FileState
 import androidx.compose.ui.geometry.Offset
@@ -43,6 +44,8 @@ import com.syntona.dataflow.score.KeySignature
 import com.syntona.dataflow.score.NoteDuration
 import com.syntona.dataflow.score.NoteLetter
 import com.syntona.dataflow.score.ScoreData
+import com.syntona.dataflow.score.ScoreTechniqueMark
+import com.syntona.dataflow.score.ScoreTechniqueMarking
 import com.syntona.dataflow.score.ScoreDynamicMarking
 import com.syntona.dataflow.score.ScoreEditing
 import com.syntona.dataflow.score.ScoreInstrumentPart
@@ -740,6 +743,26 @@ object GraphSerializer {
                 }
                 append("]")
             }
+            if (measure.techniques.isNotEmpty()) {
+                append(",\"techniques\":[")
+                measure.techniques.entries.sortedBy { it.key }.forEachIndexed { tIdx, (iIdx, tech) ->
+                    if (tIdx > 0) append(",")
+                    append("[$iIdx,\"${tech.mark.name}\",\"${tech.placement.name}\"]")
+                }
+                append("]")
+            }
+            val articulationEntries = measure.items.mapIndexedNotNull { iIdx, item ->
+                val art = item.noteArticulation()
+                if (art != Articulation.NORMAL && art != Articulation.STACCATO) iIdx to art else null
+            }
+            if (articulationEntries.isNotEmpty()) {
+                append(",\"articulations\":[")
+                articulationEntries.forEachIndexed { aIdx, (iIdx, art) ->
+                    if (aIdx > 0) append(",")
+                    append("[$iIdx,\"${art.name}\"]")
+                }
+                append("]")
+            }
             if (measure.beamOverrides.isNotEmpty()) {
                 append(",\"beams\":[")
                 measure.beamOverrides.entries.sortedBy { it.key }.forEachIndexed { bIdx, (iIdx, beamed) ->
@@ -837,6 +860,24 @@ object GraphSerializer {
                             DynamicPlacement.entries.firstOrNull { it.name == p }
                         } ?: DynamicPlacement.BELOW
                         if (dIdx >= 0) put(dIdx, ScoreDynamicMarking(mark, placement))
+                    }
+                }
+            } else {
+                emptyMap()
+            }
+            val techArr = (mObj.map["techniques"] as? JsonValue.Arr)?.items
+            val mTechniques = if (techArr != null) {
+                buildMap {
+                    for (tVal in techArr) {
+                        val tTuple = (tVal as? JsonValue.Arr)?.items ?: continue
+                        val tIdx = (tTuple.getOrNull(0) as? JsonValue.Num)?.value?.toInt() ?: continue
+                        val markName = (tTuple.getOrNull(1) as? JsonValue.Str)?.value ?: continue
+                        val mark = ScoreTechniqueMark.entries.firstOrNull { it.name == markName } ?: continue
+                        val placementName = (tTuple.getOrNull(2) as? JsonValue.Str)?.value
+                        val placement = placementName?.let { p ->
+                            DynamicPlacement.entries.firstOrNull { it.name == p }
+                        } ?: DynamicPlacement.ABOVE
+                        if (tIdx >= 0) put(tIdx, ScoreTechniqueMarking(mark, placement))
                     }
                 }
             } else {
@@ -942,6 +983,22 @@ object GraphSerializer {
                     }
                 }
             }
+            val articArr = (mObj.map["articulations"] as? JsonValue.Arr)?.items
+            if (articArr != null) {
+                for (aVal in articArr) {
+                    val aPair = (aVal as? JsonValue.Arr)?.items ?: continue
+                    val aIdx = (aPair.getOrNull(0) as? JsonValue.Num)?.value?.toInt() ?: continue
+                    val artName = (aPair.getOrNull(1) as? JsonValue.Str)?.value ?: continue
+                    val art = Articulation.entries.firstOrNull { it.name == artName } ?: continue
+                    if (aIdx in loadedItems.indices) {
+                        loadedItems[aIdx] = when (val item = loadedItems[aIdx]) {
+                            is ScoreItem.Note -> item.withArticulation(art)
+                            is ScoreItem.Chord -> item.withArticulation(art)
+                            is ScoreItem.Rest -> item
+                        }
+                    }
+                }
+            }
             loadedMeasures.add(
                 ScoreMeasure(
                     number = mNum,
@@ -950,6 +1007,7 @@ object GraphSerializer {
                     timeSignature = mTime,
                     clefChanges = mClefs,
                     dynamics = mDynamics,
+                    techniques = mTechniques,
                     beamOverrides = mBeams,
                 )
             )

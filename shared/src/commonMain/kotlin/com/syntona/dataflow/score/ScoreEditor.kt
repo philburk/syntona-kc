@@ -96,6 +96,7 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.TextFieldValue
@@ -108,6 +109,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import com.softsynth.ksyn.voices.Articulation
 import com.syntona.dataflow.editor.CompactDropdownMenuItem
 import com.syntona.dataflow.editor.EditActionHandler
 import com.syntona.dataflow.editor.FileState
@@ -141,6 +143,7 @@ private enum class ScoreEditMode {
     SELECT,
     ENTRY,
     DYNAMIC,
+    TECHNIQUE,
     BEAM,
     TIE,
 }
@@ -229,6 +232,7 @@ private sealed interface ScoreDragState {
         val baseSelection: Set<ScoreItemLocation>,
         val baseMeasures: Set<Int>,
         val baseDynamics: Set<ScoreDynamicLocation> = emptySet(),
+        val baseTechniques: Set<ScoreTechniqueLocation> = emptySet(),
     ) : ScoreDragState {
         var end by mutableStateOf(start)
     }
@@ -283,6 +287,9 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
     var activeDynamic by remember { mutableStateOf(DynamicMark.MF) }
     var selectedDynamics by remember { mutableStateOf<Set<ScoreDynamicLocation>>(emptySet()) }
     var hoveringDynamic by remember { mutableStateOf(false) }
+    var activeTechnique by remember { mutableStateOf(ScoreTechniqueMark.PIZZICATO) }
+    var selectedTechniques by remember { mutableStateOf<Set<ScoreTechniqueLocation>>(emptySet()) }
+    var hoveringTechnique by remember { mutableStateOf(false) }
     var hoveringInstrument by remember { mutableStateOf(false) }
     var entryDuration by remember { mutableStateOf(NoteDuration.QUARTER) }
     var entryIsRest by remember { mutableStateOf(false) }
@@ -291,7 +298,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
     var durationEditLastDur by remember { mutableStateOf(NoteDuration.QUARTER) }
     var openPalette by remember { mutableStateOf<ScorePaletteKind?>(null) }
     var pendingAccidental by remember { mutableStateOf<Accidental?>(null) }
-    var pendingStaccato by remember { mutableStateOf(false) }
+    var pendingArticulation by remember { mutableStateOf(Articulation.NORMAL) }
     var customTupletDialogOpen by remember { mutableStateOf(false) }
     var customTupletActualText by remember { mutableStateOf("3") }
     var customTupletNormalText by remember { mutableStateOf("2") }
@@ -336,6 +343,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         selectedMeasures = emptySet()
         selectedClefChange = null
         selectedDynamics = emptySet()
+        selectedTechniques = emptySet()
         pendingAccidental = null
         activePitchText = null
         activeChordName = null
@@ -357,6 +365,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 selectedMeasures = emptySet()
                 selectedClefChange = null
                 selectedDynamics = emptySet()
+                selectedTechniques = emptySet()
                 module.placeCursor(null)
                 activeStaff = ScoreStaffId(0, 0)
             },
@@ -391,6 +400,10 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         selectedDynamics = selectedDynamics.map { dyn ->
             val mappedIdx = ScoreInstrumentPart.remapInstrumentIndex(dyn.staff.instrumentIdx, fromIdx, toIdx)
             dyn.copy(staff = dyn.staff.copy(instrumentIdx = mappedIdx))
+        }.toSet()
+        selectedTechniques = selectedTechniques.map { tech ->
+            val mappedIdx = ScoreInstrumentPart.remapInstrumentIndex(tech.staff.instrumentIdx, fromIdx, toIdx)
+            tech.copy(staff = tech.staff.copy(instrumentIdx = mappedIdx))
         }.toSet()
         selectedClefChange = selectedClefChange?.let { sc ->
             val mappedIdx = ScoreInstrumentPart.remapInstrumentIndex(sc.staff.instrumentIdx, fromIdx, toIdx)
@@ -555,6 +568,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         selectedMeasures = emptySet()
         selectedClefChange = null
         selectedDynamics = setOf(placedWithStaff)
+        selectedTechniques = emptySet()
         activePitchText = null
         activeChordName = null
         postCommand(
@@ -562,6 +576,40 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 selectedDynamics = if (restored == before) {
                     prevSelected.filterTo(linkedSetOf()) { loc ->
                         score.staffMeasures(loc.staff).getOrNull(loc.measureIdx)?.dynamics?.containsKey(loc.itemIdx) == true
+                    }
+                } else {
+                    setOf(placedWithStaff)
+                }
+            }
+        )
+    }
+
+    fun applyTechnique(
+        location: ScoreTechniqueLocation,
+        mark: ScoreTechniqueMark,
+    ) {
+        val targetStaff = location.staff
+        val before = score.staffMeasures(targetStaff).toList()
+        val prevSelected = selectedTechniques
+        val (after, placedLoc) = ScoreEditing.setTechnique(
+            measures = before,
+            location = location,
+            marking = ScoreTechniqueMarking(mark = mark, placement = DynamicPlacement.ABOVE),
+        )
+        if (after == before || placedLoc == null) return
+        val placedWithStaff = placedLoc.copy(staff = targetStaff)
+        selectedLocations = emptySet()
+        selectedMeasures = emptySet()
+        selectedClefChange = null
+        selectedDynamics = emptySet()
+        selectedTechniques = setOf(placedWithStaff)
+        activePitchText = null
+        activeChordName = null
+        postCommand(
+            ReplaceScoreMeasuresCommand(score, before, after, staff = targetStaff) { restored ->
+                selectedTechniques = if (restored == before) {
+                    prevSelected.filterTo(linkedSetOf()) { loc ->
+                        score.staffMeasures(loc.staff).getOrNull(loc.measureIdx)?.techniques?.containsKey(loc.itemIdx) == true
                     }
                 } else {
                     setOf(placedWithStaff)
@@ -716,6 +764,11 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             score.staffMeasures(loc.staff).getOrNull(loc.measureIdx)?.dynamics?.containsKey(loc.itemIdx) == true
         }
 
+    fun filterValidTechniques(techs: Set<ScoreTechniqueLocation>): Set<ScoreTechniqueLocation> =
+        techs.filterTo(linkedSetOf()) { loc ->
+            score.staffMeasures(loc.staff).getOrNull(loc.measureIdx)?.techniques?.containsKey(loc.itemIdx) == true
+        }
+
     fun insertEmptyBar() {
         durationEditState = null
         val beforeInst = score.instruments.toList()
@@ -761,6 +814,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         val prevMeasures = selectedMeasures
         val prevLocs = selectedLocations
         val prevDynamics = selectedDynamics
+        val prevTechniques = selectedTechniques
         val prevClef = selectedClefChange
         val prevCursor = module.cursorPosition
         val afterMeasures = setOf(insertIdx)
@@ -769,6 +823,9 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         }.toCollection(linkedSetOf())
         val afterDynamics = prevDynamics.map { dyn ->
             if (dyn.measureIdx >= insertIdx) dyn.copy(measureIdx = dyn.measureIdx + 1) else dyn
+        }.toCollection(linkedSetOf())
+        val afterTechniques = prevTechniques.map { tech ->
+            if (tech.measureIdx >= insertIdx) tech.copy(measureIdx = tech.measureIdx + 1) else tech
         }.toCollection(linkedSetOf())
         val afterClef = prevClef?.let { c ->
             if (c.measureIdx >= insertIdx) c.copy(measureIdx = c.measureIdx + 1) else c
@@ -782,12 +839,14 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     selectedMeasures = prevMeasures
                     selectedLocations = prevLocs
                     selectedDynamics = prevDynamics
+                    selectedTechniques = prevTechniques
                     selectedClefChange = prevClef
                     module.placeCursor(prevCursor)
                 } else {
                     selectedMeasures = afterMeasures
                     selectedLocations = afterLocs
                     selectedDynamics = afterDynamics
+                    selectedTechniques = afterTechniques
                     selectedClefChange = afterClef
                     module.placeCursor(afterCursor)
                 }
@@ -829,6 +888,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         val prevMeasures = selectedMeasures
         val prevLocs = selectedLocations
         val prevDynamics = selectedDynamics
+        val prevTechniques = selectedTechniques
         val prevClef = selectedClefChange
         val prevCursor = module.cursorPosition
         postCommand(
@@ -845,6 +905,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     selectedMeasures = prevMeasures
                     selectedLocations = prevLocs
                     selectedDynamics = prevDynamics
+                    selectedTechniques = prevTechniques
                     selectedClefChange = prevClef
                     module.placeCursor(prevCursor)
                     refreshPitchDisplayFromSelection(selection = prevLocs)
@@ -852,6 +913,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     selectedMeasures = emptySet()
                     selectedLocations = emptySet()
                     selectedDynamics = emptySet()
+                    selectedTechniques = emptySet()
                     selectedClefChange = null
                     activePitchText = null
                     activeChordName = null
@@ -863,7 +925,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
 
     fun deleteSelection() {
         durationEditState = null
-        if (selectedLocations.isEmpty() && selectedDynamics.isEmpty()) {
+        if (selectedLocations.isEmpty() && selectedDynamics.isEmpty() && selectedTechniques.isEmpty()) {
             val clefLoc = selectedClefChange
             if (clefLoc != null) {
                 applyClef(null, clefLoc)
@@ -876,23 +938,29 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         }
         val prevSelection = selectedLocations
         val prevDynamics = selectedDynamics
-        val affectedStaves = (prevSelection.map { it.staff } + prevDynamics.map { it.staff }).toSet()
+        val prevTechniques = selectedTechniques
+        val affectedStaves = (prevSelection.map { it.staff } +
+            prevDynamics.map { it.staff } +
+            prevTechniques.map { it.staff }).toSet()
         val replacedRestLocs = linkedSetOf<ScoreItemLocation>()
         selectedLocations = emptySet()
         selectedDynamics = emptySet()
+        selectedTechniques = emptySet()
         activePitchText = null
         activeChordName = null
         updateMeasuresAcrossStaves(
             staves = affectedStaves,
             transform = { staffId, ms ->
                 val staffDyns = prevDynamics.filterTo(mutableSetOf()) { it.staff == staffId }
+                val staffTechs = prevTechniques.filterTo(mutableSetOf()) { it.staff == staffId }
                 val staffLocs = prevSelection.filterTo(mutableSetOf()) { it.staff == staffId }
                 val afterDyns = if (staffDyns.isEmpty()) ms else ScoreEditing.deleteDynamics(ms, staffDyns)
+                val afterTechs = if (staffTechs.isEmpty()) afterDyns else ScoreEditing.deleteTechniques(afterDyns, staffTechs)
                 if (staffLocs.isEmpty()) {
-                    afterDyns
+                    afterTechs
                 } else {
                     val res = ScoreEditing.deleteSelectionItems(
-                        measures = afterDyns,
+                        measures = afterTechs,
                         selection = staffLocs,
                         autoFillRests = module.autoFillRests,
                         initialTimeSignature = score.timeSignature,
@@ -906,6 +974,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             onAfterRestore = { isUndo ->
                 selectedLocations = filterValidLocations(if (isUndo) prevSelection else replacedRestLocs)
                 selectedDynamics = filterValidDynamics(prevDynamics)
+                selectedTechniques = filterValidTechniques(prevTechniques)
                 refreshPitchDisplayFromSelection(selection = selectedLocations)
             },
         )
@@ -923,6 +992,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         selectedLocations = emptySet()
         selectedMeasures = emptySet()
         selectedDynamics = emptySet()
+        selectedTechniques = emptySet()
         selectedClefChange = null
         activePitchText = null
         activeChordName = null
@@ -1169,7 +1239,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         focusRequester.requestFocus()
     }
 
-    fun toggleStaccato() {
+    fun toggleArticulation(articulation: Articulation) {
         val hasSelectedNotes = selectedLocations.any { loc ->
             ScoreEditing.itemAt(score.staffMeasures(loc.staff), loc)?.soundingPitches()?.isNotEmpty() == true
         }
@@ -1180,7 +1250,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 staves = affectedStaves,
                 transform = { staffId, ms ->
                     val staffLocs = prevSelection.filterTo(mutableSetOf()) { it.staff == staffId }
-                    ScoreEditing.toggleStaccatoOnSelection(ms, staffLocs)
+                    ScoreEditing.toggleArticulationOnSelection(ms, staffLocs, articulation)
                 },
             )
             val firstLoc = selectedLocations.firstOrNull()
@@ -1190,22 +1260,33 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 ScoreEditing.pitchAt(ms, loc) ?: ScoreEditing.itemAt(ms, loc)?.soundingPitches()?.firstOrNull()
             }
             val firstItem = firstLoc?.let { loc -> firstMeasures?.let { ScoreEditing.itemAt(it, loc) } }
-            if (firstPitch != null && firstItem != null) {
+            if (firstPitch != null && firstItem != null && firstMeasures != null) {
+                val activeTech = ScoreEditing.effectiveTechniqueArticulationAt(
+                    firstMeasures,
+                    firstLoc.measureIdx,
+                    firstLoc.itemIdx,
+                )
+                val effectiveArt = ScoreEditing.resolveItemArticulation(firstItem, activeTech)
                 module.previewPitch(
                     firstPitch.midiPitch.toDouble(),
-                    isStaccato = firstItem.noteStaccato(),
+                    isStaccato = effectiveArt == Articulation.STACCATO,
                     instrumentIdx = firstLoc.staff.instrumentIdx,
+                    articulation = effectiveArt,
                 )
             }
         } else {
-            pendingStaccato = !pendingStaccato
-            module.stepRecordStaccato = pendingStaccato
+            val next = if (pendingArticulation == articulation) Articulation.NORMAL else articulation
+            pendingArticulation = next
+            module.stepRecordArticulation = next
         }
     }
+
+    fun toggleStaccato() = toggleArticulation(Articulation.STACCATO)
 
     fun copySelection() {
         val targetStaff = selectedLocations.firstOrNull()?.staff
             ?: selectedDynamics.firstOrNull()?.staff
+            ?: selectedTechniques.firstOrNull()?.staff
             ?: selectedClefChange?.staff
             ?: resolvedActiveStaff()
         val content = ScoreEditing.copySelectionContent(
@@ -1217,6 +1298,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             selectedMeasures = selectedMeasures,
             selectedClefChange = selectedClefChange?.takeIf { it.staff == targetStaff },
             selectedDynamics = selectedDynamics.filterTo(linkedSetOf()) { it.staff == targetStaff },
+            selectedTechniques = selectedTechniques.filterTo(linkedSetOf()) { it.staff == targetStaff },
         )
         ScoreClipboard.copyContent(content)
     }
@@ -1237,6 +1319,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         val beforeSelection = selectedLocations
         val beforeSelectedMeasures = selectedMeasures
         val beforeSelectedDynamics = selectedDynamics
+        val beforeSelectedTechniques = selectedTechniques
         val beforeCursor = module.cursorPosition
         val result = ScoreEditing.pasteClipboardContent(
             measures = beforeMeasures,
@@ -1255,6 +1338,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         val afterInitialTime = result.initialTimeSignature ?: beforeInitialTime
         val staffLocations = result.pastedLocations.mapTo(linkedSetOf()) { it.copy(staff = targetStaff) }
         val staffDynamics = result.pastedDynamics.mapTo(linkedSetOf()) { it.copy(staff = targetStaff) }
+        val staffTechniques = result.pastedTechniques.mapTo(linkedSetOf()) { it.copy(staff = targetStaff) }
         val afterMeasures = if (module.autoFillRests) {
             ScoreEditing.fillMeasuresWithRests(result.measures, afterInitialTime)
         } else {
@@ -1278,23 +1362,28 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     selectedMeasures = beforeSelectedMeasures
                     selectedLocations = filterValidLocations(beforeSelection)
                     selectedDynamics = filterValidDynamics(beforeSelectedDynamics)
+                    selectedTechniques = filterValidTechniques(beforeSelectedTechniques)
                 } else if (module.isStepRecording) {
                     module.placeCursor(result.nextCursor.copy(staff = targetStaff))
                     selectedMeasures = emptySet()
                     selectedLocations = emptySet()
                     selectedDynamics = emptySet()
+                    selectedTechniques = emptySet()
                     pendingScrollMeasures = result.pastedMeasures.ifEmpty {
                         (staffLocations.map { it.measureIdx } +
-                            staffDynamics.map { it.measureIdx }).toCollection(linkedSetOf())
+                            staffDynamics.map { it.measureIdx } +
+                            staffTechniques.map { it.measureIdx }).toCollection(linkedSetOf())
                     }
                 } else {
                     module.placeCursor(null)
                     selectedMeasures = result.pastedMeasures
                     selectedLocations = filterValidLocations(staffLocations)
                     selectedDynamics = filterValidDynamics(staffDynamics)
+                    selectedTechniques = filterValidTechniques(staffTechniques)
                     pendingScrollMeasures = result.pastedMeasures.ifEmpty {
                         (staffLocations.map { it.measureIdx } +
-                            staffDynamics.map { it.measureIdx }).toCollection(linkedSetOf())
+                            staffDynamics.map { it.measureIdx } +
+                            staffTechniques.map { it.measureIdx }).toCollection(linkedSetOf())
                     }
                 }
                 refreshPitchDisplayFromSelection(selection = selectedLocations)
@@ -1308,16 +1397,19 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         val handler = object : EditActionHandler {
             override fun canCopy() =
                 selectedLocations.isNotEmpty() || selectedMeasures.isNotEmpty() ||
-                    selectedClefChange != null || selectedDynamics.isNotEmpty()
+                    selectedClefChange != null || selectedDynamics.isNotEmpty() ||
+                    selectedTechniques.isNotEmpty()
 
             override fun canCut() =
                 selectedLocations.isNotEmpty() ||
                     selectedDynamics.isNotEmpty() ||
+                    selectedTechniques.isNotEmpty() ||
                     selectedClefChange?.let { it.measureIdx > 0 || it.itemIdx > 0 } == true
 
             override fun canPaste() = ScoreClipboard.isNotEmpty
             override fun canDelete() =
-                selectedLocations.isNotEmpty() || selectedClefChange != null || selectedDynamics.isNotEmpty()
+                selectedLocations.isNotEmpty() || selectedClefChange != null ||
+                    selectedDynamics.isNotEmpty() || selectedTechniques.isNotEmpty()
             override fun cut() {
                 copySelection()
                 deleteSelection()
@@ -1358,7 +1450,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
         durationEditState = null
         val nextEnabled = !module.isStepRecording
         module.stepRecordDuration = entryDuration
-        module.stepRecordStaccato = pendingStaccato
+        module.stepRecordArticulation = pendingArticulation
         module.stepRecordDotted = entryIsDotted
         module.setStepRecordingEnabled(nextEnabled)
         if (nextEnabled) {
@@ -1661,6 +1753,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     selectedMeasures = emptySet()
                     selectedClefChange = null
                     selectedDynamics = emptySet()
+                    selectedTechniques = emptySet()
                     activePitchText = null
                     activeChordName = null
                     coroutineScope.launch { scrollState.animateScrollTo(0) }
@@ -1900,10 +1993,10 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             val selectedSlotItems = selectedLocations
                 .mapNotNull { loc -> ScoreEditing.itemAt(score.staffMeasures(loc.staff), loc) }
                 .filter { it.soundingPitches().isNotEmpty() }
-            val staccatoActive = if (selectedSlotItems.isNotEmpty()) {
-                selectedSlotItems.all { it.noteStaccato() }
+            val activeArticulation: Articulation? = if (selectedSlotItems.isNotEmpty()) {
+                selectedSlotItems.map { it.noteArticulation() }.distinct().singleOrNull()
             } else {
-                pendingStaccato
+                pendingArticulation
             }
             val selectedPitchesForPalette = selectedLocations.flatMap { loc ->
                 when (val item = ScoreEditing.itemAt(score.staffMeasures(loc.staff), loc)) {
@@ -1932,6 +2025,8 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 activeTimeSignature = activeTargetTime,
                 activeClef = activeTargetClef,
                 activeDynamic = activeDynamic,
+                activeArticulation = activeArticulation,
+                activeTechnique = activeTechnique,
                 toolbarBg = toolbarBg,
                 toolbarText = toolbarText,
                 accentColor = accentColor,
@@ -1954,7 +2049,6 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         entryIsRest = entryIsRest,
                         entryIsDotted = entryIsDotted,
                         activeAlter = activeAlter,
-                        staccatoActive = staccatoActive,
                         activeTupletRatio = module.stepRecordTupletRatio,
                         isDark = isDark,
                         toolbarText = toolbarText,
@@ -1984,10 +2078,6 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                             applyAccidental(acc)
                             focusRequester.requestFocus()
                         },
-                        onToggleStaccato = {
-                            toggleStaccato()
-                            focusRequester.requestFocus()
-                        },
                         onSelectTuplet = { ratio ->
                             applyTupletRatio(ratio)
                             openPalette = null
@@ -2015,6 +2105,32 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                             editorMode = ScoreEditMode.TIE
                             module.placeCursor(null)
                             hoverPos = null
+                            focusRequester.requestFocus()
+                        },
+                        onDismiss = { openPalette = null },
+                        onKeyEvent = ::handleKeyEvent,
+                    )
+                } else if (kind == openPalette && kind == ScorePaletteKind.ARTICULATIONS) {
+                    ArticulationsPalettePopup(
+                        offsetX = popupOffsetX,
+                        activeArticulation = activeArticulation,
+                        activeTechnique = activeTechnique,
+                        isTechniqueMode = editorMode == ScoreEditMode.TECHNIQUE && !module.isStepRecording,
+                        isDark = isDark,
+                        toolbarText = toolbarText,
+                        accentColor = accentColor,
+                        borderMuted = borderMuted,
+                        musicFontFamily = musicFontFamily,
+                        onToggleArticulation = { art ->
+                            toggleArticulation(art)
+                            focusRequester.requestFocus()
+                        },
+                        onSelectTechnique = { chosenTech ->
+                            activeTechnique = chosenTech
+                            module.exitStepRecording()
+                            module.placeCursor(null)
+                            editorMode = ScoreEditMode.TECHNIQUE
+                            openPalette = null
                             focusRequester.requestFocus()
                         },
                         onDismiss = { openPalette = null },
@@ -2212,12 +2328,14 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             val activeCursor = when {
                 dragState is ScoreDragState.PitchDrag -> moveCursor()
                 hoveringInstrument || hoveringTimeSig ||
-                    (editorMode == ScoreEditMode.SELECT && !module.isStepRecording && (hoveringClef || hoveringDynamic)) ->
+                    (editorMode == ScoreEditMode.SELECT && !module.isStepRecording && (hoveringClef || hoveringDynamic || hoveringTechnique)) ->
                     PointerIcon.Hand
                 !module.isStepRecording && editorMode == ScoreEditMode.ENTRY ->
                     scoreSymbolCursor(entryDuration, entryIsRest, entryIsDotted, isDark, cursorTupletText)
                 !module.isStepRecording && editorMode == ScoreEditMode.DYNAMIC ->
                     scoreDynamicCursor(activeDynamic.label, isDark)
+                !module.isStepRecording && editorMode == ScoreEditMode.TECHNIQUE ->
+                    scoreDynamicCursor(activeTechnique.displayText, isDark)
                 !module.isStepRecording && editorMode == ScoreEditMode.BEAM ->
                     scoreBeamCursor(isDark)
                 !module.isStepRecording && editorMode == ScoreEditMode.TIE ->
@@ -2236,7 +2354,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 entryIsRest,
                 entryIsDotted,
                 pendingAccidental,
-                pendingStaccato,
+                pendingArticulation,
                 editingTimeSig,
                 activeTupletRatio,
             ) {
@@ -2275,9 +2393,10 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                     isRest = entryIsRest,
                     isDotted = entryIsDotted,
                     accidental = if (entryIsRest) null else pendingAccidental,
-                    isStaccato = if (entryIsRest) false else pendingStaccato,
+                    isStaccato = if (entryIsRest) false else pendingArticulation == Articulation.STACCATO,
                     staff = hoverStaff.staffId,
                     tupletText = tupletText,
+                    articulation = if (entryIsRest) Articulation.NORMAL else pendingArticulation,
                 )
             }
 
@@ -2302,6 +2421,12 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
             } else {
                 selectedDynamics
             }
+            val displayedSelectedTechniques = if (rubberBandState != null && rubberBand != null) {
+                val techHits = layout.techniquesInRect(rubberBand.left, rubberBand.top, rubberBand.right, rubberBand.bottom)
+                if (rubberBandState.additive) rubberBandState.baseTechniques + techHits else techHits
+            } else {
+                selectedTechniques
+            }
             val displayedSelectedMeasures = if (rubberBandState != null && rubberBand != null) {
                 val isTiny = abs(rubberBandState.end.x - rubberBandState.start.x) < 4f &&
                     abs(rubberBandState.end.y - rubberBandState.start.y) < 4f
@@ -2310,8 +2435,9 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                 } else {
                     val liveHits = layout.itemsInRect(rubberBand.left, rubberBand.top, rubberBand.right, rubberBand.bottom)
                     val liveDynHits = layout.dynamicsInRect(rubberBand.left, rubberBand.top, rubberBand.right, rubberBand.bottom)
+                    val liveTechHits = layout.techniquesInRect(rubberBand.left, rubberBand.top, rubberBand.right, rubberBand.bottom)
                     val liveMeasures = layout.measuresInRect(rubberBand.left, rubberBand.top, rubberBand.right, rubberBand.bottom)
-                    if (liveMeasures.size > 1 || (liveHits.isEmpty() && liveDynHits.isEmpty())) {
+                    if (liveMeasures.size > 1 || (liveHits.isEmpty() && liveDynHits.isEmpty() && liveTechHits.isEmpty())) {
                         if (rubberBandState.additive) rubberBandState.baseMeasures + liveMeasures else liveMeasures
                     } else {
                         emptySet()
@@ -2443,6 +2569,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                             hoveringTimeSig = pos != null && currentLayout.timeSignatureAt(pos.x, pos.y) != null
                                             hoveringClef = pos != null && currentLayout.clefChangeAt(pos.x, pos.y) != null
                                             hoveringDynamic = pos != null && currentLayout.dynamicAt(pos.x, pos.y) != null
+                                            hoveringTechnique = pos != null && currentLayout.techniqueAt(pos.x, pos.y) != null
                                             hoveringItem = pos != null && currentLayout.itemAt(pos.x, pos.y) != null
                                         }
                                         PointerEventType.Exit -> {
@@ -2451,6 +2578,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                             hoveringTimeSig = false
                                             hoveringClef = false
                                             hoveringDynamic = false
+                                            hoveringTechnique = false
                                             hoveringItem = false
                                         }
                                         else -> {}
@@ -2544,6 +2672,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                         module.placeCursor(null)
                                         selectedClefChange = hitClef.location
                                         selectedDynamics = emptySet()
+                                        selectedTechniques = emptySet()
                                         selectedLocations = emptySet()
                                         selectedMeasures = emptySet()
                                         activePitchText = null
@@ -2567,6 +2696,31 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                             }
                                         } else {
                                             selectedDynamics = setOf(hitDyn.location)
+                                            selectedTechniques = emptySet()
+                                            selectedLocations = emptySet()
+                                            selectedMeasures = emptySet()
+                                            activePitchText = null
+                                            activeChordName = null
+                                        }
+                                        return@awaitEachGesture
+                                    }
+                                    val hitTech = if (hit == null && !module.isStepRecording) {
+                                        lyt.techniqueAt(downPos.x, downPos.y)
+                                    } else {
+                                        null
+                                    }
+                                    if (hitTech != null) {
+                                        activeStaff = hitTech.staff
+                                        module.placeCursor(null)
+                                        if (isShift) {
+                                            selectedTechniques = if (hitTech.location in selectedTechniques) {
+                                                selectedTechniques - hitTech.location
+                                            } else {
+                                                selectedTechniques + hitTech.location
+                                            }
+                                        } else {
+                                            selectedTechniques = setOf(hitTech.location)
+                                            selectedDynamics = emptySet()
                                             selectedLocations = emptySet()
                                             selectedMeasures = emptySet()
                                             activePitchText = null
@@ -2578,6 +2732,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                         activeStaff = hit.staff
                                         if (!isShift) {
                                             selectedDynamics = emptySet()
+                                            selectedTechniques = emptySet()
                                         }
                                         module.placeCursor(null)
                                         val chordNote = if (hit.item is ScoreItem.Chord) {
@@ -2663,6 +2818,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                     } else {
                                         if (!isShift) {
                                             selectedDynamics = emptySet()
+                                            selectedTechniques = emptySet()
                                             selectedLocations = emptySet()
                                             selectedMeasures = emptySet()
                                             activePitchText = null
@@ -2678,6 +2834,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                 selectedLocations.map { it.measureIdx }.toSet()
                                             },
                                             baseDynamics = selectedDynamics,
+                                            baseTechniques = selectedTechniques,
                                         )
                                     }
                                 } else if (editorMode == ScoreEditMode.DYNAMIC) {
@@ -2685,6 +2842,13 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                     if (target != null) {
                                         activeStaff = target.first.staff
                                         applyDynamic(target.first, activeDynamic, target.second)
+                                    }
+                                    return@awaitEachGesture
+                                } else if (editorMode == ScoreEditMode.TECHNIQUE) {
+                                    val target = lyt.techniqueTargetAt(downPos.x, downPos.y)
+                                    if (target != null) {
+                                        activeStaff = target.staff
+                                        applyTechnique(target, activeTechnique)
                                     }
                                     return@awaitEachGesture
                                 } else if (editorMode == ScoreEditMode.BEAM) {
@@ -2708,6 +2872,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                 } else {
                                     // ENTRY mode
                                     selectedDynamics = emptySet()
+                                    selectedTechniques = emptySet()
                                     selectedClefChange = null
                                     val colItem = if (!entryIsRest) lyt.itemColumnAt(downPos.x, downPos.y) else null
                                     if (hit != null && (entryIsRest || hit.item is ScoreItem.Rest)) {
@@ -2754,18 +2919,24 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                     pitch = pitch,
                                                     duration = entryDuration,
                                                     isDotted = entryIsDotted,
-                                                    isStaccato = pendingStaccato,
+                                                    isStaccato = pendingArticulation == Articulation.STACCATO,
                                                     tuplet = hit.item.tuplet,
+                                                    articulation = pendingArticulation,
                                                 )
                                                 pendingAccidental = null
                                                 val after = replaceEntryItem(beforeMeasures, hit.location, newNote)
                                                 score.replaceStaffMeasures(hitStaff, after)
                                                 selectedLocations = setOf(hit.location)
                                                 refreshPitchDisplayFromSelection(hitStaff, after, selectedLocations)
+                                                val previewArt = ScoreEditing.resolveItemArticulation(
+                                                    newNote,
+                                                    ScoreEditing.effectiveTechniqueArticulationAt(after, hit.location.measureIdx, hit.location.itemIdx),
+                                                )
                                                 module.previewPitch(
                                                     pitch.midiPitch.toDouble(),
-                                                    isStaccato = newNote.isStaccato,
+                                                    isStaccato = previewArt == Articulation.STACCATO,
                                                     instrumentIdx = hitStaff.instrumentIdx,
+                                                    articulation = previewArt,
                                                 )
                                                 beginNoteDrag(hit.location, step, pitch.alter, beforeMeasures, hit.x)
                                             }
@@ -2799,18 +2970,24 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                     pitch = pitch,
                                                     duration = entryDuration,
                                                     isDotted = entryIsDotted,
-                                                    isStaccato = pendingStaccato,
+                                                    isStaccato = pendingArticulation == Articulation.STACCATO,
                                                     tuplet = colItem.item.tuplet,
+                                                    articulation = pendingArticulation,
                                                 )
                                                 pendingAccidental = null
                                                 val after = replaceEntryItem(beforeMeasures, colItem.location, newNote)
                                                 score.replaceStaffMeasures(colStaff, after)
                                                 selectedLocations = setOf(colItem.location)
                                                 refreshPitchDisplayFromSelection(colStaff, after, selectedLocations)
+                                                val previewArt = ScoreEditing.resolveItemArticulation(
+                                                    newNote,
+                                                    ScoreEditing.effectiveTechniqueArticulationAt(after, colItem.location.measureIdx, colItem.location.itemIdx),
+                                                )
                                                 module.previewPitch(
                                                     pitch.midiPitch.toDouble(),
-                                                    isStaccato = newNote.isStaccato,
+                                                    isStaccato = previewArt == Articulation.STACCATO,
                                                     instrumentIdx = colStaff.instrumentIdx,
+                                                    articulation = previewArt,
                                                 )
                                                 beginNoteDrag(colItem.location, step, pitch.alter, beforeMeasures, colItem.x)
                                             } else {
@@ -2912,8 +3089,9 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                     pitch = pitch,
                                                     duration = entryDuration,
                                                     isDotted = entryIsDotted,
-                                                    isStaccato = pendingStaccato,
+                                                    isStaccato = pendingArticulation == Articulation.STACCATO,
                                                     tuplet = insertedTuplet,
+                                                    articulation = pendingArticulation,
                                                 )
                                                 pendingAccidental = null
                                                 val (after, insertedLoc) = insertEntryItem(
@@ -2929,10 +3107,15 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                 selectedLocations = setOf(newLoc)
                                                 activePitchText = pitch.pitchDisplay()
                                                 activeChordName = null
+                                                val previewArt = ScoreEditing.resolveItemArticulation(
+                                                    newNote,
+                                                    ScoreEditing.effectiveTechniqueArticulationAt(after, newLoc.measureIdx, newLoc.itemIdx),
+                                                )
                                                 module.previewPitch(
                                                     pitch.midiPitch.toDouble(),
-                                                    isStaccato = newNote.isStaccato,
+                                                    isStaccato = previewArt == Articulation.STACCATO,
                                                     instrumentIdx = targetStaff.instrumentIdx,
+                                                    articulation = previewArt,
                                                 )
                                                 beginNoteDrag(newLoc, step, pitch.alter, beforeMeasures, downPos.x)
                                             }
@@ -3029,6 +3212,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                             val clickedMeasure = lyt.measureAt(drag.start.x, drag.start.y)
                                             if (!drag.additive) {
                                                 selectedDynamics = emptySet()
+                                                selectedTechniques = emptySet()
                                                 selectedLocations = emptySet()
                                                 activePitchText = null
                                                 activeChordName = null
@@ -3042,6 +3226,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                                 }
                                                 selectedMeasures = nextMeasures
                                                 selectedDynamics = emptySet()
+                                                selectedTechniques = emptySet()
                                                 selectedLocations = emptySet()
                                                 activePitchText = null
                                                 activeChordName = null
@@ -3056,10 +3241,12 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                                             val bottom = max(drag.start.y, drag.end.y)
                                             val hits = lyt.itemsInRect(left, top, right, bottom)
                                             val dynHits = lyt.dynamicsInRect(left, top, right, bottom)
+                                            val techHits = lyt.techniquesInRect(left, top, right, bottom)
                                             val mHits = lyt.measuresInRect(left, top, right, bottom)
                                             selectedLocations = if (drag.additive) drag.baseSelection + hits else hits
                                             selectedDynamics = if (drag.additive) drag.baseDynamics + dynHits else dynHits
-                                            selectedMeasures = if (mHits.size > 1 || (hits.isEmpty() && dynHits.isEmpty())) {
+                                            selectedTechniques = if (drag.additive) drag.baseTechniques + techHits else techHits
+                                            selectedMeasures = if (mHits.size > 1 || (hits.isEmpty() && dynHits.isEmpty() && techHits.isEmpty())) {
                                                 if (drag.additive) drag.baseMeasures + mHits else mHits
                                             } else {
                                                 emptySet()
@@ -3096,6 +3283,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         selectedMeasureIndices = displayedSelectedMeasures,
                         selectedClefChange = selectedClefChange,
                         selectedDynamics = displayedSelectedDynamics,
+                        selectedTechniques = displayedSelectedTechniques,
                         ghostPreview = ghostPreview,
                         rubberBand = rubberBand,
                         cursorPosition = module.cursorPosition,
@@ -3480,6 +3668,7 @@ fun ScoreEditor(module: ScoreModule, state: GraphState) {
                         val afterInst = beforeInst.filterIndexed { idx, _ -> idx != editIdx }
                         selectedLocations = emptySet()
                         selectedDynamics = emptySet()
+                        selectedTechniques = emptySet()
                         selectedClefChange = null
                         activeStaff = ScoreStaffId(0, 0)
                         module.placeCursor(null)
@@ -4257,6 +4446,8 @@ private fun ScorePalettePanel(
     activeTimeSignature: TimeSignature,
     activeClef: Clef,
     activeDynamic: DynamicMark,
+    activeArticulation: Articulation?,
+    activeTechnique: ScoreTechniqueMark,
     toolbarBg: Color,
     toolbarText: Color,
     accentColor: Color,
@@ -4288,6 +4479,9 @@ private fun ScorePalettePanel(
                     ScorePaletteKind.NOTES_RESTS ->
                         ((editorMode == ScoreEditMode.ENTRY || editorMode == ScoreEditMode.BEAM || editorMode == ScoreEditMode.TIE) && !isStepRecording) ||
                             isStepRecording
+                    ScorePaletteKind.ARTICULATIONS ->
+                        (editorMode == ScoreEditMode.TECHNIQUE && !isStepRecording) ||
+                            (activeArticulation != null && activeArticulation != Articulation.NORMAL)
                     ScorePaletteKind.DYNAMICS ->
                         editorMode == ScoreEditMode.DYNAMIC && !isStepRecording
                     ScorePaletteKind.KEY_SIGNATURES, ScorePaletteKind.CLEFS -> false
@@ -4353,6 +4547,29 @@ private fun ScorePalettePanel(
                                     height = 24.dp,
                                     glyphSizeSp = 20f,
                                 )
+                            }
+                            ScorePaletteKind.ARTICULATIONS -> {
+                                if (editorMode == ScoreEditMode.TECHNIQUE && !isStepRecording) {
+                                    Text(
+                                        text = activeTechnique.displayText,
+                                        fontSize = 11.sp,
+                                        fontStyle = FontStyle.Italic,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = contentColor,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                } else {
+                                    val previewGlyph = ScorePalettes.noteArticulationOptions
+                                        .firstOrNull { it.articulation == activeArticulation }
+                                        ?.glyph ?: SmuflGlyphs.ARTIC_MARCATO_ABOVE
+                                    Text(
+                                        text = previewGlyph,
+                                        fontFamily = musicFontFamily,
+                                        fontSize = 18.sp,
+                                        color = contentColor,
+                                    )
+                                }
                             }
                             ScorePaletteKind.KEY_SIGNATURES -> {
                                 KeySignatureMiniStaff(
@@ -4430,7 +4647,6 @@ private fun NotesRestsPalettePopup(
     entryIsRest: Boolean,
     entryIsDotted: Boolean,
     activeAlter: Int?,
-    staccatoActive: Boolean,
     activeTupletRatio: Pair<Int, Int>?,
     isDark: Boolean,
     toolbarText: Color,
@@ -4441,7 +4657,6 @@ private fun NotesRestsPalettePopup(
     onSelectOption: (NoteDuration, Boolean) -> Unit,
     onToggleDot: () -> Unit,
     onApplyAccidental: (Accidental) -> Unit,
-    onToggleStaccato: () -> Unit,
     onSelectTuplet: (Pair<Int, Int>?) -> Unit,
     onOpenCustomTuplet: () -> Unit,
     onSelectBeamTool: () -> Unit,
@@ -4616,60 +4831,6 @@ private fun NotesRestsPalettePopup(
                                 color = contentColor.copy(alpha = if (selected) 1f else 0.8f),
                             )
                         }
-                    }
-                }
-
-                // Articulations row
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(3.dp),
-                ) {
-                    Text(
-                        text = "Articulations",
-                        fontSize = 9.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = toolbarText,
-                        modifier = Modifier.width(62.dp),
-                    )
-                    val staccContentColor = if (staccatoActive) {
-                        if (isDark) Color.White else accentColor
-                    } else {
-                        toolbarText
-                    }
-                    val staccBg = if (staccatoActive) accentColor.copy(alpha = 0.22f) else tileBg
-                    Row(
-                        modifier = Modifier
-                            .background(staccBg, RoundedCornerShape(5.dp))
-                            .border(
-                                width = if (staccatoActive) 1.5.dp else 1.dp,
-                                color = if (staccatoActive) accentColor else borderMuted,
-                                shape = RoundedCornerShape(5.dp),
-                            )
-                            .pointerHoverIcon(PointerIcon.Hand)
-                            .clickable { onToggleStaccato() }
-                            .padding(horizontal = 7.dp, vertical = 3.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Text(
-                            text = "·",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = staccContentColor,
-                        )
-                        Text(
-                            text = "Staccato",
-                            fontSize = 10.sp,
-                            fontWeight = if (staccatoActive) FontWeight.SemiBold else FontWeight.Medium,
-                            color = staccContentColor,
-                        )
-                        Text(
-                            text = "1",
-                            fontSize = 9.sp,
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = if (staccatoActive) FontWeight.Bold else FontWeight.Medium,
-                            color = staccContentColor.copy(alpha = if (staccatoActive) 1f else 0.8f),
-                        )
                     }
                 }
 
@@ -6316,6 +6477,173 @@ private fun ScoreHorizontalScrollBar(
     }
 }
 
+
+@Composable
+private fun ArticulationsPalettePopup(
+    offsetX: Int,
+    activeArticulation: Articulation?,
+    activeTechnique: ScoreTechniqueMark,
+    isTechniqueMode: Boolean,
+    isDark: Boolean,
+    toolbarText: Color,
+    accentColor: Color,
+    borderMuted: Color,
+    musicFontFamily: FontFamily,
+    onToggleArticulation: (Articulation) -> Unit,
+    onSelectTechnique: (ScoreTechniqueMark) -> Unit,
+    onDismiss: () -> Unit,
+    onKeyEvent: (KeyEvent) -> Boolean,
+) {
+    val popupBg = if (isDark) Color(0xFF1E2238) else Color(0xFFF8FAFC)
+    val tileBg = if (isDark) Color(0xFF282E4A) else Color(0xFFE2E8F0).copy(alpha = 0.7f)
+    Popup(
+        alignment = Alignment.TopStart,
+        offset = IntOffset(offsetX, 0),
+        onDismissRequest = onDismiss,
+        properties = PopupProperties(focusable = true),
+    ) {
+        Surface(
+            color = popupBg,
+            shape = RoundedCornerShape(8.dp),
+            shadowElevation = 8.dp,
+            modifier = Modifier
+                .wrapContentSize()
+                .border(1.dp, borderMuted, RoundedCornerShape(8.dp))
+                .onKeyEvent(onKeyEvent),
+        ) {
+            Column(
+                modifier = Modifier
+                    .width(IntrinsicSize.Max)
+                    .padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = ScorePaletteKind.ARTICULATIONS.title,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = toolbarText,
+                )
+
+                // Per-note articulations row
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        text = "Note",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = toolbarText.copy(alpha = 0.8f),
+                        modifier = Modifier.width(46.dp),
+                    )
+                    for (opt in ScorePalettes.noteArticulationOptions) {
+                        val selected = activeArticulation == opt.articulation
+                        val contentColor = if (selected) {
+                            if (isDark) Color.White else accentColor
+                        } else {
+                            toolbarText
+                        }
+                        Row(
+                            modifier = Modifier
+                                .background(
+                                    if (selected) accentColor.copy(alpha = 0.22f) else tileBg,
+                                    RoundedCornerShape(5.dp),
+                                )
+                                .border(
+                                    width = if (selected) 1.5.dp else 1.dp,
+                                    color = if (selected) accentColor else borderMuted,
+                                    shape = RoundedCornerShape(5.dp),
+                                )
+                                .pointerHoverIcon(PointerIcon.Hand)
+                                .clickable { onToggleArticulation(opt.articulation) }
+                                .padding(horizontal = 7.dp, vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text(
+                                text = opt.glyph,
+                                fontFamily = musicFontFamily,
+                                fontSize = 16.sp,
+                                color = contentColor,
+                            )
+                            Text(
+                                text = opt.label,
+                                fontSize = 10.sp,
+                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                                color = contentColor,
+                            )
+                            if (opt.shortcutChar != null) {
+                                Text(
+                                    text = opt.shortcutChar.toString(),
+                                    fontSize = 9.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                    color = contentColor.copy(alpha = if (selected) 1f else 0.75f),
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Persistent above-staff technique text expressions
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    val techRows = listOf(
+                        "Pluck" to listOf(ScoreTechniqueMark.PIZZICATO, ScoreTechniqueMark.ARCO),
+                        "Mute" to listOf(ScoreTechniqueMark.CON_SORDINO, ScoreTechniqueMark.SENZA_SORDINO),
+                        "Bow" to listOf(ScoreTechniqueMark.SON_FILE, ScoreTechniqueMark.ORDINARIO),
+                    )
+                    for ((rowLabel, marks) in techRows) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text(
+                                text = rowLabel,
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = toolbarText.copy(alpha = 0.8f),
+                                modifier = Modifier.width(46.dp),
+                            )
+                            for (mark in marks) {
+                                val selected = isTechniqueMode && activeTechnique == mark
+                                val contentColor = if (selected) {
+                                    if (isDark) Color.White else accentColor
+                                } else {
+                                    toolbarText
+                                }
+                                Row(
+                                    modifier = Modifier
+                                        .background(
+                                            if (selected) accentColor.copy(alpha = 0.22f) else tileBg,
+                                            RoundedCornerShape(5.dp),
+                                        )
+                                        .border(
+                                            width = if (selected) 1.5.dp else 1.dp,
+                                            color = if (selected) accentColor else borderMuted,
+                                            shape = RoundedCornerShape(5.dp),
+                                        )
+                                        .pointerHoverIcon(PointerIcon.Hand)
+                                        .clickable { onSelectTechnique(mark) }
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
+                                    Text(
+                                        text = mark.displayText,
+                                        fontSize = 11.sp,
+                                        fontStyle = FontStyle.Italic,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = contentColor,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 @Composable
 private fun DynamicsPalettePopup(

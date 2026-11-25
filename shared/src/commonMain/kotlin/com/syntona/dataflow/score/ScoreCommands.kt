@@ -84,6 +84,7 @@ class StepRecordScoreNoteCommand(
                 amplitude = amplitude.coerceIn(0.05, 1.0),
                 isStaccato = module.stepRecordStaccato,
                 tuplet = activeTuplet,
+                articulation = module.stepRecordArticulation,
             )
             val activeTime = ScoreEditing.effectiveTimeAtMeasure(
                 measures = prevMeasures,

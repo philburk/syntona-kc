@@ -66,6 +66,7 @@ object MusicXmlWriter {
                         is MusicXmlMeasureElement.AttributesChange -> appendAttributes(element.attributes)
                         is MusicXmlMeasureElement.TempoDirection -> appendTempoDirection(element)
                         is MusicXmlMeasureElement.DynamicDirection -> appendDynamicDirection(element)
+                        is MusicXmlMeasureElement.WordsDirection -> appendWordsDirection(element)
                         is MusicXmlMeasureElement.Backup -> {
                             appendLine("\t\t\t<backup>")
                             appendLine("\t\t\t\t<duration>${element.duration}</duration>")
@@ -152,6 +153,16 @@ object MusicXmlWriter {
         appendLine("\t\t\t</direction>")
     }
 
+    private fun StringBuilder.appendWordsDirection(dir: MusicXmlMeasureElement.WordsDirection) {
+        appendLine("""			<direction placement="${dir.placement.xmlName}">""")
+        appendLine("\t\t\t\t<direction-type>")
+        val styleAttr = if (dir.italic) """ font-style="italic"""" else ""
+        appendLine("""					<words$styleAttr>${escapeText(dir.text)}</words>""")
+        appendLine("\t\t\t\t</direction-type>")
+        dir.staff?.let { appendLine("\t\t\t\t<staff>$it</staff>") }
+        appendLine("\t\t\t</direction>")
+    }
+
     private fun StringBuilder.appendNote(note: MusicXmlMeasureElement.Note) {
         appendLine("\t\t\t<note>")
         if (note.isChord) {
@@ -192,7 +203,16 @@ object MusicXmlWriter {
             val beamType = note.beams.getValue(level)
             appendLine("""				<beam number="$level">${beamType.xmlName}</beam>""")
         }
-        val hasNotations = note.tiedNotations.isNotEmpty() || note.tupletNotations.isNotEmpty() || note.isStaccato
+        val effectiveArticulations = if (note.articulations.isNotEmpty()) {
+            note.articulations
+        } else if (note.isStaccato) {
+            listOf(MusicXmlArticulation.STACCATO)
+        } else {
+            emptyList()
+        }
+        val hasNotations = note.tiedNotations.isNotEmpty() ||
+            note.tupletNotations.isNotEmpty() ||
+            effectiveArticulations.isNotEmpty()
         if (hasNotations) {
             appendLine("\t\t\t\t<notations>")
             for (tied in note.tiedNotations) {
@@ -203,9 +223,11 @@ object MusicXmlWriter {
                 val showAttr = tuplet.showNumber?.let { """ show-number="${escapeAttr(it)}"""" } ?: ""
                 appendLine("""					<tuplet type="${tuplet.type.xmlName}" number="${tuplet.number}"$bracketAttr$showAttr/>""")
             }
-            if (note.isStaccato) {
+            if (effectiveArticulations.isNotEmpty()) {
                 appendLine("\t\t\t\t\t<articulations>")
-                appendLine("\t\t\t\t\t\t<staccato/>")
+                for (art in effectiveArticulations) {
+                    appendLine("\t\t\t\t\t\t<${art.xmlName}/>")
+                }
                 appendLine("\t\t\t\t\t</articulations>")
             }
             appendLine("\t\t\t\t</notations>")

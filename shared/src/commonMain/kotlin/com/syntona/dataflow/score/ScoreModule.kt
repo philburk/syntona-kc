@@ -3,6 +3,7 @@ package com.syntona.dataflow.score
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.softsynth.ksyn.voices.Articulation
 import com.syntona.core.audio.AudioSettings
 import com.syntona.core.audio.SynthKSyn
 import com.syntona.core.model.ScoreClock
@@ -64,7 +65,18 @@ class ScoreModule : Module("score"), EngineAware {
         internal set
 
     var stepRecordDuration by mutableStateOf(NoteDuration.QUARTER)
-    var stepRecordStaccato by mutableStateOf(false)
+    var stepRecordArticulation by mutableStateOf(Articulation.NORMAL)
+    var stepRecordStaccato: Boolean
+        get() = stepRecordArticulation == Articulation.STACCATO
+        set(value) {
+            stepRecordArticulation = if (value) {
+                Articulation.STACCATO
+            } else if (stepRecordArticulation == Articulation.STACCATO) {
+                Articulation.NORMAL
+            } else {
+                stepRecordArticulation
+            }
+        }
     var stepRecordDotted by mutableStateOf(false)
     var stepRecordTupletRatio by mutableStateOf<Pair<Int, Int>?>(null)
     var autoFillRests by mutableStateOf(true)
@@ -855,10 +867,26 @@ class ScoreModule : Module("score"), EngineAware {
     /**
      * Sounds a short preview of [pitch] through [instrumentIdx]'s output jack. Safe to call from the UI thread.
      */
-    fun previewPitch(pitch: Double, isStaccato: Boolean = false, instrumentIdx: Int = 0) {
+    fun previewPitch(
+        pitch: Double,
+        isStaccato: Boolean = false,
+        instrumentIdx: Int = 0,
+        articulation: Articulation = if (isStaccato) Articulation.STACCATO else Articulation.NORMAL,
+    ) {
         val e = engine ?: return
-        val durationMs = if (isStaccato) STACCATO_PREVIEW_DURATION_MS else PREVIEW_DURATION_MS
-        e.post(PreviewScoreNoteCommand(outputForInstrument(instrumentIdx), pitch, durationMs))
+        val effArt = if (articulation != Articulation.NORMAL) {
+            articulation
+        } else if (isStaccato) {
+            Articulation.STACCATO
+        } else {
+            Articulation.NORMAL
+        }
+        val durationMs = if (effArt == Articulation.STACCATO || effArt == Articulation.STACCATISSIMO) {
+            STACCATO_PREVIEW_DURATION_MS
+        } else {
+            PREVIEW_DURATION_MS
+        }
+        e.post(PreviewScoreNoteCommand(outputForInstrument(instrumentIdx), pitch, durationMs, effArt))
     }
 
     private fun startPlayback(
@@ -984,6 +1012,7 @@ class ScoreModule : Module("score"), EngineAware {
             val onsetTick: RationalTicks,
             val endTick: RationalTicks,
             val attackDyn: DynamicMark?,
+            val articulation: Articulation,
         )
 
         var effectiveTime = scoreData.instruments.firstOrNull()?.measures?.firstOrNull()?.timeSignature
@@ -994,6 +1023,7 @@ class ScoreModule : Module("score"), EngineAware {
         val slotLookupByStaff = linkedMapOf<ScoreStaffId, MutableMap<ScoreItemLocation, PlaybackSlot>>()
         val trailingRestTicksByStaff = linkedMapOf<ScoreStaffId, MutableList<Pair<RationalTicks, ScoreItemLocation?>>>()
         val sustainedByStaff = staffIds.associateWith<ScoreStaffId, DynamicMark?> { null }.toMutableMap()
+        val techniqueByStaff = staffIds.associateWith { Articulation.NORMAL }.toMutableMap()
         val globalIdxByStaff = staffIds.associateWith { 0 }.toMutableMap()
         val measureStartTicks = ArrayList<RationalTicks>(maxMeasureCount)
         val measureEndTicks = ArrayList<RationalTicks>(maxMeasureCount)
@@ -1015,6 +1045,7 @@ class ScoreModule : Module("score"), EngineAware {
                 val staffOut = outputForInstrument(staff.instrumentIdx)
                 var staffCursor = measureStartTick
                 var sustainedDyn = sustainedByStaff[staff]
+                var activeTech = techniqueByStaff[staff] ?: Articulation.NORMAL
 
                 val items = measure?.items.orEmpty()
                 for ((slotIdx, item) in items.withIndex()) {
@@ -1023,6 +1054,10 @@ class ScoreModule : Module("score"), EngineAware {
                         sustainedDyn,
                     )
                     sustainedDyn = nextSustained
+                    measure?.techniques?.get(slotIdx)?.let { tech ->
+                        activeTech = tech.mark.targetArticulation
+                    }
+                    val effectiveArt = ScoreEditing.resolveItemArticulation(item, activeTech)
                     val gIdx = (globalIdxByStaff[staff] ?: 0)
                     globalIdxByStaff[staff] = gIdx + 1
                     val itemTicks = item.exactTicks()
@@ -1036,6 +1071,7 @@ class ScoreModule : Module("score"), EngineAware {
                         onsetTick = staffCursor,
                         endTick = staffCursor + itemTicks,
                         attackDyn = attackDyn,
+                        articulation = effectiveArt,
                     )
                     staffSlots.add(slot)
                     staffLookup[loc] = slot
@@ -1048,8 +1084,14 @@ class ScoreModule : Module("score"), EngineAware {
                             sustainedDyn = ScoreEditing.resolvePlaybackDynamicStep(dyn, sustainedDyn).second
                         }
                     }
+                    for ((k, tech) in measure.techniques.entries.sortedBy { it.key }) {
+                        if (k >= items.size) {
+                            activeTech = tech.mark.targetArticulation
+                        }
+                    }
                 }
                 sustainedByStaff[staff] = sustainedDyn
+                techniqueByStaff[staff] = activeTech
 
                 val staffTicks = staffCursor - measureStartTick
                 if (staffTicks < measureCapacityTicks && items.isNotEmpty()) {
@@ -1150,7 +1192,9 @@ class ScoreModule : Module("score"), EngineAware {
                     val clampedEndTick = minOf(endSlot.endTick, cycleEndTick)
                     val sustainTicks = maxOf(clampedEndTick - slot.onsetTick, RationalTicks.ZERO).toDoubleTicks()
                     val sustainDurSec = (sustainTicks * nsPerTick) / 1_000_000_000.0
-                    val soundingDurSec = if (endSlot.item.noteStaccato()) {
+                    val isDetachedEnd = endSlot.articulation == Articulation.STACCATO ||
+                        endSlot.articulation == Articulation.STACCATISSIMO
+                    val soundingDurSec = if (isDetachedEnd) {
                         val leadTicks = maxOf(endSlot.onsetTick - slot.onsetTick, RationalTicks.ZERO).toDoubleTicks()
                         val lastNoteFullTicks = maxOf(clampedEndTick - endSlot.onsetTick, RationalTicks.ZERO).toDoubleTicks()
                         val leadSec = (leadTicks * nsPerTick) / 1_000_000_000.0
@@ -1191,6 +1235,7 @@ class ScoreModule : Module("score"), EngineAware {
                                     value = spec.midiPitch,
                                     extra = effectiveAmp,
                                     duration = spec.soundingDurSec,
+                                    articulation = slot.articulation,
                                 )
                             )
                             activeMap[spec.tag] = spec.midiPitch
@@ -1404,6 +1449,7 @@ private class PreviewScoreNoteCommand(
     private val output: VoiceOutputJack,
     private val pitch: Double,
     private val durationMs: Long,
+    private val articulation: Articulation = Articulation.NORMAL,
 ) : SyntonaCommand {
     override val isUndoable = false
 
@@ -1426,6 +1472,7 @@ private class PreviewScoreNoteCommand(
                 value = pitch,
                 extra = ScoreModule.PREVIEW_AMPLITUDE,
                 duration = durationMs * 0.001,
+                articulation = articulation,
             )
         )
     }

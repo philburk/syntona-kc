@@ -368,15 +368,24 @@ and I lock 10 and 11,
 and then I drag the loop one measure over,
 the first two bars, 11 and 12, will be locked.
 
+### Phase 26 - Articulations
+Let's add support for more articulations to the Syntona staff notation system
+in the "score" module.
+The KSyn class com.softsynth.ksyn.voices.Articulation has enums for common string articulations.
+These are used in the BowedStringVoice and could be used in the Syntona bowedString module.
+Add an Articulation field to the com.syntona.dataflow.model.VoiceMessage.
+Then add support to the staff notation editor to enter and edit these articulations.
+Add an Articulation palette to the Score toolbar. and move the Staccato articulation
+from the Notes palette to the new palette.
+The pizzicato articulations are notated differently because they use a "pizz" text annotation
+to turn it on and an "arco" to turn it off. They will be placed above the score similar
+to the dynamic markings.
+In the KSynInstrumentModule.onMessageReceived(), extract the articulation and pass it to the
+instrument's noteOn() method.
+
 ### Phase ? - Measure Lines
 Add support for typical measure lines.
 Put the select buttons for measure lines into a palette called "Measure Lines".
-
-
-### Phase ? - Articulations
-Add support for articulations such as pizzicato, mute, sustain pedal, and
-2 or 3 other very common articulations.
-Add M2-123-UM compatible articulations.
 
 ### Phase ? - Document Name, Composer, Date and other fields
 

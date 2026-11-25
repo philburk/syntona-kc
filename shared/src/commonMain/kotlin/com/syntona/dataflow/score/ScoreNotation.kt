@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.softsynth.ksyn.voices.Articulation
 import com.syntona.dataflow.modules.PianoRollTiming
 
 enum class NoteLetter(val semitoneOffset: Int, val display: String) {
@@ -514,11 +515,13 @@ sealed interface ScoreItem {
         is Rest -> 0.0
     }
 
-    fun noteStaccato(): Boolean = when (this) {
-        is Note -> isStaccato
-        is Chord -> isStaccato
-        is Rest -> false
+    fun noteArticulation(): Articulation = when (this) {
+        is Note -> if (articulation != Articulation.NORMAL) articulation else if (isStaccato) Articulation.STACCATO else Articulation.NORMAL
+        is Chord -> if (articulation != Articulation.NORMAL) articulation else if (isStaccato) Articulation.STACCATO else Articulation.NORMAL
+        is Rest -> Articulation.NORMAL
     }
+
+    fun noteStaccato(): Boolean = noteArticulation() == Articulation.STACCATO
 
     fun tiedMidiPitches(): Set<Int> = when (this) {
         is Note -> if (isTiedToNext) setOf(pitch.midiPitch) else emptySet()
@@ -534,7 +537,11 @@ sealed interface ScoreItem {
         val isStaccato: Boolean = false,
         val isTiedToNext: Boolean = false,
         override val tuplet: ScoreTuplet? = null,
-    ) : ScoreItem
+        val articulation: Articulation = if (isStaccato) Articulation.STACCATO else Articulation.NORMAL,
+    ) : ScoreItem {
+        fun withArticulation(art: Articulation): Note =
+            copy(isStaccato = art == Articulation.STACCATO, articulation = art)
+    }
 
     /** Vertically aligned chord of two or more simultaneous pitches sharing one stem/duration. */
     data class Chord(
@@ -545,7 +552,11 @@ sealed interface ScoreItem {
         val isStaccato: Boolean = false,
         val tiedMidiPitches: Set<Int> = emptySet(),
         override val tuplet: ScoreTuplet? = null,
-    ) : ScoreItem
+        val articulation: Articulation = if (isStaccato) Articulation.STACCATO else Articulation.NORMAL,
+    ) : ScoreItem {
+        fun withArticulation(art: Articulation): Chord =
+            copy(isStaccato = art == Articulation.STACCATO, articulation = art)
+    }
 
     data class Rest(
         override val duration: NoteDuration,
@@ -604,6 +615,26 @@ enum class DynamicPlacement {
 data class ScoreDynamicMarking(
     val mark: DynamicMark,
     val placement: DynamicPlacement = DynamicPlacement.BELOW,
+)
+
+/** Persistent staff-level playing technique / text expression anchored above a staff. */
+enum class ScoreTechniqueMark(
+    val label: String,
+    val displayText: String,
+    val targetArticulation: Articulation,
+) {
+    PIZZICATO("Pizzicato", "pizz.", Articulation.PIZZICATO),
+    ARCO("Arco", "arco", Articulation.NORMAL),
+    CON_SORDINO("Mute", "con sord.", Articulation.MUTE),
+    SENZA_SORDINO("Unmute", "senza sord.", Articulation.NORMAL),
+    SON_FILE("Son Filé", "son filé", Articulation.SON_FILE),
+    ORDINARIO("Ordinario", "ordinario", Articulation.NORMAL),
+}
+
+/** Persistent technique text marking anchored to an item slot inside a [ScoreMeasure]. */
+data class ScoreTechniqueMarking(
+    val mark: ScoreTechniqueMark,
+    val placement: DynamicPlacement = DynamicPlacement.ABOVE,
 )
 
 /** Identifies one rendered staff belonging to an instrument (`staffIdx = 0` primary/upper, `1` lower/bass). */
@@ -793,6 +824,15 @@ data class ScoreDynamicLocation(
     val staff: ScoreStaffId = ScoreStaffId(0, 0),
 )
 
+/**
+ * Coordinates identifying an item-indexed technique text marking (e.g. `pizz.`, `arco`) inside a [ScoreMeasure].
+ */
+data class ScoreTechniqueLocation(
+    val measureIdx: Int,
+    val itemIdx: Int,
+    val staff: ScoreStaffId = ScoreStaffId(0, 0),
+)
+
 data class ScoreMeasure(
     val number: Int,
     val items: List<ScoreItem>,
@@ -800,6 +840,7 @@ data class ScoreMeasure(
     val timeSignature: TimeSignature? = null,
     val clefChanges: Map<Int, Clef> = emptyMap(),
     val dynamics: Map<Int, ScoreDynamicMarking> = emptyMap(),
+    val techniques: Map<Int, ScoreTechniqueMarking> = emptyMap(),
     /**
      * Manual beaming overrides between adjacent items (`i` links item `i` and `i + 1`).
      * `true` forces a beam across a beat/clef boundary; `false` breaks an automatic beam.
@@ -899,8 +940,11 @@ object ScoreEditing {
         isStaccato: Boolean = false,
         tiedMidiPitches: Set<Int> = emptySet(),
         tuplet: ScoreTuplet? = null,
+        articulation: Articulation = if (isStaccato) Articulation.STACCATO else Articulation.NORMAL,
     ): ScoreItem? {
         val sorted = normalizeChordPitches(pitches)
+        val effArticulation = if (articulation != Articulation.NORMAL) articulation else if (isStaccato) Articulation.STACCATO else Articulation.NORMAL
+        val effStaccato = effArticulation == Articulation.STACCATO
         return when {
             sorted.isEmpty() -> null
             sorted.size == 1 -> {
@@ -910,9 +954,10 @@ object ScoreEditing {
                     duration = duration,
                     isDotted = isDotted,
                     amplitude = amplitude,
-                    isStaccato = isStaccato,
+                    isStaccato = effStaccato,
                     isTiedToNext = p.midiPitch in tiedMidiPitches,
                     tuplet = tuplet,
+                    articulation = effArticulation,
                 )
             }
             else -> {
@@ -922,9 +967,10 @@ object ScoreEditing {
                     duration = duration,
                     isDotted = isDotted,
                     amplitude = amplitude,
-                    isStaccato = isStaccato,
+                    isStaccato = effStaccato,
                     tiedMidiPitches = tiedMidiPitches intersect validMidis,
                     tuplet = tuplet,
+                    articulation = effArticulation,
                 )
             }
         }
@@ -941,13 +987,21 @@ object ScoreEditing {
     ): Pair<List<ScoreMeasure>, ScoreItemLocation> {
         val slot = slotLoc.slotLocation()
         val item = itemAt(measures, slot) ?: return measures to slotLoc
-        val (existingPitches, dur, dotted, amp, stacc) = when (item) {
-            is ScoreItem.Note -> Tuple5(listOf(item.pitch), item.duration, item.isDotted, item.amplitude, item.isStaccato)
-            is ScoreItem.Chord -> Tuple5(item.pitches, item.duration, item.isDotted, item.amplitude, item.isStaccato)
+        val (existingPitches, dur, dotted, amp, art) = when (item) {
+            is ScoreItem.Note -> Tuple5(listOf(item.pitch), item.duration, item.isDotted, item.amplitude, item.noteArticulation())
+            is ScoreItem.Chord -> Tuple5(item.pitches, item.duration, item.isDotted, item.amplitude, item.noteArticulation())
             is ScoreItem.Rest -> return measures to slotLoc
         }
         val combined = normalizeChordPitches(existingPitches + pitch)
-        val newItem = itemFromPitches(combined, dur, dotted, amp, stacc, item.tiedMidiPitches(), item.tuplet) ?: return measures to slotLoc
+        val newItem = itemFromPitches(
+            pitches = combined,
+            duration = dur,
+            isDotted = dotted,
+            amplitude = amp,
+            tiedMidiPitches = item.tiedMidiPitches(),
+            tuplet = item.tuplet,
+            articulation = art,
+        ) ?: return measures to slotLoc
         val newMeasures = replaceItem(measures, slot, newItem)
         val newLoc = if (newItem is ScoreItem.Chord) {
             val idx = newItem.pitches.indexOfFirst { it.diatonicStep == pitch.diatonicStep }
@@ -1048,11 +1102,13 @@ object ScoreEditing {
         val newItems = m.items.toMutableList().apply { add(clampedIdx, item) }
         val updatedClefs = shiftIndexedMapOnInsert(m.clefChanges, clampedIdx, shiftClefAtIndex)
         val updatedDynamics = shiftIndexedMapOnInsert(m.dynamics, clampedIdx, shiftClefAtIndex)
+        val updatedTechniques = shiftIndexedMapOnInsert(m.techniques, clampedIdx, shiftClefAtIndex)
         val updatedBeams = shiftBeamOverridesOnInsert(m.beamOverrides, clampedIdx)
         updated[measureIdx] = m.copy(
             items = newItems,
             clefChanges = updatedClefs,
             dynamics = updatedDynamics,
+            techniques = updatedTechniques,
             beamOverrides = updatedBeams,
         )
         return renumber(updated) to ScoreItemLocation(measureIdx, clampedIdx)
@@ -1168,6 +1224,7 @@ object ScoreEditing {
                 items = items,
                 clefChanges = shiftIndexedMapOnDelete(measure.clefChanges, removedIndices),
                 dynamics = shiftIndexedMapOnDelete(measure.dynamics, removedIndices),
+                techniques = shiftIndexedMapOnDelete(measure.techniques, removedIndices),
                 beamOverrides = shiftBeamOverridesOnDelete(measure.beamOverrides, removedIndices),
             )
         }
@@ -1238,9 +1295,10 @@ object ScoreEditing {
                     item.duration,
                     item.isDotted,
                     item.amplitude,
-                    item.isStaccato,
+                    item.noteStaccato(),
                     keptTies,
                     item.tuplet,
+                    item.noteArticulation(),
                 ) ?: return measures to loc
                 val nextMeasures = replaceItem(measures, slot, newItem)
                 val nextLoc = if (newItem is ScoreItem.Chord) {
@@ -1428,9 +1486,10 @@ object ScoreEditing {
                             duration = item.duration,
                             isDotted = item.isDotted,
                             amplitude = item.amplitude,
-                            isStaccato = item.isStaccato,
+                            isStaccato = item.noteStaccato(),
                             tiedMidiPitches = item.tiedMidiPitches,
                             tuplet = item.tuplet,
+                            articulation = item.noteArticulation(),
                         )
                         if (newItem == null || newItem == item) {
                             remappedSelection.addAll(locs)
@@ -1551,26 +1610,41 @@ object ScoreEditing {
     fun toggleStaccatoOnSelection(
         measures: List<ScoreMeasure>,
         selection: Set<ScoreItemLocation>,
+    ): List<ScoreMeasure> = toggleArticulationOnSelection(measures, selection, Articulation.STACCATO)
+
+    /**
+     * Toggles [articulation] across all sounding items in [selection]: if every selected note/chord
+     * already carries [articulation], clears it back to [Articulation.NORMAL]; otherwise sets all
+     * selected notes/chords to [articulation].
+     */
+    fun toggleArticulationOnSelection(
+        measures: List<ScoreMeasure>,
+        selection: Set<ScoreItemLocation>,
+        articulation: Articulation,
     ): List<ScoreMeasure> {
         if (selection.isEmpty()) return measures
         val slots = selection.mapTo(mutableSetOf()) { it.measureIdx to it.itemIdx }
         val selectedSounding = slots.mapNotNull { (mIdx, iIdx) ->
             when (val item = measures.getOrNull(mIdx)?.items?.getOrNull(iIdx)) {
-                is ScoreItem.Note -> item.isStaccato
-                is ScoreItem.Chord -> item.isStaccato
+                is ScoreItem.Note -> item.noteArticulation()
+                is ScoreItem.Chord -> item.noteArticulation()
                 else -> null
             }
         }
         if (selectedSounding.isEmpty()) return measures
-        val targetStaccato = !selectedSounding.all { it }
+        val targetArticulation = if (selectedSounding.all { it == articulation }) {
+            Articulation.NORMAL
+        } else {
+            articulation
+        }
         var anyChanged = false
         val updated = measures.mapIndexed { mIdx, m ->
             var measureChanged = false
             val newItems = m.items.mapIndexed { iIdx, item ->
                 if ((mIdx to iIdx) !in slots) return@mapIndexed item
                 val next = when (item) {
-                    is ScoreItem.Note -> if (item.isStaccato != targetStaccato) item.copy(isStaccato = targetStaccato) else item
-                    is ScoreItem.Chord -> if (item.isStaccato != targetStaccato) item.copy(isStaccato = targetStaccato) else item
+                    is ScoreItem.Note -> if (item.noteArticulation() != targetArticulation) item.withArticulation(targetArticulation) else item
+                    is ScoreItem.Chord -> if (item.noteArticulation() != targetArticulation) item.withArticulation(targetArticulation) else item
                     is ScoreItem.Rest -> item
                 }
                 if (next !== item) {
@@ -1626,9 +1700,10 @@ object ScoreEditing {
                         duration = item.duration,
                         isDotted = item.isDotted,
                         amplitude = item.amplitude,
-                        isStaccato = item.isStaccato,
+                        isStaccato = item.noteStaccato(),
                         tiedMidiPitches = item.tiedMidiPitches,
                         tuplet = item.tuplet,
+                        articulation = item.noteArticulation(),
                     )
                     if (reduced != null) {
                         nextItems.add(reduced)
@@ -1652,11 +1727,13 @@ object ScoreEditing {
             }
             val nextClefs = shiftIndexedMapOnDelete(m.clefChanges, removedIndices)
             val nextDynamics = shiftIndexedMapOnDelete(m.dynamics, removedIndices)
+            val nextTechniques = shiftIndexedMapOnDelete(m.techniques, removedIndices)
             val nextBeams = shiftBeamOverridesOnDelete(m.beamOverrides, removedIndices)
             val edited = m.copy(
                 items = nextItems,
                 clefChanges = nextClefs,
                 dynamics = nextDynamics,
+                techniques = nextTechniques,
                 beamOverrides = nextBeams,
             )
             if (autoFillRests) {
@@ -1707,9 +1784,10 @@ object ScoreEditing {
                         duration = item.duration,
                         isDotted = item.isDotted,
                         amplitude = item.amplitude,
-                        isStaccato = item.isStaccato,
+                        isStaccato = item.noteStaccato(),
                         tiedMidiPitches = item.tiedMidiPitches,
                         tuplet = item.tuplet,
+                        articulation = item.noteArticulation(),
                     )
                     if (reduced != null) {
                         nextItems.add(reduced)
@@ -1722,8 +1800,15 @@ object ScoreEditing {
             }
             val nextClefs = shiftIndexedMapOnDelete(m.clefChanges, removedIndices)
             val nextDynamics = shiftIndexedMapOnDelete(m.dynamics, removedIndices)
+            val nextTechniques = shiftIndexedMapOnDelete(m.techniques, removedIndices)
             val nextBeams = shiftBeamOverridesOnDelete(m.beamOverrides, removedIndices)
-            m.copy(items = nextItems, clefChanges = nextClefs, dynamics = nextDynamics, beamOverrides = nextBeams)
+            m.copy(
+                items = nextItems,
+                clefChanges = nextClefs,
+                dynamics = nextDynamics,
+                techniques = nextTechniques,
+                beamOverrides = nextBeams,
+            )
         }
         return renumber(updated)
     }
@@ -2181,6 +2266,93 @@ object ScoreEditing {
     }
 
     /**
+     * Sets or removes (`marking == null`) a technique text marking at [location].
+     */
+    fun setTechnique(
+        measures: List<ScoreMeasure>,
+        location: ScoreTechniqueLocation,
+        marking: ScoreTechniqueMarking?,
+    ): Pair<List<ScoreMeasure>, ScoreTechniqueLocation?> {
+        val normalized = renumber(measures)
+        if (location.measureIdx !in normalized.indices) return normalized to null
+        val m = normalized[location.measureIdx]
+        val clampedItemIdx = location.itemIdx.coerceIn(0, m.items.size)
+        val nextTechniques = m.techniques.toMutableMap()
+        if (marking == null) {
+            nextTechniques.remove(clampedItemIdx)
+        } else {
+            nextTechniques[clampedItemIdx] = marking
+        }
+        if (nextTechniques == m.techniques) {
+            return normalized to (if (marking == null) null else ScoreTechniqueLocation(location.measureIdx, clampedItemIdx))
+        }
+        val nextMeasures = normalized.toMutableList().apply {
+            set(location.measureIdx, m.copy(techniques = nextTechniques))
+        }
+        val resultLoc = if (marking == null) null else ScoreTechniqueLocation(location.measureIdx, clampedItemIdx)
+        return nextMeasures to resultLoc
+    }
+
+    /**
+     * Deletes every explicit technique text marking identified in [locations].
+     */
+    fun deleteTechniques(
+        measures: List<ScoreMeasure>,
+        locations: Set<ScoreTechniqueLocation>,
+    ): List<ScoreMeasure> {
+        if (locations.isEmpty()) return measures
+        val byMeasure = locations.groupBy { it.measureIdx }
+        var changed = false
+        val updated = measures.mapIndexed { mIdx, m ->
+            val targets = byMeasure[mIdx] ?: return@mapIndexed m
+            if (m.techniques.isEmpty()) return@mapIndexed m
+            val nextTechniques = m.techniques.toMutableMap()
+            var measureChanged = false
+            for (loc in targets) {
+                if (nextTechniques.remove(loc.itemIdx) != null) {
+                    measureChanged = true
+                    changed = true
+                }
+            }
+            if (measureChanged) m.copy(techniques = nextTechniques) else m
+        }
+        return if (changed) renumber(updated) else measures
+    }
+
+    /**
+     * Returns the persistent staff-level [Articulation] in effect at `(measureIdx, itemIdx)` from
+     * technique markings (`pizz.`, `arco`, `con sord.`, `senza sord.`, `son filé`, `ordinario`).
+     */
+    fun effectiveTechniqueArticulationAt(
+        measures: List<ScoreMeasure>,
+        measureIdx: Int,
+        itemIdx: Int = Int.MAX_VALUE,
+    ): Articulation {
+        if (measures.isEmpty()) return Articulation.NORMAL
+        val limitM = measureIdx.coerceIn(0, measures.lastIndex)
+        var active = Articulation.NORMAL
+        for (m in 0..limitM) {
+            val measure = measures[m]
+            val limitI = if (m < limitM) Int.MAX_VALUE else itemIdx
+            for ((idx, tech) in measure.techniques.entries.sortedBy { it.key }) {
+                if (idx <= limitI) {
+                    active = tech.mark.targetArticulation
+                }
+            }
+        }
+        return active
+    }
+
+    /**
+     * Resolves the effective [Articulation] for [item] at a slot where [activeTechnique] is in effect:
+     * an explicit per-note articulation (`!= NORMAL`) overrides the staff technique.
+     */
+    fun resolveItemArticulation(item: ScoreItem, activeTechnique: Articulation): Articulation {
+        val perNote = item.noteArticulation()
+        return if (perNote != Articulation.NORMAL) perNote else activeTechnique
+    }
+
+    /**
      * Captures the currently selected notes, chords, and rests in score order along with each
      * item's measure offset relative to the first selected measure (and any explicit clef at that
      * slot) so pasting preserves bar boundaries and mid-score clefs.
@@ -2218,6 +2390,10 @@ object ScoreEditing {
                 .getOrNull(slot.measureIdx)
                 ?.dynamics
                 ?.get(slot.itemIdx)
+            val techniqueAt = measures
+                .getOrNull(slot.measureIdx)
+                ?.techniques
+                ?.get(slot.itemIdx)
             val locs = bySlot.getValue(slot)
             if (item is ScoreItem.Chord && locs.none { it.chordNoteIdx == null }) {
                 val selectedIndices = locs
@@ -2231,12 +2407,13 @@ object ScoreEditing {
                     duration = item.duration,
                     isDotted = item.isDotted,
                     amplitude = item.amplitude,
-                    isStaccato = item.isStaccato,
+                    isStaccato = item.noteStaccato(),
                     tiedMidiPitches = item.tiedMidiPitches,
                     tuplet = item.tuplet,
-                )?.let { copied.add(ScoreClipboardItem(it, relMeasure, clefBefore, dynamicAt, beamOverrideAfter)) }
+                    articulation = item.noteArticulation(),
+                )?.let { copied.add(ScoreClipboardItem(it, relMeasure, clefBefore, dynamicAt, beamOverrideAfter, techniqueAt)) }
             } else {
-                copied.add(ScoreClipboardItem(item, relMeasure, clefBefore, dynamicAt, beamOverrideAfter))
+                copied.add(ScoreClipboardItem(item, relMeasure, clefBefore, dynamicAt, beamOverrideAfter, techniqueAt))
             }
         }
         return copied
@@ -2258,6 +2435,7 @@ object ScoreEditing {
         selectedMeasures: Set<Int> = emptySet(),
         selectedClefChange: ScoreClefLocation? = null,
         selectedDynamics: Set<ScoreDynamicLocation> = emptySet(),
+        selectedTechniques: Set<ScoreTechniqueLocation> = emptySet(),
     ): ScoreClipboardContent? {
         val validMeasures = selectedMeasures.filter { it in measures.indices }.sorted()
         if (validMeasures.isNotEmpty()) {
@@ -2269,6 +2447,7 @@ object ScoreEditing {
                         items = m.items.toList(),
                         clefChanges = m.clefChanges.toMap(),
                         dynamics = m.dynamics.toMap(),
+                        techniques = m.techniques.toMap(),
                         beamOverrides = m.beamOverrides.toMap(),
                     ),
                     openingKey = effectiveKeyAtMeasure(measures, initialKeySignature, mIdx),
@@ -2305,6 +2484,29 @@ object ScoreEditing {
                     )
                 }
                 return ScoreClipboardContent.DynamicsOnly(copied)
+            }
+        }
+        if (selectedTechniques.isNotEmpty()) {
+            val sortedTechs = selectedTechniques
+                .sortedWith(compareBy<ScoreTechniqueLocation> { it.measureIdx }.thenBy { it.itemIdx })
+                .mapNotNull { loc ->
+                    val marking = measures.getOrNull(loc.measureIdx)?.techniques?.get(loc.itemIdx)
+                        ?: return@mapNotNull null
+                    loc to marking
+                }
+            if (sortedTechs.isNotEmpty()) {
+                val baseM = sortedTechs.first().first.measureIdx
+                val baseI = sortedTechs.first().first.itemIdx
+                val copied = sortedTechs.map { (loc, marking) ->
+                    val relM = loc.measureIdx - baseM
+                    val relI = if (relM == 0) loc.itemIdx - baseI else loc.itemIdx
+                    ScoreClipboardTechnique(
+                        relativeMeasureOffset = relM,
+                        relativeOrAbsoluteItemIdx = relI,
+                        marking = marking,
+                    )
+                }
+                return ScoreClipboardContent.TechniquesOnly(copied)
             }
         }
         if (selectedClefChange != null) {
@@ -2391,6 +2593,7 @@ object ScoreEditing {
                         items = emptyList(),
                         clefChanges = emptyMap(),
                         dynamics = emptyMap(),
+                        techniques = emptyMap(),
                         beamOverrides = emptyMap(),
                     )
                 } else {
@@ -2491,6 +2694,13 @@ object ScoreEditing {
                     current,
                     ScoreDynamicLocation(loc.measureIdx, loc.itemIdx),
                     entry.dynamicAt,
+                ).first
+            }
+            if (entry.techniqueAt != null) {
+                current = setTechnique(
+                    current,
+                    ScoreTechniqueLocation(loc.measureIdx, loc.itemIdx),
+                    entry.techniqueAt,
                 ).first
             }
             val prevLocSnapshot = prevInsertedLoc
@@ -2601,7 +2811,74 @@ object ScoreEditing {
             initialTimeSignature = initialTimeSignature,
             initialClef = initialClef,
         )
+        is ScoreClipboardContent.TechniquesOnly -> pasteTechniquesOnly(
+            measures = measures,
+            markings = content.markings,
+            cursorPosition = cursorPosition,
+            selectedLocations = selectedLocations,
+            selectedMeasures = selectedMeasures,
+            initialKeySignature = initialKeySignature,
+            initialTimeSignature = initialTimeSignature,
+            initialClef = initialClef,
+        )
         is ScoreClipboardContent.ClefOnly -> null
+    }
+
+    private fun pasteTechniquesOnly(
+        measures: List<ScoreMeasure>,
+        markings: List<ScoreClipboardTechnique>,
+        cursorPosition: ScoreCursorPosition?,
+        selectedLocations: Set<ScoreItemLocation>,
+        selectedMeasures: Set<Int>,
+        initialKeySignature: KeySignature,
+        initialTimeSignature: TimeSignature,
+        initialClef: Clef,
+    ): ScorePasteResult? {
+        if (markings.isEmpty()) return null
+        var current = renumber(measures)
+        val (baseM, baseI) = when {
+            cursorPosition != null -> {
+                val m = cursorPosition.measureIdx.coerceIn(0, current.lastIndex)
+                val i = cursorPosition.itemIdx.coerceIn(0, current[m].items.size)
+                m to i
+            }
+            selectedLocations.isNotEmpty() -> {
+                val first = selectedLocations.minWith(compareBy<ScoreItemLocation> { it.measureIdx }.thenBy { it.itemIdx })
+                first.measureIdx.coerceIn(0, current.lastIndex) to first.itemIdx.coerceIn(0, current[first.measureIdx.coerceIn(0, current.lastIndex)].items.size)
+            }
+            selectedMeasures.isNotEmpty() -> {
+                selectedMeasures.min().coerceIn(0, current.lastIndex) to 0
+            }
+            else -> 0 to 0
+        }
+        val pastedTechs = linkedSetOf<ScoreTechniqueLocation>()
+        var lastLoc = ScoreTechniqueLocation(baseM, baseI)
+        for (entry in markings) {
+            val targetM = baseM + entry.relativeMeasureOffset
+            while (targetM >= current.size) {
+                current = appendEmptyMeasure(current)
+            }
+            val rawTargetI = if (entry.relativeMeasureOffset == 0) baseI + entry.relativeOrAbsoluteItemIdx else entry.relativeOrAbsoluteItemIdx
+            val (next, placedLoc) = setTechnique(
+                current,
+                ScoreTechniqueLocation(targetM, rawTargetI),
+                entry.marking,
+            )
+            current = next
+            if (placedLoc != null) {
+                pastedTechs.add(placedLoc)
+                lastLoc = placedLoc
+            }
+        }
+        return ScorePasteResult(
+            measures = current,
+            pastedLocations = emptySet(),
+            nextCursor = ScoreCursorPosition(lastLoc.measureIdx, lastLoc.itemIdx),
+            initialClef = initialClef,
+            initialKeySignature = initialKeySignature,
+            initialTimeSignature = initialTimeSignature,
+            pastedTechniques = pastedTechs,
+        )
     }
 
     private fun pasteDynamicsOnly(
@@ -2686,6 +2963,7 @@ object ScoreEditing {
                         items = emptyList(),
                         clefChanges = emptyMap(),
                         dynamics = emptyMap(),
+                        techniques = emptyMap(),
                         beamOverrides = emptyMap(),
                     )
                 } else {
@@ -2741,7 +3019,8 @@ object ScoreEditing {
                         it.keySignature != null ||
                         it.timeSignature != null ||
                         it.clefChanges.isNotEmpty() ||
-                        it.dynamics.isNotEmpty()
+                        it.dynamics.isNotEmpty() ||
+                        it.techniques.isNotEmpty()
                 }
                 if (lastNonEmpty >= 0) (lastNonEmpty + 1) to 0 else 0 to 0
             }
@@ -2791,6 +3070,18 @@ object ScoreEditing {
             }
             for ((k, dyn) in cm.measure.dynamics) {
                 mergedDynamics[insertIIdx + k] = dyn
+            }
+
+            val mergedTechniques = mutableMapOf<Int, ScoreTechniqueMarking>()
+            for ((k, tech) in dest.techniques) {
+                if (k < insertIIdx) {
+                    mergedTechniques[k] = tech
+                } else {
+                    mergedTechniques[k + insertedCount] = tech
+                }
+            }
+            for ((k, tech) in cm.measure.techniques) {
+                mergedTechniques[insertIIdx + k] = tech
             }
 
             val mergedBeams = mutableMapOf<Int, Boolean>()
@@ -2846,6 +3137,7 @@ object ScoreEditing {
                         timeSignature = mergedTime,
                         clefChanges = mergedClefs,
                         dynamics = mergedDynamics,
+                        techniques = mergedTechniques,
                         beamOverrides = mergedBeams,
                     )
                 )
@@ -3519,7 +3811,7 @@ object ScoreEditing {
                 while (j <= lastNonPlainRestIdx) {
                     val next = items[j]
                     if (next is ScoreItem.Rest && next.tuplet == null &&
-                        j !in measure.clefChanges && j !in measure.dynamics
+                        j !in measure.clefChanges && j !in measure.dynamics && j !in measure.techniques
                     ) {
                         j++
                     } else {
@@ -3577,6 +3869,16 @@ object ScoreEditing {
                 }
             }
         }
+        val nextTechniques = if (measure.techniques.isEmpty()) {
+            emptyMap()
+        } else {
+            buildMap {
+                for ((idx, tech) in measure.techniques) {
+                    val mapped = if (idx == 0 && newItems.isEmpty()) 0 else indexMap.getOrNull(idx) ?: -1
+                    if (mapped >= 0) put(mapped, tech)
+                }
+            }
+        }
         val nextBeams = if (measure.beamOverrides.isEmpty()) {
             emptyMap()
         } else {
@@ -3591,6 +3893,7 @@ object ScoreEditing {
             items = newItems,
             clefChanges = nextClefs,
             dynamics = nextDynamics,
+            techniques = nextTechniques,
             beamOverrides = nextBeams,
         )
     }
@@ -3712,13 +4015,14 @@ data class ScoreStepInsertResult(
     val nextCursor: ScoreCursorPosition,
 )
 
-/** Single entry stored in [ScoreClipboard], retaining its relative measure offset and optional clef/dynamic/beam at it. */
+/** Single entry stored in [ScoreClipboard], retaining its relative measure offset and optional clef/dynamic/technique/beam at it. */
 data class ScoreClipboardItem(
     val item: ScoreItem,
     val relativeMeasureOffset: Int = 0,
     val clefBefore: Clef? = null,
     val dynamicAt: ScoreDynamicMarking? = null,
     val beamOverrideAfter: Boolean? = null,
+    val techniqueAt: ScoreTechniqueMarking? = null,
 )
 
 /** Relative measure/slot snapshot for copying standalone dynamic markings. */
@@ -3726,6 +4030,13 @@ data class ScoreClipboardDynamic(
     val relativeMeasureOffset: Int,
     val relativeOrAbsoluteItemIdx: Int,
     val marking: ScoreDynamicMarking,
+)
+
+/** Relative measure/slot snapshot for copying standalone technique text markings. */
+data class ScoreClipboardTechnique(
+    val relativeMeasureOffset: Int,
+    val relativeOrAbsoluteItemIdx: Int,
+    val marking: ScoreTechniqueMarking,
 )
 
 /** Snapshot of a single copied measure, including its effective opening key/time/clef and internal clefs. */
@@ -3736,11 +4047,12 @@ data class ScoreClipboardMeasure(
     val openingClef: Clef,
 )
 
-/** Typed payload stored in [ScoreClipboard] covering whole measures, selected items, dynamics, or a standalone clef. */
+/** Typed payload stored in [ScoreClipboard] covering whole measures, selected items, dynamics, techniques, or a standalone clef. */
 sealed interface ScoreClipboardContent {
     data class MeasureRange(val measures: List<ScoreClipboardMeasure>) : ScoreClipboardContent
     data class ItemSelection(val items: List<ScoreClipboardItem>) : ScoreClipboardContent
     data class DynamicsOnly(val markings: List<ScoreClipboardDynamic>) : ScoreClipboardContent
+    data class TechniquesOnly(val markings: List<ScoreClipboardTechnique>) : ScoreClipboardContent
     data class ClefOnly(val clef: Clef) : ScoreClipboardContent
 }
 
@@ -3754,6 +4066,7 @@ data class ScorePasteResult(
     val initialTimeSignature: TimeSignature? = null,
     val pastedMeasures: Set<Int> = emptySet(),
     val pastedDynamics: Set<ScoreDynamicLocation> = emptySet(),
+    val pastedTechniques: Set<ScoreTechniqueLocation> = emptySet(),
 )
 
 /** Shared clipboard across all [ScoreModule] editors so notes, measures, clefs, and signatures can be copied and pasted between scores. */
@@ -3767,7 +4080,10 @@ internal object ScoreClipboard {
             is ScoreClipboardContent.MeasureRange -> c.measures.flatMapIndexed { idx, cm ->
                 cm.measure.items.map { ScoreClipboardItem(it, idx) }
             }
-            is ScoreClipboardContent.DynamicsOnly, is ScoreClipboardContent.ClefOnly, null -> emptyList()
+            is ScoreClipboardContent.DynamicsOnly,
+            is ScoreClipboardContent.TechniquesOnly,
+            is ScoreClipboardContent.ClefOnly,
+            null -> emptyList()
         }
 
     val isNotEmpty: Boolean
@@ -3775,6 +4091,7 @@ internal object ScoreClipboard {
             is ScoreClipboardContent.MeasureRange -> c.measures.isNotEmpty()
             is ScoreClipboardContent.ItemSelection -> c.items.isNotEmpty()
             is ScoreClipboardContent.DynamicsOnly -> c.markings.isNotEmpty()
+            is ScoreClipboardContent.TechniquesOnly -> c.markings.isNotEmpty()
             is ScoreClipboardContent.ClefOnly -> true
             null -> false
         }
@@ -3791,6 +4108,7 @@ internal object ScoreClipboard {
             is ScoreClipboardContent.MeasureRange -> newContent.measures.isNotEmpty()
             is ScoreClipboardContent.ItemSelection -> newContent.items.isNotEmpty()
             is ScoreClipboardContent.DynamicsOnly -> newContent.markings.isNotEmpty()
+            is ScoreClipboardContent.TechniquesOnly -> newContent.markings.isNotEmpty()
             is ScoreClipboardContent.ClefOnly -> true
         }
         if (nonEmpty) {

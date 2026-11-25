@@ -137,6 +137,14 @@ data class MusicXmlTupletNotation(
 )
 
 /** Dynamic marking attached inside a `<note><notations><dynamics>` block. */
+/** Per-note articulation elements inside `<notations><articulations>`. */
+enum class MusicXmlArticulation(val xmlName: String) {
+    STACCATO("staccato"),
+    STACCATISSIMO("staccatissimo"),
+    TENUTO("tenuto"),
+    STRONG_ACCENT("strong-accent"),
+}
+
 data class MusicXmlInlineDynamic(
     val dynamic: MusicXmlDynamic,
     val placement: MusicXmlPlacement? = null,
@@ -170,6 +178,14 @@ sealed interface MusicXmlMeasureElement {
         val staff: Int? = null,
     ) : MusicXmlMeasureElement
 
+    /** Text expression `<direction>` (`<direction-type><words>pizz.</words></direction-type>`). */
+    data class WordsDirection(
+        val text: String,
+        val placement: MusicXmlPlacement = MusicXmlPlacement.ABOVE,
+        val staff: Int? = null,
+        val italic: Boolean = false,
+    ) : MusicXmlMeasureElement
+
     /** Moves the measure time cursor backward (used between upper and lower staves on a multi-staff part). */
     data class Backup(
         val duration: Int,
@@ -199,6 +215,7 @@ sealed interface MusicXmlMeasureElement {
         val tiedNotations: List<MusicXmlTieType> = emptyList(),
         val tupletNotations: List<MusicXmlTupletNotation> = emptyList(),
         val isStaccato: Boolean = false,
+        val articulations: List<MusicXmlArticulation> = if (isStaccato) listOf(MusicXmlArticulation.STACCATO) else emptyList(),
         val printObject: Boolean = true,
         val inlineDynamics: List<MusicXmlInlineDynamic> = emptyList(),
     ) : MusicXmlMeasureElement

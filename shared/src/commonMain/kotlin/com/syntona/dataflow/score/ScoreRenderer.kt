@@ -1,6 +1,7 @@
 package com.syntona.dataflow.score
 
 import androidx.compose.ui.graphics.Color
+import com.softsynth.ksyn.voices.Articulation
 import kotlin.math.abs
 import kotlin.math.log2
 import kotlin.math.max
@@ -138,6 +139,21 @@ data class ScorePlacedDynamic(
     val location: ScoreDynamicLocation get() = ScoreDynamicLocation(measureIdx, itemIdx, staff = staff)
 }
 
+data class ScorePlacedTechnique(
+    val measureIdx: Int,
+    val itemIdx: Int,
+    val marking: ScoreTechniqueMarking,
+    val x: Float,
+    val baselineY: Float,
+    val boxLeft: Float,
+    val boxTop: Float,
+    val boxRight: Float,
+    val boxBottom: Float,
+    val staff: ScoreStaffId = ScoreStaffId(0, 0),
+) {
+    val location: ScoreTechniqueLocation get() = ScoreTechniqueLocation(measureIdx, itemIdx, staff = staff)
+}
+
 data class ScorePlacedTimeSignature(
     val measureIdx: Int,
     val timeSignature: TimeSignature,
@@ -186,6 +202,7 @@ data class ScorePlacedMeasure(
     val activeOpeningClef: Clef = Clef.TREBLE,
     val activeClosingClef: Clef = Clef.TREBLE,
     val dynamics: List<ScorePlacedDynamic> = emptyList(),
+    val techniques: List<ScorePlacedTechnique> = emptyList(),
     val beamGroups: List<ScorePlacedBeamGroup> = emptyList(),
     val tupletGroups: List<ScorePlacedTupletGroup> = emptyList(),
     val staff: ScoreStaffId = ScoreStaffId(0, 0),
@@ -209,6 +226,7 @@ data class ScoreGhostPreview(
     val isStaccato: Boolean = false,
     val staff: ScoreStaffId = ScoreStaffId(0, 0),
     val tupletText: String? = null,
+    val articulation: Articulation = if (isStaccato) Articulation.STACCATO else Articulation.NORMAL,
 )
 
 data class ScoreRubberBand(
@@ -258,6 +276,7 @@ data class ScorePlacedStaff(
     val placedTimeSignatures: List<ScorePlacedTimeSignature>,
     val placedClefChanges: List<ScorePlacedClefChange>,
     val placedDynamics: List<ScorePlacedDynamic>,
+    val placedTechniques: List<ScorePlacedTechnique> = emptyList(),
 ) {
     fun yForStep(stepFromBottom: Int): Float = bottomStaffY - stepFromBottom * (staffSpacePx * 0.5f)
 
@@ -309,6 +328,7 @@ data class ScoreLayout(
     val placedTimeSignatures: List<ScorePlacedTimeSignature> = emptyList(),
     val placedClefChanges: List<ScorePlacedClefChange> = emptyList(),
     val placedDynamics: List<ScorePlacedDynamic> = emptyList(),
+    val placedTechniques: List<ScorePlacedTechnique> = emptyList(),
     val staves: List<ScorePlacedStaff> = emptyList(),
     val instrumentGroups: List<ScorePlacedInstrumentGroup> = emptyList(),
     val showInstrumentLabels: Boolean = false,
@@ -427,6 +447,43 @@ data class ScoreLayout(
         }
         val staffId = targetStaff?.staffId ?: ScoreStaffId(0, 0)
         return ScoreDynamicLocation(pm.measureIdx, itemIdx, staff = staffId) to placement
+    }
+
+    /** Returns the [ScorePlacedTechnique] under `(x, y)`, or `null` if none. */
+    fun techniqueAt(x: Float, y: Float): ScorePlacedTechnique? {
+        val sp = staffSpacePx
+        val padX = sp * 0.35f
+        val padY = sp * 0.35f
+        return placedTechniques.firstOrNull { tech ->
+            x >= tech.boxLeft - padX && x <= tech.boxRight + padX &&
+                y >= tech.boxTop - padY && y <= tech.boxBottom + padY
+        }
+    }
+
+    /** Returns every [ScoreTechniqueLocation] whose bounding box intersects the given rectangle. */
+    fun techniquesInRect(left: Float, top: Float, right: Float, bottom: Float): Set<ScoreTechniqueLocation> {
+        val minX = min(left, right)
+        val maxX = max(left, right)
+        val minY = min(top, bottom)
+        val maxY = max(top, bottom)
+        val hit = linkedSetOf<ScoreTechniqueLocation>()
+        for (tech in placedTechniques) {
+            if (tech.boxRight >= minX && tech.boxLeft <= maxX &&
+                tech.boxBottom >= minY && tech.boxTop <= maxY
+            ) {
+                hit.add(tech.location)
+            }
+        }
+        return hit
+    }
+
+    /**
+     * Resolves a click at `(x, y)` into the target [ScoreTechniqueLocation] for placing a technique
+     * expression (e.g. `pizz.`, `arco`, `con sord.`, `son filé`) above the stave in a measure.
+     */
+    fun techniqueTargetAt(x: Float, y: Float): ScoreTechniqueLocation? {
+        val (dynLoc, _) = dynamicTargetAt(x, y) ?: return null
+        return ScoreTechniqueLocation(dynLoc.measureIdx, dynLoc.itemIdx, staff = dynLoc.staff)
     }
 
     /** Returns the [ScorePlacedItem] under `(x, y)`, preferring the nearest item center if boxes touch. */
@@ -745,6 +802,7 @@ object ScoreRenderer {
             val placedTimeSignatures: MutableList<ScorePlacedTimeSignature> = mutableListOf(),
             val placedClefChanges: MutableList<ScorePlacedClefChange> = mutableListOf(),
             val placedDynamics: MutableList<ScorePlacedDynamic> = mutableListOf(),
+            val placedTechniques: MutableList<ScorePlacedTechnique> = mutableListOf(),
         ) {
             fun yForStep(stepFromBottom: Int): Float = bottomStaffY - stepFromBottom * (sp * 0.5f)
         }
@@ -851,6 +909,7 @@ object ScoreRenderer {
         val allTimeSignatures = mutableListOf<ScorePlacedTimeSignature>()
         val allClefChanges = mutableListOf<ScorePlacedClefChange>()
         val allDynamics = mutableListOf<ScorePlacedDynamic>()
+        val allTechniques = mutableListOf<ScorePlacedTechnique>()
         for (st in staffStates) {
             st.effectiveTime = st.measures.firstOrNull()?.timeSignature ?: score.timeSignature
             val ts = ScorePlacedTimeSignature(
@@ -1644,6 +1703,54 @@ object ScoreRenderer {
                 st.placedDynamics.addAll(placedDynamicsForMeasure)
                 allDynamics.addAll(placedDynamicsForMeasure)
 
+                val placedTechniquesForMeasure = if (measure.techniques.isEmpty()) {
+                    emptyList()
+                } else {
+                    buildList {
+                        val aboveDynByItem = placedDynamicsForMeasure
+                            .filter { it.marking.placement == DynamicPlacement.ABOVE }
+                            .associateBy { it.itemIdx }
+                        for ((tIdx, marking) in measure.techniques.entries.sortedBy { it.key }) {
+                            val anchorItem = body.itemsInMeasure.getOrNull(tIdx)
+                            val rawX = when {
+                                anchorItem != null -> anchorItem.x
+                                body.itemsInMeasure.isNotEmpty() -> (body.itemsInMeasure.last().boxRight + sp * 1.1f)
+                                    .coerceAtMost(barlineX - sp * 2.2f)
+                                else -> contentStartX + sp * 0.5f
+                            }
+                            val text = marking.mark.displayText
+                            val estWidth = max(sp * 2.0f, text.length * sp * 0.72f + sp * 0.35f)
+                            val drawX = rawX - sp * 0.15f
+                            val aboveDynTop = aboveDynByItem[tIdx]?.boxTop
+                            val baseAboveY = minOf(
+                                st.topStaffY - sp * 2.2f,
+                                (anchorItem?.boxTop ?: st.topStaffY) - sp * 1.1f,
+                            )
+                            val baselineY = if (aboveDynTop != null) {
+                                minOf(baseAboveY, aboveDynTop - sp * 0.65f)
+                            } else {
+                                baseAboveY
+                            }
+                            add(
+                                ScorePlacedTechnique(
+                                    measureIdx = mIdx,
+                                    itemIdx = tIdx,
+                                    marking = marking,
+                                    x = drawX,
+                                    baselineY = baselineY,
+                                    boxLeft = drawX - sp * 0.15f,
+                                    boxTop = baselineY - sp * 1.35f,
+                                    boxRight = drawX + estWidth + sp * 0.15f,
+                                    boxBottom = baselineY + sp * 0.35f,
+                                    staff = st.staffId,
+                                )
+                            )
+                        }
+                    }
+                }
+                st.placedTechniques.addAll(placedTechniquesForMeasure)
+                allTechniques.addAll(placedTechniquesForMeasure)
+
                 st.placedMeasures.add(
                     ScorePlacedMeasure(
                         measureIdx = mIdx,
@@ -1664,6 +1771,7 @@ object ScoreRenderer {
                         activeOpeningClef = prep.measureOpeningClef,
                         activeClosingClef = body.measureClosingClef,
                         dynamics = placedDynamicsForMeasure,
+                        techniques = placedTechniquesForMeasure,
                         beamGroups = placedBeamGroups,
                         tupletGroups = placedTupletGroups,
                         staff = st.staffId,
@@ -1712,6 +1820,7 @@ object ScoreRenderer {
                 placedTimeSignatures = st.placedTimeSignatures,
                 placedClefChanges = st.placedClefChanges,
                 placedDynamics = st.placedDynamics,
+                placedTechniques = st.placedTechniques,
             )
             StaffLayoutResult(
                 staff = placedStaff,
@@ -1735,6 +1844,7 @@ object ScoreRenderer {
             placedTimeSignatures = allTimeSignatures,
             placedClefChanges = allClefChanges,
             placedDynamics = allDynamics,
+            placedTechniques = allTechniques,
             staves = staffResults.map { it.staff },
             instrumentGroups = instrumentGroups,
             showInstrumentLabels = showInstrumentLabels,
@@ -1788,6 +1898,7 @@ object ScoreRenderer {
         selectedMeasureIndices: Set<Int> = emptySet(),
         selectedClefChange: ScoreClefLocation? = null,
         selectedDynamics: Set<ScoreDynamicLocation> = emptySet(),
+        selectedTechniques: Set<ScoreTechniqueLocation> = emptySet(),
         ghostPreview: ScoreGhostPreview? = null,
         rubberBand: ScoreRubberBand? = null,
         cursorPosition: ScoreCursorPosition? = null,
@@ -2082,6 +2193,33 @@ object ScoreRenderer {
                     val dynColor = if (isDynSelected) colors.selectedNote else colors.ink
                     target.drawGlyph(pd.marking.mark.glyph, pd.x, pd.baselineY, emPx, dynColor)
                 }
+
+                for (pt in pm.techniques) {
+                    val isTechSelected = pt.location in selectedTechniques
+                    if (isTechSelected) {
+                        val pad = sp * 0.2f
+                        val rx = pt.boxLeft - pad
+                        val ry = pt.boxTop - pad
+                        val rw = (pt.boxRight - pt.boxLeft) + pad * 2f
+                        val rh = (pt.boxBottom - pt.boxTop) + pad * 2f
+                        target.fillRect(rx, ry, rw, rh, colors.selectedBoxFill)
+                        val borderThick = (sp * 0.12f).coerceAtLeast(1f)
+                        target.drawLine(rx, ry, rx + rw, ry, borderThick, colors.selectedBoxBorder)
+                        target.drawLine(rx, ry + rh, rx + rw, ry + rh, borderThick, colors.selectedBoxBorder)
+                        target.drawLine(rx, ry, rx, ry + rh, borderThick, colors.selectedBoxBorder)
+                        target.drawLine(rx + rw, ry, rx + rw, ry + rh, borderThick, colors.selectedBoxBorder)
+                    }
+                    val techColor = if (isTechSelected) colors.selectedNote else colors.ink
+                    target.drawText(
+                        text = pt.marking.mark.displayText,
+                        x = pt.x,
+                        baselineY = pt.baselineY,
+                        fontSizePx = sp * 1.45f,
+                        color = techColor,
+                        italic = true,
+                        bold = true,
+                    )
+                }
             }
 
             // Ties for this staff (within measures and across barlines)
@@ -2129,7 +2267,8 @@ object ScoreRenderer {
                     pitch = SpelledPitch(NoteLetter.C, 0, 4),
                     duration = ghostPreview.duration,
                     isDotted = ghostPreview.isDotted,
-                    isStaccato = ghostPreview.isStaccato,
+                    isStaccato = ghostPreview.articulation == Articulation.STACCATO,
+                    articulation = ghostPreview.articulation,
                 )
             }
             drawScoreItem(
@@ -2428,19 +2567,40 @@ object ScoreRenderer {
                     }
                 }
 
-                if (item.noteStaccato()) {
+                val noteArt = item.noteArticulation()
+                if (noteArt != Articulation.NORMAL) {
                     val placeBelow = item.duration.hasStem && !stemDown
                     val extremeNote = if (placeBelow) bottomNote else topNote
-                    val staccatoStep = staccatoStepForNote(extremeNote.staffStep, placeBelow)
-                    val dotX = extremeNote.headX + noteheadWidth * 0.5f - SmuflGlyphs.ARTIC_STACCATO_WIDTH * sp * 0.5f
-                    val dotY = yForStep(staccatoStep) +
-                        if (placeBelow) -SmuflGlyphs.ARTIC_STACCATO_WIDTH * sp * 0.5f else SmuflGlyphs.ARTIC_STACCATO_WIDTH * sp * 0.5f
-                    val staccatoGlyph = if (placeBelow) {
-                        SmuflGlyphs.ARTIC_STACCATO_BELOW
-                    } else {
-                        SmuflGlyphs.ARTIC_STACCATO_ABOVE
+                    val articStep = staccatoStepForNote(extremeNote.staffStep, placeBelow)
+                    val centerX = extremeNote.headX + noteheadWidth * 0.5f
+                    when (noteArt) {
+                        Articulation.STACCATO -> {
+                            val dotX = centerX - SmuflGlyphs.ARTIC_STACCATO_WIDTH * sp * 0.5f
+                            val dotY = yForStep(articStep) +
+                                if (placeBelow) -SmuflGlyphs.ARTIC_STACCATO_WIDTH * sp * 0.5f else SmuflGlyphs.ARTIC_STACCATO_WIDTH * sp * 0.5f
+                            val glyph = if (placeBelow) SmuflGlyphs.ARTIC_STACCATO_BELOW else SmuflGlyphs.ARTIC_STACCATO_ABOVE
+                            target.drawGlyph(glyph, dotX, dotY, emPx, color)
+                        }
+                        Articulation.TENUTO -> {
+                            val tenX = centerX - SmuflGlyphs.ARTIC_TENUTO_WIDTH * sp * 0.5f
+                            val tenY = yForStep(articStep) + if (placeBelow) -0.092f * sp else 0.092f * sp
+                            val glyph = if (placeBelow) SmuflGlyphs.ARTIC_TENUTO_BELOW else SmuflGlyphs.ARTIC_TENUTO_ABOVE
+                            target.drawGlyph(glyph, tenX, tenY, emPx, color)
+                        }
+                        Articulation.STACCATISSIMO -> {
+                            val staccX = centerX - SmuflGlyphs.ARTIC_STACCATISSIMO_WIDTH * sp * 0.5f
+                            val staccY = yForStep(articStep)
+                            val glyph = if (placeBelow) SmuflGlyphs.ARTIC_STACCATISSIMO_BELOW else SmuflGlyphs.ARTIC_STACCATISSIMO_ABOVE
+                            target.drawGlyph(glyph, staccX, staccY, emPx, color)
+                        }
+                        Articulation.MARCATO -> {
+                            val marcX = centerX - SmuflGlyphs.ARTIC_MARCATO_WIDTH * sp * 0.5f
+                            val marcY = yForStep(articStep)
+                            val glyph = if (placeBelow) SmuflGlyphs.ARTIC_MARCATO_BELOW else SmuflGlyphs.ARTIC_MARCATO_ABOVE
+                            target.drawGlyph(glyph, marcX, marcY, emPx, color)
+                        }
+                        else -> Unit
                     }
-                    target.drawGlyph(staccatoGlyph, dotX, dotY, emPx, color)
                 }
             }
             is ScoreItem.Rest -> {

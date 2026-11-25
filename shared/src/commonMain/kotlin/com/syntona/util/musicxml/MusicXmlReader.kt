@@ -254,6 +254,19 @@ object MusicXmlReader {
                     }
                 }
             }
+            for (wordsEl in dirType.childrenNamed("words")) {
+                val text = wordsEl.text.trim()
+                if (text.isNotEmpty()) {
+                    out.add(
+                        MusicXmlMeasureElement.WordsDirection(
+                            text = text,
+                            placement = placement ?: MusicXmlPlacement.ABOVE,
+                            staff = staff,
+                            italic = wordsEl.attributes["font-style"]?.equals("italic", ignoreCase = true) == true,
+                        )
+                    )
+                }
+            }
         }
 
         if (!emittedTempo && soundTempo != null && soundTempo > 0) {
@@ -320,7 +333,7 @@ object MusicXmlReader {
 
         val tiedNotations = mutableListOf<MusicXmlTieType>()
         val tupletNotations = mutableListOf<MusicXmlTupletNotation>()
-        var isStaccato = false
+        val articulations = mutableListOf<MusicXmlArticulation>()
         val inlineDynamics = mutableListOf<MusicXmlInlineDynamic>()
 
         for (notationsEl in noteEl.childrenNamed("notations")) {
@@ -346,8 +359,12 @@ object MusicXmlReader {
                 )
             }
             notationsEl.child("articulations")?.let { artEl ->
-                if (artEl.hasChild("staccato")) {
-                    isStaccato = true
+                for (child in artEl.children) {
+                    parseArticulationTag(child.name)?.let { art ->
+                        if (art !in articulations) {
+                            articulations.add(art)
+                        }
+                    }
                 }
             }
             for (dynEl in notationsEl.childrenNamed("dynamics")) {
@@ -382,10 +399,19 @@ object MusicXmlReader {
             beams = beams,
             tiedNotations = tiedNotations,
             tupletNotations = tupletNotations,
-            isStaccato = isStaccato,
+            isStaccato = MusicXmlArticulation.STACCATO in articulations,
+            articulations = articulations,
             printObject = printObject,
             inlineDynamics = inlineDynamics,
         )
+    }
+
+    private fun parseArticulationTag(raw: String): MusicXmlArticulation? = when (raw.trim().lowercase()) {
+        "staccato" -> MusicXmlArticulation.STACCATO
+        "spiccato", "staccatissimo" -> MusicXmlArticulation.STACCATISSIMO
+        "tenuto" -> MusicXmlArticulation.TENUTO
+        "strong-accent" -> MusicXmlArticulation.STRONG_ACCENT
+        else -> null
     }
 
     private fun parseIntRounded(raw: String?): Int? =

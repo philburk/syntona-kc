@@ -1,5 +1,6 @@
 package com.syntona.dataflow.score
 
+import com.softsynth.ksyn.voices.Articulation
 import com.syntona.util.musicxml.MusicXmlAccidental
 import com.syntona.util.musicxml.MusicXmlBeamType
 import com.syntona.util.musicxml.MusicXmlDynamic
@@ -564,6 +565,151 @@ class ScoreMusicXmlTest {
         assertEquals(originalTempo, module.tempo.getValue())
     }
 
+    @Test
+    fun testPhase26ArticulationsAndTechniquesRoundTrip() {
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val d4 = SpelledPitch(NoteLetter.D, 0, 4)
+        val e4 = SpelledPitch(NoteLetter.E, 0, 4)
+        val g4 = SpelledPitch(NoteLetter.G, 0, 4)
+
+        val measures = listOf(
+            ScoreMeasure(
+                number = 1,
+                items = listOf(
+                    ScoreItem.Note(c4, NoteDuration.QUARTER, isStaccato = true),
+                    ScoreItem.Note(d4, NoteDuration.QUARTER, articulation = Articulation.STACCATISSIMO),
+                    ScoreItem.Note(e4, NoteDuration.QUARTER, articulation = Articulation.TENUTO),
+                    ScoreItem.Chord(listOf(c4, g4), NoteDuration.QUARTER, articulation = Articulation.MARCATO),
+                ),
+                techniques = mapOf(
+                    0 to ScoreTechniqueMarking(ScoreTechniqueMark.PIZZICATO, DynamicPlacement.ABOVE),
+                    2 to ScoreTechniqueMarking(ScoreTechniqueMark.ARCO, DynamicPlacement.ABOVE),
+                ),
+            ),
+            ScoreMeasure(
+                number = 2,
+                items = listOf(
+                    ScoreItem.Note(c4, NoteDuration.QUARTER),
+                    ScoreItem.Note(d4, NoteDuration.QUARTER),
+                    ScoreItem.Note(e4, NoteDuration.QUARTER),
+                    ScoreItem.Note(g4, NoteDuration.QUARTER),
+                ),
+                techniques = mapOf(
+                    0 to ScoreTechniqueMarking(ScoreTechniqueMark.CON_SORDINO, DynamicPlacement.ABOVE),
+                    1 to ScoreTechniqueMarking(ScoreTechniqueMark.SENZA_SORDINO, DynamicPlacement.ABOVE),
+                    2 to ScoreTechniqueMarking(ScoreTechniqueMark.SON_FILE, DynamicPlacement.ABOVE),
+                    3 to ScoreTechniqueMarking(ScoreTechniqueMark.ORDINARIO, DynamicPlacement.ABOVE),
+                ),
+            ),
+        )
+
+        val score = ScoreData().apply {
+            replaceAllInstruments(
+                listOf(
+                    ScoreInstrumentPart(
+                        id = "inst-1",
+                        name = "Violin",
+                        instrumentType = InstrumentType.BOWED_STRINGS,
+                        staffCount = 1,
+                        clef = Clef.TREBLE,
+                        measures = measures,
+                    )
+                )
+            )
+        }
+
+        val meta = ScoreMusicXml.defaultMetadata(title = "Articulations", composer = "Tester", date = "2026-11-24")
+        val xml = ScoreMusicXml.exportToString(score, tempoBpm = 120.0, metadata = meta)
+
+        assertContains(xml, "<staccato/>")
+        assertContains(xml, "<staccatissimo/>")
+        assertContains(xml, "<tenuto/>")
+        assertContains(xml, "<strong-accent/>")
+        assertContains(xml, """<words font-style="italic">pizz.</words>""")
+        assertContains(xml, """<words font-style="italic">arco</words>""")
+        assertContains(xml, """<words font-style="italic">con sord.</words>""")
+        assertContains(xml, """<words font-style="italic">senza sord.</words>""")
+        assertContains(xml, """<words font-style="italic">son filé</words>""")
+        assertContains(xml, """<words font-style="italic">ordinario</words>""")
+
+        val imported = ScoreMusicXml.importFromString(xml)
+        val impMeasures = imported.instruments.single().measures
+        assertEquals(2, impMeasures.size)
+        assertMeasuresMusicallyEqual(measures[0], impMeasures[0], "m1")
+        assertMeasuresMusicallyEqual(measures[1], impMeasures[1], "m2")
+
+        // Verify re-export idempotence
+        val reimportedScore = ScoreData().apply {
+            replaceAllInstruments(imported.instruments)
+        }
+        val reExportedXml = ScoreMusicXml.exportToString(reimportedScore, tempoBpm = 120.0, metadata = meta)
+        assertEquals(xml, reExportedXml)
+    }
+
+    @Test
+    fun testImportExternalArticulationAndTechniqueVariants() {
+        val externalXml = """
+            <?xml version="1.0" encoding="UTF-8"?>
+            <score-partwise version="3.1">
+              <part-list>
+                <score-part id="P1"><part-name>Cello</part-name></score-part>
+              </part-list>
+              <part id="P1">
+                <measure number="1">
+                  <attributes>
+                    <divisions>4</divisions>
+                    <key><fifths>0</fifths></key>
+                    <time><beats>4</beats><beat-type>4</beat-type></time>
+                    <clef><sign>F</sign><line>4</line></clef>
+                  </attributes>
+                  <direction placement="above">
+                    <direction-type><words>Allegro</words></direction-type>
+                  </direction>
+                  <direction placement="above">
+                    <direction-type><words>pizz</words></direction-type>
+                  </direction>
+                  <note>
+                    <pitch><step>C</step><octave>3</octave></pitch>
+                    <duration>4</duration><voice>1</voice><type>quarter</type>
+                    <notations><articulations><staccatissimo/></articulations></notations>
+                  </note>
+                  <direction placement="above">
+                    <direction-type><words>con sordino</words></direction-type>
+                  </direction>
+                  <note>
+                    <pitch><step>D</step><octave>3</octave></pitch>
+                    <duration>4</duration><voice>1</voice><type>quarter</type>
+                    <notations><articulations><spiccato/></articulations></notations>
+                  </note>
+                  <direction placement="above">
+                    <direction-type><words>son file</words></direction-type>
+                  </direction>
+                  <note>
+                    <pitch><step>E</step><octave>3</octave></pitch>
+                    <duration>4</duration><voice>1</voice><type>quarter</type>
+                  </note>
+                  <direction placement="above">
+                    <direction-type><words>ord.</words></direction-type>
+                  </direction>
+                  <note>
+                    <pitch><step>F</step><octave>3</octave></pitch>
+                    <duration>4</duration><voice>1</voice><type>quarter</type>
+                  </note>
+                </measure>
+              </part>
+            </score-partwise>
+        """.trimIndent()
+
+        val imported = ScoreMusicXml.importFromString(externalXml)
+        val m1 = imported.instruments.single().measures.single()
+        assertEquals(Articulation.STACCATISSIMO, m1.items[0].noteArticulation())
+        assertEquals(Articulation.STACCATISSIMO, m1.items[1].noteArticulation())
+        assertEquals(ScoreTechniqueMark.PIZZICATO, m1.techniques[0]?.mark)
+        assertEquals(ScoreTechniqueMark.CON_SORDINO, m1.techniques[1]?.mark)
+        assertEquals(ScoreTechniqueMark.SON_FILE, m1.techniques[2]?.mark)
+        assertEquals(ScoreTechniqueMark.ORDINARIO, m1.techniques[3]?.mark)
+    }
+
     private fun assertMeasuresMusicallyEqual(
         expected: ScoreMeasure,
         actual: ScoreMeasure,
@@ -574,6 +720,7 @@ class ScoreMusicXmlTest {
         assertEquals(expected.timeSignature, actual.timeSignature, "$context timeSignature")
         assertEquals(expected.clefChanges, actual.clefChanges, "$context clefChanges")
         assertEquals(expected.dynamics, actual.dynamics, "$context dynamics")
+        assertEquals(expected.techniques, actual.techniques, "$context techniques")
         assertEquals(expected.beamOverrides, actual.beamOverrides, "$context beamOverrides")
         assertEquals(expected.items.size, actual.items.size, "$context item count")
 

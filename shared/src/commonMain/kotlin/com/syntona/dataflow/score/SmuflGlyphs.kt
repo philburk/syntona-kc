@@ -51,6 +51,18 @@ object SmuflGlyphs {
     const val ARTIC_STACCATO_BELOW = "\uE4A3"
     const val ARTIC_STACCATO_WIDTH = 0.312f
 
+    const val ARTIC_TENUTO_ABOVE = "\uE4A4"
+    const val ARTIC_TENUTO_BELOW = "\uE4A5"
+    const val ARTIC_TENUTO_WIDTH = 1.264f
+
+    const val ARTIC_STACCATISSIMO_ABOVE = "\uE4A8"
+    const val ARTIC_STACCATISSIMO_BELOW = "\uE4A9"
+    const val ARTIC_STACCATISSIMO_WIDTH = 0.488f
+
+    const val ARTIC_MARCATO_ABOVE = "\uE4AC"
+    const val ARTIC_MARCATO_BELOW = "\uE4AD"
+    const val ARTIC_MARCATO_WIDTH = 1.184f
+
     // Augmentation dot
     const val AUGMENTATION_DOT = "\uE1E7"
 

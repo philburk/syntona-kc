@@ -1,8 +1,10 @@
 package com.syntona.dataflow.score
 
+import com.softsynth.ksyn.voices.Articulation
 import com.syntona.currentIsoDate
 import com.syntona.dataflow.modules.PianoRollTiming
 import com.syntona.util.musicxml.MusicXmlAccidental
+import com.syntona.util.musicxml.MusicXmlArticulation
 import com.syntona.util.musicxml.MusicXmlBarStyle
 import com.syntona.util.musicxml.MusicXmlBeamType
 import com.syntona.util.musicxml.MusicXmlClef
@@ -264,6 +266,11 @@ object ScoreMusicXml {
                     elements.add(toDynamicDirection(dyn, staffNumber))
                 }
             }
+            measure.techniques.keys.sorted().forEach { techKey ->
+                measure.techniques[techKey]?.let { tech ->
+                    elements.add(toWordsDirection(tech, staffNumber))
+                }
+            }
             val measureRestDivs = toDivisions(measureQuarterFraction(effectiveTime), divisions)
             elements.add(
                 MusicXmlMeasureElement.Note(
@@ -308,6 +315,9 @@ object ScoreMusicXml {
             measure.dynamics[itemIdx]?.let { dyn ->
                 elements.add(toDynamicDirection(dyn, staffNumber))
             }
+            measure.techniques[itemIdx]?.let { tech ->
+                elements.add(toWordsDirection(tech, staffNumber))
+            }
 
             val item = measure.items[itemIdx]
             val itemDivs = toDivisions(itemQuarterFraction(item), divisions)
@@ -348,7 +358,9 @@ object ScoreMusicXml {
                 is ScoreItem.Note, is ScoreItem.Chord -> {
                     val pitches = item.soundingPitches()
                     val itemBeams = beamsByItem[itemIdx].orEmpty()
-                    val isStaccato = item.noteStaccato()
+                    val itemArt = item.noteArticulation()
+                    val xmlArticulations = toMusicXmlArticulations(itemArt)
+                    val isStaccato = itemArt == Articulation.STACCATO
                     for ((pIdx, pitch) in pitches.withIndex()) {
                         val isPrimary = pIdx == 0
                         val hasIncomingTie = pitch.midiPitch in incomingTiedMidis
@@ -392,6 +404,7 @@ object ScoreMusicXml {
                                 tiedNotations = tieList,
                                 tupletNotations = if (isPrimary) tupletNotationList else emptyList(),
                                 isStaccato = isPrimary && isStaccato,
+                                articulations = if (isPrimary) xmlArticulations else emptyList(),
                             )
                         )
                     }
@@ -416,6 +429,11 @@ object ScoreMusicXml {
         for (k in measure.dynamics.keys.sorted()) {
             if (k >= measure.items.size) {
                 elements.add(toDynamicDirection(measure.dynamics.getValue(k), staffNumber))
+            }
+        }
+        for (k in measure.techniques.keys.sorted()) {
+            if (k >= measure.items.size) {
+                elements.add(toWordsDirection(measure.techniques.getValue(k), staffNumber))
             }
         }
 
@@ -578,6 +596,30 @@ object ScoreMusicXml {
         )
     }
 
+    private fun toWordsDirection(
+        tech: ScoreTechniqueMarking,
+        staffNumber: Int,
+    ): MusicXmlMeasureElement.WordsDirection {
+        val placement = when (tech.placement) {
+            DynamicPlacement.ABOVE -> MusicXmlPlacement.ABOVE
+            DynamicPlacement.BELOW -> MusicXmlPlacement.BELOW
+        }
+        return MusicXmlMeasureElement.WordsDirection(
+            text = tech.mark.displayText,
+            placement = placement,
+            staff = staffNumber,
+            italic = true,
+        )
+    }
+
+    private fun toMusicXmlArticulations(articulation: Articulation): List<MusicXmlArticulation> = when (articulation) {
+        Articulation.STACCATO -> listOf(MusicXmlArticulation.STACCATO)
+        Articulation.STACCATISSIMO -> listOf(MusicXmlArticulation.STACCATISSIMO)
+        Articulation.TENUTO -> listOf(MusicXmlArticulation.TENUTO)
+        Articulation.MARCATO -> listOf(MusicXmlArticulation.STRONG_ACCENT)
+        else -> emptyList()
+    }
+
     /** Score content imported from a MusicXML `<score-partwise>` document. */
     data class ImportResult(
         val metadata: MusicXmlMetadata,
@@ -721,6 +763,7 @@ object ScoreMusicXml {
         val chordNotes: List<MusicXmlMeasureElement.Note>,
         val divisions: Int,
         val dynamics: List<ScoreDynamicMarking>,
+        val techniques: List<ScoreTechniqueMarking> = emptyList(),
     )
 
     private data class RawClefEvent(
@@ -786,6 +829,8 @@ object ScoreMusicXml {
             val slotsByStaff = Array(staffCount) { mutableListOf<RawSlot>() }
             val pendingDynByStaff = linkedMapOf<Int, MutableList<ScoreDynamicMarking>>()
             val unstaffedDyn = mutableListOf<ScoreDynamicMarking>()
+            val pendingTechByStaff = linkedMapOf<Int, MutableList<ScoreTechniqueMarking>>()
+            val unstaffedTech = mutableListOf<ScoreTechniqueMarking>()
             var cursorDivs = 0
             var lastPrimarySlot: RawSlot? = null
             var lastStaffIdx = 0
@@ -817,6 +862,18 @@ object ScoreMusicXml {
                             pendingDynByStaff.getOrPut(targetStaff) { mutableListOf() }.add(marking)
                         } else {
                             unstaffedDyn.add(marking)
+                        }
+                    }
+
+                    is MusicXmlMeasureElement.WordsDirection -> {
+                        val marking = parseScoreTechnique(el.text, el.placement)
+                        if (marking != null) {
+                            val targetStaff = el.staff?.let { (it - 1).coerceIn(0, staffCount - 1) }
+                            if (targetStaff != null) {
+                                pendingTechByStaff.getOrPut(targetStaff) { mutableListOf() }.add(marking)
+                            } else {
+                                unstaffedTech.add(marking)
+                            }
                         }
                     }
 
@@ -867,6 +924,12 @@ object ScoreMusicXml {
                                         )
                                     )
                                 }
+                                val attachedTechs = mutableListOf<ScoreTechniqueMarking>()
+                                pendingTechByStaff.remove(noteStaff)?.let { attachedTechs.addAll(it) }
+                                if (unstaffedTech.isNotEmpty()) {
+                                    attachedTechs.addAll(unstaffedTech)
+                                    unstaffedTech.clear()
+                                }
                                 val slot = RawSlot(
                                     startTick = startTick,
                                     staffIdx = noteStaff,
@@ -875,6 +938,7 @@ object ScoreMusicXml {
                                     chordNotes = emptyList(),
                                     divisions = runningDivisions,
                                     dynamics = attachedDyns,
+                                    techniques = attachedTechs,
                                 )
                                 slotsByStaff[noteStaff].add(slot)
                                 lastPrimarySlot = slot
@@ -898,6 +962,8 @@ object ScoreMusicXml {
                     tupletUsedIds = tupletUsedIds,
                     trailingDyns = pendingDynByStaff[sIdx].orEmpty() +
                         if (sIdx == 0) unstaffedDyn else emptyList(),
+                    trailingTechs = pendingTechByStaff[sIdx].orEmpty() +
+                        if (sIdx == 0) unstaffedTech else emptyList(),
                 )
                 runningClefs[sIdx] = built.endingClef
                 if (sIdx == 0) {
@@ -953,6 +1019,7 @@ object ScoreMusicXml {
         scoreHasBeamTags: Boolean,
         tupletUsedIds: MutableSet<String>,
         trailingDyns: List<ScoreDynamicMarking>,
+        trailingTechs: List<ScoreTechniqueMarking> = emptyList(),
     ): BuiltImportedMeasure {
         // Pick the primary voice on this staff to keep Syntona's single-voice-per-staff model clean.
         val primaryVoice = rawSlots.minOfOrNull { it.voice }
@@ -1018,11 +1085,13 @@ object ScoreMusicXml {
 
         val parsedItems = mutableListOf<ParsedItemInfo>()
         val dynamicsMap = mutableMapOf<Int, ScoreDynamicMarking>()
+        val techniquesMap = mutableMapOf<Int, ScoreTechniqueMarking>()
 
         for ((idx, slot) in effectiveSlots.withIndex()) {
             val (dur, dotted) = mapDuration(slot.primary, slot.divisions)
             val tuplet = tupletAssignments[idx]
-            val staccato = slot.primary.isStaccato
+            val noteArticulation = fromMusicXmlArticulations(slot.primary.articulations, slot.primary.isStaccato)
+            val staccato = noteArticulation == Articulation.STACCATO
 
             val allXmlNotes = listOf(slot.primary) + slot.chordNotes
             val isRest = slot.primary.pitch == null && slot.chordNotes.isEmpty()
@@ -1053,6 +1122,7 @@ object ScoreMusicXml {
                         isStaccato = staccato,
                         isTiedToNext = sortedUnique[0].midiPitch in outgoing,
                         tuplet = tuplet,
+                        articulation = noteArticulation,
                     )
                     else -> ScoreItem.Chord(
                         pitches = sortedUnique,
@@ -1061,12 +1131,16 @@ object ScoreMusicXml {
                         isStaccato = staccato,
                         tiedMidiPitches = outgoing,
                         tuplet = tuplet,
+                        articulation = noteArticulation,
                     )
                 }
             }
 
             if (slot.dynamics.isNotEmpty()) {
                 dynamicsMap[idx] = slot.dynamics.last()
+            }
+            if (slot.techniques.isNotEmpty()) {
+                techniquesMap[idx] = slot.techniques.last()
             }
             val level1Beam = slot.primary.beams[1]
             val linkedToNext = when (level1Beam) {
@@ -1083,16 +1157,25 @@ object ScoreMusicXml {
             )
         }
 
-        // Preserve dynamic carried on an empty/measure-rest slot (place at slot 0).
+        // Preserve dynamic and technique carried on an empty/measure-rest slot (place at slot 0).
         if (effectiveSlots.isEmpty() && voiceSlots.isNotEmpty()) {
             voiceSlots.firstOrNull { it.dynamics.isNotEmpty() }?.dynamics?.lastOrNull()?.let { dyn ->
                 dynamicsMap[0] = dyn
+            }
+            voiceSlots.firstOrNull { it.techniques.isNotEmpty() }?.techniques?.lastOrNull()?.let { tech ->
+                techniquesMap[0] = tech
             }
         }
         if (trailingDyns.isNotEmpty() && parsedItems.isNotEmpty()) {
             val lastIdx = parsedItems.lastIndex
             if (lastIdx !in dynamicsMap) {
                 dynamicsMap[lastIdx] = trailingDyns.last()
+            }
+        }
+        if (trailingTechs.isNotEmpty() && parsedItems.isNotEmpty()) {
+            val lastIdx = parsedItems.lastIndex
+            if (lastIdx !in techniquesMap) {
+                techniquesMap[lastIdx] = trailingTechs.last()
             }
         }
 
@@ -1114,6 +1197,7 @@ object ScoreMusicXml {
             items = itemsList,
             clefChanges = clefChangesMap,
             dynamics = dynamicsMap,
+            techniques = techniquesMap,
         )
 
         val beamOverrides = mutableMapOf<Int, Boolean>()
@@ -1272,6 +1356,41 @@ object ScoreMusicXml {
             MusicXmlPlacement.BELOW -> DynamicPlacement.BELOW
         }
         return ScoreDynamicMarking(mark = mark, placement = scorePlacement)
+    }
+
+    private fun fromMusicXmlArticulations(
+        articulations: List<MusicXmlArticulation>,
+        isStaccato: Boolean,
+    ): Articulation {
+        val first = articulations.firstOrNull()
+        return when (first) {
+            MusicXmlArticulation.STACCATO -> Articulation.STACCATO
+            MusicXmlArticulation.STACCATISSIMO -> Articulation.STACCATISSIMO
+            MusicXmlArticulation.TENUTO -> Articulation.TENUTO
+            MusicXmlArticulation.STRONG_ACCENT -> Articulation.MARCATO
+            null -> if (isStaccato) Articulation.STACCATO else Articulation.NORMAL
+        }
+    }
+
+    private fun parseScoreTechnique(
+        rawText: String,
+        placement: MusicXmlPlacement,
+    ): ScoreTechniqueMarking? {
+        val norm = rawText.trim().lowercase().replace(Regex("\\s+"), " ")
+        val mark = when (norm) {
+            "pizz.", "pizz", "pizzicato" -> ScoreTechniqueMark.PIZZICATO
+            "arco" -> ScoreTechniqueMark.ARCO
+            "con sord.", "con sord", "con sordino", "mute", "muted" -> ScoreTechniqueMark.CON_SORDINO
+            "senza sord.", "senza sord", "senza sordino", "unmute", "open" -> ScoreTechniqueMark.SENZA_SORDINO
+            "son filé", "son file" -> ScoreTechniqueMark.SON_FILE
+            "ordinario", "ord.", "ord" -> ScoreTechniqueMark.ORDINARIO
+            else -> return null
+        }
+        val scorePlacement = when (placement) {
+            MusicXmlPlacement.ABOVE -> DynamicPlacement.ABOVE
+            MusicXmlPlacement.BELOW -> DynamicPlacement.BELOW
+        }
+        return ScoreTechniqueMarking(mark = mark, placement = scorePlacement)
     }
 
     private data class InstrumentProfile(

@@ -1,5 +1,6 @@
 package com.syntona.dataflow.score
 
+import com.softsynth.ksyn.voices.Articulation
 import kotlin.math.roundToInt
 
 /**
@@ -13,6 +14,10 @@ enum class ScorePaletteKind(
     NOTES_RESTS(
         title = "Notes/Rests",
         buttonLabel = "Notes/\nRests",
+    ),
+    ARTICULATIONS(
+        title = "Articulations",
+        buttonLabel = "Artic.",
     ),
     KEY_SIGNATURES(
         title = "Keys/Times",
@@ -81,6 +86,25 @@ data class ScoreDynamicOption(
     val mark: DynamicMark,
     val label: String = mark.label,
     val glyph: String = mark.glyph,
+)
+
+/**
+ * A selectable per-note articulation entry inside the Articulations popup palette.
+ */
+data class ScoreArticulationOption(
+    val articulation: Articulation,
+    val glyph: String,
+    val label: String,
+    val shortcutChar: Char? = null,
+)
+
+/**
+ * A selectable staff-level technique text expression inside the Articulations popup palette.
+ */
+data class ScoreTechniqueOption(
+    val mark: ScoreTechniqueMark,
+    val label: String = mark.displayText,
+    val description: String = mark.label,
 )
 
 /**
@@ -183,6 +207,22 @@ object ScorePalettes {
 
     val dynamicOptions: List<ScoreDynamicOption> =
         softDynamicOptions + loudDynamicOptions + accentDynamicOptions
+
+    val noteArticulationOptions: List<ScoreArticulationOption> = listOf(
+        ScoreArticulationOption(Articulation.STACCATO, SmuflGlyphs.ARTIC_STACCATO_ABOVE, "Staccato", '1'),
+        ScoreArticulationOption(Articulation.STACCATISSIMO, SmuflGlyphs.ARTIC_STACCATISSIMO_ABOVE, "Staccatissimo"),
+        ScoreArticulationOption(Articulation.TENUTO, SmuflGlyphs.ARTIC_TENUTO_ABOVE, "Tenuto"),
+        ScoreArticulationOption(Articulation.MARCATO, SmuflGlyphs.ARTIC_MARCATO_ABOVE, "Marcato"),
+    )
+
+    val techniqueOptions: List<ScoreTechniqueOption> = listOf(
+        ScoreTechniqueOption(ScoreTechniqueMark.PIZZICATO),
+        ScoreTechniqueOption(ScoreTechniqueMark.ARCO),
+        ScoreTechniqueOption(ScoreTechniqueMark.CON_SORDINO),
+        ScoreTechniqueOption(ScoreTechniqueMark.SENZA_SORDINO),
+        ScoreTechniqueOption(ScoreTechniqueMark.SON_FILE),
+        ScoreTechniqueOption(ScoreTechniqueMark.ORDINARIO),
+    )
 }
 
 /**

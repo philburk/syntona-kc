@@ -3,6 +3,7 @@ package com.syntona.dataflow.score
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
+import com.softsynth.ksyn.voices.Articulation
 import com.syntona.core.model.ScoreTime
 import com.syntona.dataflow.editor.EditActionHandler
 import com.syntona.dataflow.editor.EditActions
@@ -76,7 +77,15 @@ class ScoreModuleTest {
             glyphs.add(DrawnGlyph(glyph, x, baselineY, fontSizePx, color))
         }
 
-        override fun drawText(text: String, x: Float, baselineY: Float, fontSizePx: Float, color: Color) {
+        override fun drawText(
+            text: String,
+            x: Float,
+            baselineY: Float,
+            fontSizePx: Float,
+            color: Color,
+            italic: Boolean,
+            bold: Boolean,
+        ) {
             texts.add(DrawnText(text, x, baselineY, fontSizePx))
         }
 
@@ -6430,5 +6439,218 @@ class ScoreModuleTest {
         val bar1AfterMerge = module.scoreData.measures[0]
         assertEquals(1, bar1AfterMerge.items.size)
         assertEquals(60, (bar1AfterMerge.items[0] as ScoreItem.Note).pitch.midiPitch)
+    }
+
+    @Test
+    fun testPhase26PerNoteArticulationsAndTechniquesEditing() {
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val d4 = SpelledPitch(NoteLetter.D, 0, 4)
+        val e4 = SpelledPitch(NoteLetter.E, 0, 4)
+        val initial = listOf(
+            ScoreMeasure(
+                1,
+                listOf(
+                    ScoreItem.Note(c4, NoteDuration.QUARTER),
+                    ScoreItem.Note(d4, NoteDuration.QUARTER),
+                    ScoreItem.Chord(listOf(c4, e4), NoteDuration.HALF),
+                ),
+            )
+        )
+
+        // Toggle Marcato on first note and chord
+        val sel = setOf(ScoreItemLocation(0, 0), ScoreItemLocation(0, 2))
+        val withMarcato = ScoreEditing.toggleArticulationOnSelection(initial, sel, Articulation.MARCATO)
+        assertEquals(Articulation.MARCATO, withMarcato[0].items[0].noteArticulation())
+        assertEquals(Articulation.NORMAL, withMarcato[0].items[1].noteArticulation())
+        assertEquals(Articulation.MARCATO, withMarcato[0].items[2].noteArticulation())
+        assertFalse(withMarcato[0].items[0].noteStaccato())
+
+        // Toggling Marcato again clears back to NORMAL
+        val cleared = ScoreEditing.toggleArticulationOnSelection(withMarcato, sel, Articulation.MARCATO)
+        assertEquals(Articulation.NORMAL, cleared[0].items[0].noteArticulation())
+        assertEquals(Articulation.NORMAL, cleared[0].items[2].noteArticulation())
+
+        // Switching from Staccatissimo to Tenuto replaces cleanly
+        val withStaccatissimo = ScoreEditing.toggleArticulationOnSelection(initial, setOf(ScoreItemLocation(0, 0)), Articulation.STACCATISSIMO)
+        assertEquals(Articulation.STACCATISSIMO, withStaccatissimo[0].items[0].noteArticulation())
+        val withTenuto = ScoreEditing.toggleArticulationOnSelection(withStaccatissimo, setOf(ScoreItemLocation(0, 0)), Articulation.TENUTO)
+        assertEquals(Articulation.TENUTO, withTenuto[0].items[0].noteArticulation())
+
+        // Place pizz. at slot 0 and arco at slot 2; verify effectiveTechniqueArticulationAt & precedence
+        val (mWithPizz, pizzLoc) = ScoreEditing.setTechnique(
+            withTenuto,
+            ScoreTechniqueLocation(0, 0),
+            ScoreTechniqueMarking(ScoreTechniqueMark.PIZZICATO),
+        )
+        assertNotNull(pizzLoc)
+        val (mWithArco, _) = ScoreEditing.setTechnique(
+            mWithPizz,
+            ScoreTechniqueLocation(0, 2),
+            ScoreTechniqueMarking(ScoreTechniqueMark.ARCO),
+        )
+        assertEquals(Articulation.PIZZICATO, ScoreEditing.effectiveTechniqueArticulationAt(mWithArco, 0, 0))
+        assertEquals(Articulation.PIZZICATO, ScoreEditing.effectiveTechniqueArticulationAt(mWithArco, 0, 1))
+        assertEquals(Articulation.NORMAL, ScoreEditing.effectiveTechniqueArticulationAt(mWithArco, 0, 2))
+        // Per-note TENUTO at slot 0 overrides active PIZZICATO; unmarked slot 1 inherits PIZZICATO
+        assertEquals(
+            Articulation.TENUTO,
+            ScoreEditing.resolveItemArticulation(mWithArco[0].items[0], Articulation.PIZZICATO),
+        )
+        assertEquals(
+            Articulation.PIZZICATO,
+            ScoreEditing.resolveItemArticulation(mWithArco[0].items[1], Articulation.PIZZICATO),
+        )
+
+        // Delete technique marking
+        val afterDel = ScoreEditing.deleteTechniques(mWithArco, setOf(ScoreTechniqueLocation(0, 0)))
+        assertFalse(0 in afterDel[0].techniques)
+        assertTrue(2 in afterDel[0].techniques)
+
+        // Copy & paste standalone technique markings
+        val clip = ScoreEditing.copySelectionContent(
+            measures = mWithArco,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            selectedTechniques = setOf(ScoreTechniqueLocation(0, 0)),
+        )
+        assertTrue(clip is ScoreClipboardContent.TechniquesOnly)
+        val pasted = ScoreEditing.pasteClipboardContent(
+            measures = initial,
+            content = clip,
+            initialClef = Clef.TREBLE,
+            initialKeySignature = KeySignature.C_MAJOR,
+            initialTimeSignature = TimeSignature.COMMON_TIME,
+            cursorPosition = ScoreCursorPosition(0, 1),
+        )
+        assertNotNull(pasted)
+        assertEquals(ScoreTechniqueMark.PIZZICATO, pasted.measures[0].techniques[1]?.mark)
+    }
+
+    @Test
+    fun testPhase26PlaybackEmitsArticulationsAndTechniques() {
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val d4 = SpelledPitch(NoteLetter.D, 0, 4)
+        val e4 = SpelledPitch(NoteLetter.E, 0, 4)
+        val f4 = SpelledPitch(NoteLetter.F, 0, 4)
+
+        val module = ScoreModule()
+        module.scoreData.replaceMeasures(
+            listOf(
+                ScoreMeasure(
+                    1,
+                    listOf(
+                        ScoreItem.Note(c4, NoteDuration.QUARTER),
+                        ScoreItem.Note(d4, NoteDuration.QUARTER, articulation = Articulation.MARCATO),
+                        ScoreItem.Note(e4, NoteDuration.QUARTER),
+                        ScoreItem.Note(f4, NoteDuration.QUARTER),
+                    ),
+                    techniques = mapOf(
+                        0 to ScoreTechniqueMarking(ScoreTechniqueMark.PIZZICATO),
+                        3 to ScoreTechniqueMarking(ScoreTechniqueMark.ARCO),
+                    ),
+                ),
+                ScoreMeasure(
+                    2,
+                    listOf(
+                        ScoreItem.Note(c4, NoteDuration.HALF),
+                        ScoreItem.Note(d4, NoteDuration.HALF),
+                    ),
+                    techniques = mapOf(
+                        0 to ScoreTechniqueMarking(ScoreTechniqueMark.SON_FILE),
+                        1 to ScoreTechniqueMarking(ScoreTechniqueMark.ORDINARIO),
+                    ),
+                ),
+            )
+        )
+
+        val fakeEngine = TestEngine()
+        module.setEngine(fakeEngine)
+        val sink = object : Module("sink") {
+            val voiceIn = addVoiceInput("in")
+            val received = mutableListOf<Message.VoiceMessage>()
+            override fun onMessageReceived(jack: com.syntona.dataflow.model.InputJack, msg: Message) {
+                if (msg is Message.VoiceMessage) received.add(msg)
+            }
+            override fun execute(triggerMessage: Message) {}
+        }
+        module.output.connect(sink.voiceIn)
+
+        module.start.receive(Message.FloatValue(ScoreTime(0L), 1.0))
+        fakeEngine.scheduled.sortedBy { it.first.nanoseconds }.forEach { (_, action) -> action() }
+
+        val noteMsgs = sink.received.filter { it.opcode == Message.VoiceOpcode.NOTE }
+        assertEquals(6, noteMsgs.size)
+        assertEquals(Articulation.PIZZICATO, noteMsgs[0].articulation) // pizz. active
+        assertEquals(Articulation.MARCATO, noteMsgs[1].articulation)   // per-note MARCATO overrides pizz.
+        assertEquals(Articulation.PIZZICATO, noteMsgs[2].articulation) // resumes pizz.
+        assertEquals(Articulation.NORMAL, noteMsgs[3].articulation)    // arco cancels pizz.
+        assertEquals(Articulation.SON_FILE, noteMsgs[4].articulation)  // son filé active
+        assertEquals(Articulation.NORMAL, noteMsgs[5].articulation)    // ordinario cancels son filé
+    }
+
+    @Test
+    fun testPhase26SerializationAndRendererHitTesting() {
+        val c4 = SpelledPitch(NoteLetter.C, 0, 4)
+        val d4 = SpelledPitch(NoteLetter.D, 0, 4)
+        val e4 = SpelledPitch(NoteLetter.E, 0, 4)
+        val f4 = SpelledPitch(NoteLetter.F, 0, 4)
+
+        val state = GraphState()
+        val module = ScoreModule()
+        module.scoreData.replaceMeasures(
+            listOf(
+                ScoreMeasure(
+                    1,
+                    listOf(
+                        ScoreItem.Note(c4, NoteDuration.QUARTER, isStaccato = true),
+                        ScoreItem.Note(d4, NoteDuration.QUARTER, articulation = Articulation.STACCATISSIMO),
+                        ScoreItem.Note(e4, NoteDuration.QUARTER, articulation = Articulation.TENUTO),
+                        ScoreItem.Chord(listOf(c4, f4), NoteDuration.QUARTER, articulation = Articulation.MARCATO),
+                    ),
+                    techniques = mapOf(
+                        0 to ScoreTechniqueMarking(ScoreTechniqueMark.CON_SORDINO),
+                        2 to ScoreTechniqueMarking(ScoreTechniqueMark.SENZA_SORDINO),
+                    ),
+                )
+            )
+        )
+        state.addModule(module, Offset.Zero)
+
+        // Renderer draws glyphs + technique text and supports hit testing
+        val target = RecordingDrawTarget()
+        val layout = ScoreRenderer.render(
+            score = module.scoreData,
+            target = target,
+            staffSpacePx = 10f,
+            minWidthPx = 600f,
+            colors = ScoreRenderColors.forTheme(darkMode = false),
+        )
+        assertEquals(2, layout.placedTechniques.size)
+        val firstTech = layout.placedTechniques[0]
+        assertEquals(ScoreTechniqueMark.CON_SORDINO, firstTech.marking.mark)
+        assertTrue(target.texts.any { it.text == "con sord." })
+        assertTrue(target.texts.any { it.text == "senza sord." })
+        assertTrue(target.glyphs.any { it.glyph == SmuflGlyphs.ARTIC_STACCATISSIMO_BELOW || it.glyph == SmuflGlyphs.ARTIC_STACCATISSIMO_ABOVE })
+        assertTrue(target.glyphs.any { it.glyph == SmuflGlyphs.ARTIC_TENUTO_BELOW || it.glyph == SmuflGlyphs.ARTIC_TENUTO_ABOVE })
+        assertTrue(target.glyphs.any { it.glyph == SmuflGlyphs.ARTIC_MARCATO_BELOW || it.glyph == SmuflGlyphs.ARTIC_MARCATO_ABOVE })
+        val hit = layout.techniqueAt(
+            (firstTech.boxLeft + firstTech.boxRight) * 0.5f,
+            (firstTech.boxTop + firstTech.boxBottom) * 0.5f,
+        )
+        assertEquals(firstTech.location, hit?.location)
+
+        // GraphSerializer round-trip preserves all articulations & techniques
+        val json = GraphSerializer.serialize(state, state.modules.toList())
+        val loadedState = GraphState()
+        GraphSerializer.deserialize(loadedState, json)
+        val loaded = loadedState.modules.single() as ScoreModule
+        val m = loaded.scoreData.measures[0]
+        assertEquals(Articulation.STACCATO, m.items[0].noteArticulation())
+        assertEquals(Articulation.STACCATISSIMO, m.items[1].noteArticulation())
+        assertEquals(Articulation.TENUTO, m.items[2].noteArticulation())
+        assertEquals(Articulation.MARCATO, m.items[3].noteArticulation())
+        assertEquals(ScoreTechniqueMark.CON_SORDINO, m.techniques[0]?.mark)
+        assertEquals(ScoreTechniqueMark.SENZA_SORDINO, m.techniques[2]?.mark)
     }
 }
