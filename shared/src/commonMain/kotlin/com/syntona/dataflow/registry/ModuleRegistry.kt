@@ -443,7 +443,8 @@ object ModuleRegistry {
         addKSynInstrument(
             bundle = instruments,
             voiceDescription = BowedStringVoice.getVoiceDescription(),
-            name = "bowedString"
+            name = "bowedString",
+            numVoices = 4
         )
         val sounds = getOrCreateBundle(music, "sounds")
 
